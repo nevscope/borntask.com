@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Claude connected</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; box-sizing: border-box; padding: 40px 24px 56px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; align-items: center; gap: 28px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <svg width="28" height="28" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.035em;">borntask</span>
+  </div>
+  <section style="width: 100%; max-width: 520px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 16px; padding: 36px 32px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px;">
+    <svg width="200" height="74" viewBox="0 0 260 96" role="img" aria-label="Done"><circle cx="24" cy="56" r="9" fill="#178A5C" fill-opacity="0.35"></circle><circle cx="72" cy="56" r="14" fill="#178A5C" fill-opacity="0.65"></circle><path d="M124 56 L156 86 L236 12" fill="none" stroke="#178A5C" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.025em;">Claude is connected</h1>
+    <p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #3A3F38;">You can close this tab and go back to Claude. It can now read and update tasks in <strong>Scope Cloud Solutions</strong> as you.</p>
+    <div style="width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 12px; background: #FAFBF9; border: 1px solid #EEF0EC; text-align: left;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Try asking Claude</span>
+      <span style="font-size: 14px;">"What's blocking the Website relaunch this week?"</span>
+      <span style="font-size: 14px;">"Create a bug in WEB for the Safari checkout issue and assign it to Karl."</span>
+      <span style="font-size: 14px;">"Summarise what was deployed since Monday."</span>
+    </div>
+    <a href="ApiTokens.dc.html" style="display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid #E8EBE6; border-radius: 10px; color: #3A3F38; text-decoration: none; font-size: 13.5px;">Manage connected apps</a>
+  </section>
+  <section style="width: 100%; max-width: 520px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">How it shows up afterwards · Connected apps</span>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 0; border-bottom: 1px solid #EEF0EC;">
+      <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: #F1F2EF; font-size: 10px; font-weight: 600; color: #3A3F38;">[App]</span>
+      <span style="flex: 1 1 200px;"><span style="display: block; font-weight: 600;">Claude</span><span style="font-size: 12.5px; color: #5B6157;">Read and update · connected just now · last used just now</span></span>
+      <button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #B42323; cursor: pointer;">Disconnect</button>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 0;">
+      <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: #F1F2EF; font-size: 10px; font-weight: 600; color: #3A3F38;">[App]</span>
+      <span style="flex: 1 1 200px;"><span style="display: block; font-weight: 600;">Cursor</span><span style="font-size: 12.5px; color: #5B6157;">Read only · connected 1 Oct · last used 2 days ago</span></span>
+      <button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #B42323; cursor: pointer;">Disconnect</button>
+    </div>
+    <span style="font-size: 12.5px; color: #5B6157; line-height: 1.45;">Activity log entry: <em>Scope via Claude moved WEB-133 to Testing</em>.</span>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

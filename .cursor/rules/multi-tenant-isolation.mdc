@@ -1,0 +1,12 @@
+---
+description: Every query scoped by tenantId
+alwaysApply: true
+---
+
+# Multi-tenant isolation
+
+- Tenant = workspace. Every business row carries `tenantId`.
+- Use `createTenantClient(tenantId)` from `prisma/tenantClient.ts`. Raw Prisma is forbidden for business reads/writes outside seed, auth, platform jobs and isolation tests.
+- Middleware must set workspace + actor context.
+- Isolation tests in `tests/isolation` must fail if a scoped client can see another workspace's rows.
+- Do not rely on MySQL RLS.

@@ -1,0 +1,10 @@
+---
+description: Durable writes via MySQL transactions
+alwaysApply: true
+---
+
+# Durable persistence
+
+- Default store is MySQL via Prisma transactions.
+- Forbidden: JSON files as the source of truth for tasks or workflow.
+- Blob store only for attachments, keyed under `BLOB_ROOT`.

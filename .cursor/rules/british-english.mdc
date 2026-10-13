@@ -1,0 +1,9 @@
+---
+description: British English for BornTask copy
+alwaysApply: true
+---
+
+# British English
+
+Use en-GB for the product UI, emails and docs unless a workspace locale later demands otherwise.
+Examples: organisation, colour, authorised, favourites.

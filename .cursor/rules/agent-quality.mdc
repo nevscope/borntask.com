@@ -1,0 +1,12 @@
+---
+description: Evidence-based completion and systematic debugging
+alwaysApply: true
+---
+
+# Agent quality
+
+- Do not claim done or fixed without fresh evidence (typecheck, design:lint, test, or runtime check).
+- For UI work, `npm run design:lint` must be clean of errors.
+- Debug: reproduce → isolate → root cause → fix. Stop after three failed attempts and report.
+- Prefer focused diffs. No drive-by refactors.
+- Prefer absolute paths in tool calls.

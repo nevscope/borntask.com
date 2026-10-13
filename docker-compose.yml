@@ -1,0 +1,41 @@
+# Local data plane only. App processes run on the host via npm workspaces.
+# Ports avoid kerd (MySQL 3306, Redis 6379).
+
+name: borntask
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: borntask
+      MYSQL_USER: borntask
+      MYSQL_PASSWORD: borntask
+    ports:
+      - "3308:3306"
+    volumes:
+      - borntask_mysql:/var/lib/mysql
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uborntask", "-pborntask"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    volumes:
+      - borntask_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  borntask_mysql:
+  borntask_redis:

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Create a workspace</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; box-sizing: border-box; padding: 40px 24px 56px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; align-items: center; gap: 28px;">
+  <div style="width: 100%; max-width: 980px; display: flex; align-items: center; gap: 10px;">
+    <svg width="28" height="28" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="flex: 1; font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.035em;">borntask</span>
+    <span style="font-size: 13px; color: #5B6157;">Signed in as anna@[client-domain]</span>
+  </div>
+  <div style="width: 100%; max-width: 980px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+    <ol style="flex: 1 1 220px; max-width: 260px; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px;">
+      <li style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #CFE7DA; font-weight: 600;" aria-current="step"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #178A5C; color: #FFFFFF; font-size: 12px;">1</span>Your workspace</li>
+      <li style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; color: #5B6157;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #E8EBE6; font-size: 12px;">2</span>Invite your team</li>
+      <li style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; color: #5B6157;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #E8EBE6; font-size: 12px;">3</span>First project</li>
+      <li style="margin-top: 14px; padding: 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E8EBE6; font-size: 12.5px; line-height: 1.5; color: #3A3F38;"><strong>14-day free trial.</strong> Then €1 per member per month. Guests are always free. No card needed to start.</li>
+    </ol>
+    <section style="flex: 999 1 520px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 18px;">
+      <div><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Set up your workspace</h1><p style="margin: 8px 0 0; font-size: 14px; color: #3A3F38;">A workspace holds your team, projects and settings. You can change all of this later.</p></div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Company or team name<input type="text" value="Harbour Logistics" style="height: 42px; padding: 0 12px; border: 1px solid #178A5C; border-radius: 8px; font: inherit; font-size: 15px; font-weight: 400; box-shadow: 0 0 0 3px #E9F5EF; outline: none;"></label>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Web address<span style="display: flex; align-items: center; height: 42px; border: 1px solid #E8EBE6; border-radius: 8px; overflow: hidden; font-weight: 400;"><input type="text" value="harbour-logistics" aria-label="Workspace address" style="flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 0; font: inherit; font-size: 14px; outline: none;"><span style="padding: 0 12px; height: 42px; display: flex; align-items: center; background: #FAFBF9; border-left: 1px solid #E8EBE6; font-size: 13.5px; color: #5B6157;">.borntask.com</span></span><span style="font-size: 12.5px; font-weight: 400; color: #0F6B46;">Available</span></label>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px;"><legend style="padding: 0 0 8px; font-size: 13px; font-weight: 500;">How does your team work?</legend>
+        <label style="display: flex; gap: 12px; padding: 12px 14px; border: 1px solid #CFE7DA; border-radius: 10px; background: #F1F8F4;"><input type="radio" name="wf" checked style="width: 16px; height: 16px; margin-top: 2px; accent-color: #178A5C;"><span><span style="display: block; font-weight: 600;">Software delivery</span><span style="font-size: 12.5px; color: #3A3F38;">Idea → Approved → WIP → Ready for testing → Testing → Deployed, with roles</span></span></label>
+        <label style="display: flex; gap: 12px; padding: 12px 14px; border: 1px solid #E8EBE6; border-radius: 10px;"><input type="radio" name="wf" style="width: 16px; height: 16px; margin-top: 2px; accent-color: #178A5C;"><span><span style="display: block; font-weight: 600;">Simple tasks</span><span style="font-size: 12.5px; color: #5B6157;">To do → Doing → Done, anyone can move tasks</span></span></label>
+      </fieldset>
+      <label style="display: flex; align-items: center; gap: 10px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">Let anyone with an @[client-domain] Google or Microsoft account join without an invitation</label>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px;"><a href="WelcomeMember.dc.html" style="display: inline-flex; align-items: center; height: 42px; padding: 0 18px; border-radius: 10px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 600;">Continue</a></div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

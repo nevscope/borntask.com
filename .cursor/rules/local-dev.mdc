@@ -1,0 +1,13 @@
+---
+description: Local development — Compose ports that do not clash with kerd
+alwaysApply: true
+---
+
+# Local development
+
+- Data plane: `npm run compose:up` starts MySQL **3308** and Redis **6381**.
+- App on the host: `dev:api` **3010**, `dev:worker`, `dev:web` **5174**, `dev:mcp` stub **3011**.
+- Copy `.env.example` → `.env` and `apps/web/.env.example` → `apps/web/.env`.
+- Web defaults to `VITE_USE_MOCKS=true` until the API contract is wired.
+- Do not use kerd ports (3306/3307, 6379/6380, 3000, 5180).
+- Do not deploy unless asked. Plesk target is `app.borntask.com`.

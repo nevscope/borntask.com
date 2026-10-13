@@ -1,0 +1,11 @@
+---
+description: Keep UI screens thin — split sections; prefer shared components
+globs: apps/web/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# UI file structure
+
+- Screen/container: thin — routing, data hooks, composition (`apps/web/src/screens/*`).
+- Shared UI: prefer `apps/web/src/components/*` before inventing a one-off.
+- Do not rebuild My tasks, List, Board, Task drawer or Quick add from scratch.

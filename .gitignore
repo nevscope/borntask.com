@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.data/
+*.local
+.DS_Store
+Thumbs.db
+apps/web/dist/
+apps/*/node_modules/
+apps/*/dist/
+packages/*/dist/
+packages/*/node_modules/
+*.log
+.vite/
+.design-review/
+borntask-web.zip

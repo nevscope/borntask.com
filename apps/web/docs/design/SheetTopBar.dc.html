@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Notifications, menus, bulk actions</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Notifications, menus and bulk actions</h1><span style="font-size: 13.5px; color: #5B6157;">Everything that drops from the top bar, plus the bar that appears when rows are selected.</span></div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr) minmax(0, 0.9fr); gap: 28px 24px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Notifications · bell</span>
+      <div role="dialog" aria-label="Notifications" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.18); overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #EEF0EC;">
+          <span style="font-weight: 600;">Notifications</span>
+          <div role="tablist" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #F1F2EF;"><button type="button" role="tab" aria-selected="true" style="height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: #FFFFFF; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;">Unread 3</button><button type="button" role="tab" aria-selected="false" style="height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;">All</button></div>
+          <div style="flex: 1;"></div>
+          <button type="button" style="height: 30px; padding: 0 8px; border: 0; background: transparent; font: inherit; font-size: 12.5px; color: #0F6B46; font-weight: 600; cursor: pointer;">Mark all read</button>
+        </div>
+        <sc-for list="{{notes}}" as="n" hint-placeholder-count="5">
+          <a href="TaskDetail.dc.html" style="display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #EEF0EC; background: {{n.bg}}; color: #121417; text-decoration: none;">
+            <span style="flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: {{n.avBg}}; color: {{n.avFg}}; font-size: 11px; font-weight: 600;">{{n.ini}}</span>
+            <span style="flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; line-height: 1.4;"><span>{{n.text}}</span><span style="font-size: 12px; color: #5B6157;">{{n.task}} · {{n.when}}</span></span>
+            <span style="flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: {{n.dot}};"></span>
+          </a>
+        </sc-for>
+        <div style="padding: 10px 16px; font-size: 12.5px; color: #5B6157;">Choose what you hear about in <a href="ProfileSettings.dc.html">your profile</a>.</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 28px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Workspace switcher</span>
+        <div role="menu" aria-label="Workspaces" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.18); padding: 6px; display: flex; flex-direction: column; gap: 2px;">
+          <button type="button" role="menuitem" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 10px; border: 0; border-radius: 8px; background: #E9F5EF; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;"><span style="width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: #178A5C; color: #FFFFFF; font-size: 11px; font-weight: 600;">SC</span><span style="flex: 1;"><span style="display: block; font-weight: 600;">Scope Cloud Solutions</span><span style="font-size: 12px; color: #5B6157;">Owner</span></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F6B46" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></button>
+          <button type="button" role="menuitem" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;"><span style="width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: #EAF1FD; color: #1F55B8; font-size: 11px; font-weight: 600;">HL</span><span style="flex: 1;"><span style="display: block; font-weight: 500;">Harbour Logistics</span><span style="font-size: 12px; color: #5B6157;">Guest · 1 project</span></span></button>
+          <div style="height: 1px; margin: 4px 6px; background: #EEF0EC;"></div>
+          <a href="WorkspaceGeneral.dc.html" role="menuitem" style="display: flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 13.5px; color: #3A3F38; text-decoration: none;">Workspace settings</a>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Avatar menu</span>
+        <div role="menu" aria-label="Account" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.18); padding: 6px; display: flex; flex-direction: column; gap: 2px;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px;"><span style="width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span><span><span style="display: block; font-weight: 600;">Scope</span><span style="font-size: 12.5px; color: #5B6157;">owner@[your-domain] · Google</span></span></div>
+          <div style="height: 1px; margin: 0 6px 4px; background: #EEF0EC;"></div>
+          <a href="ProfileSettings.dc.html" role="menuitem" style="display: flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 8px; color: #121417; text-decoration: none; font-size: 13.5px;">Profile and notifications</a>
+          <a href="ApiTokens.dc.html" role="menuitem" style="display: flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 8px; color: #121417; text-decoration: none; font-size: 13.5px;">Connected apps and tokens</a>
+          <button type="button" role="menuitem" style="display: flex; align-items: center; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;"><span style="flex: 1;">Keyboard shortcuts</span><kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; color: #5B6157;">?</kbd></button>
+          <div style="height: 1px; margin: 4px 6px; background: #EEF0EC;"></div>
+          <a href="SignIn.dc.html" role="menuitem" style="display: flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 8px; color: #B42323; text-decoration: none; font-size: 13.5px;">Sign out</a>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Keyboard shortcuts · ?</span>
+      <div role="dialog" aria-label="Keyboard shortcuts" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.18); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+        <sc-for list="{{keys}}" as="k" hint-placeholder-count="10"><div style="display: flex; align-items: center; gap: 8px; min-height: 28px;"><span style="flex: 1; color: #3A3F38;">{{k.label}}</span><kbd style="font-family: inherit; font-size: 11.5px; padding: 1px 7px; border: 1px solid #DDE1DA; border-radius: 5px; background: #FAFBF9;">{{k.key}}</kbd></div></sc-for>
+      </div>
+    </div>
+    <div style="grid-column: span 3; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Bulk actions · appears when rows are selected in the list</span>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: #121417; color: #FFFFFF; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.35); max-width: 1000px;">
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 13.5px; font-weight: 600;"><span style="width: 18px; height: 18px; border-radius: 5px; background: #178A5C; display: grid; place-items: center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>3 selected</span>
+        <span style="width: 1px; height: 22px; background: #3A3F38;"></span>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2A2E28; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Move to…</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2A2E28; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Assign</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2A2E28; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Due date</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2A2E28; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Section</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #2A2E28; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Labels</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #F3B5B5; font: inherit; font-size: 13px; cursor: pointer;">Delete</button>
+        <div style="flex: 1;"></div>
+        <span style="font-size: 12px; color: #B9BEB6;">"Move to" only offers stages allowed for every selected task</span>
+        <kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #4A4F48; border-radius: 5px; color: #B9BEB6;">Esc</kbd>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const unread = (n) => ({ ...n, bg: n.read ? '#FFFFFF' : '#F6FBF8', dot: n.read ? 'transparent' : '#178A5C' });
+    return {
+      notes: [
+        { ini: 'MB', avBg: '#D8EAF8', avFg: '#1F55B8', text: 'Maria Borg mentioned you: "still failing when the card needs 3-D Secure"', task: 'WEB-142', when: '35 min ago' },
+        { ini: 'LC', avBg: '#F7E3D7', avFg: '#A04A0C', text: 'Luke Camilleri assigned you Add Apple Pay to checkout', task: 'WEB-139', when: '2 h ago' },
+        { ini: 'KF', avBg: '#E1F1E8', avFg: '#0F6B46', text: 'Karl Farrugia moved Lazy-load hero images to Ready for testing', task: 'WEB-133', when: '3 h ago' },
+        { ini: 'JZ', avBg: '#FFF0E5', avFg: '#A04A0C', text: 'Joanna Zammit accepted your invitation to Harbour Logistics portal', task: 'HLP', when: 'Yesterday', read: true },
+        { ini: 'GH', avBg: '#121417', avFg: '#FFFFFF', text: 'Pull request #212 merged, WEB-128 moved to Deployed', task: 'WEB-128', when: 'Thu', read: true }
+      ].map(unread),
+      keys: [
+        { label: 'New task', key: 'Q' }, { label: 'Search', key: '/' }, { label: 'Command palette', key: 'Ctrl K' },
+        { label: 'Go to My tasks', key: 'G M' }, { label: 'Switch list / board', key: 'V' }, { label: 'Assign to me', key: 'I' },
+        { label: 'Set due date', key: 'D' }, { label: 'Change status', key: 'S' }, { label: 'Priority', key: '1 – 4' }, { label: 'Open selected task', key: 'Enter' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

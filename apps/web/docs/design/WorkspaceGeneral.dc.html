@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Workspace general settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: #121417; text-decoration: none;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></a>
+    <span style="width: 1px; height: 20px; background: #E8EBE6;"></span>
+    <a href="Main.dc.html" style="flex: 1; color: #5B6157; text-decoration: none; font-size: 13.5px;">← Back to My tasks</a>
+    <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; max-width: 1240px; margin: 0 auto;">
+    <nav aria-label="Settings" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px;">
+      <div style="padding: 0 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Website relaunch</div>
+      <a href="ProjectMembers.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Members</a>
+      <a href="ProjectStructure.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Sections, types and trash</a>
+      <a href="WorkflowEditor.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Workflow</a>
+      <a href="GoogleChat.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Google Chat</a>
+      <a href="GitHubSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">GitHub</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Workspace</div>
+      <a href="WorkspaceGeneral.dc.html" aria-current="page" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none;">General</a>
+      <a href="AdminPeople.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">People and invitations</a>
+      <a href="AdminDefaults.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Roles, types and workflows</a>
+      <a href="AdminBilling.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Billing</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">You</div>
+      <a href="ProfileSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Profile and notifications</a>
+      <a href="ApiTokens.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">API tokens and MCP</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+      <div><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Workspace</h1><p style="margin: 6px 0 0; font-size: 13.5px; color: #5B6157;">Owners and admins only.</p></div>
+      <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 18px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;"><span style="width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center; background: #178A5C; color: #FFFFFF; font-size: 20px; font-weight: 600;">SC</span><button type="button" style="height: 30px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 12.5px; cursor: pointer;">Upload logo</button></div>
+        <div style="flex: 1 1 360px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Workspace name<input type="text" value="Scope Cloud Solutions" style="height: 38px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400;"></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Web address<span style="display: flex; align-items: center; height: 38px; border: 1px solid #E8EBE6; border-radius: 8px; overflow: hidden; font-weight: 400;"><input type="text" value="scope" aria-label="Workspace address" style="flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 0; font: inherit; font-size: 14px; outline: none;"><span style="padding: 0 10px; height: 38px; display: flex; align-items: center; background: #FAFBF9; border-left: 1px solid #E8EBE6; font-size: 13px; color: #5B6157;">.borntask.com</span></span></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Default time zone<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Europe/Malta</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Week starts on<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Monday</option><option>Sunday</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Default workflow for new projects<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Delivery</option><option>Simple</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Bugs start in<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Approved (skip approval)</option><option>Idea (needs approval)</option></select></label>
+        </div>
+      </section>
+      <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Security</h2>
+        <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">Allow sign-in with Google</label>
+        <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">Allow sign-in with Microsoft <span style="font-size: 12.5px; color: #5B6157;">(needed for most client guests)</span></label>
+        <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #178A5C;">Members can invite guests <span style="font-size: 12.5px; color: #5B6157;">(otherwise only admins and project leads)</span></label>
+      </section>
+      <section style="background: #FFFFFF; border: 1px solid #F3C4C4; border-radius: 12px; padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+        <span style="flex: 1 1 320px;"><span style="display: block; font-weight: 600; color: #B42323;">Delete workspace</span><span style="font-size: 13px; color: #5B6157;">Removes every project, task and file after 30 days. Owners only, and you'll be asked to type the workspace name.</span></span>
+        <button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #F3C4C4; border-radius: 8px; background: #FFFFFF; color: #B42323; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Delete workspace…</button>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

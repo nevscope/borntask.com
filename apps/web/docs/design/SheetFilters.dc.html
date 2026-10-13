@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Filters, saved views, blocked move</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Filters, saved views and a blocked move</h1><span style="font-size: 13.5px; color: #5B6157;">One filter model for list, board, My tasks and search. View state lives in the URL.</span></div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 28px 32px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Filter builder · opened from "Filter"</span>
+      <div style="position: relative; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.18); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 56px 160px 150px minmax(0, 1fr) 34px; gap: 8px; align-items: center; font-size: 13px;">
+          <span style="color: #5B6157;">Where</span>
+          <select aria-label="Field" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>Type</option></select>
+          <select aria-label="Operator" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>is any of</option></select>
+          <span style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 34px; align-items: center; padding: 0 6px; border: 1px solid #E8EBE6; border-radius: 8px;"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: #FDECEC; color: #B42323;">Bug</span><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: #EAF1FD; color: #1F55B8;">Feature</span></span>
+          <button type="button" aria-label="Remove condition" style="width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: #5B6157; cursor: pointer;">×</button>
+          <span style="color: #5B6157;">and</span>
+          <select aria-label="Field" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>Status category</option></select>
+          <select aria-label="Operator" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>is not</option></select>
+          <span style="display: flex; align-items: center; min-height: 34px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px;">Done</span>
+          <button type="button" aria-label="Remove condition" style="width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: #5B6157; cursor: pointer;">×</button>
+          <span style="color: #5B6157;">and</span>
+          <select aria-label="Field" style="height: 34px; padding: 0 8px; border: 1px solid #178A5C; border-radius: 8px; font: inherit; background: #FFFFFF; box-shadow: 0 0 0 3px #E9F5EF;"><option>Assignee</option></select>
+          <select aria-label="Operator" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; background: #FFFFFF;"><option>is</option></select>
+          <span style="display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px;">Me</span>
+          <button type="button" aria-label="Remove condition" style="width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: #5B6157; cursor: pointer;">×</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid #EEF0EC;">
+          <button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: #0F6B46; cursor: pointer;">+ Add condition</button>
+          <div style="flex: 1;"></div>
+          <button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #5B6157; cursor: pointer;">Clear all</button>
+          <span style="font-size: 12.5px; color: #3A3F38;"><strong>7</strong> tasks match</span>
+        </div>
+        <div style="position: absolute; left: 70px; top: 162px; width: 220px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 10px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.22); padding: 6px; display: flex; flex-direction: column; gap: 1px; font-size: 13px;">
+          <sc-for list="{{fields}}" as="f" hint-placeholder-count="10"><span style="display: flex; align-items: center; min-height: 30px; padding: 0 10px; border-radius: 7px; background: {{f.bg}};">{{f.name}}</span></sc-for>
+        </div>
+      </div>
+      <span style="font-size: 12.5px; color: #5B6157; line-height: 1.45; margin-top: 118px;">Fields: type, status, status category, section, assignee (me, unassigned), reporter, assignee's project role, priority, labels, due date (overdue, this week, range, none), created, updated, text.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Save view</span>
+      <div role="dialog" aria-label="Save view" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); overflow: hidden;">
+        <div style="padding: 16px 18px; border-bottom: 1px solid #EEF0EC; font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">Save this view</div>
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Name<input type="text" value="My open bugs and features" style="height: 38px; padding: 0 12px; border: 1px solid #178A5C; border-radius: 8px; font: inherit; font-size: 14px; box-shadow: 0 0 0 3px #E9F5EF; outline: none;"></label>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12.5px; color: #3A3F38;"><span style="padding: 3px 8px; border-radius: 6px; background: #F1F2EF;">List</span><span style="padding: 3px 8px; border-radius: 6px; background: #F1F2EF;">Grouped by section</span><span style="padding: 3px 8px; border-radius: 6px; background: #F1F2EF;">3 filters</span><span style="padding: 3px 8px; border-radius: 6px; background: #F1F2EF;">Sorted by due date</span></div>
+          <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px;"><legend style="padding: 0 0 6px; font-size: 13px; font-weight: 500;">Who sees it</legend>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 34px; font-size: 13.5px;"><input type="radio" name="vis" checked style="width: 16px; height: 16px; accent-color: #178A5C;">Only me</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 34px; font-size: 13.5px;"><input type="radio" name="vis" style="width: 16px; height: 16px; accent-color: #178A5C;">Everyone on Website relaunch <span style="font-size: 12px; color: #5B6157;">(project leads only)</span></label>
+          </fieldset>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #EEF0EC;"><button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Save view</button></div>
+      </div>
+    </div>
+    <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Blocked move · a Developer drags a card into Testing</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+        <div style="display: flex; gap: 12px;">
+          <div style="width: 240px; padding: 10px; border-radius: 12px; background: #F0F2EE; border: 1px solid #E8EBE6; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #C98A1A;"></span>Ready for testing<span style="font-weight: 500; color: #5B6157;">1</span></div>
+            <div style="height: 88px; border: 1.5px dashed #178A5C; border-radius: 10px; background: #F1F8F4; display: grid; place-items: center; font-size: 12.5px; color: #0F6B46;">Card returns here</div>
+          </div>
+          <div style="width: 240px; padding: 10px; border-radius: 12px; background: #FDF1F1; border: 1.5px dashed #E3A3A3; display: flex; flex-direction: column; gap: 8px; position: relative;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E0731F;"></span>Testing<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 500; color: #B42323;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Testers only</span></div>
+            <div style="padding: 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E8EBE6; box-shadow: 0 12px 24px -10px rgba(18,20,23,0.3); transform: rotate(-2deg); display: flex; flex-direction: column; gap: 8px; opacity: 0.92;">
+              <span style="display: flex; gap: 8px; align-items: center;"><span style="font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 5px; background: #FDF3E2; color: #8A5A0B;">Improvement</span><span style="font-size: 12px; color: #5B6157;">WEB-133</span></span>
+              <span style="font-size: 13.5px; font-weight: 500;">Lazy-load hero and product images</span>
+            </div>
+          </div>
+        </div>
+        <div role="alert" style="flex: 1 1 380px; max-width: 520px; display: flex; gap: 12px; padding: 14px 16px; background: #121417; color: #FFFFFF; border-radius: 12px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.35);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F3B5B5" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 1px;"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.45;">
+            <span>Only <strong>Testers</strong> can move tasks into Testing. WEB-133 stays in Ready for testing.</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;"><button type="button" style="height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: #FFFFFF; color: #121417; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Ask Maria Borg to test</button><button type="button" style="height: 32px; padding: 0 12px; border: 1px solid #4A4F48; border-radius: 7px; background: transparent; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Override as lead…</button></div>
+            <span style="font-size: 12px; color: #B9BEB6;">"Ask" @mentions the project's testers in a comment. Override appears only for project leads and admins, needs a reason, and is logged.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const names = ['Type', 'Status', 'Status category', 'Section', 'Assignee', 'Assignee role', 'Priority', 'Labels', 'Due date', 'Text'];
+    return { fields: names.map((n) => ({ name: n, bg: n === 'Assignee' ? '#E9F5EF' : 'transparent' })) };
+  }
+}
+</script>
+</body>
+</html>

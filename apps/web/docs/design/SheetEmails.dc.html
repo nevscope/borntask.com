@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Emails</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #EEF0EC; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Emails</h1><span style="font-size: 13.5px; color: #5B6157;">600 px wide, single column, plain text version always sent too. Sender: BornTask &lt;notify@borntask.com&gt;.</span></div>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+      <span style="align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Invitation · subject: "Maria Borg invited you to Harbour Logistics portal"</span>
+      <div style="width: 600px; max-width: 100%; background: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #DDE1DA;">
+        <div style="padding: 28px 36px 0; display: flex; align-items: center; gap: 10px;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></div>
+        <div style="padding: 28px 36px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3;">Maria Borg invited you to Harbour Logistics portal</span>
+          <span style="font-size: 15px; line-height: 1.55; color: #262A24;">You've been added as <strong>Business</strong> at Scope Cloud Solutions. You'll be able to raise ideas, approve work and follow progress.</span>
+          <div style="padding: 12px 16px; border-left: 3px solid #CFE7DA; background: #F7F8F6; font-size: 14.5px; line-height: 1.5; color: #3A3F38;">"Welcome aboard, this is where we track the portal build."</div>
+          <a href="AcceptInvite.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; height: 46px; padding: 0 22px; border-radius: 10px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 600;">Accept invitation</a>
+          <span style="font-size: 13px; line-height: 1.5; color: #5B6157;">Sign in with Google or Microsoft as <strong style="color: #3A3F38;">ops@[client-domain]</strong>. This link works once and expires on Sat 17 Oct.</span>
+        </div>
+        <div style="padding: 16px 36px; background: #F7F8F6; font-size: 12px; line-height: 1.5; color: #5B6157;">You received this because Maria Borg invited this address. If you weren't expecting it, you can ignore this email.</div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+      <span style="align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Daily digest · subject: "Today: 2 due, 1 mention"</span>
+      <div style="width: 600px; max-width: 100%; background: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #DDE1DA;">
+        <div style="padding: 28px 36px 0; display: flex; align-items: center; gap: 10px;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span><span style="margin-left: auto; font-size: 13px; color: #5B6157;">Mon 12 Oct</span></div>
+        <div style="padding: 24px 36px; display: flex; flex-direction: column; gap: 18px;">
+          <span style="font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.02em;">Good morning, Maria</span>
+          <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #B42323;">Due today</span>
+            <a href="TaskDetail.dc.html" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #EEF0EC; color: #121417; text-decoration: none; font-size: 14.5px;"><span style="color: #5B6157; width: 64px;">WEB-142</span><span style="flex: 1;">Checkout fails on Safari 17</span><span style="color: #A04A0C; font-size: 13px;">Testing</span></a>
+            <a href="TaskDetail.dc.html" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #EEF0EC; color: #121417; text-decoration: none; font-size: 14.5px;"><span style="color: #5B6157; width: 64px;">MOB-27</span><span style="flex: 1;">Review push notification copy</span><span style="color: #8A5A0B; font-size: 13px;">Ready for testing</span></a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Mentions</span>
+            <div style="padding: 10px 0; font-size: 14.5px; line-height: 1.5;"><strong>Karl Farrugia</strong> on WEB-133: "@Maria ready when you are, staging is updated."</div>
+          </div>
+          <a href="Main.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border-radius: 10px; background: #121417; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 600;">Open My tasks</a>
+        </div>
+        <div style="padding: 16px 36px; background: #F7F8F6; font-size: 12px; color: #5B6157;">Sent at 08:00 on workdays. <a href="ProfileSettings.dc.html">Change email settings</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

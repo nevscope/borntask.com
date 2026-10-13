@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Google Chat notifications</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: #121417; text-decoration: none;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></a>
+    <span style="width: 1px; height: 20px; background: #E8EBE6;"></span>
+    <a href="ListView.dc.html" style="flex: 1; color: #5B6157; text-decoration: none; font-size: 13.5px;">← Back to Website relaunch</a>
+    <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; max-width: 1240px; margin: 0 auto;">
+    <nav aria-label="Settings" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px;">
+      <div style="padding: 0 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Website relaunch</div>
+      <a href="ProjectMembers.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Members</a>
+      <a href="ProjectStructure.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Sections, types and trash</a>
+      <a href="WorkflowEditor.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Workflow</a>
+      <a href="GoogleChat.dc.html" aria-current="page" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none;">Google Chat</a>
+      <a href="GitHubSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">GitHub</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Workspace</div>
+      <a href="WorkspaceGeneral.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">General</a>
+      <a href="AdminPeople.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">People and invitations</a>
+      <a href="AdminDefaults.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Roles, types and workflows</a>
+      <a href="AdminBilling.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Billing</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">You</div>
+      <a href="ProfileSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Profile and notifications</a>
+      <a href="ApiTokens.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">API tokens and MCP</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+      <div><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Google Chat</h1><p style="margin: 6px 0 0; font-size: 13.5px; color: #5B6157;">Post task updates from this project into a Chat space.</p></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <section style="flex: 999 1 420px; min-width: 0; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #E9F5EF; color: #0F6B46; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #178A5C;"></span><span style="flex: 1;"><strong>Connected</strong> to the space "Website team" · last post 12 min ago</span></div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Webhook URL<input type="text" value="https://chat.googleapis.com/v1/spaces/••••••/messages?key=••••" style="height: 40px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13.5px; color: #3A3F38;"><span style="font-weight: 400; font-size: 12.5px; color: #5B6157;">In Google Chat: open the space, then Apps and integrations, then Webhooks. Stored encrypted.</span></label>
+          <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px;">
+            <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 500;">Send a message when</legend>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">A task is assigned to someone</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">A task moves to Ready for testing</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">A task is deployed</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;">Someone is @mentioned in a comment</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #178A5C;">Any status change</label>
+            <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #178A5C;">A new idea is created</label>
+          </fieldset>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" style="height: 38px; padding: 0 14px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;">Save</button>
+            <button type="button" style="height: 38px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13.5px; cursor: pointer;">Send test message</button>
+            <button type="button" style="height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; color: #B42323; cursor: pointer;">Disconnect</button>
+          </div>
+        </section>
+        <aside style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Message preview</span>
+          <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 14px; display: flex; gap: 10px;">
+            <svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true" style="flex: none;"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+              <span style="font-size: 13px;"><strong>BornTask</strong> <span style="color: #5B6157;">· App · 14:32</span></span>
+              <div style="border: 1px solid #E8EBE6; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 12px; color: #5B6157;">Website relaunch · WEB-133</span>
+                <span style="font-weight: 600;">Lazy-load hero and product images</span>
+                <span style="font-size: 13px; color: #3A3F38;">Karl Farrugia moved it to <strong style="color: #8A5A0B;">Ready for testing</strong>. Testers: Maria Borg.</span>
+                <span style="display: inline-flex; align-self: flex-start; height: 30px; align-items: center; padding: 0 12px; margin-top: 4px; border-radius: 7px; border: 1px solid #CFE7DA; color: #0F6B46; font-size: 13px; font-weight: 600;">Open task</span>
+              </div>
+            </div>
+          </div>
+          <p style="margin: 0; font-size: 12.5px; color: #5B6157; line-height: 1.5;">Webhooks only post into the space. Creating tasks from a Chat message needs the BornTask Chat app (planned for v2).</p>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

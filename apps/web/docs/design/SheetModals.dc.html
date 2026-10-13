@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Invite and confirmations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Invite and confirmations</h1><span style="font-size: 13.5px; color: #5B6157;">Confirm only what can't be undone or affects other people. Everything else is instant with Undo.</span></div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px 32px; align-items: start;">
+    <div style="grid-row: span 2; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Invite people</span>
+      <div role="dialog" aria-label="Invite people" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); overflow: hidden;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #EEF0EC; font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">Invite people</div>
+        <div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 16px;">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Email addresses
+            <span style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 42px; align-items: center; padding: 4px 8px; border: 1px solid #178A5C; border-radius: 8px; box-shadow: 0 0 0 3px #E9F5EF;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-radius: 6px; background: #F1F2EF; font-size: 13px; font-weight: 400;">anna@[your-domain]<span aria-hidden="true" style="color: #5B6157;">×</span></span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-radius: 6px; background: #FDF3E2; color: #8A5A0B; font-size: 13px; font-weight: 400;">ops@[client-domain] · guest<span aria-hidden="true">×</span></span>
+              <input type="text" aria-label="Add another email" placeholder="Add more, separated by commas" style="flex: 1 1 160px; border: 0; font: inherit; font-size: 13.5px; font-weight: 400; outline: none;">
+            </span>
+          </label>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Workspace role<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Member</option><option>Admin</option><option>Viewer</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Add to project<select style="height: 38px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Website relaunch</option><option>No project</option></select></label>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;"><span style="font-size: 13px; font-weight: 500;">Project roles</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <button type="button" aria-pressed="false" style="height: 30px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Business</button>
+              <button type="button" aria-pressed="true" style="height: 30px; padding: 0 10px; border: 1px solid #BFD3F5; border-radius: 7px; background: #EAF1FD; color: #1F55B8; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Developer</button>
+              <button type="button" aria-pressed="false" style="height: 30px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Tester</button>
+              <button type="button" aria-pressed="false" style="height: 30px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Observer</button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #FFFBF2; border: 1px solid #F1D6A6; font-size: 13px; line-height: 1.45; color: #5C3D07;">ops@[client-domain] is outside your domain, so it joins as a <strong>Guest</strong>: Website relaunch only, no member directory.</div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Message <span style="font-weight: 400; color: #5B6157;">(optional, shown in the email)</span><textarea rows="2" style="padding: 10px 12px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 400; resize: vertical;">Welcome aboard, this is where we track the relaunch.</textarea></label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid #EEF0EC;"><span style="flex: 1; font-size: 12.5px; color: #5B6157;">Invitations expire after 7 days</span><button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Send 2 invitations</button></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Delete a task · no dialog, just Undo</span>
+      <div role="status" style="display: flex; flex-direction: column; overflow: hidden; background: #121417; color: #FFFFFF; border-radius: 10px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.35);">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; font-size: 13.5px;"><span style="flex: 1;"><strong>WEB-150</strong> moved to Trash</span><button type="button" style="height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: #FFFFFF; color: #121417; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Undo</button><kbd style="font-family: inherit; font-size: 11px; color: #B9BEB6;">Ctrl Z</kbd></div>
+        <div style="height: 3px; background: #2A2E28;"><div style="width: 62%; height: 3px; background: #2FBF84;"></div></div>
+      </div>
+      <div role="alertdialog" aria-label="Delete task with subtasks" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 600;">Delete WEB-139 and its 3 subtasks?</span>
+        <span style="font-size: 13.5px; line-height: 1.5; color: #3A3F38;">They go to Trash for 30 days, and Luke Camilleri and Karl Farrugia are told.</span>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;"><button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #B42323; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Move 4 to Trash</button></div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Delete a section</span>
+        <div role="alertdialog" aria-label="Delete section" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 600;">Delete "Checkout"?</span>
+          <span style="font-size: 13px; line-height: 1.45; color: #3A3F38;">It has 9 tasks. Move them to</span>
+          <select aria-label="Move tasks to section" style="height: 34px; padding: 0 8px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13px; background: #FFFFFF;"><option>Platform</option><option>Homepage</option></select>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;"><button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #B42323; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Delete section</button></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Remove a member</span>
+        <div role="alertdialog" aria-label="Remove member" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 600;">Remove Karl from Website relaunch?</span>
+          <span style="font-size: 13px; line-height: 1.45; color: #3A3F38;">His 4 open tasks become unassigned. His comments and history stay.</span>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;"><button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #B42323; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Remove</button></div>
+        </div>
+      </div>
+      <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Revoke an API token or connected app</span>
+        <div role="alertdialog" aria-label="Revoke token" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+          <span style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 4px;"><span style="font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 600;">Disconnect "Cursor"?</span><span style="font-size: 13px; color: #3A3F38;">Anything using it stops working immediately. This can't be undone.</span></span>
+          <button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #B42323; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Disconnect</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+---
+description: BornTask brand — green, DM Sans, Sora. Not kerd saffron.
+alwaysApply: true
+---
+
+# BornTask brand
+
+- Product name: **BornTask** (not Born Task, not borntask in UI copy except domains).
+- Brand green `#178A5C` (`color.brand`). Strong `#0F6B46`. Tint `#E9F5EF`.
+- UI font: DM Sans. Display: Sora. Use `font.ui` / `font.display` from `apps/web/src/theme/tokens.ts`.
+- Do not use kerd saffron (`#ffc629`), Archivo, or kerd token names (`--kd-*`).
+- No emoji in product UI. Use the SVG icons already in `apps/web/src/components/Chips.tsx`.
+- No new raw hex in screens. Add a token first, or use an existing one.
+- British English in UI copy (organisation, colour, authorised, favourites).
+- Hyphen `-` only in copy. No em dash or en dash.

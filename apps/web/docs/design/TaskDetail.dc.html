@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – WEB-142 task detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="position: relative; min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; overflow: hidden;">
+  <div aria-hidden="true" style="display: flex; flex-wrap: wrap; min-height: 900px;">
+    <div style="flex: 1 1 232px; max-width: 272px; background: #FFFFFF; border-right: 1px solid #E8EBE6; padding: 20px 22px; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 10px;"><svg width="26" height="26" viewBox="0 0 48 48"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></div>
+    </div>
+    <div style="flex: 999 1 560px; padding: 96px 28px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="height: 28px; width: 260px; border-radius: 6px; background: #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #E9F5EF; border: 1px solid #CFE7DA;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+    </div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(18, 20, 23, 0.18);"></div>
+  <aside role="dialog" aria-label="Task WEB-142" style="position: absolute; top: 0; right: 0; bottom: 0; width: 100%; max-width: 600px; background: #FFFFFF; border-left: 1px solid #E8EBE6; display: flex; flex-direction: column; overflow-y: auto;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid #EEF0EC; font-size: 12.5px; color: #5B6157;">
+      <a href="ListView.dc.html" style="color: #5B6157; text-decoration: none;">Website relaunch</a><span>/</span><span>Checkout</span><span>/</span><span style="color: #121417; font-weight: 600;">WEB-142</span><span role="status" style="display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; color: #0F6B46;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Saved</span>
+      <div style="flex: 1;"></div>
+      <button type="button" aria-label="Copy link to task" style="width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #3A3F38; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg></button>
+      <button type="button" aria-label="More actions" style="width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #3A3F38; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+      <a href="ListView.dc.html" aria-label="Close" style="width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; color: #3A3F38;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+    </div>
+    <div style="padding: 20px 24px 8px; display: flex; flex-direction: column; gap: 14px;">
+      <label style="display: block; margin: 0 -8px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Task title</span><input type="text" value="Checkout fails on Safari 17" style="width: 100%; box-sizing: border-box; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; background: #FAFBF9; font: inherit; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.025em; color: #121417; outline: none;"></label>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid #F6D3B8; border-radius: 999px; background: #FFF0E5; color: #A04A0C; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #E0731F;"></span>Testing<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+        <span style="font-size: 12.5px; color: #5B6157;">You can:</span>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Pass · Deployed</button>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; color: #3A3F38; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">Fail · back to WIP</button>
+        <button type="button" style="height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #5B6157; font: inherit; font-size: 13px; cursor: pointer;">On hold</button>
+      </div>
+      <dl style="margin: 4px 0 0; display: grid; grid-template-columns: 112px minmax(0, 1fr); row-gap: 4px; align-items: center; font-size: 13.5px;">
+        <dt style="color: #5B6157;">Type</dt><dd style="margin: 0; padding: 6px 0;"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: #FDECEC; color: #B42323;">Bug</span></dd>
+        <dt style="color: #5B6157;">Assignee</dt><dd style="margin: 0 -8px; padding: 0;"><a href="SheetPickers.dc.html" aria-label="Change assignee, currently Maria Borg" style="display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border-radius: 8px; background: #F1F2EF; color: #121417; text-decoration: none;"><span style="width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #D8EAF8; color: #1F55B8; font-size: 10.5px; font-weight: 600;">MB</span>Maria Borg <span style="font-size: 12px; color: #5B6157;">· Tester</span><span style="margin-left: auto; font-size: 12px; color: #5B6157;">Change</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5B6157" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></a></dd>
+        <dt style="color: #5B6157;">Due</dt><dd style="margin: 0; padding: 6px 0; color: #0F6B46; font-weight: 600;">Today, 11 Oct</dd>
+        <dt style="color: #5B6157;">Priority</dt><dd style="margin: 0; padding: 6px 0; display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #B42323;"></span>Urgent</dd>
+        <dt style="color: #5B6157;">Section</dt><dd style="margin: 0; padding: 6px 0;">Checkout</dd>
+        <dt style="color: #5B6157;">Labels</dt><dd style="margin: 0; padding: 4px 0; display: flex; gap: 6px;"><span style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F1F2EF; color: #3A3F38;">safari</span><span style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F1F2EF; color: #3A3F38;">payments</span><button type="button" aria-label="Add label" style="height: 24px; padding: 0 8px; border: 1px dashed #CDD2C9; border-radius: 6px; background: transparent; font: inherit; font-size: 12px; color: #5B6157; cursor: pointer;">+</button></dd>
+        <dt style="color: #5B6157;">Reporter</dt><dd style="margin: 0; padding: 6px 0; color: #3A3F38;">Daniela Vella · 3 Oct</dd>
+      </dl>
+    </div>
+    <div style="padding: 8px 24px 16px; display: flex; flex-direction: column; gap: 10px;">
+      <h3 style="margin: 0; font-size: 13px; font-weight: 600; color: #5B6157; text-transform: uppercase; letter-spacing: 0.04em;">Description</h3>
+      <div role="toolbar" aria-label="Formatting" style="display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px; border: 1px solid #178A5C; border-bottom: 0; border-radius: 10px 10px 0 0; background: #FAFBF9;">
+        <button type="button" aria-label="Bold" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-weight: 700; cursor: pointer;">B</button>
+        <button type="button" aria-label="Italic" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-style: italic; cursor: pointer;">I</button>
+        <button type="button" aria-label="Numbered list" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: #E9F5EF; font: inherit; font-size: 12px; cursor: pointer;">1.</button>
+        <button type="button" aria-label="Bulleted list" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; cursor: pointer;">•</button>
+        <button type="button" aria-label="Code" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font-family: ui-monospace, Menlo, monospace; font-size: 12px; cursor: pointer;">&lt;/&gt;</button>
+        <button type="button" aria-label="Link" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 12px; cursor: pointer;">Link</button>
+        <button type="button" aria-label="Mention someone" style="width: 32px; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; cursor: pointer;">@</button>
+        <span style="flex: 1;"></span>
+        <span style="padding: 0 6px; font-size: 12px; color: #5B6157;">Paste images straight in</span>
+      </div>
+      <div style="margin-top: -10px; padding: 12px 14px; border: 1px solid #178A5C; border-radius: 0 0 10px 10px; box-shadow: 0 0 0 3px #E9F5EF; font-size: 14px; line-height: 1.55; color: #262A24;">
+        <p style="margin: 0 0 6px; font-weight: 600;">Steps to reproduce</p>
+        <ol style="margin: 0 0 10px; padding-left: 20px;"><li>Open the site in Safari 17 on macOS</li><li>Add any product to the basket</li><li>Pay by card with 3-D Secure</li></ol>
+        <p style="margin: 0;"><strong>Expected:</strong> the bank's 3-D Secure window opens. <strong>Actual:</strong> the page reloads and the basket empties.</p>
+      </div>
+    </div>
+    <div style="padding: 0 24px 16px; display: flex; flex-direction: column; gap: 6px;">
+      <h3 style="margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #5B6157; text-transform: uppercase; letter-spacing: 0.04em;">Subtasks <span style="text-transform: none; font-weight: 500;">1/2</span></h3>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px; color: #5B6157;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #178A5C;"><span style="text-decoration: line-through;">Reproduce on BrowserStack</span></label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #178A5C;">Retest with 3-D Secure test cards</label>
+      <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px; color: #5B6157;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Add a subtask</span><input type="text" placeholder="Add a subtask and press Enter" style="flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 1px dashed #CDD2C9; border-radius: 7px; font: inherit; font-size: 13.5px; outline: none;"></label>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+        <span style="display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; font-size: 13px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M4 15l4-4 4 4 3-3 5 5"></path></svg>safari-console.png <span style="color: #5B6157;">84 KB</span></span>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 1px dashed #CDD2C9; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #5B6157; cursor: pointer;">Attach file</button>
+      </div>
+    </div>
+    <div style="border-top: 1px solid #EEF0EC; padding: 14px 24px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1;">
+      <div role="tablist" style="display: flex; gap: 16px; font-size: 13.5px;">
+        <button type="button" role="tab" aria-selected="true" style="height: 32px; padding: 0; border: 0; border-bottom: 2px solid #178A5C; background: transparent; font: inherit; font-weight: 600; color: #121417; cursor: pointer;">Comments 2</button>
+        <button type="button" role="tab" aria-selected="false" style="height: 32px; padding: 0; border: 0; background: transparent; font: inherit; color: #5B6157; cursor: pointer;">Activity</button>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <span style="flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #E1F1E8; color: #0F6B46; font-size: 11px; font-weight: 600;">KF</span>
+        <div style="font-size: 13.5px; line-height: 1.5;"><span style="font-weight: 600;">Karl Farrugia</span> <span style="color: #5B6157; font-size: 12.5px;">2 h ago</span><div>Fixed the polyfill and deployed to staging. Moved to Testing.</div></div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <span style="flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #D8EAF8; color: #1F55B8; font-size: 11px; font-weight: 600;">MB</span>
+        <div style="font-size: 13.5px; line-height: 1.5;"><span style="font-weight: 600;">Maria Borg</span> <span style="color: #5B6157; font-size: 12.5px;">35 min ago</span><div><a href="#" style="font-weight: 600; text-decoration: none;">@Karl</a> still failing when the card needs 3-D Secure.</div></div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: flex-start;">
+        <span style="flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 11px; font-weight: 600;">SC</span>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+          <label style="display: block;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Write a comment</span><textarea rows="2" placeholder="Write a comment. Type @ to mention someone." style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13.5px; resize: vertical;"></textarea></label>
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 12px; color: #5B6157;"><kbd style="font-family: inherit; font-size: 11px; padding: 1px 5px; border: 1px solid #DDE1DA; border-radius: 5px;">Ctrl</kbd> + <kbd style="font-family: inherit; font-size: 11px; padding: 1px 5px; border: 1px solid #DDE1DA; border-radius: 5px;">Enter</kbd> to send</span><button type="button" style="height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: #121417; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Comment</button></div>
+        </div>
+      </div>
+      <button type="button" style="align-self: flex-start; margin-top: auto; height: 34px; padding: 0; border: 0; background: transparent; color: #B42323; font: inherit; font-size: 13px; cursor: pointer;">Delete task</button>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Billing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: #121417; text-decoration: none;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></a>
+    <span style="width: 1px; height: 20px; background: #E8EBE6;"></span>
+    <a href="Main.dc.html" style="flex: 1; color: #5B6157; text-decoration: none; font-size: 13.5px;">← Back to My tasks</a>
+    <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; max-width: 1240px; margin: 0 auto;">
+    <nav aria-label="Settings" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px;">
+      <div style="padding: 0 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Website relaunch</div>
+      <a href="ProjectMembers.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Members</a>
+      <a href="ProjectStructure.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Sections, types and trash</a>
+      <a href="WorkflowEditor.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Workflow</a>
+      <a href="GoogleChat.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Google Chat</a>
+      <a href="GitHubSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">GitHub</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Workspace</div>
+      <a href="WorkspaceGeneral.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">General</a>
+      <a href="AdminPeople.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">People and invitations</a>
+      <a href="AdminDefaults.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Roles, types and workflows</a>
+      <a href="AdminBilling.dc.html" aria-current="page" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none;">Billing</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">You</div>
+      <a href="ProfileSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Profile and notifications</a>
+      <a href="ApiTokens.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">API tokens and MCP</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+      <div><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Billing</h1><p style="margin: 6px 0 0; font-size: 13.5px; color: #5B6157;">Visible to workspace owners only.</p></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch;">
+        <section style="flex: 1.2 1 380px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; font-size: 15px;">BornTask</span><span style="font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: #E9F5EF; color: #0F6B46;">Active</span></div>
+          <div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-family: 'Sora', sans-serif; font-size: 34px; font-weight: 600; letter-spacing: -0.03em;">€1</span><span style="font-size: 14px; color: #3A3F38;">per member per month, billed monthly</span></div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+            <div style="padding: 12px; border-radius: 10px; background: #F7F8F6;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600;">20</span><span style="font-size: 12.5px; color: #3A3F38;">paid members</span></div>
+            <div style="padding: 12px; border-radius: 10px; background: #F7F8F6;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600;">2</span><span style="font-size: 12.5px; color: #3A3F38;">guests, free</span></div>
+            <div style="padding: 12px; border-radius: 10px; background: #F7F8F6;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600;">€20.00</span><span style="font-size: 12.5px; color: #3A3F38;">per month + VAT</span></div>
+          </div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #3A3F38;">Owners, admins, members and viewers count as members. Guests are free. People added mid-month are charged for the days left; people removed are credited on the next invoice.</p>
+        </section>
+        <section style="flex: 1 1 300px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+          <span style="font-weight: 600; font-size: 15px;">Next invoice</span>
+          <span style="font-family: 'Sora', sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">€20.00 <span style="font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400; color: #5B6157;">+ VAT</span></span>
+          <span style="font-size: 13.5px; color: #3A3F38;">On 1 Nov 2026 · 20 members × €1</span>
+          <div style="height: 1px; background: #EEF0EC;"></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><span aria-hidden="true" style="width: 40px; height: 28px; border-radius: 6px; background: #F1F2EF; border: 1px solid #E8EBE6; display: grid; place-items: center; font-size: 10px; font-weight: 600; color: #3A3F38;">CARD</span><span style="flex: 1; font-size: 13.5px;">Card ending [••••] · expires [MM/YY]</span><button type="button" style="height: 32px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Change</button></div>
+          <span style="font-size: 12px; color: #5B6157;">Card details are held by the payment provider, never by BornTask.</span>
+        </section>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <section style="flex: 1 1 320px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+          <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h2 style="flex: 1; margin: 0; font-size: 15px; font-weight: 600;">Billing details</h2><button type="button" style="height: 30px; padding: 0 8px; border: 0; background: transparent; color: #0F6B46; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Edit</button></div>
+          <dl style="margin: 0; padding: 12px 16px 16px; display: grid; grid-template-columns: 120px minmax(0, 1fr); row-gap: 10px; font-size: 13.5px;">
+            <dt style="color: #5B6157;">Company</dt><dd style="margin: 0;">[Client company name]</dd>
+            <dt style="color: #5B6157;">VAT number</dt><dd style="margin: 0;">[VAT number]</dd>
+            <dt style="color: #5B6157;">Address</dt><dd style="margin: 0;">[Billing address]</dd>
+            <dt style="color: #5B6157;">Invoices to</dt><dd style="margin: 0;">[accounts email]</dd>
+          </dl>
+        </section>
+        <section style="flex: 1.4 1 420px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+          <h2 style="margin: 0; padding: 14px 16px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #EEF0EC;">Invoices</h2>
+          <sc-for list="{{invoices}}" as="i" hint-placeholder-count="4">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 48px; padding: 6px 16px; border-bottom: 1px solid #EEF0EC; font-size: 13.5px;">
+              <span style="width: 110px; font-weight: 500;">{{i.month}}</span>
+              <span style="flex: 1 1 140px; color: #3A3F38;">{{i.seats}} members</span>
+              <span style="width: 90px; text-align: right; font-variant-numeric: tabular-nums;">{{i.amount}}</span>
+              <span style="width: 64px; font-size: 12.5px; font-weight: 600; color: #0F6B46;">Paid</span>
+              <a href="#" style="font-size: 13px; text-decoration: none;">PDF</a>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+      <section style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 18px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+        <span style="flex: 1 1 320px;"><span style="display: block; font-weight: 600;">Leaving BornTask?</span><span style="font-size: 13px; color: #5B6157;">Export every project to Excel first. After cancelling, the workspace stays readable until the end of the paid month.</span></span>
+        <button type="button" style="height: 36px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Export all data</button>
+        <button type="button" style="height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #B42323; cursor: pointer;">Cancel subscription</button>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      invoices: [
+        { month: 'October 2026', seats: 20, amount: '€20.00' },
+        { month: 'September 2026', seats: 18, amount: '€18.00' },
+        { month: 'August 2026', seats: 15, amount: '€15.00' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

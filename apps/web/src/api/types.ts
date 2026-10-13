@@ -1,0 +1,255 @@
+// API contract for BornTask (proposed). These Zod schemas are the single source of truth for
+// the web app today; move them to @borntask/shared when the monorepo is ready so the
+// Fastify API validates against exactly the same shapes.
+import { z } from 'zod';
+
+// ---------- enums ----------
+export const TaskTypeSchema = z.enum(['idea', 'bug', 'improvement', 'feature']);
+export type TaskType = z.infer<typeof TaskTypeSchema>;
+
+export const PrioritySchema = z.enum(['urgent', 'high', 'medium', 'low', 'none']);
+export type Priority = z.infer<typeof PrioritySchema>;
+
+export const ProjectRoleSchema = z.enum(['lead', 'business', 'developer', 'tester', 'observer']);
+export type ProjectRole = z.infer<typeof ProjectRoleSchema>;
+
+export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'member', 'guest', 'viewer']);
+export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
+
+export const StatusCategorySchema = z.enum(['backlog', 'active', 'review', 'done']);
+export type StatusCategory = z.infer<typeof StatusCategorySchema>;
+
+export const StatusToneSchema = z.enum(['neutral', 'indigo', 'blue', 'amber', 'orange', 'green', 'slate']);
+export type StatusTone = z.infer<typeof StatusToneSchema>;
+
+/** Who made a change: the app itself, Claude/Cursor over MCP, GitHub automation or the Asana import. */
+export const ActorViaSchema = z.enum(['app', 'mcp', 'github', 'import']);
+export type ActorVia = z.infer<typeof ActorViaSchema>;
+
+// ---------- people and workspace ----------
+export const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  initials: z.string(),
+});
+export type User = z.infer<typeof UserSchema>;
+
+export const MeSchema = z.object({
+  user: UserSchema,
+  workspace: z.object({ id: z.string(), name: z.string() }),
+  workspaceRole: WorkspaceRoleSchema,
+});
+export type Me = z.infer<typeof MeSchema>;
+
+// ---------- workflow ----------
+export const WorkflowStatusSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: StatusCategorySchema,
+  tone: StatusToneSchema,
+  position: z.number(),
+  wipLimit: z.number().int().nullable(),
+  /** Side statuses (On hold, Rejected) render as collapsible columns at the end of the board. */
+  side: z.boolean(),
+});
+export type WorkflowStatus = z.infer<typeof WorkflowStatusSchema>;
+
+export const TransitionSchema = z.object({
+  /** A status id, or '*' for "from any status that is not in the done category". */
+  from: z.string(),
+  to: z.string(),
+  /** Project roles allowed to make this move. Empty = any project member. */
+  roles: z.array(ProjectRoleSchema),
+  requireComment: z.boolean(),
+  /** Short action label used for quick buttons, e.g. "Pass", "Fail", "Approve". */
+  label: z.string().nullable(),
+});
+export type Transition = z.infer<typeof TransitionSchema>;
+
+export const WorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  statuses: z.array(WorkflowStatusSchema),
+  transitions: z.array(TransitionSchema),
+});
+export type Workflow = z.infer<typeof WorkflowSchema>;
+
+// ---------- projects ----------
+export const ProjectSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  name: z.string(),
+  color: z.string(),
+  leadId: z.string(),
+  workflowId: z.string(),
+  openCount: z.number().int(),
+});
+export type Project = z.infer<typeof ProjectSchema>;
+
+export const SectionSchema = z.object({
+  id: z.string(),
+  projectKey: z.string(),
+  name: z.string(),
+  position: z.number(),
+});
+export type Section = z.infer<typeof SectionSchema>;
+
+export const ProjectMemberSchema = z.object({
+  userId: z.string(),
+  roles: z.array(ProjectRoleSchema),
+});
+export type ProjectMember = z.infer<typeof ProjectMemberSchema>;
+
+export const ProjectDetailSchema = z.object({
+  project: ProjectSchema,
+  sections: z.array(SectionSchema),
+  members: z.array(ProjectMemberSchema),
+  users: z.array(UserSchema),
+  workflow: WorkflowSchema,
+});
+export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
+
+// ---------- tasks ----------
+export const TaskSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  projectKey: z.string(),
+  title: z.string(),
+  description: z.string(),
+  type: TaskTypeSchema,
+  statusId: z.string(),
+  /** Set while On hold so the task can return to where it was. */
+  previousStatusId: z.string().nullable(),
+  sectionId: z.string(),
+  assigneeId: z.string().nullable(),
+  reporterId: z.string(),
+  priority: PrioritySchema,
+  /** Calendar date, YYYY-MM-DD. */
+  dueDate: z.string().nullable(),
+  labels: z.array(z.string()),
+  /** Order within its section. The API should use fractional-index strings; a float is enough for the mock. */
+  position: z.number(),
+  subtaskCount: z.object({ done: z.number().int(), total: z.number().int() }),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Task = z.infer<typeof TaskSchema>;
+
+export const SubtaskSchema = z.object({ id: z.string(), title: z.string(), done: z.boolean() });
+export type Subtask = z.infer<typeof SubtaskSchema>;
+
+export const CommentSchema = z.object({
+  id: z.string(),
+  authorId: z.string(),
+  body: z.string(),
+  via: ActorViaSchema,
+  createdAt: z.string(),
+});
+export type Comment = z.infer<typeof CommentSchema>;
+
+export const ActivitySchema = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  via: ActorViaSchema,
+  text: z.string(),
+  at: z.string(),
+});
+export type Activity = z.infer<typeof ActivitySchema>;
+
+export const TaskDetailSchema = TaskSchema.extend({
+  subtasks: z.array(SubtaskSchema),
+  comments: z.array(CommentSchema),
+  activity: z.array(ActivitySchema),
+});
+export type TaskDetail = z.infer<typeof TaskDetailSchema>;
+
+export const MyTasksSchema = z.object({
+  assigned: z.array(TaskSchema),
+  /** Ideas waiting for a decision from someone with the Business role (that's me). */
+  approvals: z.array(TaskSchema),
+});
+export type MyTasks = z.infer<typeof MyTasksSchema>;
+
+// ---------- inputs ----------
+export const CreateTaskInputSchema = z.object({
+  projectKey: z.string(),
+  sectionId: z.string(),
+  type: TaskTypeSchema,
+  title: z.string().trim().min(1).max(200),
+  description: z.string(),
+  assigneeId: z.string().nullable(),
+  priority: PrioritySchema,
+  dueDate: z.string().nullable(),
+  labels: z.array(z.string()),
+  /** Ids returned by the upload endpoint; attached when the task is created. */
+  attachmentIds: z.array(z.string()),
+});
+export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
+
+export const UpdateTaskInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    description: z.string(),
+    type: TaskTypeSchema,
+    assigneeId: z.string().nullable(),
+    priority: PrioritySchema,
+    dueDate: z.string().nullable(),
+    labels: z.array(z.string()),
+    sectionId: z.string(),
+  })
+  .partial();
+export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
+
+export const MoveTaskInputSchema = z.object({
+  toStatusId: z.string(),
+  comment: z.string().optional(),
+  /** Only accepted from project leads and workspace owners/admins; logged. */
+  overrideReason: z.string().optional(),
+});
+export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
+
+export const ReorderTaskInputSchema = z.object({
+  sectionId: z.string(),
+  /** Place before this task; null = end of the section. */
+  beforeKey: z.string().nullable(),
+});
+export type ReorderTaskInput = z.infer<typeof ReorderTaskInputSchema>;
+
+// ---------- errors ----------
+export const ApiErrorCodeSchema = z.enum([
+  'TRANSITION_NOT_ALLOWED',
+  'COMMENT_REQUIRED',
+  'NOT_FOUND',
+  'VALIDATION',
+  'UNAUTHORIZED',
+  'SERVER',
+]);
+export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;
+
+export const ApiErrorBodySchema = z.object({
+  code: ApiErrorCodeSchema,
+  message: z.string(),
+  allowedRoles: z.array(ProjectRoleSchema).optional(),
+});
+
+// ---------- the client contract ----------
+// Both the mock (mockData.ts) and the real client (http.ts) implement this interface.
+// Proposed REST routes are noted next to each method.
+export interface Api {
+  getMe(): Promise<Me>; // GET /me
+  listProjects(): Promise<Project[]>; // GET /projects
+  getProject(key: string): Promise<ProjectDetail>; // GET /projects/:key
+  listProjectTasks(key: string): Promise<Task[]>; // GET /projects/:key/tasks
+  listMyTasks(): Promise<MyTasks>; // GET /me/tasks
+  getTask(key: string): Promise<TaskDetail>; // GET /tasks/:key
+  createTask(input: CreateTaskInput): Promise<Task>; // POST /projects/:projectKey/tasks
+  updateTask(key: string, input: UpdateTaskInput): Promise<Task>; // PATCH /tasks/:key
+  moveTask(key: string, input: MoveTaskInput): Promise<Task>; // POST /tasks/:key/move  (403 TRANSITION_NOT_ALLOWED)
+  reorderTask(key: string, input: ReorderTaskInput): Promise<Task>; // POST /tasks/:key/reorder
+  addComment(key: string, body: string): Promise<Comment>; // POST /tasks/:key/comments
+  addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
+  setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
+  deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
+  restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
+}

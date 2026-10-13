@@ -1,0 +1,18 @@
+---
+description: Workflow engine, approvals, drag rules, moveTask
+alwaysApply: true
+---
+
+# Task workflow
+
+- Status changes **only** through `moveTask()`. Importer, MCP, automations and the API share it.
+- Deletes **only** through `softDeleteTask()` (Trash 30 days, restore, activity log).
+- Delivery template: Idea → Approved → WIP → Ready for testing → Testing → Deployed, plus On hold and Rejected.
+- Simple template: To do → Doing → Done; empty role list means anyone on the project may move.
+- Ideas, Improvements and Features start in **Idea**. Bugs start from `Workspace.bugsStartIn` (default Approved).
+- Reject (Idea → Rejected) and Fail (Testing → WIP) require a comment on the move.
+- On hold stores `previousStatusId` and returns there.
+- Override: owner, admin or project lead; `overrideReason` required; logged.
+- Workflow editor: owner and admin only.
+- List drag: order or section only. Board drag: status only; apply transition rules live.
+- Activity `via`: `app` | `mcp` | `github` | `import` | `automation`.

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Empty, loading and error states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Empty, loading and error states</h1><span style="font-size: 13.5px; color: #5B6157;">Every list, board and page has these. The logo's dot, dot, tick is the empty-state motif.</span></div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Empty project</span>
+      <div style="height: 300px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px;">
+        <svg width="120" height="44" viewBox="0 0 260 96" aria-hidden="true"><circle cx="24" cy="56" r="9" fill="#178A5C" fill-opacity="0.25"></circle><circle cx="72" cy="56" r="14" fill="#178A5C" fill-opacity="0.45"></circle><path d="M124 56 L156 86 L236 12" fill="none" stroke="#178A5C" stroke-opacity="0.7" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">Every project starts with an idea</span>
+        <span style="font-size: 13.5px; color: #3A3F38; max-width: 280px; line-height: 1.45;">Add your first task, or bring the whole backlog over from Asana.</span>
+        <div style="display: flex; gap: 8px; margin-top: 6px;"><a href="QuickAdd.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600;">Add a task</a><a href="Import.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13px;">Import from Asana</a></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">No search results</span>
+      <div style="height: 300px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#AEB4AA" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <span style="font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">No tasks match "checkuot"</span>
+        <span style="font-size: 13.5px; color: #3A3F38;">Did you mean <a href="Search.dc.html" style="font-weight: 600;">checkout</a>?</span>
+        <span style="font-size: 12.5px; color: #5B6157; max-width: 280px; line-height: 1.45;">Deployed and Rejected tasks are hidden. <a href="Search.dc.html">Include them</a></span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Loading · skeleton, no spinners</span>
+      <div aria-busy="true" aria-label="Loading tasks" style="height: 300px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;">
+        <div style="height: 40px; padding: 0 16px; display: flex; align-items: center; background: #FAFBF9; border-bottom: 1px solid #EEF0EC;"><span style="width: 110px; height: 10px; border-radius: 5px; background: #E8EBE6;"></span></div>
+        <sc-for list="{{skel}}" as="s" hint-placeholder-count="6"><div style="height: 43px; padding: 0 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #EEF0EC;"><span style="width: 16px; height: 16px; border-radius: 50%; background: #EEF0EC;"></span><span style="width: 52px; height: 10px; border-radius: 5px; background: #EEF0EC;"></span><span style="width: {{s}}; height: 10px; border-radius: 5px; background: #E8EBE6;"></span><span style="margin-left: auto; width: 60px; height: 18px; border-radius: 9px; background: #EEF0EC;"></span></div></sc-for>
+      </div>
+      <span style="font-size: 12.5px; color: #5B6157; line-height: 1.45;">Show the skeleton only if loading takes over 300 ms; otherwise render straight away.</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">No access to a project</span>
+      <div style="height: 270px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#AEB4AA" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+        <span style="font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">You're not on this project</span>
+        <span style="font-size: 13.5px; color: #3A3F38; max-width: 300px; line-height: 1.45;">Ask the project lead, Luke Camilleri, to add you.</span>
+        <button type="button" style="height: 36px; padding: 0 14px; margin-top: 4px; border: 0; border-radius: 8px; background: #121417; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Request access</button>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Task not found</span>
+      <div style="height: 270px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 34px; font-weight: 600; color: #CDD2C9; letter-spacing: -0.03em;">WEB-999</span>
+        <span style="font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 600;">This task doesn't exist or was deleted</span>
+        <span style="font-size: 13.5px; color: #3A3F38; line-height: 1.45;">Deleted tasks stay in the project's <a href="ProjectStructure.dc.html">Trash</a> for 30 days.</span>
+        <a href="Main.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; margin-top: 4px; border: 1px solid #E8EBE6; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13px;">Back to My tasks</a>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Save failed · retrying</span>
+      <div role="status" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #121417; color: #FFFFFF; border-radius: 10px; box-shadow: 0 16px 32px -12px rgba(18,20,23,0.35); font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E0731F;"></span><span style="flex: 1;">Couldn't save the due date. Retrying…</span><button type="button" style="height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: #FFFFFF; color: #121417; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;">Retry now</button></div>
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Offline</span>
+      <div role="status" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: #FFFBF2; border: 1px solid #F1D6A6; color: #5C3D07; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01M3 3l18 18"></path></svg><span>You're offline. Changes are saved here and sync when you reconnect.</span></div>
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Someone else changed it</span>
+      <div role="status" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: #EAF1FD; border: 1px solid #C9DAF7; color: #1A3F82; font-size: 13.5px;"><span style="flex: 1;">Maria just moved this task to Deployed.</span><button type="button" style="height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: #FFFFFF; color: #1A3F82; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;">Show latest</button></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { skel: ['46%', '58%', '38%', '52%', '44%', '34%'] };
+  }
+}
+</script>
+</body>
+</html>

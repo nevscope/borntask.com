@@ -1,0 +1,52 @@
+{
+  "name": "borntask",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BornTask — multi-tenant work tracker (borntask.com)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:web": "npm run dev -w @borntask/web",
+    "dev:api": "npm run dev -w @borntask/api",
+    "dev:worker": "npm run dev -w @borntask/worker",
+    "dev:mcp": "npm run dev -w @borntask/mcp",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run build -w @borntask/shared && npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:isolation": "vitest run tests/isolation",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "compose:up": "docker compose up -d mysql redis",
+    "compose:down": "docker compose down",
+    "design:lint": "node scripts/design/design-lint.mjs",
+    "design:contrast": "node scripts/design/contrast-check.mjs",
+    "design:check": "npm run design:contrast && npm run design:lint"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0",
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.0",
+    "vite": "6.4.4",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "vite": "6.4.4"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.2"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

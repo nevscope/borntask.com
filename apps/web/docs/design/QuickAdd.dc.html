@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Quick add task</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="position: relative; min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; overflow: hidden;">
+  <div aria-hidden="true" style="display: flex; flex-wrap: wrap; min-height: 900px;">
+    <div style="flex: 1 1 232px; max-width: 272px; background: #FFFFFF; border-right: 1px solid #E8EBE6; padding: 20px 22px; box-sizing: border-box;">
+      <div style="display: flex; align-items: center; gap: 10px;"><svg width="26" height="26" viewBox="0 0 48 48"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></div>
+    </div>
+    <div style="flex: 999 1 560px; padding: 96px 28px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="height: 28px; width: 220px; border-radius: 6px; background: #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+      <div style="height: 44px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E8EBE6;"></div>
+    </div>
+  </div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(18, 20, 23, 0.22);"></div>
+  <div role="dialog" aria-label="New task" style="position: absolute; top: 112px; left: 16px; right: 16px; margin: 0 auto; max-width: 660px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18, 20, 23, 0.25); overflow: hidden;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 14px 18px 0;">
+      <span style="font-size: 12.5px; color: #5B6157; margin-right: 4px;">Type</span>
+      <button type="button" aria-pressed="false" style="height: 28px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;">Idea</button>
+      <button type="button" aria-pressed="true" style="height: 28px; padding: 0 10px; border: 1px solid #F3C4C4; border-radius: 7px; background: #FDECEC; font: inherit; font-size: 12.5px; font-weight: 600; color: #B42323; cursor: pointer;">Bug</button>
+      <button type="button" aria-pressed="false" style="height: 28px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;">Improvement</button>
+      <button type="button" aria-pressed="false" style="height: 28px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;">Feature</button>
+    </div>
+    <label style="display: flex; flex-direction: column; gap: 4px; padding: 12px 18px 6px;"><span style="font-size: 12px; font-weight: 600; color: #5B6157;">Title</span><input type="text" value="Fix hreflang tags on product pages @karl fri !high" placeholder="What needs doing? A short summary" style="width: 100%; box-sizing: border-box; border: 0; padding: 0; font: inherit; font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: #121417; outline: none;"></label>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 18px 6px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><label for="qa-desc" style="font-size: 12px; font-weight: 600; color: #5B6157;">Description</label><span style="font-size: 12px; color: #5B6157;">· Bug template</span><span style="flex: 1;"></span><button type="button" style="height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 12px; color: #5B6157; cursor: pointer;">Clear template</button></div>
+      <textarea id="qa-desc" rows="8" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #E8EBE6; border-radius: 10px; background: #FAFBF9; font: inherit; font-size: 14px; line-height: 1.5; color: #121417; resize: vertical;">Steps to reproduce
+1. Open any product page in French (/fr/...)
+2. View the page source
+
+Expected
+hreflang="fr" points to the /fr/ page
+
+Actual
+It points to the English page, so Google shows the wrong language</textarea>
+      <span style="font-size: 12px; color: #5B6157;">Markdown and @mentions work here. Switching type swaps the template if you haven't typed in it yet.</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 18px 16px;">
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; background: #F1F2EF; font-size: 13px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #2F6FDB;"></span>Website relaunch · Platform</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 4px; border-radius: 8px; background: #F1F2EF; font-size: 13px;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #E1F1E8; color: #0F6B46; font-size: 10px; font-weight: 600;">KF</span>Karl Farrugia</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; background: #F1F2EF; font-size: 13px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Fri 16 Oct</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; background: #F1F2EF; font-size: 13px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #E0731F;"></span>High</span>
+      <span style="display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 8px; background: #F1F2EF; font-size: 13px; color: #5B6157;">Status: Idea</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 0 18px 16px;">
+      <div style="position: relative; width: 132px; display: flex; flex-direction: column; gap: 6px;">
+        <div role="img" aria-label="Screenshot preview: checkout page error" style="height: 84px; border-radius: 8px; border: 1px solid #E8EBE6; background: #FAFBF9; overflow: hidden; display: flex; flex-direction: column; gap: 5px; padding: 8px; box-sizing: border-box;">
+          <span style="height: 6px; width: 60%; border-radius: 3px; background: #DDE1DA;"></span>
+          <span style="height: 6px; width: 85%; border-radius: 3px; background: #E8EBE6;"></span>
+          <span style="height: 22px; border-radius: 4px; background: #FDECEC; border: 1px solid #F3C4C4;"></span>
+          <span style="height: 6px; width: 45%; border-radius: 3px; background: #E8EBE6;"></span>
+        </div>
+        <span style="font-size: 12px; color: #3A3F38; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pasted screenshot · 212 KB</span>
+        <button type="button" aria-label="Remove pasted screenshot" style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #E8EBE6; background: #FFFFFF; color: #3A3F38; font: inherit; font-size: 13px; line-height: 1; cursor: pointer;">×</button>
+      </div>
+      <div style="width: 132px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="height: 84px; border-radius: 8px; border: 1px solid #E8EBE6; background: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; box-sizing: border-box;">
+          <span style="font-size: 11px; font-weight: 600; color: #5B6157;">HAR</span>
+          <span role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="Uploading checkout.har" style="width: 100%; height: 4px; border-radius: 2px; background: #EEF0EC; overflow: hidden;"><span style="display: block; width: 60%; height: 4px; background: #178A5C;"></span></span>
+        </div>
+        <span style="font-size: 12px; color: #3A3F38; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">checkout.har · uploading</span>
+      </div>
+      <button type="button" style="width: 132px; height: 84px; margin-bottom: 21px; border: 1.5px dashed #CDD2C9; border-radius: 8px; background: transparent; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.5l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6L15.5 7.5"></path></svg>Attach file</button>
+      <span style="flex: 1 1 180px; margin-bottom: 21px; font-size: 12.5px; line-height: 1.45; color: #5B6157;">Paste a screenshot with <kbd style="font-family: inherit; font-size: 11px; padding: 1px 5px; border: 1px solid #DDE1DA; border-radius: 5px;">Ctrl V</kbd> or drop files anywhere on this box. Up to 25 MB each.</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 18px; background: #FAFBF9; border-top: 1px solid #EEF0EC;">
+      <span style="flex: 1 1 260px; font-size: 12.5px; color: #5B6157;">Type <strong style="color: #3A3F38;">@</strong> for people, <strong style="color: #3A3F38;">!</strong> for priority, dates like <strong style="color: #3A3F38;">fri</strong> or <strong style="color: #3A3F38;">next week</strong></span>
+      <a href="TaskDetail.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; color: #3A3F38; text-decoration: none; font-size: 13px;">Create and open<kbd style="font-family: inherit; font-size: 11px; color: #5B6157;">Shift ↵</kbd></a>
+      <a href="ListView.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600;">Create task<kbd style="font-family: inherit; font-size: 11px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,0.2); color: #FFFFFF;">↵</kbd></a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

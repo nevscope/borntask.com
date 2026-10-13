@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Website relaunch, board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <nav aria-label="Main" style="flex: 1 1 232px; max-width: 272px; box-sizing: border-box; padding: 16px 12px; background: #FFFFFF; border-right: 1px solid #E8EBE6; display: flex; flex-direction: column; gap: 2px;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 14px;">
+      <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span>
+    </div>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; height: 36px; margin: 0 0 10px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FAFBF9; font: inherit; font-size: 13px; color: #3A3F38; cursor: pointer;">Scope Cloud Solutions<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg><span style="flex: 1;">My tasks</span><span style="font-size: 12px; color: #5B6157;">7</span></a>
+    <a href="Search.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search</a>
+    <a href="Projects.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Projects</a>
+    <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Favourites</div>
+    <a href="BoardView.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #2F6FDB;"></span>Website relaunch</a>
+    <a href="ListView.dc.html" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #E0731F;"></span>Mobile app</a>
+    <a href="ListView.dc.html" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #8E59D9;"></span>Client onboarding</a>
+    <div style="flex: 1; min-height: 24px;"></div>
+    <a href="AdminPeople.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>Settings</a>
+  </nav>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+      <label style="flex: 1 1 280px; max-width: 520px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FAFBF9; color: #5B6157;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><input type="search" aria-label="Search tasks" placeholder="Search tasks or jump to WEB-142" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 13.5px; color: #121417; outline: none;"><kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; background: #FFFFFF; color: #5B6157;">/</kbd></label>
+      <div style="flex: 1;"></div>
+      <a href="QuickAdd.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 13.5px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New task<kbd style="font-family: inherit; font-size: 11px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,0.2); color: #FFFFFF;">Q</kbd></a>
+      <button type="button" aria-label="Notifications, 3 unread" style="position: relative; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; color: #3A3F38; cursor: pointer;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg><span style="position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: #E0731F;"></span></button>
+      <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+    </header>
+    <main style="padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 16px; min-width: 0;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+        <div style="flex: 1 1 320px;">
+          <div style="font-size: 12.5px; color: #5B6157;"><a href="Projects.dc.html" style="color: #5B6157; text-decoration: none;">Projects</a> / WEB</div>
+          <h1 style="margin: 4px 0 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; display: flex; align-items: center; gap: 10px;"><span style="width: 12px; height: 12px; border-radius: 4px; background: #2F6FDB;"></span>Website relaunch</h1>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <span title="Maria Borg" style="width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #D8EAF8; color: #1F55B8; font-size: 11.5px; font-weight: 600; border: 2px solid #F7F8F6;">MB</span>
+          <span title="Luke Camilleri" style="width: 30px; height: 30px; margin-left: -8px; border-radius: 50%; display: grid; place-items: center; background: #F7E3D7; color: #A04A0C; font-size: 11.5px; font-weight: 600; border: 2px solid #F7F8F6;">LC</span>
+          <span title="Daniela Vella" style="width: 30px; height: 30px; margin-left: -8px; border-radius: 50%; display: grid; place-items: center; background: #EDE4FA; color: #5B3FC4; font-size: 11.5px; font-weight: 600; border: 2px solid #F7F8F6;">DV</span>
+          <span title="Karl Farrugia" style="width: 30px; height: 30px; margin-left: -8px; border-radius: 50%; display: grid; place-items: center; background: #E1F1E8; color: #0F6B46; font-size: 11.5px; font-weight: 600; border: 2px solid #F7F8F6;">KF</span>
+          <a href="SheetModals.dc.html" aria-label="Invite people to Website relaunch" title="Invite people" style="width: 30px; height: 30px; margin-left: 6px; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed #AEB4AA; background: #FFFFFF; color: #3A3F38; text-decoration: none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></a>
+        </div>
+        <a href="ProjectMembers.dc.html" style="display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; color: #3A3F38; text-decoration: none; font-size: 13px;">Project settings</a>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; border-bottom: 1px solid #E8EBE6;">
+        <a href="ListView.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; color: #5B6157; font-size: 13.5px; text-decoration: none;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"></path></svg>List</a>
+        <a href="BoardView.dc.html" aria-current="page" style="display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; color: #121417; font-weight: 600; font-size: 13.5px; text-decoration: none; border-bottom: 2px solid #178A5C; margin-bottom: -1px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1.5"></rect><rect x="10" y="4" width="5" height="11" rx="1.5"></rect><rect x="17" y="4" width="4" height="7" rx="1.5"></rect></svg>Board</a>
+        <span style="width: 1px; height: 18px; margin: 0 6px; background: #E8EBE6;"></span>
+        <a href="ListView.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 12px; color: #5B6157; font-size: 13.5px; text-decoration: none;">Bugs to test</a>
+        <a href="BoardView.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 12px; color: #5B6157; font-size: 13.5px; text-decoration: none;">Business approvals</a>
+        <div style="flex: 1;"></div>
+        <span style="font-size: 13px; color: #5B6157; padding-right: 6px;">Columns</span>
+        <button type="button" style="height: 30px; padding: 0 10px; margin-bottom: 4px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; color: #121417; cursor: pointer;">Status</button>
+        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; margin: 0 0 4px 6px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; color: #3A3F38; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 8v5l-4 2v-7z"></path></svg>Filter</button>
+      </div>
+      <div style="overflow-x: auto; padding-bottom: 8px;">
+        <div style="display: flex; gap: 12px; align-items: flex-start; min-width: max-content;">
+          <sc-for list="{{columns}}" as="c" hint-placeholder-count="6">
+            <section aria-label="{{c.name}}" style="width: 268px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: {{c.bg}}; border: 1px solid {{c.border}};">
+              <div style="display: flex; align-items: center; gap: 8px; padding: 2px 4px 4px; font-size: 13px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{c.dot}};"></span>{{c.name}}<span style="font-weight: 500; color: #5B6157;">{{c.countLabel}}</span><span style="margin-left: auto; font-size: 11.5px; font-weight: 500; color: #5B6157;">{{c.gate}}</span></div>
+              <sc-for list="{{c.cards}}" as="k" hint-placeholder-count="2">
+                <a href="TaskDetail.dc.html" style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E8EBE6; text-decoration: none; color: #121417;">
+                  <span style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 5px; background: {{k.typeBg}}; color: {{k.typeFg}};">{{k.type}}</span><span style="font-size: 12px; color: #5B6157;">{{k.key}}</span></span>
+                  <span style="font-size: 13.5px; font-weight: 500; line-height: 1.35;">{{k.title}}</span>
+                  <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5B6157;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: {{k.whoBg}}; color: {{k.whoFg}}; font-size: 10px; font-weight: 600;">{{k.who}}</span><span style="color: {{k.dueColor}}; font-weight: {{k.dueWeight}};">{{k.due}}</span><span style="margin-left: auto;">{{k.sub}}</span></span>
+                </a>
+              </sc-for>
+              <a href="QuickAdd.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 8px; border-radius: 8px; color: #5B6157; font-size: 13px; text-decoration: none;">+ Add</a>
+            </section>
+          </sc-for>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" aria-label="Expand On hold, 1 task" style="width: 44px; min-height: 220px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0; border: 1px dashed #CDD2C9; border-radius: 12px; background: transparent; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;"><span style="font-weight: 600;">1</span><span style="writing-mode: vertical-rl; transform: rotate(180deg);">On hold</span></button>
+            <button type="button" aria-label="Expand Rejected, 2 tasks" style="width: 44px; min-height: 220px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0; border: 1px dashed #CDD2C9; border-radius: 12px; background: transparent; font: inherit; font-size: 12.5px; color: #3A3F38; cursor: pointer;"><span style="font-weight: 600;">2</span><span style="writing-mode: vertical-rl; transform: rotate(180deg);">Rejected</span></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TY = {Idea:['#F1EEFC','#5B3FC4'],Bug:['#FDECEC','#B42323'],Improvement:['#FDF3E2','#8A5A0B'],Feature:['#EAF1FD','#1F55B8']};
+    const PE = {MB:['#D8EAF8','#1F55B8'],LC:['#F7E3D7','#A04A0C'],DV:['#EDE4FA','#5B3FC4'],KF:['#E1F1E8','#0F6B46'],'–':['#F1F2EF','#5B6157']};
+    const card = (k) => ({ ...k, typeBg: TY[k.type][0], typeFg: TY[k.type][1], whoBg: PE[k.who][0], whoFg: PE[k.who][1], sub: k.sub || '', dueColor: k.today ? '#0F6B46' : '#5B6157', dueWeight: k.today ? 600 : 400 });
+    const cols = [
+      { name: 'Idea', dot: '#8A9086', gate: '', cards: [
+        { type: 'Idea', key: 'WEB-155', title: 'Exit-intent discount popup', who: '–', due: 'No date' },
+        { type: 'Idea', key: 'WEB-160', title: 'Customer reviews on product pages', who: '–', due: 'No date' } ] },
+      { name: 'Approved', dot: '#5865D6', gate: 'Business', cards: [
+        { type: 'Bug', key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', who: 'MB', due: 'Thu 15 Oct' },
+        { type: 'Improvement', key: 'WEB-151', title: 'Hero copy for the autumn campaign', who: 'DV', due: 'Fri 16 Oct' },
+        { type: 'Feature', key: 'WEB-144', title: 'Show the delivery date before payment', who: '–', due: 'Thu 22 Oct' } ] },
+      { name: 'WIP', dot: '#2F6FDB', gate: 'Developer', limit: 3, cards: [
+        { type: 'Feature', key: 'WEB-139', title: 'Add Apple Pay to checkout', who: 'LC', due: 'Sun 18 Oct', sub: '2/3 subtasks' },
+        { type: 'Feature', key: 'WEB-147', title: 'Rate-limit the login endpoint', who: 'KF', due: 'Tue 20 Oct' } ] },
+      { name: 'Ready for testing', dot: '#C98A1A', gate: 'Developer', cards: [
+        { type: 'Improvement', key: 'WEB-133', title: 'Lazy-load hero and product images', who: 'KF', due: 'Tue 13 Oct' } ] },
+      { name: 'Testing', dot: '#E0731F', gate: 'Tester', cards: [
+        { type: 'Bug', key: 'WEB-142', title: 'Checkout fails on Safari 17', who: 'MB', due: 'Today', today: true } ] },
+      { name: 'Deployed', dot: '#178A5C', gate: 'Tester', cards: [
+        { type: 'Feature', key: 'WEB-128', title: 'Move images to the new CDN', who: 'LC', due: 'Thu 8 Oct' },
+        { type: 'Improvement', key: 'WEB-121', title: 'Regenerate the sitemap nightly', who: 'KF', due: 'Mon 5 Oct' },
+        { type: 'Bug', key: 'WEB-117', title: 'Newsletter double opt-in email not sent', who: 'MB', due: 'Fri 2 Oct' } ] }
+    ];
+    return { columns: cols.map((c) => ({ ...c, countLabel: c.limit ? (c.cards.length + ' / ' + c.limit) : String(c.cards.length), bg: c.name === 'Deployed' ? '#F1F8F4' : '#F0F2EE', border: c.name === 'Deployed' ? '#D7EDE1' : '#E8EBE6', cards: c.cards.map(card) })) };
+  }
+}
+</script>
+</body>
+</html>

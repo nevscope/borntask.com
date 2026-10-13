@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Import from Asana</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+    <a href="Projects.dc.html" style="display: flex; align-items: center; gap: 10px; color: #121417; text-decoration: none;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></a>
+    <span style="width: 1px; height: 20px; background: #E8EBE6;"></span>
+    <span style="flex: 1; font-weight: 600;">Import from Asana</span>
+    <a href="Projects.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13px;">Cancel</a>
+  </header>
+  <main style="padding: 28px 28px 56px;">
+    <div style="max-width: 1160px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px;">
+        <li style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 999px; background: #E9F5EF; color: #0F6B46; font-weight: 600;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #178A5C; color: #FFFFFF;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>Upload</li>
+        <li aria-current="step" style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 999px; background: #121417; color: #FFFFFF; font-weight: 600;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #FFFFFF; color: #121417;">2</span>Map columns</li>
+        <li style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E8EBE6; color: #3A3F38;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #F1F2EF;">3</span>Preview</li>
+        <li style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E8EBE6; color: #3A3F38;"><span style="width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #F1F2EF;">4</span>Import</li>
+      </ol>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+        <span style="width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: #E9F5EF; color: #0F6B46; font-size: 11px; font-weight: 600;">XLSX</span>
+        <span style="flex: 1 1 260px;"><span style="display: block; font-weight: 600;">website-relaunch-export.xlsx</span><span style="font-size: 12.5px; color: #5B6157;">312 rows · 14 columns · into project <strong style="color: #3A3F38;">Website relaunch (WEB)</strong></span></span>
+        <button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; color: #3A3F38; cursor: pointer;">Replace file</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <section style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow: hidden;">
+          <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h2 style="flex: 1; margin: 0; font-size: 15px; font-weight: 600;">Columns</h2><span style="font-size: 12.5px; color: #5B6157;">11 matched automatically · 1 to check</span></div>
+          <div style="overflow-x: auto;">
+            <div style="min-width: 640px;">
+              <div style="display: grid; grid-template-columns: 180px 210px minmax(0, 1fr); gap: 12px; padding: 8px 16px; font-size: 12px; font-weight: 600; color: #5B6157; border-bottom: 1px solid #EEF0EC;"><span>Asana column</span><span>BornTask field</span><span>Example from row 1</span></div>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+                <div style="display: grid; grid-template-columns: 180px 210px minmax(0, 1fr); gap: 12px; align-items: center; min-height: 46px; padding: 0 16px; border-bottom: 1px solid #EEF0EC; background: {{r.bg}};">
+                  <span style="font-weight: 500;">{{r.from}}</span>
+                  <label style="display: block;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">BornTask field for {{r.from}}</span><select style="width: 100%; height: 34px; padding: 0 8px; border: 1px solid {{r.border}}; border-radius: 8px; font: inherit; font-size: 13px; background: #FFFFFF; color: {{r.selColor}};"><option>{{r.to}}</option></select></label>
+                  <span style="font-size: 13px; color: #5B6157; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.sample}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+        <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 16px;">
+          <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Asana sections become</h2>
+            <div role="group" aria-label="Asana sections become" style="display: flex; padding: 3px; border: 1px solid #E8EBE6; border-radius: 9px;">
+              <button type="button" aria-pressed="false" style="flex: 1; height: 30px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; color: #3A3F38; cursor: pointer;">Sections</button>
+              <button type="button" aria-pressed="true" style="flex: 1; height: 30px; border: 0; border-radius: 6px; background: #121417; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Statuses</button>
+            </div>
+            <sc-for list="{{statuses}}" as="s" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="flex: 1; color: #3A3F38;">{{s.from}}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5B6157" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg><span style="flex: 1; display: inline-flex; align-items: center; gap: 6px; font-weight: 500;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{s.dot}};"></span>{{s.to}}</span><span style="font-size: 12px; color: #5B6157;">{{s.n}}</span></div>
+            </sc-for>
+          </section>
+          <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600;">People</h2>
+            <p style="margin: 0; font-size: 13px; color: #3A3F38; line-height: 1.5;">4 assignees matched to members. <strong>1 email is new</strong> and will receive an invitation as a Member.</p>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #FDF3E2; font-size: 13px; color: #8A5A0B;">j.zammit@[client-domain] · invite as Member</div>
+          </section>
+          <section style="background: #FAFBF9; border: 1px dashed #CDD2C9; border-radius: 12px; padding: 14px 16px; font-size: 12.5px; color: #5B6157; line-height: 1.5;">Comments and attachments are not in Asana's spreadsheet export, so they are not imported. Re-importing this file updates tasks matched on Asana task ID instead of duplicating them.</section>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+        <span style="flex: 1 1 300px; font-size: 13.5px;"><strong>312 tasks</strong> into 4 statuses and 3 sections · 41 subtasks linked to their parents</span>
+        <a href="Projects.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;">Back</a>
+        <a href="ListView.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 13.5px; font-weight: 600;">Preview 20 rows</a>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { from: 'Task ID', to: 'Asana ID (for re-imports)', sample: '1205538194412017' },
+      { from: 'Name', to: 'Title', sample: 'Checkout fails on Safari 17' },
+      { from: 'Section/Column', to: 'Status (see right)', sample: 'QA' },
+      { from: 'Assignee Email', to: 'Assignee', sample: 'maria@[your-domain]' },
+      { from: 'Due Date', to: 'Due date', sample: '2026-10-11' },
+      { from: 'Tags', to: 'Labels', sample: 'safari, payments' },
+      { from: 'Notes', to: 'Description', sample: 'Steps to reproduce: open the site in Safari 17…' },
+      { from: 'Parent task', to: 'Parent task (subtask)', sample: '' },
+      { from: 'Completed At', to: 'Deployed date', sample: '' },
+      { from: 'Type', to: 'Task type', sample: 'Bug' },
+      { from: 'Priority', to: 'Priority', sample: 'Urgent' },
+      { from: 'Projects', to: 'Check: no match, ignore?', sample: 'Website relaunch; Q4 campaign', warn: true }
+    ];
+    const statuses = [
+      { from: 'Backlog', to: 'Idea', dot: '#8A9086', n: 96 },
+      { from: 'Ready', to: 'Approved', dot: '#5865D6', n: 41 },
+      { from: 'In progress', to: 'WIP', dot: '#2F6FDB', n: 23 },
+      { from: 'QA', to: 'Testing', dot: '#E0731F', n: 9 },
+      { from: 'Completed', to: 'Deployed', dot: '#178A5C', n: 143 }
+    ];
+    return { statuses, rows: rows.map((r) => ({ ...r, sample: r.sample || '–', bg: r.warn ? '#FFFBF2' : '#FFFFFF', border: r.warn ? '#E8B867' : '#E8EBE6', selColor: r.warn ? '#8A5A0B' : '#121417' })) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Allow Claude to connect</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; box-sizing: border-box; padding: 40px 24px 56px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; align-items: center; gap: 28px;">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <svg width="28" height="28" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; letter-spacing: -0.035em;">borntask</span>
+  </div>
+  <section style="width: 100%; max-width: 520px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 16px; overflow: hidden;">
+    <div style="padding: 28px 32px 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span aria-hidden="true" style="width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: #F1F2EF; border: 1px solid #E8EBE6; font-size: 13px; font-weight: 600; color: #3A3F38;">[App]</span>
+        <span aria-hidden="true" style="display: flex; gap: 4px;"><span style="width: 5px; height: 5px; border-radius: 50%; background: #AEB4AA;"></span><span style="width: 5px; height: 5px; border-radius: 50%; background: #AEB4AA;"></span><span style="width: 5px; height: 5px; border-radius: 50%; background: #AEB4AA;"></span></span>
+        <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </div>
+      <h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.3;">Claude wants to connect to your BornTask account</h1>
+      <p style="margin: 0; font-size: 14px; color: #3A3F38; line-height: 1.5;">It will act as <strong>you</strong>, with your projects and your workflow permissions. Every change it makes is labelled "via Claude" in the activity log.</p>
+    </div>
+    <div style="padding: 0 32px 20px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #FAFBF9; border: 1px solid #EEF0EC;">
+        <span style="width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 11px; font-weight: 600;">SC</span>
+        <span style="flex: 1; font-size: 13.5px;"><span style="display: block; font-weight: 600;">Scope</span><span style="color: #5B6157; font-size: 12.5px;">owner@[your-domain]</span></span>
+        <a href="SignIn.dc.html" style="font-size: 13px; text-decoration: none;">Not you?</a>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Workspace<select style="height: 40px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 400; background: #FFFFFF;"><option>Scope Cloud Solutions</option><option>Harbour Logistics (guest)</option></select></label>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px;"><legend style="padding: 0 0 8px; font-size: 13px; font-weight: 500;">Access</legend>
+        <label style="display: flex; gap: 12px; padding: 12px 14px; border: 1px solid #E8EBE6; border-radius: 10px; cursor: pointer;"><input type="radio" name="scope" style="width: 16px; height: 16px; margin-top: 2px; accent-color: #178A5C;"><span style="display: flex; flex-direction: column; gap: 3px;"><span style="font-weight: 600; font-size: 14px;">Read only</span><span style="font-size: 12.5px; color: #5B6157; line-height: 1.45;">See projects, tasks and comments you can see. Good for summaries and reports.</span></span></label>
+        <label style="display: flex; gap: 12px; padding: 12px 14px; border: 1px solid #CFE7DA; border-radius: 10px; background: #F1F8F4; cursor: pointer;"><input type="radio" name="scope" checked style="width: 16px; height: 16px; margin-top: 2px; accent-color: #178A5C;"><span style="display: flex; flex-direction: column; gap: 3px;"><span style="font-weight: 600; font-size: 14px;">Read and update</span><span style="font-size: 12.5px; color: #3A3F38; line-height: 1.45;">Also create tasks, edit them, comment, and move them through stages you're allowed to.</span></span></label>
+      </fieldset>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+        <span style="display: flex; align-items: center; gap: 8px; color: #3A3F38;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#178A5C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg>Follows the same workflow rules as you</span>
+        <span style="display: flex; align-items: center; gap: 8px; color: #3A3F38;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B42323" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>Can't delete tasks, change settings, or invite people</span>
+        <span style="display: flex; align-items: center; gap: 8px; color: #3A3F38;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5B6157" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Access lasts until you disconnect it in Connected apps</span>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; padding: 16px 32px 24px; border-top: 1px solid #EEF0EC;">
+      <a href="ApiTokens.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 46px; border: 1px solid #DDE1DA; border-radius: 10px; color: #121417; text-decoration: none; font-size: 15px; font-weight: 500;">Cancel</a>
+      <a href="McpConnected.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 46px; border-radius: 10px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 600;">Allow access</a>
+    </div>
+  </section>
+  <p style="margin: 0; max-width: 520px; text-align: center; font-size: 12.5px; color: #5B6157; line-height: 1.5;">Only allow apps you trust. The app's name comes from the request; we show the address it will return to: <strong style="color: #3A3F38;">claude.ai</strong>.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

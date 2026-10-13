@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Trial, payment and seat states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Trial, payment and seat states</h1><span style="font-size: 13.5px; color: #5B6157;">Only for workspaces that pay. Your own internal workspace never sees these.</span></div>
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Top-of-app banners · shown to owners, one at a time</span>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 10px; background: #E9F5EF; border: 1px solid #CFE7DA; color: #0B4F33; font-size: 13.5px;"><span style="flex: 1 1 400px;"><strong>Trial: 9 days left.</strong> Add a card to keep everything when the trial ends. 12 members would be €12 a month.</span><a href="AdminBilling.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600;">Add a card</a></div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 10px; background: #FFFBF2; border: 1px solid #F1D6A6; color: #5C3D07; font-size: 13.5px;"><span style="flex: 1 1 400px;"><strong>Payment failed on 1 Nov.</strong> We'll retry on 4 Nov. Update the card to avoid interruption.</span><a href="AdminBilling.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; background: #121417; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600;">Update card</a></div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 10px; background: #FDECEC; border: 1px solid #F3C4C4; color: #7A1616; font-size: 13.5px;"><span style="flex: 1 1 400px;"><strong>Read-only since 15 Nov.</strong> Payment is 14 days overdue. Everyone can still view and export; nobody can edit until it's paid.</span><a href="AdminBilling.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; background: #B42323; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600;">Pay now</a></div>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Adding a paid member · inside Invite people</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;">
+        <span>Inviting <strong>2 members</strong> and <strong>1 guest</strong>.</span>
+        <span style="color: #3A3F38;">Your bill goes from €20 to <strong>€22 a month</strong>. This month: about €1.30 extra for the days left. Guests are free.</span>
+        <span style="font-size: 12.5px; color: #5B6157;">Shown to owners and admins. Members inviting guests don't see prices.</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Add card · payment provider's secure form</span>
+      <div role="dialog" aria-label="Add card" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 600;">Add a card</span>
+        <div style="height: 120px; border-radius: 10px; border: 1.5px dashed #CDD2C9; background: #FAFBF9; display: grid; place-items: center; text-align: center; padding: 12px; font-size: 13px; color: #5B6157;">[Payment provider's embedded card form]<br>Card number, expiry, CVC</div>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">VAT number <span style="font-weight: 400; color: #5B6157;">(optional, for business invoices)</span><input type="text" placeholder="[VAT number]" style="height: 36px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 400;"></label>
+        <button type="button" style="height: 40px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Save card</button>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Cancel subscription · confirm</span>
+      <div role="alertdialog" aria-label="Cancel subscription" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 600;">Cancel BornTask?</span>
+        <span style="font-size: 13.5px; line-height: 1.5; color: #3A3F38;">Your workspace stays fully usable until 31 Oct, then becomes read-only for 30 days so you can export. After that it's deleted.</span>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Anything we could do better? <span style="font-weight: 400; color: #5B6157;">(optional)</span><textarea rows="2" style="padding: 8px 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 400; resize: vertical;"></textarea></label>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;"><button type="button" style="height: 36px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Keep BornTask</button><button type="button" style="height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: #B42323; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Cancel subscription</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

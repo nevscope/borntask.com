@@ -1,0 +1,14 @@
+---
+description: MCP limits and BullMQ job placement
+alwaysApply: true
+---
+
+# MCP and jobs
+
+- MCP authenticates as the user (personal token `bt_pat_` or OAuth). Same permission checks as the web API.
+- MCP scopes: `read` or `read_write`. MCP **cannot** delete tasks, change settings or invite people.
+- `move_task` uses `moveTask()`. Claude cannot skip Testing if the user could not.
+- Log activity with `via: mcp` (UI may show "via Claude").
+- Server URL shape: `https://[mcp-host].borntask.com/mcp`.
+- Jobs: Asana import, Google Chat posts, trash purge, daily digest, later AI. Queue names live in `@borntask/shared`.
+- Stage 1 ships an MCP **stub** only. Do not invent live tools until Stage 10.

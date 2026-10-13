@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Idea approval</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Idea approval</h1><span style="font-size: 13.5px; color: #5B6157;">Ideas, features and improvements start in Idea and need Business approval. Bugs start in Approved.</span></div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Task drawer · seen by Business</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-size: 12px; color: #5B6157;">Website relaunch / WEB-160</span>
+        <span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.02em;">Customer reviews on product pages</span>
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: #F4F1FD; border: 1px solid #E1D8F8;">
+          <span style="font-size: 13.5px; color: #3B2A80;"><strong>Idea</strong> raised by Luke Camilleri, 2 days ago. You can decide.</span>
+          <div style="display: flex; gap: 8px;"><button type="button" style="flex: 1; height: 38px; border: 0; border-radius: 8px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;">Approve</button><button type="button" style="flex: 1; height: 38px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13.5px; cursor: pointer;">Reject…</button></div>
+          <span style="font-size: 12px; color: #5B6157;">Approving moves it to Approved and notifies Luke and the project's developers.</span>
+        </div>
+        <span style="font-size: 13.5px; line-height: 1.5; color: #3A3F38;">Show star ratings and written reviews under each product, with moderation.</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Task drawer · seen by everyone else</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="font-size: 12px; color: #5B6157;">Website relaunch / WEB-160</span>
+        <span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.02em;">Customer reviews on product pages</span>
+        <div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: #FAFBF9; border: 1px solid #EEF0EC; font-size: 13.5px; color: #3A3F38;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6157" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 2px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>Waiting for approval from <strong>Daniela Vella</strong> (Business). Work can start once it's approved.</span></div>
+        <button type="button" style="align-self: flex-start; height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Remind Daniela</button>
+        <span style="font-size: 12.5px; color: #5B6157;">Reminders are limited to one a day per idea.</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157; margin-top: 12px;">Reject with a reason</span>
+      <div role="alertdialog" aria-label="Reject idea" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(18,20,23,0.25); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+        <span style="font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 600;">Reject this idea?</span>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500;">Reason, shared with Luke<textarea rows="2" style="padding: 8px 10px; border: 1px solid #178A5C; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 400; box-shadow: 0 0 0 3px #E9F5EF; resize: vertical;">Not this quarter. Let's revisit after the relaunch.</textarea></label>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;"><button type="button" style="height: 34px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Cancel</button><button type="button" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: #121417; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">Move to Rejected</button></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">My tasks · top group for Business users</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-size: 13px; font-weight: 600; color: #5B3FC4;">Needs your approval<span style="font-weight: 500; color: #5B6157;">3</span></div>
+        <sc-for list="{{ideas}}" as="i" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-top: 1px solid #EEF0EC;">
+            <span style="display: flex; gap: 8px; align-items: baseline;"><span style="font-size: 12px; color: #5B6157;">{{i.key}}</span><a href="TaskDetail.dc.html" style="color: #121417; text-decoration: none; font-weight: 500;">{{i.title}}</a></span>
+            <span style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: {{i.typeBg}}; color: {{i.typeFg}};">{{i.type}}</span><span style="font-size: 12px; color: #5B6157;">from {{i.by}} · {{i.age}}</span><span style="flex: 1;"></span><button type="button" style="height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: #178A5C; color: #FFFFFF; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;">Approve</button><button type="button" aria-label="Reject {{i.key}}" style="height: 30px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 12.5px; cursor: pointer;">Reject</button></span>
+          </div>
+        </sc-for>
+      </div>
+      <span style="font-size: 12.5px; color: #5B6157; line-height: 1.45;">Ideas waiting more than 5 working days show "Waiting 6 days" in amber and are included in the daily digest.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TY = { Idea: ['#F1EEFC', '#5B3FC4'], Feature: ['#EAF1FD', '#1F55B8'], Improvement: ['#FDF3E2', '#8A5A0B'] };
+    const ideas = [
+      { key: 'WEB-160', title: 'Customer reviews on product pages', type: 'Idea', by: 'Luke Camilleri', age: '2 days' },
+      { key: 'MOB-31', title: 'Dark mode for the mobile app', type: 'Feature', by: 'Karl Farrugia', age: 'today' },
+      { key: 'CLI-14', title: 'Shorter onboarding questionnaire', type: 'Improvement', by: 'Maria Borg', age: '6 days' }
+    ];
+    return { ideas: ideas.map((i) => ({ ...i, typeBg: TY[i.type][0], typeFg: TY[i.type][1] })) };
+  }
+}
+</script>
+</body>
+</html>

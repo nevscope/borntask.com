@@ -1,0 +1,9 @@
+---
+description: Do not add a backend call if the flow already requests the same endpoint
+globs: apps/web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# No duplicate backend calls
+
+Reuse query keys and hooks in `apps/web/src/api/queries.ts`. With `VITE_USE_MOCKS=true`, still go through those hooks.

@@ -1,0 +1,689 @@
+// BornTask dogfood schema. GitHub and Subscription/Invoice tables are deferred to v1.2.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantRole {
+  owner
+  admin
+  member
+  guest
+  viewer
+}
+
+enum AuthProvider {
+  google
+  microsoft
+}
+
+enum BugsStartIn {
+  approved
+  idea
+}
+
+enum WeekStart {
+  monday
+  sunday
+}
+
+enum StatusCategory {
+  backlog
+  active
+  review
+  done
+}
+
+enum Priority {
+  urgent
+  high
+  medium
+  low
+  none
+}
+
+enum ActivityVia {
+  app
+  mcp
+  github
+  import
+  automation
+}
+
+enum ActorType {
+  user
+  mcp
+  import
+  automation
+}
+
+enum SavedLayout {
+  list
+  board
+}
+
+enum DigestMode {
+  workdays
+  daily
+  off
+}
+
+enum NotifyChannel {
+  in_app
+  email
+  google_chat
+}
+
+enum OAuthScope {
+  read
+  read_write
+}
+
+enum ImportStatus {
+  uploaded
+  mapping
+  running
+  done
+  failed
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String
+  email         String       @unique
+  avatar        String?
+  authProvider  AuthProvider?
+  providerId    String?
+  digestMode    DigestMode   @default(workdays)
+  digestHour    Int          @default(8)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  memberships   TenantMember[]
+  invitationsSent Invitation[] @relation("InvitedBy")
+  assignedTasks Task[]       @relation("TaskAssignee")
+  reportedTasks Task[]       @relation("TaskReporter")
+  comments      Comment[]
+  watchers      TaskWatcher[]
+  notifications Notification[]
+  notifyPrefs   NotificationPreference[]
+  apiTokens     ApiToken[]
+  oauthGrants   OAuthGrant[]
+  savedViews    SavedView[]
+  favourites    Favourite[]
+  accessRequests AccessRequest[]
+  inviteRequests InviteRequest[] @relation("InviteRequester")
+  activities    ActivityLog[]
+
+  @@index([providerId])
+}
+
+model Workspace {
+  id                      String       @id @default(cuid())
+  name                    String
+  slug                    String       @unique
+  logo                    String?
+  timeZone                String       @default("Europe/Malta")
+  weekStart               WeekStart    @default(monday)
+  defaultWorkflowId       String?
+  bugsStartIn             BugsStartIn  @default(approved)
+  allowGoogle             Boolean      @default(true)
+  allowMicrosoft          Boolean      @default(true)
+  membersCanInviteGuests  Boolean      @default(true)
+  allowedDomains          Json?
+  isInternal              Boolean      @default(false)
+  deletedAt               DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  members          TenantMember[]
+  invitations      Invitation[]
+  projects         Project[]
+  projectRoles     ProjectRole[]
+  taskTypes        TaskType[]
+  workflows        Workflow[]
+  tasks            Task[]
+  activityLogs     ActivityLog[]
+  chatIntegrations ChatIntegration[]
+  apiTokens        ApiToken[]
+  importJobs       ImportJob[]
+  oauthClients     OAuthClient[]
+  oauthGrants      OAuthGrant[]
+  inviteRequests   InviteRequest[]
+  accessRequests   AccessRequest[]
+  notifications    Notification[]
+  savedViews       SavedView[]
+  favourites       Favourite[]
+  sections         Section[]
+  labels           Label[]
+  comments         Comment[]
+  attachments      Attachment[]
+  watchers         TaskWatcher[]
+  notifyPrefs      NotificationPreference[]
+  projectMembers   ProjectMember[]
+  memberRoles      ProjectMemberRole[]
+  statuses         WorkflowStatus[]
+  transitions      WorkflowTransition[]
+  taskLabels       TaskLabel[]
+}
+
+model TenantMember {
+  id         String     @id @default(cuid())
+  tenantId   String
+  userId     String
+  tenantRole TenantRole
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+}
+
+model Invitation {
+  id             String     @id @default(cuid())
+  tenantId       String
+  email          String
+  tenantRole     TenantRole
+  projectId      String?
+  projectRoleIds Json?
+  tokenHash      String
+  invitedById    String
+  message        String?    @db.Text
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime   @default(now())
+
+  tenant    Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  project   Project?  @relation(fields: [projectId], references: [id])
+
+  @@index([tenantId, email])
+  @@index([tokenHash])
+}
+
+model InviteRequest {
+  id            String   @id @default(cuid())
+  tenantId      String
+  invitedEmail  String
+  signedInEmail String
+  requesterId   String
+  invitationId  String?
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+
+  tenant    Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester User      @relation("InviteRequester", fields: [requesterId], references: [id])
+
+  @@index([tenantId])
+}
+
+model AccessRequest {
+  id          String    @id @default(cuid())
+  tenantId    String
+  projectId   String
+  requesterId String
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  tenant    Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester User      @relation(fields: [requesterId], references: [id])
+
+  @@index([tenantId, projectId])
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  key         String
+  description String?   @db.Text
+  colour      String    @default("#178A5C")
+  leadId      String?
+  workflowId  String
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant       Workspace        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflow     Workflow         @relation(fields: [workflowId], references: [id])
+  members      ProjectMember[]
+  sections     Section[]
+  tasks        Task[]
+  labels       Label[]
+  savedViews   SavedView[]
+  favourites   Favourite[]
+  invitations  Invitation[]
+  accessRequests AccessRequest[]
+  importJobs   ImportJob[]
+  chatIntegrations ChatIntegration[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+model ProjectRole {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  slug     String
+  colour   String @default("#5B6157")
+
+  tenant Workspace           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  grants ProjectMemberRole[]
+
+  @@unique([tenantId, slug])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  tenantId  String
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  tenant Workspace           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  roles   ProjectMemberRole[]
+
+  @@unique([projectId, userId])
+  @@index([tenantId])
+}
+
+model ProjectMemberRole {
+  id       String @id @default(cuid())
+  tenantId String
+  memberId String
+  roleId   String
+
+  tenant Workspace     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member ProjectMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   ProjectRole   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, roleId])
+  @@index([tenantId])
+}
+
+model Section {
+  id        String @id @default(cuid())
+  tenantId  String
+  projectId String
+  name      String
+  position  String
+  createdAt DateTime @default(now())
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([tenantId, projectId])
+}
+
+model TaskType {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  slug     String
+  icon     String @default("circle")
+  colour   String
+  template String? @db.Text
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+
+  @@unique([tenantId, slug])
+}
+
+model Workflow {
+  id         String  @id @default(cuid())
+  tenantId   String
+  name       String
+  slug       String
+  isDefault  Boolean @default(false)
+  isTemplate Boolean @default(false)
+
+  tenant     Workspace         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  statuses   WorkflowStatus[]
+  transitions WorkflowTransition[]
+  projects   Project[]
+
+  @@unique([tenantId, slug])
+}
+
+model WorkflowStatus {
+  id        String         @id @default(cuid())
+  tenantId  String
+  workflowId String
+  name      String
+  slug      String
+  category  StatusCategory
+  position  Int
+  wipLimit  Int?
+
+  tenant     Workspace            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflow   Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  fromMoves  WorkflowTransition[] @relation("FromStatus")
+  toMoves    WorkflowTransition[] @relation("ToStatus")
+  tasks      Task[]               @relation("TaskStatus")
+  previousOf Task[]               @relation("TaskPreviousStatus")
+
+  @@unique([workflowId, slug])
+  @@index([tenantId])
+}
+
+model WorkflowTransition {
+  id             String  @id @default(cuid())
+  tenantId       String
+  workflowId     String
+  fromStatusId   String
+  toStatusId     String
+  allowedRoleIds Json
+  requireComment Boolean @default(false)
+  label          String?
+  notifyAssignee Boolean @default(false)
+  notifyRoleId   String?
+
+  tenant   Workspace      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflow Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  from     WorkflowStatus @relation("FromStatus", fields: [fromStatusId], references: [id])
+  to       WorkflowStatus @relation("ToStatus", fields: [toStatusId], references: [id])
+
+  @@index([tenantId, workflowId])
+}
+
+model Task {
+  id               String    @id @default(cuid())
+  tenantId         String
+  projectId        String
+  number           Int
+  title            String
+  description      String?   @db.Text
+  typeId           String
+  statusId         String
+  previousStatusId String?
+  sectionId        String
+  assigneeId       String?
+  reporterId       String
+  priority         Priority  @default(none)
+  dueDate          DateTime?
+  startDate        DateTime?
+  estimate         String?
+  position         String
+  parentId         String?
+  completedAt      DateTime?
+  deletedAt        DateTime?
+  deletedById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant         Workspace       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type           TaskType        @relation(fields: [typeId], references: [id])
+  status         WorkflowStatus  @relation("TaskStatus", fields: [statusId], references: [id])
+  previousStatus WorkflowStatus? @relation("TaskPreviousStatus", fields: [previousStatusId], references: [id])
+  section        Section         @relation(fields: [sectionId], references: [id])
+  assignee       User?           @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  reporter       User            @relation("TaskReporter", fields: [reporterId], references: [id])
+  parent         Task?           @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks       Task[]          @relation("Subtasks")
+  watchers       TaskWatcher[]
+  labels         TaskLabel[]
+  comments       Comment[]
+  attachments    Attachment[]
+  activity       ActivityLog[]
+  notifications  Notification[]
+
+  @@unique([projectId, number])
+  @@index([tenantId, projectId])
+  @@index([tenantId, assigneeId])
+  @@fulltext([title, description])
+}
+
+model TaskWatcher {
+  id       String @id @default(cuid())
+  tenantId String
+  taskId   String
+  userId   String
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([tenantId])
+}
+
+model Label {
+  id        String @id @default(cuid())
+  tenantId  String
+  projectId String
+  name      String
+  colour    String
+
+  tenant  Workspace  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   TaskLabel[]
+
+  @@index([tenantId, projectId])
+}
+
+model TaskLabel {
+  id       String @id @default(cuid())
+  tenantId String
+  taskId   String
+  labelId  String
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label  Label     @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, labelId])
+  @@index([tenantId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  tenantId  String
+  taskId    String
+  authorId  String
+  body      String    @db.Text
+  mentions  Json?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User      @relation(fields: [authorId], references: [id])
+
+  @@index([tenantId, taskId])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  tenantId   String
+  taskId     String
+  storageKey String
+  name       String
+  size       Int
+  mime       String
+  createdAt  DateTime @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, taskId])
+}
+
+model ActivityLog {
+  id         String     @id @default(cuid())
+  tenantId   String
+  taskId     String?
+  actorId    String?
+  actorType  ActorType  @default(user)
+  via        ActivityVia @default(app)
+  action     String
+  fromJson   Json?
+  toJson     Json?
+  at         DateTime   @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task?     @relation(fields: [taskId], references: [id])
+  actor  User?     @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, taskId])
+}
+
+model SavedView {
+  id        String      @id @default(cuid())
+  tenantId  String
+  projectId String
+  ownerId   String
+  name      String
+  layout    SavedLayout
+  filters   Json
+  sort      Json?
+  groupBy   String?
+  isShared  Boolean     @default(false)
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner   User      @relation(fields: [ownerId], references: [id])
+
+  @@index([tenantId, projectId])
+}
+
+model Favourite {
+  id        String @id @default(cuid())
+  tenantId  String
+  userId    String
+  projectId String
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([tenantId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  taskId    String?
+  kind      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task   Task?     @relation(fields: [taskId], references: [id])
+
+  @@index([tenantId, userId])
+}
+
+model NotificationPreference {
+  id      String        @id @default(cuid())
+  tenantId String
+  userId  String
+  event   String
+  channel NotifyChannel
+  enabled Boolean       @default(true)
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId, event, channel])
+  @@index([tenantId])
+}
+
+model ChatIntegration {
+  id             String  @id @default(cuid())
+  tenantId       String
+  projectId      String?
+  provider       String  @default("google_chat")
+  webhookUrlEnc  String  @db.Text
+  events         Json
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project?  @relation(fields: [projectId], references: [id])
+
+  @@index([tenantId])
+}
+
+model ApiToken {
+  id         String    @id @default(cuid())
+  tenantId   String
+  userId     String
+  name       String
+  tokenHash  String
+  scopes     Json
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tokenHash])
+}
+
+model OAuthClient {
+  id            String @id @default(cuid())
+  tenantId      String
+  name          String
+  appName       String
+  redirectHosts Json
+
+  tenant Workspace    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  grants OAuthGrant[]
+
+  @@index([tenantId])
+}
+
+model OAuthGrant {
+  id           String     @id @default(cuid())
+  tenantId     String
+  clientId     String
+  userId       String
+  appName      String
+  redirectHost String
+  scope        OAuthScope
+  lastUsedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime   @default(now())
+
+  tenant Workspace   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+}
+
+model ImportJob {
+  id         String       @id @default(cuid())
+  tenantId   String
+  projectId  String
+  fileName   String
+  status     ImportStatus @default(uploaded)
+  mapping    Json?
+  rowsTotal  Int          @default(0)
+  rowsDone   Int          @default(0)
+  errors     Json?
+  createdAt  DateTime     @default(now())
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+}

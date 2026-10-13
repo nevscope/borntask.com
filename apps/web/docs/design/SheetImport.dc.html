@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Import preview, progress, result</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; padding: 40px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417; display: flex; flex-direction: column; gap: 24px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Asana import · preview, progress, result</h1><span style="font-size: 13.5px; color: #5B6157;">Steps 3 and 4 after column mapping. The import runs as a background job; people can leave the page.</span></div>
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Step 3 · Preview the first rows as they will appear</span>
+    <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow: hidden;">
+      <div style="display: grid; grid-template-columns: 80px minmax(260px, 1fr) 120px 150px 150px 110px 200px; gap: 12px; padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; border-bottom: 1px solid #EEF0EC;"><span>Row</span><span>Title</span><span>Type</span><span>Status</span><span>Assignee</span><span>Due</span><span>Check</span></div>
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 80px minmax(260px, 1fr) 120px 150px 150px 110px 200px; gap: 12px; align-items: center; min-height: 44px; padding: 0 16px; border-bottom: 1px solid #EEF0EC; background: {{r.bg}}; font-size: 13.5px;">
+          <span style="color: #5B6157;">{{r.n}}</span>
+          <span style="font-weight: 500;">{{r.title}}</span>
+          <span><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: {{r.typeBg}}; color: {{r.typeFg}};">{{r.type}}</span></span>
+          <span>{{r.status}}</span>
+          <span>{{r.who}}</span>
+          <span style="color: #3A3F38;">{{r.due}}</span>
+          <span style="font-size: 12.5px; color: {{r.checkColor}};">{{r.check}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Step 4 · Importing</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 600;">194 of 312</span><span style="font-size: 13.5px; color: #5B6157;">tasks imported · about 20 seconds left</span></div>
+        <div role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" aria-label="Import progress" style="height: 8px; border-radius: 4px; background: #EEF0EC; overflow: hidden;"><div style="width: 62%; height: 8px; background: #178A5C;"></div></div>
+        <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;">
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 18px; height: 18px; border-radius: 50%; background: #178A5C; display: grid; place-items: center;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>Sections and labels created</li>
+          <li style="display: flex; align-items: center; gap: 10px;"><span style="width: 18px; height: 18px; border-radius: 50%; background: #178A5C; display: grid; place-items: center;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span>People matched, 1 invitation queued</li>
+          <li style="display: flex; align-items: center; gap: 10px; font-weight: 600;"><span style="width: 18px; height: 18px; border-radius: 50%; border: 2px solid #178A5C; box-sizing: border-box;"></span>Importing tasks</li>
+          <li style="display: flex; align-items: center; gap: 10px; color: #5B6157;"><span style="width: 18px; height: 18px; border-radius: 50%; border: 2px solid #CDD2C9; box-sizing: border-box;"></span>Linking 41 subtasks to their parents</li>
+        </ol>
+        <span style="font-size: 12.5px; color: #5B6157;">You can close this page. We'll notify you when it's done.</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Step 4 · Done</span>
+      <div style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px;"><svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600;">309 tasks imported into Website relaunch</span></div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+          <div style="padding: 12px; border-radius: 10px; background: #F1F8F4;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; color: #0F6B46;">309</span><span style="font-size: 12.5px; color: #3A3F38;">imported</span></div>
+          <div style="padding: 12px; border-radius: 10px; background: #FFFBF2;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; color: #8A5A0B;">3</span><span style="font-size: 12.5px; color: #3A3F38;">skipped</span></div>
+          <div style="padding: 12px; border-radius: 10px; background: #F7F8F6;"><span style="display: block; font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600;">1</span><span style="font-size: 12.5px; color: #3A3F38;">invitation sent</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+          <span style="font-weight: 600;">Skipped rows</span>
+          <span style="color: #3A3F38;">Row 88 · no title</span>
+          <span style="color: #3A3F38;">Row 140 · parent task not found in the file</span>
+          <span style="color: #3A3F38;">Row 203 · due date "next sprint" isn't a date</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;"><a href="ListView.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-size: 13.5px; font-weight: 600;">Open project</a><button type="button" style="height: 38px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13.5px; cursor: pointer;">Download skipped rows (.csv)</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TY = { Bug: ['#FDECEC', '#B42323'], Feature: ['#EAF1FD', '#1F55B8'], Improvement: ['#FDF3E2', '#8A5A0B'], Idea: ['#F1EEFC', '#5B3FC4'] };
+    const rows = [
+      { n: '2', title: 'Checkout fails on Safari 17', type: 'Bug', status: 'Testing', who: 'Maria Borg', due: '11 Oct', check: 'Ready' },
+      { n: '3', title: 'Add Apple Pay to checkout', type: 'Feature', status: 'WIP', who: 'Luke Camilleri', due: '18 Oct', check: 'Ready · 3 subtasks' },
+      { n: '4', title: 'Exit-intent discount popup', type: 'Idea', status: 'Idea', who: 'Unassigned', due: '–', check: 'Ready' },
+      { n: '5', title: 'Hero copy for autumn campaign', type: 'Improvement', status: 'Approved', who: 'j.camilleri@…', due: '16 Oct', check: 'New person: will be invited', warn: true },
+      { n: '6', title: 'Move images to the new CDN', type: 'Feature', status: 'Deployed', who: 'Luke Camilleri', due: '8 Oct', check: 'Ready · completed 8 Oct' }
+    ];
+    return { rows: rows.map((r) => ({ ...r, typeBg: TY[r.type][0], typeFg: TY[r.type][1], bg: r.warn ? '#FFFBF2' : '#FFFFFF', checkColor: r.warn ? '#8A5A0B' : '#0F6B46' })) };
+  }
+}
+</script>
+</body>
+</html>

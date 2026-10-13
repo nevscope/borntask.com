@@ -1,0 +1,87 @@
+# Canonical Plesk Compose for BornTask.
+# Host secrets: /var/www/vhosts/borntask.com/docker/borntask/.env
+
+name: borntask
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-borntask}
+      MYSQL_USER: ${MYSQL_USER:-borntask}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - borntask_mysql:/var/lib/mysql
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6381:6379"
+    volumes:
+      - borntask_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: "3010"
+      DATABASE_URL: mysql://${MYSQL_USER:-borntask}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-borntask}
+      REDIS_URL: redis://redis:6379
+      PUBLIC_URL: ${PUBLIC_URL:-https://app.borntask.com}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-https://app.borntask.com}
+      SESSION_SECRET: ${SESSION_SECRET}
+      BLOB_ROOT: ${BLOB_ROOT:-/data/blobs}
+    ports:
+      - "127.0.0.1:3010:3010"
+    volumes:
+      - borntask_blobs:/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: mysql://${MYSQL_USER:-borntask}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-borntask}
+      BLOB_ROOT: ${BLOB_ROOT:-/data/blobs}
+    volumes:
+      - borntask_blobs:/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  borntask_mysql:
+  borntask_redis:
+  borntask_blobs:

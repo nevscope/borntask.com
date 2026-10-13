@@ -1,0 +1,19 @@
+{
+  "include": ["apps/web/src"],
+  "extensions": [".tsx", ".ts", ".css"],
+  "exempt": [
+    "apps/web/src/theme/",
+    "apps/web/src/api/mockData.ts",
+    "apps/web/src/vite-env.d.ts"
+  ],
+  "websiteDirs": [],
+  "clientFacingPattern": "(unused)",
+  "allowedRadii": [0, 6, 8, 12, 14, 999],
+  "contrastPairs": [
+    ["ink", "paper", 4.5],
+    ["ink", "canvas", 4.5],
+    ["muted", "paper", 4.5],
+    ["brand-strong", "paper", 4.5],
+    ["paper", "ink", 4.5]
+  ]
+}
