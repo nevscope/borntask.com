@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { JOB, QUEUE } from '@borntask/shared';
+import { runAsanaImport } from './asanaImport.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
 const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
@@ -13,8 +14,9 @@ async function main() {
   const importWorker = new Worker(
     QUEUE.import,
     async (job) => {
-      console.log(`[import] stub ${job.name} ${job.id}`);
-      return { ok: true, stub: true };
+      if (job.name !== JOB.asanaImport) return { ok: true, stub: true };
+      const data = job.data as { tenantId: string; importJobId: string; actorId: string };
+      return runAsanaImport(data);
     },
     { connection },
   );

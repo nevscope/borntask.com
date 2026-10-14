@@ -37,8 +37,18 @@ export type User = z.infer<typeof UserSchema>;
 
 export const MeSchema = z.object({
   user: UserSchema,
-  workspace: z.object({ id: z.string(), name: z.string() }),
+  workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional() }),
   workspaceRole: WorkspaceRoleSchema,
+  workspaces: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        slug: z.string(),
+        role: WorkspaceRoleSchema,
+      }),
+    )
+    .optional(),
 });
 export type Me = z.infer<typeof MeSchema>;
 
@@ -168,6 +178,8 @@ export const MyTasksSchema = z.object({
   assigned: z.array(TaskSchema),
   /** Ideas waiting for a decision from someone with the Business role (that's me). */
   approvals: z.array(TaskSchema),
+  created: z.array(TaskSchema).optional(),
+  watching: z.array(TaskSchema).optional(),
 });
 export type MyTasks = z.infer<typeof MyTasksSchema>;
 
@@ -223,6 +235,7 @@ export const ApiErrorCodeSchema = z.enum([
   'NOT_FOUND',
   'VALIDATION',
   'UNAUTHORIZED',
+  'FORBIDDEN',
   'SERVER',
 ]);
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;

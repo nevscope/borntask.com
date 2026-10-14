@@ -13,15 +13,15 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `QuickAdd.dc.html` | Quick add (Q) | Built → `src/components/QuickAdd.tsx` |
 | `CommandPalette.dc.html` | Command palette (Ctrl/Cmd K) | To build |
 | `Search.dc.html` | Search results | To build |
-| `Projects.dc.html` | Projects | To build |
-| `CreateProject.dc.html` | Create project | To build |
-| `Import.dc.html` | Import from Asana | To build |
-| `ProjectMembers.dc.html` | Project settings · Members | To build |
-| `ProjectStructure.dc.html` | Project settings · Sections, types, trash | To build |
+| `Projects.dc.html` | Projects | Built → `src/screens/ProjectsScreen.tsx` |
+| `CreateProject.dc.html` | Create project | Built → `src/screens/CreateProjectScreen.tsx` |
+| `Import.dc.html` | Import from Asana | Built → `src/screens/ImportScreen.tsx` |
+| `ProjectMembers.dc.html` | Project settings · Members | Built → `src/screens/ProjectMembersScreen.tsx` |
+| `ProjectStructure.dc.html` | Project settings · Sections, types, trash | Built → `src/screens/ProjectStructureScreen.tsx` |
 | `GoogleChat.dc.html` | Project settings · Google Chat | To build |
 | `WorkflowEditor.dc.html` | Workflow editor | To build |
-| `AdminPeople.dc.html` | Admin · People & invitations | To build |
-| `AdminDefaults.dc.html` | Admin · Roles, types, workflows | To build |
+| `AdminPeople.dc.html` | Admin · People & invitations | Built → `src/screens/AdminPeopleScreen.tsx` |
+| `AdminDefaults.dc.html` | Admin · Roles, types, workflows | Built → `src/screens/AdminDefaultsScreen.tsx` |
 | `ApiTokens.dc.html` | Profile · API tokens & MCP | To build |
 | `AdminBilling.dc.html` | Admin · Billing | To build |
 | `SignIn.dc.html` | Sign in | To build |
@@ -46,6 +46,6 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetApprovals.dc.html` | Sheet · Idea approval | To build |
 | `SheetDragDrop.dc.html` | Sheet · Drag and drop | To build |
 | `ProfileSettings.dc.html` | Profile and notifications | To build |
-| `WorkspaceGeneral.dc.html` | Admin · Workspace general | To build |
+| `WorkspaceGeneral.dc.html` | Admin · Workspace general | Built → `src/screens/WorkspaceGeneralScreen.tsx` |
 | `CreateWorkspace.dc.html` | New client · Create a workspace | To build |
 | `SheetBillingStates.dc.html` | Sheet · Trial, payment and seat states | To build |

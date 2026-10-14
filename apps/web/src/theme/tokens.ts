@@ -13,6 +13,7 @@ export const color = {
   muted: '#5B6157',
   faint: '#8A9086',
   border: '#E8EBE6',
+  dashed: '#CDD2C9',
   divider: '#EEF0EC',
   canvas: '#F7F8F6',
   surface: '#FFFFFF',

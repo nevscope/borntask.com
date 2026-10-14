@@ -1,10 +1,9 @@
-import { App, Button } from 'antd';
 import { NavLink } from 'react-router-dom';
 import type { ProjectDetail } from '../api/types';
 import { Avatar } from './Chips';
+import { InvitePeopleButton } from './InvitePeople';
 
 export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
-  const { message } = App.useApp();
   const { project } = detail;
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
 
@@ -24,22 +23,14 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
               <Avatar user={u} size={28} />
             </span>
           ))}
-          <Button
-            shape="circle"
-            aria-label={`Invite people to ${project.name}`}
-            title="Invite people"
-            style={{ marginLeft: 6, borderStyle: 'dashed' }}
-            onClick={() => void message.info('Invite people opens here (designed on the canvas, not in this handoff).')}
-          >
-            +
-          </Button>
+          <InvitePeopleButton projectId={project.id} projectName={project.name} />
         </div>
       </div>
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E8EBE6' }}>
-        {(['list', 'board'] as const).map((view) => (
+        {(['list', 'board', 'trash', 'members', 'structure'] as const).map((view) => (
           <NavLink
             key={view}
-            to={`/p/${project.key}/${view}`}
+            to={view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}
             style={({ isActive }) => ({
               height: 38,
               padding: '0 12px',
@@ -53,7 +44,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
               marginBottom: -1,
             })}
           >
-            {view === 'list' ? 'List' : 'Board'}
+            {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
           </NavLink>
         ))}
       </div>

@@ -422,6 +422,7 @@ model Task {
   completedAt      DateTime?
   deletedAt        DateTime?
   deletedById      String?
+  asanaTaskId      String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -445,6 +446,7 @@ model Task {
   @@unique([projectId, number])
   @@index([tenantId, projectId])
   @@index([tenantId, assigneeId])
+  @@index([tenantId, asanaTaskId])
   @@fulltext([title, description])
 }
 
@@ -675,11 +677,13 @@ model ImportJob {
   tenantId   String
   projectId  String
   fileName   String
+  storageKey String       @default("")
   status     ImportStatus @default(uploaded)
   mapping    Json?
   rowsTotal  Int          @default(0)
   rowsDone   Int          @default(0)
   errors     Json?
+  createdById String?
   createdAt  DateTime     @default(now())
 
   tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)

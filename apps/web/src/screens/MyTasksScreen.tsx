@@ -1,7 +1,8 @@
 // Screen 1 · My tasks. Ideas waiting for my decision first, then my tasks by due date.
-import { App, Button, Empty, Skeleton } from 'antd';
+import { App, Button, Empty, Segmented, Skeleton } from 'antd';
 import { useQueries } from '@tanstack/react-query';
 import dayjs from 'dayjs';
+import { useState } from 'react';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TypeTag } from '../components/Chips';
@@ -32,9 +33,10 @@ export function MyTasksScreen() {
   const detailOf = (key: string): ProjectDetail | undefined => details.find((d) => d.data?.project.key === key)?.data;
   const projectName = (key: string) => projects.find((p) => p.key === key)?.name ?? key;
 
+  const [tab, setTab] = useState<'assigned' | 'created' | 'watching'>('assigned');
   if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
-  const assigned = mine.data?.assigned ?? [];
-  const approvals = mine.data?.approvals ?? [];
+  const assigned = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
+  const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
 
   const approve = (t: Task) =>
     move.mutate(
@@ -49,6 +51,16 @@ export function MyTasksScreen() {
         <p style={{ margin: '6px 0 0', color: '#5B6157', fontSize: 13.5 }}>
           {dayjs().format('dddd D MMMM')} · {assigned.length} open{approvals.length ? ` · ${approvals.length} waiting for your approval` : ''}
         </p>
+        <Segmented
+          style={{ marginTop: 12 }}
+          value={tab}
+          onChange={(v) => setTab(v as typeof tab)}
+          options={[
+            { label: 'Assigned to me', value: 'assigned' },
+            { label: 'Created by me', value: 'created' },
+            { label: 'Watching', value: 'watching' },
+          ]}
+        />
       </div>
 
       {approvals.length > 0 && (

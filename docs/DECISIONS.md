@@ -32,6 +32,8 @@ One line per locked call. Spec overrides live in REQUIREMENT-CHANGES.md. Open it
 | 2026-10-13 | Task order: fractional-index strings in the database. |
 | 2026-10-13 | Status changes only via `moveTask()`. Deletes only via `softDeleteTask()`. |
 | 2026-10-13 | Activity `via`: `app`, `mcp`, `github`, `import`, `automation`. |
+| 2026-10-13 | Local auth: `ALLOW_DEV_LOGIN` when Google/Microsoft client secrets are empty. Invite URLs log to the API console (no Resend yet). |
+| 2026-10-13 | First deploy uses path-based workspace switcher, not `<slug>.borntask.com` routing. |
 
 ## Still open (not blocking dogfood schema)
 

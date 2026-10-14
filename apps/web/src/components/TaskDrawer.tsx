@@ -19,6 +19,8 @@ import {
 import type { Priority, ProjectDetail, TaskDetail, TaskType, UpdateTaskInput } from '../api/types';
 import { moveOptions, statusById } from '../lib/workflow';
 import { priorityStyle, typeStyle } from '../theme/tokens';
+import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
+import { AttachmentTiles, filesFromClipboard, itemsFromFiles } from './AttachmentTiles';
 import { Avatar, LockIcon, StatusDot, StatusPill } from './Chips';
 import { useMoveFlow } from './useMoveFlow';
 import { useTaskParam } from './useTaskParam';
@@ -57,6 +59,12 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
+  const [files, setFiles] = useState(() => readTaskAttachments(task.key));
+
+  const setAttachments = (next: typeof files) => {
+    setFiles(next);
+    writeTaskAttachments(task.key, next);
+  };
 
   const wf = detail.workflow;
   const status = statusById(wf, task.statusId);
@@ -118,6 +126,20 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
         <strong style={{ color: '#121417' }}>{task.key}</strong>
         <span role="status" style={{ marginLeft: 6, color: saving ? '#5B6157' : '#0F6B46' }}>{saving ? 'Saving…' : '✓ Saved'}</span>
         <span style={{ flex: 1 }} />
+        <Button
+          type="text"
+          size="small"
+          onClick={() => {
+            void fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/tasks/${encodeURIComponent(task.key)}/watchers`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ watch: true }),
+            }).then(() => void message.success('Watching this task'));
+          }}
+        >
+          Watch
+        </Button>
         <Button type="text" size="small" onClick={() => { void navigator.clipboard?.writeText(window.location.href); void message.success('Link copied'); }}>Copy link</Button>
         <Button type="text" size="small" aria-label="Close" onClick={onClose}>✕</Button>
       </div>
@@ -199,6 +221,29 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
             autoSize={{ minRows: 5, maxRows: 18 }}
             placeholder="Add details. Markdown and @mentions work here."
           />
+        </Section>
+
+        <Section title="Attachments">
+          <div
+            onPaste={(e) => {
+              const pasted = filesFromClipboard(e.clipboardData);
+              if (pasted.length) {
+                e.preventDefault();
+                setAttachments([...files, ...itemsFromFiles(pasted)]);
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              setAttachments([...files, ...itemsFromFiles(e.dataTransfer.files)]);
+            }}
+          >
+            <AttachmentTiles
+              items={files}
+              onAdd={(added) => setAttachments([...files, ...itemsFromFiles(added)])}
+              onRemove={(id) => setAttachments(files.filter((x) => x.id !== id))}
+            />
+          </div>
         </Section>
 
         <Subtasks task={task} />

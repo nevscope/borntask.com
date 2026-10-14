@@ -1,12 +1,78 @@
 // TanStack Query hooks. Screens only ever talk to these, never to fetch() or the mock directly,
 // so flipping VITE_USE_MOCKS to false is the whole switch to the real API.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { httpApi } from './http';
+import { ApiError, httpApi } from './http';
 import { mockApi } from './mockData';
 import type { Api, CreateTaskInput, MoveTaskInput, ReorderTaskInput, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
-export const api: Api = USE_MOCKS ? mockApi : httpApi;
+/** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
+export const USE_PROJECT_MOCKS = USE_MOCKS && import.meta.env.VITE_MOCK_PROJECTS !== 'false';
+export const USE_TASK_MOCKS = USE_MOCKS && import.meta.env.VITE_MOCK_TASKS !== 'false';
+
+const projectsApi = (): Api => (USE_PROJECT_MOCKS ? mockApi : httpApi);
+const tasksApi = (): Api => (USE_TASK_MOCKS ? mockApi : httpApi);
+
+export const api: Api = {
+  getMe: async () => {
+    try {
+      return await httpApi.getMe();
+    } catch (err) {
+      if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) return mockApi.getMe();
+      throw err;
+    }
+  },
+  listProjects: async () => {
+    try {
+      return await projectsApi().listProjects();
+    } catch (err) {
+      if (USE_MOCKS && !USE_PROJECT_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.listProjects();
+      }
+      throw err;
+    }
+  },
+  getProject: async (key) => {
+    try {
+      return await projectsApi().getProject(key);
+    } catch (err) {
+      if (USE_MOCKS && !USE_PROJECT_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.getProject(key);
+      }
+      throw err;
+    }
+  },
+  listProjectTasks: async (key) => {
+    try {
+      return await tasksApi().listProjectTasks(key);
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.listProjectTasks(key);
+      }
+      throw err;
+    }
+  },
+  listMyTasks: async () => {
+    try {
+      return await tasksApi().listMyTasks();
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.listMyTasks();
+      }
+      throw err;
+    }
+  },
+  getTask: (key) => tasksApi().getTask(key),
+  createTask: (input) => tasksApi().createTask(input),
+  updateTask: (key, input) => tasksApi().updateTask(key, input),
+  moveTask: (key, input) => tasksApi().moveTask(key, input),
+  reorderTask: (key, input) => tasksApi().reorderTask(key, input),
+  addComment: (key, body) => tasksApi().addComment(key, body),
+  addSubtask: (key, title) => tasksApi().addSubtask(key, title),
+  setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
+  deleteTask: (key) => tasksApi().deleteTask(key),
+  restoreTask: (key) => tasksApi().restoreTask(key),
+};
 
 export const qk = {
   me: ['me'] as const,

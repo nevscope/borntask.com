@@ -31,9 +31,9 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL: string = import.meta.env.VITE_API_URL ?? '/api';
+export const BASE_URL: string = import.meta.env.VITE_API_URL ?? '/api';
 
-async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     credentials: 'include', // Fastify secure session cookie

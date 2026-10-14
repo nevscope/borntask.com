@@ -1,27 +1,57 @@
+import './sessionTypes.js';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { healthRoutes } from './routes/health.js';
+import cookie from '@fastify/cookie';
+import secureSession from '@fastify/secure-session';
+import multipart from '@fastify/multipart';
 import { prisma } from './db.js';
-
-const host = process.env.API_HOST ?? '0.0.0.0';
-const port = Number(process.env.API_PORT ?? 3010);
+import { config } from './env.js';
+import { healthRoutes } from './routes/health.js';
+import { authRoutes } from './routes/auth.js';
+import { inviteRoutes } from './routes/invites.js';
+import { workspaceRoutes } from './routes/workspaces.js';
+import { projectRoutes } from './routes/projects.js';
+import { taskRoutes } from './routes/tasks.js';
+import { workflowRoutes } from './routes/workflow.js';
+import { searchRoutes } from './routes/search.js';
+import { adminRoutes } from './routes/admin.js';
+import { importRoutes } from './routes/import.js';
 
 async function main() {
   const app = Fastify({ logger: true });
 
-  const webOrigin = process.env.PUBLIC_URL ?? 'http://localhost:5174';
   await app.register(cors, {
-    origin: [webOrigin, 'http://localhost:5174', 'http://127.0.0.1:5174'],
+    origin: [config.publicUrl, 'http://localhost:5174', 'http://127.0.0.1:5174'],
     credentials: true,
   });
+  await app.register(cookie);
+  await app.register(secureSession, {
+    key: Buffer.from(config.sessionSecret.padEnd(32, '0').slice(0, 32)),
+    cookie: {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    },
+  });
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
 
   await app.register(healthRoutes);
+  await app.register(authRoutes);
+  await app.register(inviteRoutes);
+  await app.register(workspaceRoutes);
+  await app.register(projectRoutes);
+  await app.register(taskRoutes);
+  await app.register(workflowRoutes);
+  await app.register(searchRoutes);
+  await app.register(adminRoutes);
+  await app.register(importRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();
   });
 
-  await app.listen({ host, port });
+  await app.listen({ host: config.host, port: config.port });
 }
 
 main().catch((err) => {
