@@ -37,7 +37,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!q.code || q.state !== req.session.get('oauthState')) throw validation('Invalid Google callback.');
       req.session.set('oauthState', undefined);
       const profile = await googleProfile(q.code);
-      return finishLogin(req, reply, { ...profile, provider: 'google' });
+      const next = await finishLogin(req, reply, { ...profile, provider: 'google' });
+      return reply.redirect(`${config.publicUrl.replace(/\/$/, '')}${next}`);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -58,7 +59,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!q.code || q.state !== req.session.get('oauthState')) throw validation('Invalid Microsoft callback.');
       req.session.set('oauthState', undefined);
       const profile = await microsoftProfile(q.code);
-      return finishLogin(req, reply, { ...profile, provider: 'microsoft' });
+      const next = await finishLogin(req, reply, { ...profile, provider: 'microsoft' });
+      return reply.redirect(`${config.publicUrl.replace(/\/$/, '')}${next}`);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -69,7 +71,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!config.allowDevLogin) throw unauthorized();
       const input = devLoginSchema.parse(req.body);
       if (input.inviteToken) req.session.set('inviteToken', input.inviteToken);
-      return finishLogin(req, reply, { email: input.email, name: input.name });
+      const redirect = await finishLogin(req, reply, { email: input.email, name: input.name });
+      return { redirect };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -96,6 +99,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         if (tenantId) setSession(req, reply, { userId: user.id, tenantId });
       }
       const current = memberships.find((m) => m.tenantId === tenantId);
+      if (!current) setSession(req, reply, { userId: user.id });
       return {
         user: { id: user.id, name: user.name, email: user.email, initials: initialsOf(user.name) },
         workspace: current

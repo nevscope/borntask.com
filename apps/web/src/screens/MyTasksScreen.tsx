@@ -1,13 +1,15 @@
 // Screen 1 · My tasks. Ideas waiting for my decision first, then my tasks by due date.
-import { App, Button, Empty, Segmented, Skeleton } from 'antd';
+import { App, Button, Segmented, Skeleton } from 'antd';
 import { useQueries } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TypeTag } from '../components/Chips';
 import { useQuickAdd } from '../components/QuickAdd';
 import { useTaskParam } from '../components/useTaskParam';
+import { GuestWelcome, MemberEmpty } from '../components/WelcomeInShell';
 import { dueBucket, dueColor, dueLabel, dueTone, type DueBucket } from '../lib/dates';
 import { statusById } from '../lib/workflow';
 
@@ -27,6 +29,7 @@ export function MyTasksScreen() {
   const { openTask } = useTaskParam();
   const move = useMoveTask();
   const { message } = App.useApp();
+  const [params] = useSearchParams();
 
   const keys = [...new Set([...(mine.data?.assigned ?? []), ...(mine.data?.approvals ?? [])].map((t) => t.projectKey))];
   const details = useQueries({ queries: keys.map((k) => ({ queryKey: qk.project(k), queryFn: () => api.getProject(k) })) });
@@ -35,6 +38,7 @@ export function MyTasksScreen() {
 
   const [tab, setTab] = useState<'assigned' | 'created' | 'watching'>('assigned');
   if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
+  if (params.get('welcome') === 'guest') return <GuestWelcome />;
   const assigned = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
   const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
 
@@ -79,13 +83,7 @@ export function MyTasksScreen() {
         </section>
       )}
 
-      {assigned.length === 0 && approvals.length === 0 && (
-        <section className="bt-card" style={{ padding: 40 }}>
-          <Empty description={<span>Nothing assigned to you yet, {me?.user.name}.</span>}>
-            <Button type="primary" onClick={() => quickAdd.open()}>Create your first task</Button>
-          </Empty>
-        </section>
-      )}
+      {assigned.length === 0 && approvals.length === 0 && tab === 'assigned' && <MemberEmpty />}
 
       {BUCKETS.map((b) => {
         const list = assigned.filter((t) => dueBucket(t.dueDate) === b.id).sort((x, y) => (x.dueDate ?? '').localeCompare(y.dueDate ?? ''));
@@ -114,12 +112,14 @@ export function MyTasksScreen() {
         );
       })}
 
+      {!(assigned.length === 0 && approvals.length === 0 && tab === 'assigned') && (
       <button
         onClick={() => quickAdd.open()}
         style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px', border: '1px dashed #CDD2C9', borderRadius: 12, background: 'transparent', color: '#5B6157', font: 'inherit', fontSize: 13.5, cursor: 'pointer' }}
       >
         + Add a task <span style={{ marginLeft: 'auto', fontSize: 12 }}>or press <kbd className="bt-kbd">Q</kbd> anywhere</span>
       </button>
+      )}
       {me && <span className="bt-sr-only"><Avatar user={me.user} /></span>}
     </div>
   );

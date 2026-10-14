@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { notFound } from './errors.js';
 
 export const prisma = new PrismaClient();
 
@@ -46,6 +47,21 @@ function withTenantData(data: unknown, tenantId: string): unknown {
   return data;
 }
 
+async function ownsRow(model: Prisma.ModelName, where: unknown, tenantId: string): Promise<void> {
+  if (model === 'Workspace') {
+    const id = where && typeof where === 'object' && 'id' in where ? (where as { id?: string }).id : undefined;
+    if (id !== tenantId) throw notFound();
+    return;
+  }
+  const key = (model.charAt(0).toLowerCase() + model.slice(1)) as Uncapitalize<Prisma.ModelName>;
+  const delegate = prisma[key] as unknown as {
+    findUnique: (args: { where: unknown }) => Promise<{ tenantId?: string } | null>;
+  };
+  const existing = await delegate.findUnique({ where });
+  if (!existing) return;
+  if (existing.tenantId !== tenantId) throw notFound();
+}
+
 export function createTenantClient(tenantId: string) {
   if (!tenantId) throw new Error('tenantId is required');
 
@@ -59,6 +75,11 @@ export function createTenantClient(tenantId: string) {
 
           if (model === 'Workspace') {
             const next = { ...(args as Record<string, unknown>) };
+            if (operation === 'update' || operation === 'delete' || operation === 'upsert') {
+              await ownsRow('Workspace', (args as { where?: unknown }).where, tenantId);
+              if (operation === 'upsert') next.create = withTenantData(next.create, tenantId);
+              return query(next);
+            }
             if (operation.startsWith('find') || operation === 'count' || operation === 'aggregate') {
               if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
                 next.where = { id: tenantId };
@@ -79,8 +100,12 @@ export function createTenantClient(tenantId: string) {
             next.data = withTenantData(next.data, tenantId);
             return query(next);
           }
+          if (operation === 'update' || operation === 'delete') {
+            await ownsRow(model as Prisma.ModelName, (args as { where?: unknown }).where, tenantId);
+            return query(args);
+          }
           if (operation === 'upsert') {
-            next.where = andTenant(next.where, tenantId);
+            await ownsRow(model as Prisma.ModelName, (args as { where?: unknown }).where, tenantId);
             next.create = withTenantData(next.create, tenantId);
             return query(next);
           }

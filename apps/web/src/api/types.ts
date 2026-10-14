@@ -62,6 +62,8 @@ export const WorkflowStatusSchema = z.object({
   wipLimit: z.number().int().nullable(),
   /** Side statuses (On hold, Rejected) render as collapsible columns at the end of the board. */
   side: z.boolean(),
+  /** Open tasks currently in this stage. Present on workflow editor payloads. */
+  taskCount: z.number().int().optional(),
 });
 export type WorkflowStatus = z.infer<typeof WorkflowStatusSchema>;
 
@@ -86,6 +88,14 @@ export const WorkflowSchema = z.object({
 export type Workflow = z.infer<typeof WorkflowSchema>;
 
 // ---------- projects ----------
+export const StatusCountsSchema = z.object({
+  backlog: z.number().int(),
+  active: z.number().int(),
+  review: z.number().int(),
+  done: z.number().int(),
+});
+export type StatusCounts = z.infer<typeof StatusCountsSchema>;
+
 export const ProjectSchema = z.object({
   id: z.string(),
   key: z.string(),
@@ -94,6 +104,11 @@ export const ProjectSchema = z.object({
   leadId: z.string(),
   workflowId: z.string(),
   openCount: z.number().int(),
+  counts: StatusCountsSchema,
+  starred: z.boolean(),
+  leadName: z.string().nullable().optional(),
+  guestCount: z.number().int().optional(),
+  updatedAt: z.string().optional(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -172,6 +187,31 @@ export const TaskDetailSchema = TaskSchema.extend({
   comments: z.array(CommentSchema),
   activity: z.array(ActivitySchema),
 });
+
+export const SearchHitSchema = z.object({
+  key: z.string(),
+  projectKey: z.string(),
+  projectName: z.string(),
+  projectColor: z.string(),
+  title: z.string(),
+  type: TaskTypeSchema,
+  statusId: z.string(),
+  statusName: z.string(),
+  statusTone: StatusToneSchema,
+  statusCategory: StatusCategorySchema,
+  sectionName: z.string().nullable(),
+  assigneeName: z.string().nullable(),
+  matchField: z.enum(['title', 'description', 'comment', 'key']),
+  matchSnippet: z.string(),
+  commentAuthor: z.string().nullable(),
+});
+export type SearchHit = z.infer<typeof SearchHitSchema>;
+
+export const SearchResponseSchema = z.object({
+  hits: z.array(SearchHitSchema),
+  tookMs: z.number(),
+});
+export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;
 
 export const MyTasksSchema = z.object({
@@ -252,9 +292,11 @@ export const ApiErrorBodySchema = z.object({
 export interface Api {
   getMe(): Promise<Me>; // GET /me
   listProjects(): Promise<Project[]>; // GET /projects
+  setFavourite(key: string, starred: boolean): Promise<{ ok: boolean }>; // POST or DELETE /projects/:key/favourite
   getProject(key: string): Promise<ProjectDetail>; // GET /projects/:key
   listProjectTasks(key: string): Promise<Task[]>; // GET /projects/:key/tasks
   listMyTasks(): Promise<MyTasks>; // GET /me/tasks
+  search(q: string): Promise<SearchResponse>; // GET /search?q=
   getTask(key: string): Promise<TaskDetail>; // GET /tasks/:key
   createTask(input: CreateTaskInput): Promise<Task>; // POST /projects/:projectKey/tasks
   updateTask(key: string, input: UpdateTaskInput): Promise<Task>; // PATCH /tasks/:key

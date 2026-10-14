@@ -1,80 +1,174 @@
-import { Empty, Input } from 'antd';
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { BASE_URL } from '../api/http';
-import { USE_TASK_MOCKS } from '../api/queries';
-import { mockApi } from '../api/mockData';
-import type { Project, Task } from '../api/types';
+import { Checkbox, Empty, Select } from 'antd';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useSearch } from '../api/queries';
+import type { SearchHit, StatusCategory, TaskType } from '../api/types';
+import { StatusPill, TypeTag } from '../components/Chips';
 import { useTaskParam } from '../components/useTaskParam';
+import { highlightParts } from '../lib/search';
+import { color } from '../theme/tokens';
+
+function whereLine(hit: SearchHit): string {
+  if (hit.matchField === 'description') return `Description: "${hit.matchSnippet}"`;
+  if (hit.matchField === 'comment') {
+    const who = hit.commentAuthor ?? 'someone';
+    return `Comment by ${who}: "${hit.matchSnippet}"`;
+  }
+  const section = hit.sectionName ?? 'No section';
+  const who = hit.assigneeName ?? 'unassigned';
+  return `Title · ${section} · ${who}`;
+}
 
 export function SearchScreen() {
-  const [params, setParams] = useSearchParams();
-  const q0 = params.get('q') ?? '';
-  const [q, setQ] = useState(q0);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Pick<Project, 'id' | 'key' | 'name' | 'color'>[]>([]);
+  const [params] = useSearchParams();
+  const q = params.get('q') ?? '';
+  const search = useSearch(q);
   const { openTask } = useTaskParam();
+  const [project, setProject] = useState<string>('all');
+  const [type, setType] = useState<string>('all');
+  const [status, setStatus] = useState<string>('all');
+  const [includeDone, setIncludeDone] = useState(false);
 
-  useEffect(() => {
-    const run = async () => {
-      if (!q.trim()) {
-        setTasks([]);
-        setProjects([]);
-        return;
+  const hits = search.data?.hits ?? [];
+  const projects = useMemo(() => {
+    const map = new Map<string, { key: string; name: string }>();
+    for (const h of hits) map.set(h.projectKey, { key: h.projectKey, name: h.projectName });
+    return [...map.values()];
+  }, [hits]);
+
+  const filtered = hits.filter((h) => {
+    if (project !== 'all' && h.projectKey !== project) return false;
+    if (type !== 'all' && h.type !== type) return false;
+    if (status !== 'all' && h.statusId !== status) return false;
+    if (!includeDone && (h.statusCategory as StatusCategory) === 'done') return false;
+    return true;
+  });
+
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const by = new Map<string, SearchHit[]>();
+    for (const h of filtered) {
+      if (!by.has(h.projectKey)) {
+        by.set(h.projectKey, []);
+        order.push(h.projectKey);
       }
-      if (USE_TASK_MOCKS) {
-        const [allProjects, web, cli] = await Promise.all([
-          mockApi.listProjects(),
-          mockApi.listProjectTasks('WEB').catch(() => []),
-          mockApi.listProjectTasks('CLI').catch(() => []),
-        ]);
-        const n = q.toLowerCase();
-        setTasks([...web, ...cli].filter((t) => t.title.toLowerCase().includes(n) || t.key.toLowerCase().includes(n)));
-        setProjects(allProjects.filter((p) => p.name.toLowerCase().includes(n) || p.key.toLowerCase().includes(n)));
-        return;
-      }
-      const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(q)}`, { credentials: 'include' });
-      const json = await res.json() as { tasks: Task[]; projects: typeof projects };
-      setTasks(json.tasks ?? []);
-      setProjects(json.projects ?? []);
-    };
-    void run();
-  }, [q]);
+      by.get(h.projectKey)!.push(h);
+    }
+    return order.map((key) => {
+      const items = by.get(key)!;
+      return { key, name: items[0]!.projectName, color: items[0]!.projectColor, items };
+    });
+  }, [filtered]);
+
+  const statuses = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of hits) map.set(h.statusId, h.statusName);
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [hits]);
 
   return (
-    <div className="bt-page" style={{ maxWidth: 800, margin: '0 auto', width: '100%' }}>
-      <h1 className="bt-h1">Search</h1>
-      <Input
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setParams(e.target.value ? { q: e.target.value } : {}, { replace: true });
-        }}
-        placeholder="Search tasks or jump to WEB-142"
-        allowClear
-      />
+    <div className="bt-page" style={{ maxWidth: 960, margin: '0 auto', width: '100%', gap: 18 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 10 }}>
+        <h1 className="bt-h1" style={{ fontSize: 22 }}>
+          {!q.trim()
+            ? 'Search'
+            : search.isFetching
+              ? `Searching for "${q.trim()}"`
+              : `${filtered.length} result${filtered.length === 1 ? '' : 's'} for "${q.trim()}"`}
+        </h1>
+        {q.trim() ? (
+          <span style={{ fontSize: 13, color: color.muted }}>
+            in titles, descriptions and comments{search.data ? ` · ${search.data.tookMs} ms` : ''}
+          </span>
+        ) : null}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <Select
+          value={project}
+          onChange={setProject}
+          style={{ minWidth: 140 }}
+          options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.key, label: p.name }))]}
+        />
+        <Select
+          value={type}
+          onChange={setType}
+          style={{ minWidth: 120 }}
+          options={[
+            { value: 'all', label: 'Any type' },
+            { value: 'idea', label: 'Idea' },
+            { value: 'bug', label: 'Bug' },
+            { value: 'improvement', label: 'Improvement' },
+            { value: 'feature', label: 'Feature' },
+          ]}
+        />
+        <Select
+          value={status}
+          onChange={setStatus}
+          style={{ minWidth: 140 }}
+          options={[{ value: 'all', label: 'Any status' }, ...statuses]}
+        />
+        <Checkbox checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)}>
+          Include Deployed and Rejected
+        </Checkbox>
+      </div>
+
       {!q.trim() && <Empty description="Type a task key or a few words." />}
-      {projects.length > 0 && (
-        <section className="bt-card">
-          <div className="bt-group-head">Projects</div>
-          {projects.map((p) => (
-            <Link key={p.key} to={`/p/${p.key}/list`} className="bt-row" style={{ color: 'inherit', textDecoration: 'none' }}>
-              {p.name}
-            </Link>
-          ))}
-        </section>
+      {q.trim() && search.isFetching && <p style={{ margin: 0, color: color.muted }}>Looking in titles, descriptions and comments…</p>}
+      {q.trim() && !search.isFetching && filtered.length === 0 && (
+        <Empty description="No tasks match. Try another word, or include Deployed and Rejected." />
       )}
-      {tasks.length > 0 && (
-        <section className="bt-card">
-          <div className="bt-group-head">Tasks</div>
-          {tasks.map((t) => (
-            <button key={t.key} className="bt-row" type="button" onClick={() => openTask(t.key)}>
-              <span className="bt-key">{t.key}</span>
-              <span className="bt-row-title">{t.title}</span>
-            </button>
-          ))}
+
+      {groups.map((g) => (
+        <section key={g.key} className="bt-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 3, background: g.color }} />
+            {g.name}
+            <span style={{ fontWeight: 500, color: color.muted }}>{g.items.length}</span>
+          </div>
+          {g.items.map((r) => {
+            const parts = r.matchField === 'title' ? highlightParts(r.title, q) : { pre: r.title, hit: '', post: '' };
+            return (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => openTask(r.key)}
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'flex-start',
+                  gap: '6px 14px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 0,
+                  borderTop: `1px solid ${color.divider}`,
+                  background: color.surface,
+                  color: color.ink,
+                  textAlign: 'left',
+                  font: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ width: 58, fontSize: 12.5, color: color.muted, paddingTop: 1 }}>{r.key}</span>
+                <span style={{ flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontWeight: 500 }}>
+                    {parts.pre}
+                    {parts.hit ? <mark className="bt-hit">{parts.hit}</mark> : null}
+                    {parts.post}
+                  </span>
+                  <span style={{ fontSize: 12.5, color: color.muted }}>{whereLine(r)}</span>
+                </span>
+                <TypeTag type={r.type as TaskType} />
+                <StatusPill status={{ id: r.statusId, name: r.statusName, category: r.statusCategory, tone: r.statusTone, position: 0, wipLimit: null, side: false }} />
+              </button>
+            );
+          })}
         </section>
-      )}
+      ))}
+
+      <p style={{ margin: 0, fontSize: 13, color: color.muted }}>
+        Tip: type a task key like <kbd className="bt-kbd">WEB-142</kbd> to jump straight to it.
+      </p>
     </div>
   );
 }

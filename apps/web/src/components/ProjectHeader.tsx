@@ -1,10 +1,14 @@
 import { NavLink } from 'react-router-dom';
+import { useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
 import { Avatar } from './Chips';
 import { InvitePeopleButton } from './InvitePeople';
+import { ProjectStar } from './ProjectStar';
 
 export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const { project } = detail;
+  const listed = useProjects().data?.find((p) => p.key === project.key);
+  const starred = listed?.starred ?? project.starred;
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
 
   return (
@@ -17,6 +21,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             {project.name}
           </h1>
         </div>
+        <ProjectStar projectKey={project.key} name={project.name} starred={starred} />
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {people.map((u, i) => (
             <span key={u.id} style={{ marginLeft: i === 0 ? 0 : -8, borderRadius: '50%', border: '2px solid #F7F8F6', display: 'inline-flex' }}>

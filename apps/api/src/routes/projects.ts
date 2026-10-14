@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { requireAuth } from '../context.js';
+import { requireAuth, type Authed } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { loadProjectDetail, mapUser } from '../lib/loadProject.js';
+import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 
 const createProjectSchema = z.object({
@@ -15,6 +15,16 @@ const createProjectSchema = z.object({
   sections: z.array(z.string().trim().min(1)).optional(),
   memberIds: z.array(z.string()).optional(),
 });
+
+async function visibleProject(auth: Authed, key: string) {
+  const project = await auth.db.project.findFirst({ where: { key } });
+  if (!project) throw notFound('Project not found.');
+  if (auth.workspaceRole === 'guest') {
+    const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
+    if (!on) throw forbidden("You're not on this project.");
+  }
+  return project;
+}
 
 export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.get('/projects', async (req, reply) => {
@@ -35,23 +45,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         },
         orderBy: { name: 'asc' },
       });
-      const items = await Promise.all(
-        projects.map(async (p) => {
-          const openCount = await auth.db.task.count({
-            where: { projectId: p.id, deletedAt: null, status: { category: { not: 'done' } } },
-          });
-          return {
-            id: p.id,
-            key: p.key,
-            name: p.name,
-            color: p.colour,
-            leadId: p.leadId ?? '',
-            workflowId: p.workflowId,
-            openCount,
-          };
-        }),
-      );
-      return items;
+      return mapProjectCards(auth.db, auth.userId, projects);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -61,7 +55,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const detail = await loadProjectDetail(auth.db, key);
+      const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
       if (auth.workspaceRole === 'guest') {
         const on = detail.members.some((m) => m.userId === auth.userId);
@@ -121,7 +115,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           create: { tenantId: auth.tenantId, projectId: project.id, userId },
         });
       }
-      const detail = await loadProjectDetail(auth.db, key);
+      const detail = await loadProjectDetail(auth.db, key, auth.userId);
       return detail;
     } catch (err) {
       return sendError(reply, err);
@@ -215,6 +209,34 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       if (!member) throw notFound();
       await auth.db.projectMemberRole.deleteMany({ where: { memberId: member.id } });
       await auth.db.projectMember.delete({ where: { id: member.id } });
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/favourite', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const project = await visibleProject(auth, key);
+      await auth.db.favourite.upsert({
+        where: { userId_projectId: { userId: auth.userId, projectId: project.id } },
+        update: {},
+        create: { tenantId: auth.tenantId, userId: auth.userId, projectId: project.id },
+      });
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/projects/:key/favourite', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const project = await visibleProject(auth, key);
+      await auth.db.favourite.deleteMany({ where: { userId: auth.userId, projectId: project.id } });
       return { ok: true };
     } catch (err) {
       return sendError(reply, err);

@@ -1,15 +1,34 @@
-// Parses the Quick add title line: "Fix hreflang tags @karl fri !high"
+// Parses the Quick add title line: "Fix hreflang tags @karl fri !high #bug"
 //   @name     → assignee (matched on first name, then full name)
+//   #bug / #idea / #feature / #improvement (also #feat, #imp) → type
 //   !urgent / !high / !medium / !low, or !1–!4 → priority
 //   today, tomorrow, mon…sun, "next week" → due date
 import dayjs from 'dayjs';
-import type { Priority, User } from '../api/types';
+import type { Priority, TaskType, User } from '../api/types';
 
 export interface ParsedTitle {
   title: string;
   assigneeId: string | null;
   priority: Priority | null;
   dueDate: string | null;
+  type: TaskType | null;
+}
+
+const TYPE_WORDS: Record<string, TaskType> = {
+  idea: 'idea',
+  bug: 'bug',
+  improvement: 'improvement',
+  improve: 'improvement',
+  imp: 'improvement',
+  feature: 'feature',
+  feat: 'feature',
+};
+
+export function stripTypeTokens(raw: string) {
+  return ` ${raw} `
+    .replace(/\s#([\p{L}]+)/giu, (m, word: string) => (TYPE_WORDS[word.toLowerCase()] ? ' ' : m))
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const PRIORITY_WORDS: Record<string, Priority> = {
@@ -32,12 +51,20 @@ export function parseQuickTitle(raw: string, people: User[]): ParsedTitle {
   let assigneeId: string | null = null;
   let priority: Priority | null = null;
   let dueDate: string | null = null;
+  let type: TaskType | null = null;
 
   text = text.replace(/\s@([\p{L}.-]+)/giu, (m, name: string) => {
     const n = name.toLowerCase();
     const hit = people.find((p) => p.name.toLowerCase().split(' ')[0] === n) ?? people.find((p) => p.name.toLowerCase().startsWith(n));
     if (!hit) return m;
     assigneeId = hit.id;
+    return ' ';
+  });
+
+  text = text.replace(/\s#([\p{L}]+)/giu, (m, word: string) => {
+    const t = TYPE_WORDS[word.toLowerCase()];
+    if (!t) return m;
+    type = t;
     return ' ';
   });
 
@@ -57,5 +84,5 @@ export function parseQuickTitle(raw: string, people: User[]): ParsedTitle {
     return ' ';
   });
 
-  return { title: text.replace(/\s+/g, ' ').trim(), assigneeId, priority, dueDate };
+  return { title: text.replace(/\s+/g, ' ').trim(), assigneeId, priority, dueDate, type };
 }

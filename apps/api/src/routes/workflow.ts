@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../context.js';
-import { forbidden, notFound, sendError } from '../errors.js';
-import { loadWorkflow } from '../lib/loadProject.js';
+import { sendError } from '../errors.js';
+import { workflowView } from '../lib/loadProject.js';
+import { saveWorkflowDefinition } from '../lib/saveWorkflow.js';
 
 const transitionSchema = z.object({
   from: z.string(),
@@ -12,8 +13,17 @@ const transitionSchema = z.object({
   label: z.string().nullable().optional(),
 });
 
+const statusSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  category: z.enum(['backlog', 'active', 'review', 'done']),
+  wipLimit: z.number().int().min(1).nullable(),
+});
+
 const saveSchema = z.object({
   name: z.string().trim().min(1).optional(),
+  statuses: z.array(statusSchema).optional(),
+  remaps: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
   transitions: z.array(transitionSchema),
 });
 
@@ -22,12 +32,7 @@ export const workflowRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const rows = await auth.db.workflow.findMany({ orderBy: { name: 'asc' } });
-      return Promise.all(rows.map((w) => loadWorkflow(auth.db, w.id).then((wf) => ({
-        id: wf.id,
-        name: wf.name,
-        statuses: wf.statuses,
-        transitions: wf.transitions,
-      }))));
+      return Promise.all(rows.map((w) => workflowView(auth.db, w.id)));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -37,8 +42,7 @@ export const workflowRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const id = (req.params as { id: string }).id;
-      const wf = await loadWorkflow(auth.db, id);
-      return { id: wf.id, name: wf.name, statuses: wf.statuses, transitions: wf.transitions };
+      return workflowView(auth.db, id);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -47,38 +51,9 @@ export const workflowRoutes: FastifyPluginAsync = async (app) => {
   app.put('/workflows/:id', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
-        throw forbidden('Only the owner or an admin can edit workflows.');
-      }
       const id = (req.params as { id: string }).id;
       const input = saveSchema.parse(req.body);
-      const existing = await auth.db.workflow.findFirst({ where: { id } });
-      if (!existing) throw notFound();
-      if (input.name) {
-        await auth.db.workflow.update({ where: { id }, data: { name: input.name } });
-      }
-      const wf = await loadWorkflow(auth.db, id);
-      const roles = await auth.db.projectRole.findMany();
-      const roleIdBySlug = Object.fromEntries(roles.map((r) => [r.slug, r.id]));
-      await auth.db.workflowTransition.deleteMany({ where: { workflowId: id } });
-      for (const t of input.transitions) {
-        const fromId = wf.statusIdBySlug[t.from];
-        const toId = wf.statusIdBySlug[t.to];
-        if (!fromId || !toId) continue;
-        await auth.db.workflowTransition.create({
-          data: {
-            tenantId: auth.tenantId,
-            workflowId: id,
-            fromStatusId: fromId,
-            toStatusId: toId,
-            allowedRoleIds: t.roles.map((s) => roleIdBySlug[s]).filter((x): x is string => !!x),
-            requireComment: t.requireComment,
-            label: t.label ?? null,
-          },
-        });
-      }
-      const next = await loadWorkflow(auth.db, id);
-      return { id: next.id, name: next.name, statuses: next.statuses, transitions: next.transitions };
+      return await saveWorkflowDefinition(auth, id, input);
     } catch (err) {
       return sendError(reply, err);
     }

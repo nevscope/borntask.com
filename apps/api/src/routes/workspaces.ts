@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { prisma, createTenantClient } from '../db.js';
 import { requireUser, setSession } from '../context.js';
 import { sendError, validation } from '../errors.js';
+import { config } from '../env.js';
 import { bootstrapWorkspaceDefaults } from '../lib/bootstrapWorkspace.js';
-import { projectKeyFromName, slugify } from '../lib/tokens.js';
+import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
+import { newInviteToken, projectKeyFromName, slugify } from '../lib/tokens.js';
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -65,6 +67,26 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
             data: { tenantId: workspace.id, memberId: member.id, roleId: defaults.roleIds.lead },
           });
         }
+      }
+
+      const domains = internalDomains(input.allowedDomain ? [input.allowedDomain] : [], user.email);
+      for (const emailRaw of input.inviteEmails ?? []) {
+        const email = emailRaw.toLowerCase();
+        if (email === user.email.toLowerCase()) continue;
+        const tenantRole = roleForInvite(email, 'member', domains);
+        const { token, hash } = newInviteToken();
+        await db.invitation.create({
+          data: {
+            tenantId: workspace.id,
+            email,
+            tenantRole,
+            tokenHash: hash,
+            invitedById: user.id,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+        const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
+        console.log(`[BornTask] Invite for ${email}: ${url}`);
       }
 
       setSession(req, reply, { userId: user.id, tenantId: workspace.id });

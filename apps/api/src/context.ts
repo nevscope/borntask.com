@@ -14,7 +14,8 @@ export function sessionUserId(req: FastifyRequest): string | undefined {
 }
 
 export function sessionTenantId(req: FastifyRequest): string | undefined {
-  return req.session.get('tenantId') as string | undefined;
+  const id = req.session.get('tenantId');
+  return id ? id : undefined;
 }
 
 export async function requireUser(req: FastifyRequest) {
@@ -43,7 +44,7 @@ export async function requireAuth(req: FastifyRequest): Promise<Authed> {
 
 export function setSession(req: FastifyRequest, _reply: FastifyReply, data: { userId: string; tenantId?: string }) {
   req.session.set('userId', data.userId);
-  if (data.tenantId) req.session.set('tenantId', data.tenantId);
+  req.session.set('tenantId', data.tenantId ?? '');
 }
 
 export function clearSession(req: FastifyRequest) {

@@ -7,6 +7,8 @@ export const color = {
   brandStrong: '#0F6B46',
   brandTint: '#E9F5EF',
   brandBorder: '#CFE7DA',
+  brandOn: '#E4F3EB',
+  brandOnMuted: '#D2EBDD',
   ink: '#121417',
   ink2: '#262A24',
   ink3: '#3A3F38',
@@ -24,6 +26,7 @@ export const color = {
   warning: '#8A5A0B',
   warningTint: '#FFFBF2',
   warningBorder: '#F1D6A6',
+  highlight: '#FFE7A3',
 } as const;
 
 export const font = {
@@ -33,6 +36,14 @@ export const font = {
 } as const;
 
 export const radius = { sm: 6, md: 8, lg: 12, xl: 14 } as const;
+
+/** Stacked project bars: backlog, active, review, done. */
+export const categoryBar = {
+  backlog: '#AEB4AA',
+  active: '#2F6FDB',
+  review: '#E0731F',
+  done: '#178A5C',
+} as const;
 
 export const typeStyle: Record<TaskType, { label: string; bg: string; fg: string }> = {
   idea: { label: 'Idea', bg: '#F1EEFC', fg: '#5B3FC4' },

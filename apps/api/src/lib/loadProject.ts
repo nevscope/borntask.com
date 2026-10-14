@@ -2,6 +2,85 @@ import { prisma } from '../db.js';
 import type { TenantClient } from '../tenantPrisma.js';
 import { mapStatus, mapUser, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
 
+const EMPTY_COUNTS = { backlog: 0, active: 0, review: 0, done: 0 };
+
+export async function workflowView(db: TenantClient, workflowId: string) {
+  const wf = await loadWorkflow(db, workflowId);
+  const grouped = await db.task.groupBy({
+    by: ['statusId'],
+    where: { deletedAt: null, status: { workflowId } },
+    _count: { _all: true },
+  });
+  const byId = new Map(grouped.map((g) => [g.statusId, g._count._all]));
+  const projectCount = await db.project.count({ where: { workflowId } });
+  return {
+    id: wf.id,
+    name: wf.name,
+    projectCount,
+    statuses: wf.statuses.map((s) => ({
+      ...s,
+      taskCount: byId.get(wf.statusIdBySlug[s.id] ?? '') ?? 0,
+    })),
+    transitions: wf.transitions,
+  };
+}
+
+export async function mapProjectCards(
+  db: TenantClient,
+  userId: string,
+  rows: { id: string; key: string; name: string; colour: string; leadId: string | null; workflowId: string; updatedAt: Date }[],
+) {
+  if (!rows.length) return [];
+  const ids = rows.map((p) => p.id);
+  const leadIds = [...new Set(rows.map((p) => p.leadId).filter((id): id is string => !!id))];
+  const [grouped, statuses, favs, leads, members] = await Promise.all([
+    db.task.groupBy({
+      by: ['projectId', 'statusId'],
+      where: { deletedAt: null, projectId: { in: ids } },
+      _count: { _all: true },
+    }),
+    db.workflowStatus.findMany({ select: { id: true, category: true } }),
+    db.favourite.findMany({ where: { userId }, select: { projectId: true } }),
+    leadIds.length ? prisma.user.findMany({ where: { id: { in: leadIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    db.projectMember.findMany({ where: { projectId: { in: ids } }, select: { projectId: true, userId: true } }),
+  ]);
+  const memberIds = [...new Set(members.map((m) => m.userId))];
+  const guestRows = memberIds.length
+    ? await db.tenantMember.findMany({
+      where: { userId: { in: memberIds }, tenantRole: 'guest', isActive: true },
+      select: { userId: true },
+    })
+    : [];
+  const guestIds = new Set(guestRows.map((g) => g.userId));
+  const categoryOf = new Map(statuses.map((s) => [s.id, s.category]));
+  const starred = new Set(favs.map((f) => f.projectId));
+  const leadName = new Map(leads.map((u) => [u.id, u.name]));
+
+  return rows.map((p) => {
+    const counts = { ...EMPTY_COUNTS };
+    for (const g of grouped) {
+      if (g.projectId !== p.id) continue;
+      const cat = categoryOf.get(g.statusId);
+      if (cat === 'backlog' || cat === 'active' || cat === 'review' || cat === 'done') counts[cat] += g._count._all;
+    }
+    const guestCount = members.filter((m) => m.projectId === p.id && guestIds.has(m.userId)).length;
+    return {
+      id: p.id,
+      key: p.key,
+      name: p.name,
+      color: p.colour,
+      leadId: p.leadId ?? '',
+      workflowId: p.workflowId,
+      openCount: counts.backlog + counts.active + counts.review,
+      counts,
+      starred: starred.has(p.id),
+      leadName: p.leadId ? leadName.get(p.leadId) ?? null : null,
+      guestCount,
+      updatedAt: p.updatedAt.toISOString(),
+    };
+  });
+}
+
 export async function loadWorkflow(db: TenantClient, workflowId: string) {
   const wf = await db.workflow.findFirstOrThrow({
     where: { id: workflowId },
@@ -102,7 +181,7 @@ export function mapTask(row: {
   };
 }
 
-export async function loadProjectDetail(db: TenantClient, key: string) {
+export async function loadProjectDetail(db: TenantClient, key: string, userId: string) {
   const project = await db.project.findFirst({
     where: { key },
     include: { sections: { orderBy: { position: 'asc' } }, members: { include: { roles: { include: { role: true } } } } },
@@ -111,19 +190,9 @@ export async function loadProjectDetail(db: TenantClient, key: string) {
   const workflow = await loadWorkflow(db, project.workflowId);
   const userIds = [...new Set(project.members.map((m) => m.userId).concat(project.leadId ? [project.leadId] : []))];
   const users = userIds.length ? await prisma.user.findMany({ where: { id: { in: userIds } } }) : [];
-  const open = await db.task.count({
-    where: { projectId: project.id, deletedAt: null, status: { category: { not: 'done' } } },
-  });
+  const [card] = await mapProjectCards(db, userId, [project]);
   return {
-    project: {
-      id: project.id,
-      key: project.key,
-      name: project.name,
-      color: project.colour,
-      leadId: project.leadId ?? '',
-      workflowId: project.workflowId,
-      openCount: open,
-    },
+    project: card!,
     sections: project.sections.map((s, i) => ({
       id: s.id,
       projectKey: project.key,

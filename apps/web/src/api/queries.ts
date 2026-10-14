@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { ApiError, httpApi } from './http';
 import { mockApi } from './mockData';
-import type { Api, CreateTaskInput, MoveTaskInput, ReorderTaskInput, Task, UpdateTaskInput } from './types';
+import type { Api, CreateTaskInput, MoveTaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -32,6 +32,7 @@ export const api: Api = {
       throw err;
     }
   },
+  setFavourite: (key, starred) => projectsApi().setFavourite(key, starred),
   getProject: async (key) => {
     try {
       return await projectsApi().getProject(key);
@@ -48,6 +49,16 @@ export const api: Api = {
     } catch (err) {
       if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
         return mockApi.listProjectTasks(key);
+      }
+      throw err;
+    }
+  },
+  search: async (q) => {
+    try {
+      return await tasksApi().search(q);
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.search(q);
       }
       throw err;
     }
@@ -80,15 +91,22 @@ export const qk = {
   project: (key: string) => ['projects', key] as const,
   projectTasks: (key: string) => ['projects', key, 'tasks'] as const,
   myTasks: ['me', 'tasks'] as const,
+  search: (q: string) => ['search', q] as const,
   task: (key: string) => ['tasks', key] as const,
 };
 
 // ---------- reads ----------
 export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.getMe(), staleTime: Infinity });
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
-export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key) });
-export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key) });
+export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key), enabled: key.length > 0 });
+export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key), enabled: key.length > 0 });
 export const useMyTasks = () => useQuery({ queryKey: qk.myTasks, queryFn: () => api.listMyTasks() });
+export const useSearch = (q: string) =>
+  useQuery<SearchResponse>({
+    queryKey: qk.search(q),
+    queryFn: () => api.search(q),
+    enabled: q.trim().length > 0,
+  });
 export const useTask = (key: string | null) =>
   useQuery({ queryKey: qk.task(key ?? ''), queryFn: () => api.getTask(key!), enabled: !!key });
 
@@ -186,5 +204,24 @@ export function useRestoreTask() {
   return useMutation({
     mutationFn: (key: string) => api.restoreTask(key),
     onSuccess: (task) => invalidateTaskViews(qc, task),
+  });
+}
+
+export function useSetFavourite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { key: string; starred: boolean }) => api.setFavourite(input.key, input.starred),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: qk.projects });
+      const prev = qc.getQueryData<Project[]>(qk.projects);
+      qc.setQueryData<Project[]>(qk.projects, (old) => old?.map((p) => (p.key === input.key ? { ...p, starred: input.starred } : p)));
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.projects, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: qk.projects });
+    },
   });
 }

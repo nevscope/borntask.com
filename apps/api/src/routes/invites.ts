@@ -4,6 +4,8 @@ import { prisma, createTenantClient } from '../db.js';
 import { config } from '../env.js';
 import { requireAuth, requireUser, setSession } from '../context.js';
 import { forbidden as forbid, notFound as nf, sendError as send, validation as val } from '../errors.js';
+import { remapRoleSlug } from '../lib/mappers.js';
+import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { hashToken, newInviteToken } from '../lib/tokens.js';
 
 const createInviteSchema = z.object({
@@ -24,21 +26,24 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       }
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       if (!ws) throw nf();
-      if (input.tenantRole === 'guest' && !ws.membersCanInviteGuests && auth.workspaceRole === 'member') {
-        throw forbid('Only admins and leads can invite guests.');
-      }
       const roleRows = input.projectRoleSlugs?.length
         ? await auth.db.projectRole.findMany({ where: { slug: { in: input.projectRoleSlugs } } })
         : [];
-      const created: { email: string; url: string }[] = [];
+      const actor = await prisma.user.findUnique({ where: { id: auth.userId } });
+      const domains = internalDomains(ws.allowedDomains, actor?.email ?? '');
+      const created: { email: string; url: string; tenantRole: string }[] = [];
       for (const emailRaw of input.emails) {
         const email = emailRaw.toLowerCase();
+        const tenantRole = roleForInvite(email, input.tenantRole, domains);
+        if (tenantRole === 'guest' && !ws.membersCanInviteGuests && auth.workspaceRole === 'member') {
+          throw forbid('Only admins and leads can invite guests.');
+        }
         const { token, hash } = newInviteToken();
         await auth.db.invitation.create({
           data: {
             tenantId: auth.tenantId,
             email,
-            tenantRole: input.tenantRole,
+            tenantRole,
             projectId: input.projectId,
             projectRoleIds: roleRows.map((r) => r.id),
             tokenHash: hash,
@@ -48,7 +53,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
           },
         });
         const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
-        created.push({ email, url });
+        created.push({ email, url, tenantRole });
         req.log.info({ inviteUrl: url, email }, 'Invite URL (no Resend configured)');
         console.log(`[BornTask] Invite for ${email}: ${url}`);
       }
@@ -110,10 +115,27 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         data: { acceptedAt: new Date() },
       });
       setSession(req, reply, { userId: user.id, tenantId: invite.tenantId });
+      let projectKey: string | null = null;
+      let projectName: string | null = null;
+      let projectRole: string | null = null;
+      if (invite.projectId) {
+        const project = await db.project.findFirst({ where: { id: invite.projectId } });
+        projectKey = project?.key ?? null;
+        projectName = project?.name ?? null;
+        const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
+        const roleId = roleIds[0];
+        if (roleId) {
+          const role = await db.projectRole.findFirst({ where: { id: roleId } });
+          if (role) projectRole = remapRoleSlug(role.slug);
+        }
+      }
       return {
         workspaceName: invite.tenant.name,
         tenantRole: invite.tenantRole,
         welcome: invite.tenantRole === 'guest' ? 'guest' : 'member',
+        projectKey,
+        projectName,
+        projectRole,
       };
     } catch (err) {
       return send(reply, err);

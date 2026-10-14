@@ -57,7 +57,12 @@ export function AdminPeopleScreen() {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <h1 className="bt-h1">People and invitations</h1>
-          <p style={{ color: color.muted, margin: '6px 0 0' }}>{me?.workspace.name} · {people.data?.length ?? 0} people</p>
+          <p style={{ color: color.muted, margin: '6px 0 0' }}>
+            {me?.workspace.name}
+            {people.data
+              ? ` · ${people.data.length} ${people.data.length === 1 ? 'person' : 'people'}`
+              : ''}
+          </p>
         </div>
         <InvitePeopleButton />
       </div>

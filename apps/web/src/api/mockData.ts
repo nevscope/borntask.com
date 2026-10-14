@@ -3,21 +3,8 @@
 // Mutations change the in-memory store, so the app behaves like the real thing until reload.
 import dayjs from 'dayjs';
 import { ApiError } from './http';
-import type {
-  Activity,
-  Api,
-  Comment,
-  Me,
-  Project,
-  ProjectDetail,
-  ProjectMember,
-  Section,
-  Subtask,
-  Task,
-  TaskDetail,
-  User,
-  Workflow,
-} from './types';
+import type { Activity, Api, Comment, Me, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
+import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
 
 const day = (offset: number) => dayjs().add(offset, 'day').format('YYYY-MM-DD');
@@ -66,9 +53,9 @@ export const deliveryWorkflow: Workflow = {
 
 // ---------- projects ----------
 const projects: Project[] = [
-  { id: 'p_web', key: 'WEB', name: 'Website relaunch', color: '#2F6FDB', leadId: 'u_luke', workflowId: 'wf_delivery', openCount: 0 },
-  { id: 'p_mob', key: 'MOB', name: 'Mobile app', color: '#E0731F', leadId: 'u_karl', workflowId: 'wf_delivery', openCount: 0 },
-  { id: 'p_cli', key: 'CLI', name: 'Client onboarding', color: '#8E59D9', leadId: 'u_daniela', workflowId: 'wf_delivery', openCount: 0 },
+  { id: 'p_web', key: 'WEB', name: 'Website relaunch', color: '#2F6FDB', leadId: 'u_luke', workflowId: 'wf_delivery', openCount: 0, starred: true, counts: { backlog: 0, active: 0, review: 0, done: 0 } },
+  { id: 'p_mob', key: 'MOB', name: 'Mobile app', color: '#E0731F', leadId: 'u_karl', workflowId: 'wf_delivery', openCount: 0, starred: false, counts: { backlog: 0, active: 0, review: 0, done: 0 } },
+  { id: 'p_cli', key: 'CLI', name: 'Client onboarding', color: '#8E59D9', leadId: 'u_daniela', workflowId: 'wf_delivery', openCount: 0, starred: false, counts: { backlog: 0, active: 0, review: 0, done: 0 } },
 ];
 
 const sections: Section[] = [
@@ -145,7 +132,10 @@ let tasks: Task[] = [
     subtaskCount: { done: 1, total: 2 },
   }, 1),
   seed({ key: 'WEB-139', title: 'Add Apple Pay to checkout', type: 'feature', statusId: 'wip', sectionId: 's_web_checkout', assigneeId: 'u_luke', dueDate: day(7), priority: 'high', subtaskCount: { done: 2, total: 3 } }, 2),
-  seed({ key: 'WEB-144', title: 'Show the delivery date before payment', type: 'feature', statusId: 'approved', sectionId: 's_web_checkout', dueDate: day(11) }, 3),
+  seed({
+    key: 'WEB-144', title: 'Show the delivery date before payment', type: 'feature', statusId: 'approved', sectionId: 's_web_checkout', dueDate: day(11),
+    description: 'The promised window should be shown on the checkout summary step before the customer pays.',
+  }, 3),
   // WEB · Platform
   seed({ key: 'WEB-147', title: 'Rate-limit the login endpoint', type: 'feature', statusId: 'wip', sectionId: 's_web_platform', assigneeId: 'u_karl', dueDate: day(9), priority: 'high' }, 1),
   seed({ key: 'WEB-149', title: 'Broken links on the 404 page', type: 'bug', statusId: 'on_hold', previousStatusId: 'wip', sectionId: 's_web_platform', assigneeId: 'u_maria', dueDate: day(-2), priority: 'low' }, 2),
@@ -180,6 +170,12 @@ const comments: Record<string, Comment[]> = {
   'WEB-142': [
     { id: 'c_1', authorId: 'u_karl', body: 'Fixed the polyfill and deployed to staging. Moved to Testing.', via: 'app', createdAt: ago(2) },
     { id: 'c_2', authorId: 'u_maria', body: '@Karl still failing when the card needs 3-D Secure.', via: 'app', createdAt: ago(0.6) },
+  ],
+  'WEB-133': [
+    { id: 'c_3', authorId: 'u_karl', body: 'This also covers the checkout thumbnails, not only the hero.', via: 'app', createdAt: ago(8) },
+  ],
+  'WEB-158': [
+    { id: 'c_4', authorId: 'u_maria', body: 'On iPhone SE it blocks the checkout button entirely.', via: 'app', createdAt: ago(5) },
   ],
 };
 
@@ -217,8 +213,25 @@ function log(key: string, text: string) {
 function touch(t: Task) {
   t.updatedAt = new Date().toISOString();
 }
-function openCount(projectKey: string) {
-  return tasks.filter((t) => t.projectKey === projectKey && statusById(deliveryWorkflow, t.statusId)?.category !== 'done').length;
+function countsFor(projectKey: string): StatusCounts {
+  const counts: StatusCounts = { backlog: 0, active: 0, review: 0, done: 0 };
+  for (const t of tasks) {
+    if (t.projectKey !== projectKey) continue;
+    const cat = statusById(deliveryWorkflow, t.statusId)?.category;
+    if (cat) counts[cat] += 1;
+  }
+  return counts;
+}
+function presentProject(p: Project): Project {
+  const counts = countsFor(p.key);
+  return {
+    ...p,
+    counts,
+    openCount: counts.backlog + counts.active + counts.review,
+    leadName: users.find((u) => u.id === p.leadId)?.name ?? null,
+    guestCount: 0,
+    updatedAt: new Date().toISOString(),
+  };
 }
 function sorted(list: Task[]) {
   return [...list].sort((a, b) => a.position - b.position);
@@ -233,14 +246,20 @@ export const mockApi: Api = {
 
   async listProjects() {
     await wait();
-    return clone(projects.map((p) => ({ ...p, openCount: openCount(p.key) })));
+    return clone(projects.map((p) => presentProject(p)));
+  },
+
+  async setFavourite(key, starred) {
+    await wait();
+    projectOf(key).starred = starred;
+    return { ok: true };
   },
 
   async getProject(key): Promise<ProjectDetail> {
     await wait();
     const project = projectOf(key);
     return clone({
-      project: { ...project, openCount: openCount(key) },
+      project: presentProject(project),
       sections: sections.filter((s) => s.projectKey === key).sort((a, b) => a.position - b.position),
       members: members[key] ?? [],
       users,
@@ -252,6 +271,59 @@ export const mockApi: Api = {
     await wait();
     projectOf(key);
     return clone(sorted(tasks.filter((t) => t.projectKey === key)));
+  },
+
+  async search(q) {
+    const started = Date.now();
+    await wait();
+    const n = q.trim();
+    if (!n) return { hits: [], tookMs: Date.now() - started };
+    const hits: SearchHit[] = [];
+    const userName = (id: string | null) => users.find((u) => u.id === id)?.name ?? null;
+
+    const pushHit = (t: Task, matchField: SearchHit['matchField'], matchSnippet: string, commentAuthor: string | null) => {
+      const project = projects.find((p) => p.key === t.projectKey);
+      const status = statusById(deliveryWorkflow, t.statusId);
+      if (!project || !status) return;
+      hits.push({
+        key: t.key,
+        projectKey: t.projectKey,
+        projectName: project.name,
+        projectColor: project.color,
+        title: t.title,
+        type: t.type,
+        statusId: t.statusId,
+        statusName: status.name,
+        statusTone: status.tone,
+        statusCategory: status.category,
+        sectionName: sections.find((s) => s.id === t.sectionId)?.name ?? null,
+        assigneeName: userName(t.assigneeId),
+        matchField,
+        matchSnippet,
+        commentAuthor,
+      });
+    };
+
+    if (isTaskKey(n)) {
+      const t = tasks.find((x) => x.key.toLowerCase() === n.toLowerCase());
+      if (t) pushHit(t, 'key', t.title, null);
+      return { hits, tookMs: Date.now() - started };
+    }
+
+    const needle = n.toLowerCase();
+    for (const t of tasks) {
+      if (t.title.toLowerCase().includes(needle)) {
+        pushHit(t, 'title', t.title, null);
+        continue;
+      }
+      if (t.description.toLowerCase().includes(needle)) {
+        pushHit(t, 'description', snippetAround(t.description, n), null);
+        continue;
+      }
+      const c = (comments[t.key] ?? []).find((x) => x.body.toLowerCase().includes(needle));
+      if (c) pushHit(t, 'comment', snippetAround(c.body, n), userName(c.authorId));
+    }
+    return { hits, tookMs: Date.now() - started };
   },
 
   async listMyTasks() {

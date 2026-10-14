@@ -1,9 +1,11 @@
 import { App, Button, Form, Input, Modal, Select } from 'antd';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 
 export function InvitePeopleButton({ projectId, projectName }: { projectId?: string; projectName?: string }) {
   const { message } = App.useApp();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -35,10 +37,16 @@ export function InvitePeopleButton({ projectId, projectName }: { projectId?: str
                   message: v.message,
                 }),
               });
-              const json = await res.json() as { message?: string; invites?: { email: string; url: string }[] };
+              const json = await res.json() as { message?: string; invites?: { email: string; url: string; tenantRole: string }[] };
               if (!res.ok) throw new Error(json.message ?? 'Invite failed');
               json.invites?.forEach((i) => console.log(`[BornTask] Invite for ${i.email}: ${i.url}`));
-              void message.success('Invites created. URLs are in the API console while email is off.');
+              void qc.invalidateQueries({ queryKey: ['invites'] });
+              const guests = json.invites?.filter((i) => i.tenantRole === 'guest' && v.tenantRole !== 'guest') ?? [];
+              void message.success(
+                guests.length
+                  ? 'Invites created. An external email is a guest. URLs are in the API console while email is off.'
+                  : 'Invites created. URLs are in the API console while email is off.',
+              );
               setOpen(false);
             } catch (e) {
               void message.error(e instanceof Error ? e.message : 'Invite failed');
@@ -50,7 +58,7 @@ export function InvitePeopleButton({ projectId, projectName }: { projectId?: str
           <Form.Item name="emails" label="Email addresses" rules={[{ required: true }]}>
             <Input.TextArea rows={3} placeholder="alex@company.com, client@firm.com" />
           </Form.Item>
-          <Form.Item name="tenantRole" label="Workspace role" initialValue="member">
+          <Form.Item name="tenantRole" label="Workspace role" initialValue="member" extra="An email outside this workspace's domain is invited as a guest.">
             <Select options={[
               { value: 'member', label: 'Member' },
               { value: 'guest', label: 'Guest (external email)' },

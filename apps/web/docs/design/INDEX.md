@@ -11,24 +11,24 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `BoardView.dc.html` | Project · Board view | Built → `src/screens/ProjectBoardScreen.tsx` |
 | `TaskDetail.dc.html` | Task detail drawer | Built → `src/components/TaskDrawer.tsx` |
 | `QuickAdd.dc.html` | Quick add (Q) | Built → `src/components/QuickAdd.tsx` |
-| `CommandPalette.dc.html` | Command palette (Ctrl/Cmd K) | To build |
-| `Search.dc.html` | Search results | To build |
+| `CommandPalette.dc.html` | Command palette (Ctrl/Cmd K) | Built → `src/components/CommandPalette.tsx` |
+| `Search.dc.html` | Search results | Built → `src/screens/SearchScreen.tsx` |
 | `Projects.dc.html` | Projects | Built → `src/screens/ProjectsScreen.tsx` |
 | `CreateProject.dc.html` | Create project | Built → `src/screens/CreateProjectScreen.tsx` |
 | `Import.dc.html` | Import from Asana | Built → `src/screens/ImportScreen.tsx` |
 | `ProjectMembers.dc.html` | Project settings · Members | Built → `src/screens/ProjectMembersScreen.tsx` |
 | `ProjectStructure.dc.html` | Project settings · Sections, types, trash | Built → `src/screens/ProjectStructureScreen.tsx` |
 | `GoogleChat.dc.html` | Project settings · Google Chat | To build |
-| `WorkflowEditor.dc.html` | Workflow editor | To build |
+| `WorkflowEditor.dc.html` | Workflow editor | Built → `src/screens/WorkflowEditorScreen.tsx` |
 | `AdminPeople.dc.html` | Admin · People & invitations | Built → `src/screens/AdminPeopleScreen.tsx` |
 | `AdminDefaults.dc.html` | Admin · Roles, types, workflows | Built → `src/screens/AdminDefaultsScreen.tsx` |
 | `ApiTokens.dc.html` | Profile · API tokens & MCP | To build |
 | `AdminBilling.dc.html` | Admin · Billing | To build |
-| `SignIn.dc.html` | Sign in | To build |
-| `AcceptInvite.dc.html` | Accept invitation | To build |
-| `WelcomeGuest.dc.html` | After accepting · Guest lands in their project | To build |
-| `WelcomeMember.dc.html` | After accepting · Workspace-only member, empty My tasks | To build |
-| `WrongAccount.dc.html` | Signed in with the wrong account | To build |
+| `SignIn.dc.html` | Sign in | Built → `src/screens/auth/SignInScreen.tsx` |
+| `AcceptInvite.dc.html` | Accept invitation | Built → `src/screens/auth/AcceptInviteScreen.tsx` |
+| `WelcomeGuest.dc.html` | After accepting · Guest lands in their project | Built → `src/screens/auth/WelcomeGuestScreen.tsx` |
+| `WelcomeMember.dc.html` | After accepting · Workspace-only member, empty My tasks | Built → `src/screens/auth/WelcomeMemberScreen.tsx` |
+| `WrongAccount.dc.html` | Signed in with the wrong account | Built → `src/screens/auth/WrongAccountScreen.tsx` |
 | `SheetPickers.dc.html` | Sheet · Inline pickers | To build |
 | `SheetFilters.dc.html` | Sheet · Filters, saved views, blocked move | To build |
 | `SheetModals.dc.html` | Sheet · Invite and confirmations | To build |
@@ -47,5 +47,5 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetDragDrop.dc.html` | Sheet · Drag and drop | To build |
 | `ProfileSettings.dc.html` | Profile and notifications | To build |
 | `WorkspaceGeneral.dc.html` | Admin · Workspace general | Built → `src/screens/WorkspaceGeneralScreen.tsx` |
-| `CreateWorkspace.dc.html` | New client · Create a workspace | To build |
+| `CreateWorkspace.dc.html` | New client · Create a workspace | Built → `src/screens/auth/CreateWorkspaceScreen.tsx` |
 | `SheetBillingStates.dc.html` | Sheet · Trial, payment and seat states | To build |

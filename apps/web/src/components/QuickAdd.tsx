@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCreateTask, useProject, useProjects } from '../api/queries';
 import type { Priority, TaskType } from '../api/types';
 import { dueLabel } from '../lib/dates';
-import { parseQuickTitle } from '../lib/quickParse';
+import { parseQuickTitle, stripTypeTokens } from '../lib/quickParse';
 import { initialStatusFor, statusById } from '../lib/workflow';
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
@@ -93,6 +93,15 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     if (!descTouched) setDescription(TEMPLATES[t]);
   }
 
+  useEffect(() => {
+    if (parsed.type && parsed.type !== type) changeType(parsed.type);
+  }, [parsed.type, type]);
+
+  function pickType(t: TaskType) {
+    setRaw((prev) => stripTypeTokens(prev));
+    changeType(t);
+  }
+
   function addFiles(list: FileList | File[]) {
     const next = itemsFromFiles(list);
     if (next.length) setFiles((prev) => [...prev, ...next]);
@@ -162,7 +171,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
                 key={t}
                 type="button"
                 aria-pressed={on}
-                onClick={() => changeType(t)}
+                onClick={() => pickType(t)}
                 style={{
                   height: 28,
                   padding: '0 10px',
@@ -269,7 +278,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
 
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '12px 18px', background: color.subtle, borderTop: `1px solid ${color.divider}` }}>
           <span style={{ flex: '1 1 260px', fontSize: 12.5, color: color.muted }}>
-            Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
+            Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>
           <Button onClick={() => submit(true)} disabled={!parsed.title} loading={create.isPending}>
             Create and open <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>
