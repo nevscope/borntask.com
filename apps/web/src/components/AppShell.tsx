@@ -183,7 +183,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TopSearch />
           <div style={{ flex: 1 }} />
           {USE_MOCKS && <Tag color="gold">{USE_PROJECT_MOCKS || USE_TASK_MOCKS ? 'Mocks' : 'API + fallback'}</Tag>}
-          <Button type="primary" onClick={() => quickAdd.open()} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
+          <Button type="primary" onClick={() => {
+            const key = pathname.match(/^\/p\/([^/]+)/)?.[1];
+            quickAdd.open(key ? { projectKey: key } : {});
+          }} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
             + New task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>Q</kbd>
           </Button>
           <NotificationBell />

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../context.js';
 import { sendError, validation } from '../errors.js';
+import { taskKey } from '../lib/loadProject.js';
 
 const kindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github']);
 
@@ -21,16 +22,17 @@ function present(
     kind: string;
     readAt: Date | null;
     createdAt: Date;
-    task: { key: string; title: string; project: { key: string } } | null;
+    task: { number: number; title: string; project: { key: string } } | null;
   },
 ) {
   const parsed = kindSchema.safeParse(row.kind);
   const kind = parsed.success ? parsed.data : 'moved';
+  const key = row.task ? taskKey(row.task.project.key, row.task.number) : null;
   return {
     id: row.id,
     kind,
-    text: textFor(row.kind, row.task?.title ?? null, row.task?.key ?? null),
-    taskKey: row.task?.key ?? null,
+    text: textFor(row.kind, row.task?.title ?? null, key),
+    taskKey: key,
     projectKey: row.task?.project.key ?? null,
     actor: null,
     createdAt: row.createdAt.toISOString(),
@@ -39,7 +41,7 @@ function present(
 }
 
 export const notificationRoutes: FastifyPluginAsync = async (app) => {
-  const include = { task: { select: { key: true, title: true, project: { select: { key: true } } } } } as const;
+  const include = { task: { select: { number: true, title: true, project: { select: { key: true } } } } } as const;
 
   app.get('/me/notifications', async (req, reply) => {
     try {

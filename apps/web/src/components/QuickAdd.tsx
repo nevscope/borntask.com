@@ -3,7 +3,7 @@
 // screenshots can be pasted (Ctrl/Cmd+V) or dropped. Enter creates, Shift+Enter creates and opens.
 import { App, Button, Input, Modal } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCreateTask, useMe, useMoveTask, useProject, useProjects } from '../api/queries';
 import type { Priority, ProjectRole, TaskType } from '../api/types';
 import { dueLabel } from '../lib/dates';
@@ -61,12 +61,17 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
   );
 }
 
+function projectKeyFromPath(pathname: string) {
+  return pathname.match(/^\/p\/([^/]+)/)?.[1];
+}
+
 function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => void }) {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const me = useMe().data;
   const projects = useProjects().data ?? [];
-  const [projectKey, setProjectKey] = useState(opts.projectKey ?? 'WEB');
+  const [projectKey, setProjectKey] = useState(opts.projectKey ?? projectKeyFromPath(pathname) ?? '');
   const detail = useProject(projectKey).data;
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);
   const [type, setType] = useState<TaskType>(opts.type ?? 'idea');
@@ -81,6 +86,14 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [files, setFiles] = useState<AttachmentItem[]>([]);
   const create = useCreateTask();
   const move = useMoveTask();
+
+  useEffect(() => {
+    if (!projects.length) return;
+    const known = (key: string | undefined) => !!key && projects.some((p) => p.key === key);
+    if (known(projectKey)) return;
+    const next = [opts.projectKey, projectKeyFromPath(pathname), projects[0]?.key].find(known);
+    if (next) setProjectKey(next);
+  }, [projects, projectKey, opts.projectKey, pathname]);
 
   useEffect(() => {
     if (!detail) return;
@@ -139,7 +152,11 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   }
 
   function submit(openAfter: boolean) {
-    if (!parsed.title || !sectionId) return;
+    if (!parsed.title) return;
+    if (!projectKey || !sectionId) {
+      void message.error('Pick a project and section.');
+      return;
+    }
     if (needsComment && !moveComment.trim()) {
       void message.error('Add a comment to move it there.');
       return;
