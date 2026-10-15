@@ -1,9 +1,11 @@
 import { Alert, Button, Checkbox, Select } from 'antd';
 import { useEffect, useState, type CSSProperties } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { useMe } from '../api/queries';
 import type { StatusCategory, Transition, WorkflowStatus } from '../api/types';
 import { RoleTag } from '../components/Chips';
+import { SettingsFrame } from '../components/SettingsNav';
 import { color, toneStyle } from '../theme/tokens';
 
 type Stage = WorkflowStatus & { taskCount: number };
@@ -38,6 +40,9 @@ const field: CSSProperties = {
 };
 
 export function WorkflowEditorScreen() {
+  const { projectKey } = useParams();
+  const [params] = useSearchParams();
+  const wantedId = params.get('id');
   const me = useMe().data;
   const canEdit = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const [workflows, setWorkflows] = useState<EditorWorkflow[]>([]);
@@ -59,11 +64,11 @@ export function WorkflowEditorScreen() {
       .then((list) => {
         const normalised = list.map(normalise);
         setWorkflows(normalised);
-        const first = normalised[0];
+        const first = normalised.find((workflow) => workflow.id === wantedId) ?? normalised[0];
         if (first) setId(first.id);
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [wantedId]);
 
   useEffect(() => {
     const wf = workflows.find((w) => w.id === id);
@@ -161,7 +166,8 @@ export function WorkflowEditorScreen() {
   const usedBy = wf?.projectCount === 1 ? '1 project' : `${wf?.projectCount ?? 0} projects`;
 
   return (
-    <div className="bt-page" style={{ maxWidth: 960, margin: '0 auto', width: '100%', gap: 20 }}>
+    <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me?.workspaceRole === 'owner'}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 300px' }}>
           <h1 className="bt-h1">Workflow</h1>
@@ -215,7 +221,7 @@ export function WorkflowEditorScreen() {
               + Add stage
             </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '72px minmax(180px, 1fr) 150px 110px 70px 72px', gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px minmax(180px, 1fr) 150px 110px 90px 120px', gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
             <span />
             <span>Name</span>
             <span>Category</span>
@@ -230,15 +236,11 @@ export function WorkflowEditorScreen() {
               onDragStart={() => setDragId(s.id)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => { if (dragId) reorder(dragId, s.id); setDragId(null); }}
-              style={{ display: 'grid', gridTemplateColumns: '72px minmax(180px, 1fr) 150px 110px 70px 72px', gap: 12, alignItems: 'center', minHeight: 48, padding: '6px 16px', borderBottom: `1px solid ${color.divider}`, background: s.side ? color.subtle : color.surface }}
+              style={{ display: 'grid', gridTemplateColumns: '36px minmax(180px, 1fr) 150px 110px 90px 120px', gap: 12, alignItems: 'center', minHeight: 48, padding: '0 16px', borderBottom: `1px solid ${color.divider}`, background: s.side ? color.subtle : color.surface }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <button type="button" aria-label={`Move ${s.name} up`} disabled={!canEdit || index === 0} onClick={() => moveBy(index, -1)} style={iconBtn}>↑</button>
-                <button type="button" aria-label={`Drag ${s.name}`} disabled={!canEdit} style={{ ...iconBtn, cursor: canEdit ? 'grab' : 'default' }}>
-                  <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5" /><circle cx="9" cy="3" r="1.5" /><circle cx="3" cy="8" r="1.5" /><circle cx="9" cy="8" r="1.5" /><circle cx="3" cy="13" r="1.5" /><circle cx="9" cy="13" r="1.5" /></svg>
-                </button>
-                <button type="button" aria-label={`Move ${s.name} down`} disabled={!canEdit || index === stages.length - 1} onClick={() => moveBy(index, 1)} style={iconBtn}>↓</button>
-              </span>
+              <button type="button" aria-label={`Drag ${s.name}`} disabled={!canEdit} style={{ width: 28, height: 32, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', color: color.faint, cursor: canEdit ? 'grab' : 'default', padding: 0 }}>
+                <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5" /><circle cx="9" cy="3" r="1.5" /><circle cx="3" cy="8" r="1.5" /><circle cx="9" cy="8" r="1.5" /><circle cx="3" cy="13" r="1.5" /><circle cx="9" cy="13" r="1.5" /></svg>
+              </button>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotFor(s.category), flex: 'none' }} />
                 <input aria-label={`Name for ${s.name}`} value={s.name} disabled={!canEdit} onChange={(e) => patch(s.id, { name: e.target.value })} style={field} />
@@ -261,9 +263,13 @@ export function WorkflowEditorScreen() {
                 style={field}
               />
               <span style={{ fontSize: 13, color: color.muted }}>{s.taskCount}</span>
-              <button type="button" aria-label={`Remove ${s.name}`} disabled={!canEdit} onClick={() => removeStage(s, index)} style={{ height: 32, border: 0, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
-                Remove
-              </button>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <button type="button" aria-label={`Move ${s.name} up`} disabled={!canEdit || index === 0} onClick={() => moveBy(index, -1)} style={iconBtn}>↑</button>
+                <button type="button" aria-label={`Move ${s.name} down`} disabled={!canEdit || index === stages.length - 1} onClick={() => moveBy(index, 1)} style={iconBtn}>↓</button>
+                <button type="button" aria-label={`Remove ${s.name}`} disabled={!canEdit} onClick={() => removeStage(s, index)} style={{ height: 32, border: 0, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
+                  Remove
+                </button>
+              </span>
             </div>
           ))}
         </div>
@@ -318,6 +324,7 @@ export function WorkflowEditorScreen() {
         </div>
       </section>
     </div>
+    </SettingsFrame>
   );
 }
 

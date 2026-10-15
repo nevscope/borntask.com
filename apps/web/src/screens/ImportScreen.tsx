@@ -1,4 +1,4 @@
-import { Alert, Button, Select, Table, Upload } from 'antd';
+import { Alert, Button, Select, Upload } from 'antd';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
@@ -7,16 +7,18 @@ import { color } from '../theme/tokens';
 
 const FIELDS = [
   { value: 'skip', label: 'Skip' },
-  { value: 'asanaTaskId', label: 'Asana Task ID' },
+  { value: 'asanaTaskId', label: 'Asana ID (for re-imports)' },
   { value: 'title', label: 'Title' },
   { value: 'description', label: 'Description' },
-  { value: 'assigneeEmail', label: 'Assignee email' },
+  { value: 'assigneeEmail', label: 'Assignee' },
   { value: 'section', label: 'Section' },
-  { value: 'status', label: 'Status' },
+  { value: 'status', label: 'Status (see right)' },
   { value: 'dueDate', label: 'Due date' },
-  { value: 'type', label: 'Type' },
-  { value: 'parentAsanaId', label: 'Parent Asana ID' },
+  { value: 'type', label: 'Task type' },
+  { value: 'parentAsanaId', label: 'Parent task (subtask)' },
 ];
+
+const STEPS = ['Upload', 'Map columns', 'Preview', 'Import'] as const;
 
 type ImportState = {
   id: string;
@@ -28,7 +30,6 @@ type ImportState = {
   preview: Record<string, string>[];
   unknownEmails: string[];
   status?: string;
-  rowsDone?: number;
 };
 
 export function ImportScreen() {
@@ -37,6 +38,11 @@ export function ImportScreen() {
   const [job, setJob] = useState<ImportState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('statuses');
+  const [showPreview, setShowPreview] = useState(false);
+
+  const step = !job ? 0 : job.status === 'running' ? 3 : showPreview ? 2 : 1;
+  const project = projects.find((p) => p.key === projectKey);
 
   const upload = async (file: File) => {
     setError(null);
@@ -51,6 +57,7 @@ export function ImportScreen() {
     const json = await res.json() as ImportState & { message?: string };
     if (!res.ok) throw new Error(json.message ?? 'Upload failed');
     setJob(json);
+    setShowPreview(false);
   };
 
   const saveAndRun = async () => {
@@ -62,7 +69,7 @@ export function ImportScreen() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping: job.mapping, sectionsAs: 'sections' }),
+        body: JSON.stringify({ mapping: job.mapping, sectionsAs }),
       });
       const res = await fetch(`${BASE_URL}/imports/${job.id}/run`, { method: 'POST', credentials: 'include' });
       if (!res.ok) throw new Error('Could not start import');
@@ -75,88 +82,178 @@ export function ImportScreen() {
   };
 
   return (
-    <div className="bt-page">
-      <h1 className="bt-h1">Import from Asana</h1>
-      <p style={{ color: color.muted }}>CSV from Asana. Preview the first 20 rows, map columns, then run as a background job. Unknown emails are invited as Member. Re-import matches on Asana Task ID.</p>
-      {error && <Alert type="error" message={error} />}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-        <Select
-          style={{ minWidth: 240 }}
-          placeholder="Import into project"
-          value={projectKey || undefined}
-          onChange={setProjectKey}
-          options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
-        />
-        <Upload
-          accept=".csv,.tsv,.txt,.xlsx"
-          showUploadList={false}
-          beforeUpload={(file) => {
-            void upload(file).catch((e: Error) => setError(e.message));
-            return false;
-          }}
-        >
-          <Button disabled={!projectKey}>Choose CSV</Button>
-        </Upload>
-        <Link to="/projects">Back to projects</Link>
+    <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        <h1 className="bt-h1" style={{ flex: 1 }}>Import from Asana</h1>
+        <Link to="/projects"><Button>Cancel</Button></Link>
       </div>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 13 }}>
+        {STEPS.map((label, i) => {
+          const done = i < step;
+          const current = i === step;
+          return (
+            <li
+              key={label}
+              aria-current={current ? 'step' : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, height: 34, padding: '0 12px 0 6px', borderRadius: 999,
+                background: current ? color.ink : done ? color.brandTint : color.surface,
+                color: current ? color.surface : done ? color.brandStrong : color.ink3,
+                fontWeight: current || done ? 600 : 400,
+                border: current || done ? 0 : `1px solid ${color.border}`,
+              }}
+            >
+              <span style={{
+                width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center',
+                background: current ? color.surface : done ? color.brand : color.chip,
+                color: current ? color.ink : done ? color.surface : color.ink3,
+                fontSize: 12,
+              }}
+              >
+                {i + 1}
+              </span>
+              {label}
+            </li>
+          );
+        })}
+      </ol>
+      {error && <Alert type="error" message={error} />}
+      {!job && (
+        <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+          <Select
+            style={{ minWidth: 240 }}
+            placeholder="Import into project"
+            value={projectKey || undefined}
+            onChange={setProjectKey}
+            options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+          />
+          <Upload
+            accept=".csv,.tsv,.txt,.xlsx"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              void upload(file).catch((e: Error) => setError(e.message));
+              return false;
+            }}
+          >
+            <Button type="primary" disabled={!projectKey}>Choose CSV or XLSX</Button>
+          </Upload>
+          <span style={{ fontSize: 13, color: color.muted }}>Asana exports as CSV or XLSX. The first sheet is mapped.</span>
+        </section>
+      )}
       {job && (
         <>
-          <Alert type="info" message={`${job.fileName} · ${job.rowsTotal} rows · into ${job.projectKey}`} />
-          <Table
-            rowKey={(r) => r.header}
-            pagination={false}
-            dataSource={job.headers.map((header) => ({
-              header,
-              field: job.mapping[header] ?? 'skip',
-              sample: job.preview[0]?.[header] ?? '',
-            }))}
-            columns={[
-              { title: 'Asana column', dataIndex: 'header' },
-              {
-                title: 'BornTask field',
-                render: (_, r) => (
-                  <Select
-                    style={{ minWidth: 180 }}
-                    value={r.field}
-                    options={FIELDS}
-                    onChange={(field) => setJob({ ...job, mapping: { ...job.mapping, [r.header]: field } })}
-                  />
-                ),
-              },
-              { title: 'Example from row 1', dataIndex: 'sample', ellipsis: true },
-            ]}
-          />
-          <section className="bt-card">
-            <div className="bt-group-head">Preview 20 rows</div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr>
-                    {job.headers.slice(0, 6).map((h) => (
-                      <th key={h} style={{ textAlign: 'left', padding: 8, borderBottom: `1px solid ${color.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {job.preview.map((row, i) => (
-                    <tr key={i}>
-                      {job.headers.slice(0, 6).map((h) => (
-                        <td key={h} style={{ padding: 8, borderBottom: `1px solid ${color.divider}`, color: color.muted }}>{row[h]}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <section className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 36, height: 36, borderRadius: 8, display: 'grid', placeItems: 'center', background: color.brandTint, color: color.brandStrong, fontSize: 11, fontWeight: 600 }}>{job.fileName.toLowerCase().endsWith('.xlsx') ? 'XLSX' : 'CSV'}</span>
+            <span style={{ flex: '1 1 260px' }}>
+              <span style={{ display: 'block', fontWeight: 600 }}>{job.fileName}</span>
+              <span style={{ fontSize: 12.5, color: color.muted }}>{job.rowsTotal} rows · {job.headers.length} columns · into project <strong style={{ color: color.ink3 }}>{project?.name ?? job.projectKey} ({job.projectKey})</strong></span>
+            </span>
+            <Upload accept=".csv,.tsv,.txt,.xlsx" showUploadList={false} beforeUpload={(file) => { void upload(file).catch((e: Error) => setError(e.message)); return false; }}>
+              <Button>Replace file</Button>
+            </Upload>
           </section>
-          {job.unknownEmails.length > 0 && (
-            <Alert type="warning" message={`${job.unknownEmails.length} emails are not in the workspace and will be invited as Member: ${job.unknownEmails.slice(0, 8).join(', ')}`} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
+            <section className="bt-card" style={{ flex: '999 1 560px', minWidth: 0 }}>
+              <div className="bt-group-head" style={{ height: 'auto', padding: '14px 16px' }}>
+                <h2 style={{ flex: 1, margin: 0, fontSize: 15 }}>Columns</h2>
+                <span style={{ fontSize: 12.5, color: color.muted, fontWeight: 400 }}>{job.headers.filter((h) => (job.mapping[h] ?? 'skip') !== 'skip').length} matched · {job.headers.filter((h) => (job.mapping[h] ?? 'skip') === 'skip').length} to check</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '180px 210px minmax(0, 1fr)', gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
+                <span>Asana column</span><span>BornTask field</span><span>Example from row 1</span>
+              </div>
+              {job.headers.map((header) => {
+                const field = job.mapping[header] ?? 'skip';
+                const warn = field === 'skip';
+                return (
+                  <div key={header} style={{ display: 'grid', gridTemplateColumns: '180px 210px minmax(0, 1fr)', gap: 12, alignItems: 'center', minHeight: 46, padding: '0 16px', borderBottom: `1px solid ${color.divider}`, background: warn ? color.warningTint : color.surface }}>
+                    <span style={{ fontWeight: 500 }}>{header}</span>
+                    <Select
+                      style={{ width: '100%' }}
+                      value={field}
+                      options={FIELDS}
+                      onChange={(next) => setJob({ ...job, mapping: { ...job.mapping, [header]: next } })}
+                    />
+                    <span style={{ fontSize: 13, color: color.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.preview[0]?.[header] || '-'}</span>
+                  </div>
+                );
+              })}
+            </section>
+            <div style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <h2 style={{ margin: 0, fontSize: 15 }}>Asana sections become</h2>
+                <div role="group" aria-label="Asana sections become" style={{ display: 'flex', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9 }}>
+                  {(['sections', 'statuses'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={sectionsAs === v}
+                      onClick={() => setSectionsAs(v)}
+                      style={{
+                        flex: 1, height: 30, border: 0, borderRadius: 6,
+                        background: sectionsAs === v ? color.ink : 'transparent',
+                        color: sectionsAs === v ? color.surface : color.ink3,
+                        font: 'inherit', fontSize: 13, cursor: 'pointer',
+                      }}
+                    >
+                      {v === 'sections' ? 'Sections' : 'Statuses'}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>
+                  {sectionsAs === 'statuses'
+                    ? 'Section or column names from Asana are mapped onto this project\'s workflow stages.'
+                    : 'Section or column names from Asana become list sections in this project.'}
+                </p>
+              </section>
+              <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <h2 style={{ margin: 0, fontSize: 15 }}>People</h2>
+                {job.unknownEmails.length > 0 ? (
+                  <>
+                    <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
+                      <strong>{job.unknownEmails.length} {job.unknownEmails.length === 1 ? 'email is' : 'emails are'} new</strong> and will receive an invitation as a Member.
+                    </p>
+                    {job.unknownEmails.slice(0, 6).map((e) => (
+                      <div key={e} style={{ padding: '8px 10px', borderRadius: 8, background: color.warningTint, fontSize: 13, color: color.warning }}>{e} · invite as Member</div>
+                    ))}
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>Assignees in this file match people already in the workspace.</p>
+                )}
+              </section>
+              <section style={{ background: color.subtle, border: `1px dashed ${color.dashed}`, borderRadius: 12, padding: '14px 16px', fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>
+                Comments and attachments are not in Asana's spreadsheet export, so they are not imported. Re-importing this file updates tasks matched on Asana task ID instead of duplicating them.
+              </section>
+            </div>
+          </div>
+          {showPreview && (
+            <section className="bt-card">
+              <div className="bt-group-head">Preview 20 rows</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>{job.headers.slice(0, 6).map((h) => <th key={h} style={{ textAlign: 'left', padding: 8, borderBottom: `1px solid ${color.border}` }}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {job.preview.map((row, i) => (
+                      <tr key={i}>
+                        {job.headers.slice(0, 6).map((h) => <td key={h} style={{ padding: 8, borderBottom: `1px solid ${color.divider}`, color: color.muted }}>{row[h]}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Button type="primary" loading={busy} onClick={() => void saveAndRun()}>
-              {job.status === 'running' ? 'Import queued' : 'Start import'}
-            </Button>
-            {job.status === 'running' && <span style={{ color: color.muted }}>Worker is processing the job. Invite URLs print in the API/worker console.</span>}
+          <div className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <span style={{ flex: '1 1 300px', fontSize: 13.5 }}><strong>{job.rowsTotal} tasks</strong> into {project?.name ?? job.projectKey}</span>
+            <Link to="/projects"><Button>Back</Button></Link>
+            {!showPreview && <Button type="primary" onClick={() => setShowPreview(true)}>Preview 20 rows</Button>}
+            {showPreview && (
+              <Button type="primary" loading={busy} onClick={() => void saveAndRun()}>
+                {job.status === 'running' ? 'Import queued' : 'Start import'}
+              </Button>
+            )}
+            {job.status === 'running' && <span style={{ color: color.muted }}>Worker is processing the job.</span>}
           </div>
         </>
       )}

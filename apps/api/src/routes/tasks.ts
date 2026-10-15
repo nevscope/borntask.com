@@ -2,10 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { config } from '../env.js';
 import { notFound, sendError, validation } from '../errors.js';
-import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey } from '../lib/loadProject.js';
+import { actorName, enqueueChat, taskUrl, userName } from '../lib/chatNotify.js';
+import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, taskKey } from '../lib/loadProject.js';
 import { nextPosition } from '../lib/mappers.js';
 import { moveTask } from '../lib/moveTask.js';
 
@@ -34,6 +36,12 @@ const updateTaskSchema = z
     sectionId: z.string(),
   })
   .partial();
+
+const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
+
+function trashCutoff(): Date {
+  return new Date(Date.now() - TRASH_MS);
+}
 
 export const taskRoutes: FastifyPluginAsync = async (app) => {
   app.get('/projects/:key/tasks', async (req, reply) => {
@@ -67,12 +75,25 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const project = await auth.db.project.findFirst({ where: { key } });
       if (!project) throw notFound();
-      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const rows = await auth.db.task.findMany({
-        where: { projectId: project.id, deletedAt: { gte: cutoff } },
+        where: { projectId: project.id, deletedAt: { gte: trashCutoff() } },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
-      return rows.map(mapTask);
+      const deleterIds = [...new Set(rows.map((row) => row.deletedById).filter((id): id is string => Boolean(id)))];
+      const people = deleterIds.length ? await prisma.user.findMany({ where: { id: { in: deleterIds } } }) : [];
+      const names = new Map(people.map((person) => [person.id, person.name]));
+      return rows.map((row) => {
+        const deletedAt = row.deletedAt;
+        const daysLeft = deletedAt
+          ? Math.max(0, Math.ceil((deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)))
+          : null;
+        return {
+          ...mapTask(row),
+          deletedAt: deletedAt ? deletedAt.toISOString() : null,
+          deletedByName: row.deletedById ? names.get(row.deletedById) ?? null : null,
+          daysLeft,
+        };
+      });
     } catch (err) {
       return sendError(reply, err);
     }
@@ -139,7 +160,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const row = await findTaskByKey(auth.db, key);
-      if (!row || row.deletedAt) throw notFound();
+      if (!row || (row.deletedAt && row.deletedAt < trashCutoff())) throw notFound();
       const comments = await auth.db.comment.findMany({
         where: { taskId: row.id, deletedAt: null },
         orderBy: { createdAt: 'asc' },
@@ -169,6 +190,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           at: a.at.toISOString(),
         })),
         watcherIds: watchers.map((w) => w.userId),
+        deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
       };
     } catch (err) {
       return sendError(reply, err);
@@ -215,8 +237,41 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
       await auth.db.activityLog.create({
-        data: { tenantId: auth.tenantId, taskId: created.id, actorId: auth.userId, via: 'app', action: `created this ${input.type}` },
+        data: {
+          tenantId: auth.tenantId,
+          taskId: created.id,
+          actorId: auth.userId,
+          actorType: auth.actorType,
+          via: auth.via,
+          action: `created this ${input.type}`,
+        },
       });
+      const createdKey = taskKey(created.project.key, created.number);
+      const name = await actorName(auth.userId);
+      const url = taskUrl(created.project.key, createdKey);
+      if (input.type === 'idea') {
+        await enqueueChat(auth, {
+          projectId: created.projectId,
+          event: 'new_idea',
+          title: created.title,
+          taskKey: createdKey,
+          projectName: created.project.name,
+          text: `${name} raised an idea.`,
+          url,
+        });
+      }
+      if (created.assigneeId) {
+        const assignee = await userName(created.assigneeId);
+        await enqueueChat(auth, {
+          projectId: created.projectId,
+          event: 'assigned',
+          title: created.title,
+          taskKey: createdKey,
+          projectName: created.project.name,
+          text: assignee ? `${name} assigned it to ${assignee}.` : `${name} assigned it.`,
+          url,
+        });
+      }
       return mapTask(created);
     } catch (err) {
       return sendError(reply, err);
@@ -249,6 +304,32 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
+      if (auth.via === 'mcp') {
+        await auth.db.activityLog.create({
+          data: {
+            tenantId: auth.tenantId,
+            taskId: row.id,
+            actorId: auth.userId,
+            actorType: 'mcp',
+            via: 'mcp',
+            action: 'updated this task',
+          },
+        });
+      }
+      if (input.assigneeId && input.assigneeId !== row.assigneeId) {
+        const name = await actorName(auth.userId);
+        const assignee = await userName(input.assigneeId);
+        const updatedKey = taskKey(updated.project.key, updated.number);
+        await enqueueChat(auth, {
+          projectId: updated.projectId,
+          event: 'assigned',
+          title: updated.title,
+          taskKey: updatedKey,
+          projectName: updated.project.name,
+          text: assignee ? `${name} assigned it to ${assignee}.` : `${name} assigned it.`,
+          url: taskUrl(updated.project.key, updatedKey),
+        });
+      }
       return mapTask(updated);
     } catch (err) {
       return sendError(reply, err);
@@ -264,6 +345,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           toStatusId: z.string(),
           comment: z.string().optional(),
           overrideReason: z.string().optional(),
+          undo: z.boolean().optional(),
         })
         .parse(req.body);
       return await moveTask(auth, key, input);
@@ -316,7 +398,32 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const c = await auth.db.comment.create({
         data: { tenantId: auth.tenantId, taskId: row.id, authorId: auth.userId, body: body.body },
       });
-      return { id: c.id, authorId: c.authorId, body: c.body, via: 'app', createdAt: c.createdAt.toISOString() };
+      if (auth.via === 'mcp') {
+        await auth.db.activityLog.create({
+          data: {
+            tenantId: auth.tenantId,
+            taskId: row.id,
+            actorId: auth.userId,
+            actorType: 'mcp',
+            via: 'mcp',
+            action: 'commented',
+          },
+        });
+      }
+      if (body.body.includes('@')) {
+        const name = await actorName(auth.userId);
+        const commentKey = taskKey(row.project.key, row.number);
+        await enqueueChat(auth, {
+          projectId: row.projectId,
+          event: 'mention',
+          title: row.title,
+          taskKey: commentKey,
+          projectName: row.project.name,
+          text: `${name} mentioned someone in a comment.`,
+          url: taskUrl(row.project.key, commentKey),
+        });
+      }
+      return { id: c.id, authorId: c.authorId, body: c.body, via: auth.via, createdAt: c.createdAt.toISOString() };
     } catch (err) {
       return sendError(reply, err);
     }

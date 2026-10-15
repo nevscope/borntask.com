@@ -1,9 +1,10 @@
 // TanStack Query hooks. Screens only ever talk to these, never to fetch() or the mock directly,
 // so flipping VITE_USE_MOCKS to false is the whole switch to the real API.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { ApiError, httpApi } from './http';
+import { z } from 'zod';
+import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CreateTaskInput, MoveTaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CreateTaskInput, MoveTaskInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -18,6 +19,7 @@ export const api: Api = {
     try {
       return await httpApi.getMe();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) throw err;
       if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) return mockApi.getMe();
       throw err;
     }
@@ -73,7 +75,16 @@ export const api: Api = {
       throw err;
     }
   },
-  getTask: (key) => tasksApi().getTask(key),
+  getTask: async (key) => {
+    try {
+      return await tasksApi().getTask(key);
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.getTask(key);
+      }
+      throw err;
+    }
+  },
   createTask: (input) => tasksApi().createTask(input),
   updateTask: (key, input) => tasksApi().updateTask(key, input),
   moveTask: (key, input) => tasksApi().moveTask(key, input),
@@ -83,6 +94,30 @@ export const api: Api = {
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
   deleteTask: (key) => tasksApi().deleteTask(key),
   restoreTask: (key) => tasksApi().restoreTask(key),
+  listNotifications: async () => {
+    if (!USE_MOCKS || !USE_TASK_MOCKS) {
+      try {
+        return await httpApi.listNotifications();
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          return USE_TASK_MOCKS ? mockApi.listNotifications() : { items: [], unreadCount: 0 };
+        }
+        throw err;
+      }
+    }
+    return mockApi.listNotifications();
+  },
+  markNotificationsRead: async (input) => {
+    if (!USE_MOCKS || !USE_TASK_MOCKS) {
+      try {
+        return await httpApi.markNotificationsRead(input);
+      } catch (err) {
+        if (USE_MOCKS && USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) return mockApi.markNotificationsRead(input);
+        throw err;
+      }
+    }
+    return mockApi.markNotificationsRead(input);
+  },
 };
 
 export const qk = {
@@ -93,10 +128,17 @@ export const qk = {
   myTasks: ['me', 'tasks'] as const,
   search: (q: string) => ['search', q] as const,
   task: (key: string) => ['tasks', key] as const,
+  notifications: ['me', 'notifications'] as const,
 };
 
 // ---------- reads ----------
-export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.getMe(), staleTime: Infinity });
+export const useMe = () =>
+  useQuery({
+    queryKey: qk.me,
+    queryFn: () => api.getMe(),
+    staleTime: Infinity,
+    retry: (count, err) => (err instanceof ApiError && err.status === 401 ? false : count < 2),
+  });
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
 export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key), enabled: key.length > 0 });
 export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key), enabled: key.length > 0 });
@@ -109,6 +151,20 @@ export const useSearch = (q: string) =>
   });
 export const useTask = (key: string | null) =>
   useQuery({ queryKey: qk.task(key ?? ''), queryFn: () => api.getTask(key!), enabled: !!key });
+
+export const useProjectTrash = (projectKey: string) =>
+  useQuery({
+    queryKey: ['trash', projectKey],
+    enabled: projectKey.length > 0,
+    queryFn: async (): Promise<Task[]> => {
+      if (USE_TASK_MOCKS) return [];
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/trash`, { credentials: 'include' });
+      const body: unknown = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body)) throw new Error('Could not load trash.');
+      return body as Task[];
+    },
+  });
+export const useNotifications = () => useQuery({ queryKey: qk.notifications, queryFn: () => api.listNotifications() });
 
 // ---------- cache helpers ----------
 function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectKey'>) {
@@ -203,7 +259,40 @@ export function useRestoreTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (key: string) => api.restoreTask(key),
-    onSuccess: (task) => invalidateTaskViews(qc, task),
+    onSuccess: (task) => {
+      invalidateTaskViews(qc, task);
+      void qc.invalidateQueries({ queryKey: ['trash', task.projectKey] });
+    },
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id?: string; all?: boolean }) => api.markNotificationsRead(input),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: qk.notifications });
+      const prev = qc.getQueryData<NotificationList>(qk.notifications);
+      if (prev) {
+        const now = new Date().toISOString();
+        const items = prev.items.map((n) => {
+          if (n.readAt) return n;
+          if (input.all || n.id === input.id) return { ...n, readAt: now };
+          return n;
+        });
+        qc.setQueryData<NotificationList>(qk.notifications, {
+          items,
+          unreadCount: items.filter((n) => !n.readAt).length,
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.notifications, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: qk.notifications });
+    },
   });
 }
 
@@ -223,5 +312,119 @@ export function useSetFavourite() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: qk.projects });
     },
+  });
+}
+
+const ChatEventsSchema = z.object({
+  assigned: z.boolean(),
+  ready_for_testing: z.boolean(),
+  deployed: z.boolean(),
+  mention: z.boolean(),
+  status_change: z.boolean(),
+  new_idea: z.boolean(),
+});
+
+const ChatSettingsSchema = z.object({
+  connected: z.boolean(),
+  webhookMask: z.string(),
+  events: ChatEventsSchema,
+  lastPostedAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+});
+
+export type ChatSettings = z.infer<typeof ChatSettingsSchema>;
+export type ChatEvents = z.infer<typeof ChatEventsSchema>;
+
+const TokenRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  hint: z.string(),
+  scopes: z.array(z.string()),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const GrantRowSchema = z.object({
+  id: z.string(),
+  appName: z.string(),
+  redirectHost: z.string(),
+  scope: z.enum(['read', 'read_write']),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+const TokenListSchema = z.object({
+  tokens: z.array(TokenRowSchema),
+  grants: z.array(GrantRowSchema),
+});
+
+const MintedTokenSchema = TokenRowSchema.extend({ token: z.string() });
+
+export type TokenRow = z.infer<typeof TokenRowSchema>;
+export type GrantRow = z.infer<typeof GrantRowSchema>;
+export type MintedToken = z.infer<typeof MintedTokenSchema>;
+
+export function useChatSettings(projectKey: string) {
+  return useQuery({
+    queryKey: ['chat', projectKey],
+    queryFn: () => request('GET', `/projects/${encodeURIComponent(projectKey)}/chat`, ChatSettingsSchema),
+    enabled: projectKey.length > 0,
+  });
+}
+
+export function useSaveChat(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { webhookUrl?: string; events: ChatEvents }) =>
+      request('PUT', `/projects/${encodeURIComponent(projectKey)}/chat`, ChatSettingsSchema, input),
+    onSuccess: (data) => qc.setQueryData(['chat', projectKey], data),
+  });
+}
+
+export function useTestChat(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { webhookUrl?: string }) =>
+      request('POST', `/projects/${encodeURIComponent(projectKey)}/chat/test`, z.object({ ok: z.boolean(), lastPostedAt: z.string(), lastError: z.string().nullable() }), input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['chat', projectKey] }),
+  });
+}
+
+export function useDisconnectChat(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request('DELETE', `/projects/${encodeURIComponent(projectKey)}/chat`, ChatSettingsSchema),
+    onSuccess: (data) => qc.setQueryData(['chat', projectKey], data),
+  });
+}
+
+export function useApiTokens() {
+  return useQuery({
+    queryKey: ['tokens'],
+    queryFn: () => request('GET', '/me/tokens', TokenListSchema),
+  });
+}
+
+export function useCreateToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; scope: 'read' | 'read_write' }) => request('POST', '/me/tokens', MintedTokenSchema, input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}
+
+export function useRevokeToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request('DELETE', `/me/tokens/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() })),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}
+
+export function useRevokeGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request('DELETE', `/me/grants/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() })),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['tokens'] }),
   });
 }

@@ -19,7 +19,35 @@ export const antdTheme: ThemeConfig = {
     fontSize: 14,
     borderRadius: radius.md,
     borderRadiusLG: radius.lg,
-    controlHeight: 36,
+    controlHeight: 38,
     boxShadow: 'none',
+  },
+  components: {
+    Button: {
+      controlHeight: 38,
+      contentFontSize: 13.5,
+      fontWeight: 400,
+      primaryShadow: 'none',
+    },
+    Input: {
+      controlHeight: 38,
+      paddingInline: 12,
+    },
+    Select: {
+      controlHeight: 38,
+    },
+    Form: {
+      verticalLabelPadding: '0 0 6px',
+      labelFontSize: 13,
+    },
+    Modal: {
+      borderRadiusLG: radius.xl,
+    },
+    Segmented: {
+      trackPadding: 3,
+      controlHeight: 36,
+      fontSize: 13,
+      borderRadius: radius.md,
+    },
   },
 };

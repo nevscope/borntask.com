@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { parseDelimited } from '@borntask/shared';
+import { deliverMail } from './mail.js';
 
 const prisma = new PrismaClient();
 const blobRoot = process.env.BLOB_ROOT ?? '.data/blobs';
@@ -153,8 +154,13 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
     }
   }
 
+  const [workspace, actor] = await Promise.all([
+    prisma.workspace.findUnique({ where: { id: data.tenantId } }),
+    prisma.user.findUnique({ where: { id: data.actorId } }),
+  ]);
   for (const email of unknownEmails) {
     const token = randomBytes(24).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await prisma.invitation.create({
       data: {
         tenantId: data.tenantId,
@@ -163,10 +169,23 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
         projectId: project.id,
         tokenHash: hashToken(token),
         invitedById: data.actorId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt,
       },
     });
-    console.log(`[BornTask] Import invite for ${email}: ${publicUrl}/invite/${token}`);
+    try {
+      await deliverMail({
+        kind: 'invite',
+        to: email,
+        inviteUrl: `${publicUrl}/invite/${token}`,
+        workspaceName: workspace?.name ?? 'BornTask',
+        inviterName: actor?.name ?? 'A teammate',
+        roleLabel: 'Member',
+        message: null,
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (err) {
+      console.error('[BornTask] Import invite email failed', err instanceof Error ? err.message : 'unknown');
+    }
   }
 
   await prisma.importJob.update({

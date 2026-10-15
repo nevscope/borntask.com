@@ -1,18 +1,19 @@
 // Quick add (screen 5). Opens from "New task", "+ Add task" in a section, or Q anywhere.
 // Title line understands @name, !priority and dates; description starts from the type's template;
 // screenshots can be pasted (Ctrl/Cmd+V) or dropped. Enter creates, Shift+Enter creates and opens.
-import { App, Button, Input, Modal, Select } from 'antd';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { App, Button, Input, Modal } from 'antd';
+import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCreateTask, useProject, useProjects } from '../api/queries';
-import type { Priority, TaskType } from '../api/types';
+import { useCreateTask, useMe, useMoveTask, useProject, useProjects } from '../api/queries';
+import type { Priority, ProjectRole, TaskType } from '../api/types';
 import { dueLabel } from '../lib/dates';
 import { parseQuickTitle, stripTypeTokens } from '../lib/quickParse';
-import { initialStatusFor, statusById } from '../lib/workflow';
+import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/workflow';
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
 import { Avatar } from './Chips';
+import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 
 const TEMPLATES: Record<TaskType, string> = {
   idea: 'Problem\n\nWho benefits\n',
@@ -63,6 +64,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
 function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => void }) {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const me = useMe().data;
   const projects = useProjects().data ?? [];
   const [projectKey, setProjectKey] = useState(opts.projectKey ?? 'WEB');
   const detail = useProject(projectKey).data;
@@ -71,8 +73,14 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [raw, setRaw] = useState('');
   const [description, setDescription] = useState(TEMPLATES[opts.type ?? 'idea']);
   const [descTouched, setDescTouched] = useState(false);
+  const [assigneeOverride, setAssigneeOverride] = useState<string | null | undefined>(undefined);
+  const [dueOverride, setDueOverride] = useState<string | null | undefined>(undefined);
+  const [priorityOverride, setPriorityOverride] = useState<Priority | undefined>(undefined);
+  const [statusPick, setStatusPick] = useState<string | undefined>(undefined);
+  const [moveComment, setMoveComment] = useState('');
   const [files, setFiles] = useState<AttachmentItem[]>([]);
   const create = useCreateTask();
+  const move = useMoveTask();
 
   useEffect(() => {
     if (!detail) return;
@@ -84,12 +92,29 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     [detail],
   );
   const parsed = parseQuickTitle(raw, people);
-  const assignee = people.find((p) => p.id === parsed.assigneeId);
+  const assigneeId = assigneeOverride !== undefined ? assigneeOverride : parsed.assigneeId;
+  const dueDate = dueOverride !== undefined ? dueOverride : parsed.dueDate;
+  const priority = priorityOverride ?? parsed.priority ?? 'none';
+  const assignee = people.find((p) => p.id === assigneeId);
+  const myRoles: ProjectRole[] = detail?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
   const startStatus = detail ? statusById(detail.workflow, initialStatusFor(type)) : undefined;
-  const section = detail?.sections.find((s) => s.id === sectionId);
+  const chosenStatusId = statusPick ?? startStatus?.id;
+  const chosenStatus = detail && chosenStatusId ? statusById(detail.workflow, chosenStatusId) : startStatus;
+  const moveCheck = detail && startStatus && chosenStatusId && chosenStatusId !== startStatus.id
+    ? checkMove(detail.workflow, { statusId: startStatus.id, previousStatusId: null }, chosenStatusId, myRoles)
+    : null;
+  const needsComment = moveCheck?.kind === 'allowed' && moveCheck.transition.requireComment;
+  const statusOptions = detail && startStatus
+    ? [
+        { status: startStatus, check: { kind: 'allowed' as const, transition: { from: startStatus.id, to: startStatus.id, roles: [] as ProjectRole[], requireComment: false, label: 'Start here' } } },
+        ...moveOptions(detail.workflow, { statusId: startStatus.id, previousStatusId: null }, myRoles),
+      ]
+    : [];
 
   function changeType(t: TaskType) {
     setType(t);
+    setStatusPick(undefined);
+    setMoveComment('');
     if (!descTouched) setDescription(TEMPLATES[t]);
   }
 
@@ -107,8 +132,18 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     if (next.length) setFiles((prev) => [...prev, ...next]);
   }
 
+  function finish(taskKey: string, taskProjectKey: string, openAfter: boolean) {
+    void message.success(`${taskKey} created`);
+    onClose();
+    if (openAfter) navigate(`/p/${taskProjectKey}/list?task=${taskKey}`);
+  }
+
   function submit(openAfter: boolean) {
     if (!parsed.title || !sectionId) return;
+    if (needsComment && !moveComment.trim()) {
+      void message.error('Add a comment to move it there.');
+      return;
+    }
     const cleanDescription = description.trim() === TEMPLATES[type].trim() ? '' : description;
     create.mutate(
       {
@@ -117,18 +152,29 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         type,
         title: parsed.title,
         description: cleanDescription,
-        assigneeId: parsed.assigneeId,
-        priority: (parsed.priority ?? 'none') as Priority,
-        dueDate: parsed.dueDate,
+        assigneeId: assigneeId ?? null,
+        priority,
+        dueDate: dueDate ?? null,
         labels: [],
         attachmentIds: files.map((f) => f.id),
       },
       {
         onSuccess: (task) => {
           rememberTaskAttachments(task.key, files);
-          void message.success(`${task.key} created`);
-          onClose();
-          if (openAfter) navigate(`/p/${task.projectKey}/list?task=${task.key}`);
+          if (chosenStatusId && chosenStatusId !== task.statusId) {
+            move.mutate(
+              { key: task.key, input: { toStatusId: chosenStatusId, comment: needsComment ? moveComment.trim() : undefined } },
+              {
+                onSuccess: () => finish(task.key, task.projectKey, openAfter),
+                onError: (e) => {
+                  void message.error(e.message);
+                  finish(task.key, task.projectKey, openAfter);
+                },
+              },
+            );
+            return;
+          }
+          finish(task.key, task.projectKey, openAfter);
         },
         onError: (e) => void message.error(e.message),
       },
@@ -143,7 +189,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       title={null}
       width={660}
       closable={false}
-      styles={{ body: { padding: 0, overflow: 'hidden', borderRadius: radius.xl } }}
+      styles={{ body: { padding: 0, overflow: 'hidden', borderRadius: radius.xl }, container: { padding: 0, borderRadius: radius.xl } }}
     >
       <div
         role="dialog"
@@ -230,46 +276,74 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 18px 16px' }}>
-          <Chip>
-            <span style={{ width: 8, height: 8, borderRadius: 3, background: detail?.project.color ?? color.brand }} />
-            <Select
-              variant="borderless"
-              size="small"
-              value={projectKey}
-              onChange={(v) => { setProjectKey(v); setSectionId(undefined); }}
-              options={projects.map((p) => ({ value: p.key, label: p.name }))}
-              styles={{ root: { minWidth: 0 } }}
-              popupMatchSelectWidth={false}
-              aria-label="Project"
+          <Chip style={{ maxWidth: '100%', minWidth: 0 }}>
+            <span style={{ width: 8, height: 8, flex: 'none', borderRadius: 3, background: detail?.project.color ?? color.brand }} />
+            <MenuPicker
+              ariaLabel="Project"
+              label={<span style={clipLabel}>{detail?.project.name ?? projectKey}</span>}
+              items={projects.map((project) => ({ id: project.key, label: project.name }))}
+              onPick={(key) => { setProjectKey(key); setSectionId(undefined); setAssigneeOverride(undefined); }}
             />
-            {section && <span style={{ color: color.muted }}>·</span>}
-            <Select
-              variant="borderless"
-              size="small"
-              value={sectionId}
-              onChange={setSectionId}
-              options={(detail?.sections ?? []).map((s) => ({ value: s.id, label: s.name }))}
-              popupMatchSelectWidth={false}
-              aria-label="Section"
+            <span aria-hidden="true" style={{ flex: 'none', color: color.muted }}>·</span>
+            <MenuPicker
+              ariaLabel="Section"
+              label={<span style={clipLabel}>{detail?.sections.find((section) => section.id === sectionId)?.name ?? 'Section'}</span>}
+              items={(detail?.sections ?? []).map((section) => ({ id: section.id, label: section.name }))}
+              onPick={setSectionId}
             />
           </Chip>
-          {assignee && (
-            <Chip>
-              <Avatar user={assignee} size={22} /> {assignee.name}
+          <Chip>
+            {detail ? (
+              <AssigneePicker
+                bare
+                value={assigneeId ?? null}
+                users={people}
+                detail={detail}
+                meId={me?.user.id}
+                trigger={assignee ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Avatar user={assignee} size={22} />{assignee.name}</span> : 'Unassigned'}
+                onChange={setAssigneeOverride}
+              />
+            ) : 'Unassigned'}
+          </Chip>
+          <Chip>
+            <DuePicker
+              bare
+              value={dueDate ?? null}
+              trigger={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CalendarIcon />{dueLabel(dueDate ?? null)}</span>}
+              onChange={setDueOverride}
+            />
+          </Chip>
+          <Chip>
+            <PriorityPicker
+              bare
+              value={priority}
+              trigger={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: priorityStyle[priority].color }} />{priorityStyle[priority].label}</span>}
+              onChange={setPriorityOverride}
+            />
+          </Chip>
+          {chosenStatus && (
+            <Chip muted>
+              <StatusMenu
+                bare
+                name={chosenStatus.name}
+                dot={null}
+                trigger={<span>Status: {chosenStatus.name}</span>}
+                options={statusOptions}
+                onMove={(statusId) => {
+                  setStatusPick(statusId === startStatus?.id ? undefined : statusId);
+                  setMoveComment('');
+                }}
+              />
             </Chip>
           )}
-          {parsed.dueDate && (
-            <Chip>
-              <CalendarIcon /> {dueLabel(parsed.dueDate)}
-            </Chip>
+          {needsComment && (
+            <Input
+              value={moveComment}
+              onChange={(event) => setMoveComment(event.target.value)}
+              placeholder="Comment for this move"
+              style={{ flex: '1 1 220px', minWidth: 180 }}
+            />
           )}
-          {parsed.priority && (
-            <Chip>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: priorityStyle[parsed.priority].color }} />
-              {priorityStyle[parsed.priority].label}
-            </Chip>
-          )}
-          {startStatus && <Chip muted>Status: {startStatus.name}</Chip>}
         </div>
 
         <div style={{ padding: '0 18px 16px' }}>
@@ -280,11 +354,11 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           <span style={{ flex: '1 1 260px', fontSize: 12.5, color: color.muted }}>
             Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>
-          <Button onClick={() => submit(true)} disabled={!parsed.title} loading={create.isPending}>
+          <Button onClick={() => submit(true)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
             Create and open <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>
           </Button>
-          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title} loading={create.isPending}>
-            Create task <kbd className="bt-kbd" style={{ marginLeft: 6, background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>↵</kbd>
+          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
+            Create task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>↵</kbd>
           </Button>
         </div>
       </div>
@@ -292,9 +366,17 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   );
 }
 
-function Chip({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
+const clipLabel: CSSProperties = {
+  display: 'block',
+  maxWidth: 140,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+function Chip({ children, muted = false, style }: { children: ReactNode; muted?: boolean; style?: CSSProperties }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 30, padding: '0 10px', borderRadius: radius.md, background: color.chip, fontSize: 13, color: muted ? color.muted : color.ink }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 30, padding: '0 10px', borderRadius: radius.md, background: color.chip, fontSize: 13, color: muted ? color.muted : color.ink, ...style }}>
       {children}
     </span>
   );

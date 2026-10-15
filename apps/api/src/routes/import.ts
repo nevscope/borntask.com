@@ -2,7 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { defaultMapping, parseDelimited } from '@borntask/shared';
+import { defaultMapping, parseDelimited, type ParsedSheet } from '@borntask/shared';
+import { parseXlsx, sheetToCsv } from '../lib/xlsxSheet.js';
 import { requireAuth } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
@@ -25,11 +26,20 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       if (!project) throw notFound('Choose a project to import into.');
       const buf = await file.toBuffer();
       const name = file.filename || 'asana-export.csv';
-      if (name.toLowerCase().endsWith('.xlsx') || buf[0] === 0x50) {
-        throw validation('Save the Asana export as CSV for now. XLSX parsing is not bundled yet.');
+      const isXlsx = name.toLowerCase().endsWith('.xlsx') || (buf[0] === 0x50 && buf[1] === 0x4b);
+      let text: string;
+      let parsed: ParsedSheet;
+      if (isXlsx) {
+        try {
+          parsed = parseXlsx(buf);
+        } catch (err) {
+          throw validation(err instanceof Error ? err.message : 'Could not read that workbook.');
+        }
+        text = sheetToCsv(parsed);
+      } else {
+        text = buf.toString('utf8');
+        parsed = parseDelimited(text);
       }
-      const text = buf.toString('utf8');
-      const parsed = parseDelimited(text);
       if (parsed.headers.length === 0) throw validation('That file has no header row.');
       const job = await auth.db.importJob.create({
         data: {

@@ -1,20 +1,18 @@
-import { Alert, Button, Select, Table } from 'antd';
+import { Alert, Button, Dropdown } from 'antd';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe, useProject } from '../api/queries';
+import { qk, useMe, useProject, useProjectTasks } from '../api/queries';
 import type { ProjectRole } from '../api/types';
+import { Avatar, RoleTag } from '../components/Chips';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
+import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
 
-const ROLE_OPTS = [
-  { value: 'lead', label: 'Lead' },
-  { value: 'business', label: 'Business' },
-  { value: 'developer', label: 'Developer' },
-  { value: 'tester', label: 'Tester' },
-  { value: 'observer', label: 'Observer' },
-];
+const ALL_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
 
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
 
@@ -23,6 +21,8 @@ export function ProjectMembersScreen() {
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
+  const tasks = useProjectTasks(projectKey).data;
+  const [pendingRemove, setPendingRemove] = useState<{ userId: string; name: string } | null>(null);
   const qc = useQueryClient();
   const invites = useQuery({
     queryKey: ['invites', detail.data?.project.id],
@@ -65,57 +65,100 @@ export function ProjectMembersScreen() {
 
   const rows = (detail.data?.members ?? []).map((m) => {
     const user = detail.data?.users.find((u) => u.id === m.userId);
-    return { ...m, name: user?.name ?? m.userId, email: user?.email ?? '' };
+    return { ...m, name: user?.name ?? m.userId, email: user?.email ?? '', user };
   });
 
   return (
-    <SettingsFrame projectKey={projectKey} canAdmin={canAdmin}>
+    <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <h1 className="bt-h1">Members</h1>
-          <p style={{ color: color.muted, margin: '6px 0 0' }}>{detail.data?.project.name ?? projectKey}</p>
+          <p style={{ color: color.muted, margin: '6px 0 0', fontSize: 13.5 }}>Project roles decide who can move tasks between stages.</p>
         </div>
-        <InvitePeopleButton projectId={detail.data?.project.id} projectName={detail.data?.project.name} />
+        <InvitePeopleButton variant="primary" projectId={detail.data?.project.id} projectName={detail.data?.project.name} />
       </div>
       {detail.isError && <Alert type="error" message="Sign in and set VITE_MOCK_PROJECTS=false to edit live members." />}
-      <Table
-        rowKey="userId"
-        pagination={false}
-        dataSource={rows}
-        columns={[
-          { title: 'Person', render: (_, r) => <span><strong>{r.name}</strong><br /><span style={{ color: color.muted }}>{r.email}</span></span> },
-          {
-            title: 'Roles',
-            render: (_, r) => (
-              <Select
-                mode="multiple"
-                style={{ minWidth: 220 }}
-                value={r.roles}
-                options={ROLE_OPTS}
-                onChange={(roleSlugs) => saveRoles.mutate({ userId: r.userId, roleSlugs: roleSlugs as ProjectRole[] })}
-              />
-            ),
-          },
-          {
-            title: '',
-            width: 90,
-            render: (_, r) => (
-              <Button type="link" danger onClick={() => remove.mutate(r.userId)}>Remove</Button>
-            ),
-          },
-        ]}
-      />
-      <section className="bt-card">
-        <h2 style={{ margin: 0, padding: 16, fontSize: 15 }}>Pending invitations</h2>
-        {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
-        {(invites.data ?? []).map((i) => (
-          <div key={i.id} className="bt-row">
-            <span style={{ flex: 1 }}>{i.email}<br /><span style={{ color: color.muted, fontSize: 12.5 }}>{i.tenantRole} · expires {i.expiresAt.slice(0, 10)}</span></span>
-            <Button onClick={() => void actInvite(i.id, 'resend')}>Resend</Button>
-            <Button type="link" danger onClick={() => void actInvite(i.id, 'revoke')}>Revoke</Button>
+      <section className="bt-card" style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 680 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1.2fr) 110px 44px', gap: 12, padding: '10px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
+            <span>Person</span><span>Project roles</span><span>Workspace role</span><span />
           </div>
-        ))}
+          {rows.map((r) => (
+            <div key={r.userId} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1.2fr) 110px 44px', gap: 12, alignItems: 'center', minHeight: 56, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <Avatar user={r.user} size={30} fontSize={11} />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontWeight: 500 }}>{r.name}</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{r.email}</span>
+                </span>
+              </span>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {r.roles.map((role) => <RoleTag key={role} role={role} />)}
+                <Dropdown
+                  menu={{
+                    items: ALL_ROLES.filter((role) => !r.roles.includes(role)).map((role) => ({
+                      key: role,
+                      label: role,
+                      onClick: () => saveRoles.mutate({ userId: r.userId, roleSlugs: [...r.roles, role] }),
+                    })),
+                  }}
+                >
+                  <button type="button" style={{ height: 24, padding: '0 8px', border: `1px dashed ${color.dashed}`, borderRadius: 6, background: 'transparent', font: 'inherit', fontSize: 12, color: color.muted, cursor: 'pointer' }}>+ role</button>
+                </Dropdown>
+              </span>
+              <span style={{ fontSize: 13, color: color.ink3 }}>{r.workspaceRole ?? 'Member'}</span>
+              <Button type="text" aria-label={`Remove ${r.name}`} onClick={() => setPendingRemove({ userId: r.userId, name: r.name })}>x</Button>
+            </div>
+          ))}
+        </div>
       </section>
+      <section className="bt-card">
+        <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
+          Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
+        </h2>
+        {(invites.data ?? []).map((i) => {
+          const expired = new Date(i.expiresAt).getTime() < Date.now();
+          return (
+            <div key={i.id} className="bt-row">
+              <span style={{ flex: '1 1 240px' }}>
+                <span style={{ display: 'block', fontWeight: 500 }}>{i.email}</span>
+                <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
+                {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
+              </span>
+              <Button onClick={() => void actInvite(i.id, 'resend')}>Resend</Button>
+              <Button type="link" danger onClick={() => void actInvite(i.id, 'revoke')}>Revoke</Button>
+            </div>
+          );
+        })}
+        {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
+      </section>
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        title={pendingRemove ? `Remove ${pendingRemove.name.split(' ')[0]} from ${detail.data?.project.name ?? 'this project'}?` : 'Remove this member?'}
+        confirmLabel="Remove"
+        busy={remove.isPending}
+        onCancel={() => setPendingRemove(null)}
+        onConfirm={() => {
+          if (!pendingRemove) return;
+          remove.mutate(pendingRemove.userId, { onSuccess: () => setPendingRemove(null) });
+        }}
+      >
+        {memberRemoveBody(openTaskCount(tasks, detail.data?.workflow, pendingRemove?.userId))}
+      </ConfirmDialog>
     </SettingsFrame>
   );
+}
+
+function openTaskCount(tasks: { assigneeId: string | null; statusId: string }[] | undefined, workflow: Parameters<typeof statusById>[0] | undefined, userId: string | undefined) {
+  if (!tasks || !workflow || !userId) return null;
+  return tasks.filter((task) => task.assigneeId === userId && statusById(workflow, task.statusId)?.category !== 'done').length;
+}
+
+function memberRemoveBody(count: number | null) {
+  if (count === null) return 'Their open tasks become unassigned. Their comments and history stay.';
+  if (count === 0) return 'They have no open tasks. Their comments and history stay.';
+  if (count === 1) return 'Their 1 open task becomes unassigned. Their comments and history stay.';
+  return `Their ${count} open tasks become unassigned. Their comments and history stay.`;
 }

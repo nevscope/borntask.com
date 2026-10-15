@@ -191,6 +191,10 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
   const userIds = [...new Set(project.members.map((m) => m.userId).concat(project.leadId ? [project.leadId] : []))];
   const users = userIds.length ? await prisma.user.findMany({ where: { id: { in: userIds } } }) : [];
   const [card] = await mapProjectCards(db, userId, [project]);
+  const tenantMembers = userIds.length
+    ? await db.tenantMember.findMany({ where: { userId: { in: userIds } } })
+    : [];
+  const wsRole = new Map(tenantMembers.map((m) => [m.userId, m.tenantRole]));
   return {
     project: card!,
     sections: project.sections.map((s, i) => ({
@@ -202,6 +206,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
     members: project.members.map((m) => ({
       userId: m.userId,
       roles: m.roles.map((r) => remapRoleSlug(r.role.slug)),
+      workspaceRole: wsRole.get(m.userId) ?? 'member',
     })),
     users: users.map(mapUser),
     workflow: {

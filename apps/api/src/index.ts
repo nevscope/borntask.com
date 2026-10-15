@@ -1,3 +1,4 @@
+import './loadEnv.js';
 import './sessionTypes.js';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -16,6 +17,10 @@ import { workflowRoutes } from './routes/workflow.js';
 import { searchRoutes } from './routes/search.js';
 import { adminRoutes } from './routes/admin.js';
 import { importRoutes } from './routes/import.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { chatRoutes } from './routes/chat.js';
+import { tokenRoutes } from './routes/tokens.js';
+import { oauthRoutes } from './routes/oauth.js';
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -46,6 +51,10 @@ async function main() {
   await app.register(searchRoutes);
   await app.register(adminRoutes);
   await app.register(importRoutes);
+  await app.register(notificationRoutes);
+  await app.register(chatRoutes);
+  await app.register(tokenRoutes);
+  await app.register(oauthRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

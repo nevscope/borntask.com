@@ -56,13 +56,13 @@ function hash(s: string) {
   return h;
 }
 
-export function Avatar({ user, size = 24 }: { user: User | null | undefined; size?: number }) {
+export function Avatar({ user, size = 24, fontSize }: { user: User | null | undefined; size?: number; fontSize?: number }) {
   if (!user) {
     return <span title="Unassigned" style={{ width: size, height: size, borderRadius: '50%', border: '1.5px dashed #AEB4AA', boxSizing: 'border-box', flex: 'none', display: 'inline-block' }} />;
   }
-  const tone = user.id === 'u_scope' ? { bg: '#121417', fg: '#FFFFFF' } : avatarTones[hash(user.id) % avatarTones.length]!;
+  const tone = user.id === 'u_scope' || user.id === 'u_github' ? { bg: '#121417', fg: '#FFFFFF' } : avatarTones[hash(user.id) % avatarTones.length]!;
   return (
-    <span title={user.name} style={{ width: size, height: size, borderRadius: '50%', display: 'inline-grid', placeItems: 'center', background: tone.bg, color: tone.fg, fontSize: Math.round(size * 0.42), fontWeight: 600, flex: 'none' }}>
+    <span title={user.name} style={{ width: size, height: size, borderRadius: '50%', display: 'inline-grid', placeItems: 'center', background: tone.bg, color: tone.fg, fontSize: fontSize ?? Math.round(size * 0.42), fontWeight: 600, flex: 'none' }}>
       {user.initials}
     </span>
   );

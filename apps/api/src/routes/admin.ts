@@ -1,10 +1,14 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { requireAuth } from '../context.js';
-import { forbidden, notFound, sendError } from '../errors.js';
-import { mapUser } from '../lib/loadProject.js';
+import { requireAuth, setSession } from '../context.js';
+import { config } from '../env.js';
+import { forbidden, notFound, sendError, validation } from '../errors.js';
+import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
+import { slugify } from '../lib/tokens.js';
 
 function requireOwnerAdmin(role: string) {
   if (role !== 'owner' && role !== 'admin') throw forbidden('Owners and admins only.');
@@ -30,6 +34,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         membersCanInviteGuests: ws.membersCanInviteGuests,
         allowedDomains: ws.allowedDomains,
         isInternal: ws.isInternal,
+        logo: Boolean(ws.logo),
         workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
       };
     } catch (err) {
@@ -52,6 +57,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           allowGoogle: z.boolean().optional(),
           allowMicrosoft: z.boolean().optional(),
           membersCanInviteGuests: z.boolean().optional(),
+          allowedDomains: z.array(z.string().trim().min(1)).optional(),
         })
         .parse(req.body);
       if (body.slug) {
@@ -69,17 +75,134 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       requireOwnerAdmin(auth.workspaceRole);
-      const [roles, types, workflows] = await Promise.all([
+      const [roles, types, workflows, counts] = await Promise.all([
         auth.db.projectRole.findMany({ orderBy: { name: 'asc' } }),
         auth.db.taskType.findMany({ orderBy: { name: 'asc' } }),
         auth.db.workflow.findMany({ orderBy: { name: 'asc' } }),
+        auth.db.project.groupBy({ by: ['workflowId'], _count: { _all: true } }),
       ]);
-      const detailed = await Promise.all(workflows.map((w) => loadWorkflow(auth.db, w.id)));
+      const used = new Map(counts.map((row) => [row.workflowId, row._count._all]));
+      const detailed = await Promise.all(workflows.map(async (w) => ({
+        ...(await loadWorkflow(auth.db, w.id)),
+        projectCount: used.get(w.id) ?? 0,
+      })));
       return {
         roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
         types: types.map((t) => ({ id: t.id, name: t.name, slug: t.slug, colour: t.colour, template: t.template })),
         workflows: detailed,
       };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/admin/roles', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const body = z.object({ name: z.string().trim().min(2).max(40) }).parse(req.body);
+      let slug = slugify(body.name);
+      const clash = await auth.db.projectRole.findFirst({ where: { slug } });
+      if (clash) slug = `${slug.slice(0, 24)}-${Math.random().toString(36).slice(2, 6)}`;
+      const row = await auth.db.projectRole.create({
+        data: { tenantId: auth.tenantId, name: body.name, slug, colour: '#5B6157' },
+      });
+      return { id: row.id, name: row.name, slug: row.slug };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/admin/types', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const body = z.object({
+        name: z.string().trim().min(2).max(40),
+        template: z.string().max(4000).optional(),
+      }).parse(req.body);
+      let slug = slugify(body.name);
+      const clash = await auth.db.taskType.findFirst({ where: { slug } });
+      if (clash) slug = `${slug.slice(0, 24)}-${Math.random().toString(36).slice(2, 6)}`;
+      const row = await auth.db.taskType.create({
+        data: {
+          tenantId: auth.tenantId,
+          name: body.name,
+          slug,
+          colour: '#178A5C',
+          template: body.template?.trim() || null,
+        },
+      });
+      return { id: row.id, name: row.name, slug: row.slug };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/admin/workflows', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const body = z.object({ name: z.string().trim().min(2).max(60).default('New workflow') }).parse(req.body ?? {});
+      const wf = await createOpenWorkflow(auth.db, auth.tenantId, body.name);
+      return { id: wf.id, name: wf.name, slug: wf.slug };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/workspace/logo', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const file = await req.file();
+      if (!file) throw validation('Choose an image to upload.');
+      const ext = (file.filename.split('.').pop() ?? '').toLowerCase();
+      if (!['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) {
+        throw validation('Use a PNG, JPG, WEBP or GIF image.');
+      }
+      const buf = await file.toBuffer();
+      if (buf.length > 2 * 1024 * 1024) throw validation('Logo images must be 2 MB or smaller.');
+      const storageKey = `${auth.tenantId}/logo.${ext === 'jpeg' ? 'jpg' : ext}`;
+      await mkdir(join(config.blobRoot, auth.tenantId), { recursive: true });
+      await writeFile(join(config.blobRoot, storageKey), buf);
+      await auth.db.workspace.update({ where: { id: auth.tenantId }, data: { logo: storageKey } });
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/workspace/logo', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+      if (!ws?.logo) throw notFound();
+      const buf = await readFile(join(config.blobRoot, ws.logo));
+      const ext = ws.logo.split('.').pop()?.toLowerCase();
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+      return reply.type(mime).send(buf);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/workspace/delete', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      if (auth.workspaceRole !== 'owner') throw forbidden('Only the owner can delete a workspace.');
+      const body = z.object({ name: z.string() }).parse(req.body);
+      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+      if (!ws) throw notFound();
+      if (body.name !== ws.name) throw validation('Type the workspace name to confirm.');
+      await prisma.workspace.update({ where: { id: ws.id }, data: { deletedAt: new Date() } });
+      const others = await prisma.tenantMember.findMany({
+        where: { userId: auth.userId, isActive: true, tenantId: { not: ws.id }, tenant: { deletedAt: null } },
+        orderBy: { createdAt: 'asc' },
+      });
+      const next = others[0]?.tenantId;
+      setSession(req, reply, { userId: auth.userId, tenantId: next });
+      return { ok: true, next: next ? '/' : '/create-workspace' };
     } catch (err) {
       return sendError(reply, err);
     }

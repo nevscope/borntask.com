@@ -9,4 +9,5 @@ export const JOB = {
   chatPost: 'chat-post',
   digest: 'daily-digest',
   trashPurge: 'trash-purge',
+  sendMail: 'send-mail',
 } as const;

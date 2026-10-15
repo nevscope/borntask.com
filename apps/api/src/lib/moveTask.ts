@@ -1,6 +1,12 @@
 import type { Authed } from '../context.js';
 import { ApiError } from '../errors.js';
-import { findTaskByKey, loadWorkflow, mapTask } from './loadProject.js';
+import { actorName, enqueueChat, eventsForStatus, taskUrl } from './chatNotify.js';
+import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
+
+function jsonStatus(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('status' in value)) return '';
+  return String((value as { status: unknown }).status ?? '');
+}
 
 function canOverride(role: Authed['workspaceRole'], projectRoles: string[]): boolean {
   return role === 'owner' || role === 'admin' || projectRoles.includes('lead');
@@ -9,7 +15,7 @@ function canOverride(role: Authed['workspaceRole'], projectRoles: string[]): boo
 export async function moveTask(
   auth: Authed,
   key: string,
-  input: { toStatusId: string; comment?: string; overrideReason?: string },
+  input: { toStatusId: string; comment?: string; overrideReason?: string; undo?: boolean },
 ) {
   const row = await findTaskByKey(auth.db, key);
   if (!row || row.deletedAt) throw new ApiError(404, 'NOT_FOUND', 'Task not found.');
@@ -37,6 +43,20 @@ export async function moveTask(
       requireComment = match.requireComment;
       transitionLabel = match.label;
       allowed = match.roles.length === 0 || match.roles.some((r) => myRoles.includes(r));
+    }
+  }
+
+  if (!allowed && input.undo) {
+    const latest = await auth.db.activityLog.findFirst({
+      where: { taskId: row.id, actorId: auth.userId },
+      orderBy: { at: 'desc' },
+    });
+    const fromStatus = jsonStatus(latest?.fromJson);
+    const toStatus = jsonStatus(latest?.toJson);
+    const recent = latest ? Date.now() - latest.at.getTime() < 15 * 60 * 1000 : false;
+    if (recent && fromStatus === toSlug && toStatus === fromSlug) {
+      allowed = true;
+      requireComment = false;
     }
   }
 
@@ -87,18 +107,36 @@ export async function moveTask(
       tenantId: auth.tenantId,
       taskId: row.id,
       actorId: auth.userId,
-      actorType: 'user',
-      via: 'app',
-      action: input.overrideReason
-        ? `overrode to ${toSlug}: ${input.overrideReason}`
-        : transitionLabel
-          ? `${transitionLabel.toLowerCase()} → ${toSlug}`
-          : `moved to ${toSlug}`,
+      actorType: auth.actorType,
+      via: auth.via,
+      action: input.undo
+        ? `undid the move, back to ${toSlug}`
+        : input.overrideReason
+          ? `overrode to ${toSlug}: ${input.overrideReason}`
+          : transitionLabel
+            ? `${transitionLabel.toLowerCase()} → ${toSlug}`
+            : `moved to ${toSlug}`,
       fromJson: { status: fromSlug },
       toJson: { status: toSlug, override: Boolean(input.overrideReason) },
     },
   });
 
   void onHoldId;
+  const keyLabel = taskKey(row.project.key, row.number);
+  const name = await actorName(auth.userId);
+  const statusName = updated.status.name;
+  const text = `${name} moved it to ${statusName}.`;
+  const url = taskUrl(row.project.key, keyLabel);
+  for (const event of eventsForStatus(toSlug)) {
+    await enqueueChat(auth, {
+      projectId: row.projectId,
+      event,
+      title: row.title,
+      taskKey: keyLabel,
+      projectName: row.project.name,
+      text,
+      url,
+    });
+  }
   return mapTask(updated);
 }

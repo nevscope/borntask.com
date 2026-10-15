@@ -14,6 +14,10 @@ const createProjectSchema = z.object({
   workflow: z.enum(['delivery', 'simple']).optional(),
   sections: z.array(z.string().trim().min(1)).optional(),
   memberIds: z.array(z.string()).optional(),
+  members: z.array(z.object({
+    userId: z.string(),
+    roleSlugs: z.array(z.string()).default([]),
+  })).optional(),
 });
 
 async function visibleProject(auth: Authed, key: string) {
@@ -107,13 +111,27 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       if (lead) {
         await auth.db.projectMemberRole.create({ data: { tenantId: auth.tenantId, memberId: member.id, roleId: lead.id } });
       }
-      for (const userId of input.memberIds ?? []) {
-        if (userId === auth.userId) continue;
-        await auth.db.projectMember.upsert({
-          where: { projectId_userId: { projectId: project.id, userId } },
+      const extras = [
+        ...(input.memberIds ?? []).map((userId) => ({ userId, roleSlugs: [] as string[] })),
+        ...(input.members ?? []),
+      ];
+      for (const extra of extras) {
+        if (extra.userId === auth.userId) continue;
+        const row = await auth.db.projectMember.upsert({
+          where: { projectId_userId: { projectId: project.id, userId: extra.userId } },
           update: {},
-          create: { tenantId: auth.tenantId, projectId: project.id, userId },
+          create: { tenantId: auth.tenantId, projectId: project.id, userId: extra.userId },
         });
+        if (extra.roleSlugs.length) {
+          const roles = await auth.db.projectRole.findMany({ where: { slug: { in: extra.roleSlugs } } });
+          for (const role of roles) {
+            await auth.db.projectMemberRole.upsert({
+              where: { memberId_roleId: { memberId: row.id, roleId: role.id } },
+              update: {},
+              create: { tenantId: auth.tenantId, memberId: row.id, roleId: role.id },
+            });
+          }
+        }
       }
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       return detail;
@@ -143,8 +161,17 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const { id } = req.params as { id: string };
-      const body = z.object({ name: z.string().trim().min(1).max(80) }).parse(req.body);
-      const section = await auth.db.section.update({ where: { id }, data: { name: body.name } });
+      const body = z.object({
+        name: z.string().trim().min(1).max(80).optional(),
+        position: z.string().optional(),
+      }).parse(req.body);
+      const section = await auth.db.section.update({
+        where: { id },
+        data: {
+          ...(body.name ? { name: body.name } : {}),
+          ...(body.position ? { position: body.position } : {}),
+        },
+      });
       return { id: section.id, name: section.name };
     } catch (err) {
       return sendError(reply, err);
@@ -275,17 +302,52 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/projects/:key/access-requests', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const project = await auth.db.project.findFirst({ where: { key } });
+      if (!project) throw notFound('This project is not in your workspace.');
+      const existing = await auth.db.accessRequest.findFirst({
+        where: { projectId: project.id, requesterId: auth.userId, resolvedAt: null },
+      });
+      if (!existing) {
+        await auth.db.accessRequest.create({
+          data: { tenantId: auth.tenantId, projectId: project.id, requesterId: auth.userId },
+        });
+      }
+      const lead = project.leadId
+        ? await prisma.user.findUnique({ where: { id: project.leadId }, select: { name: true } })
+        : null;
+      return { ok: true, leadName: lead?.name ?? null };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.get('/people', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
       if (auth.workspaceRole === 'guest') throw forbidden();
       const members = await auth.db.tenantMember.findMany({ where: { isActive: true } });
       const users = await prisma.user.findMany({ where: { id: { in: members.map((m) => m.userId) } } });
+      const onProjects = await auth.db.projectMember.findMany({
+        where: { userId: { in: members.map((m) => m.userId) } },
+        include: { project: { select: { name: true } } },
+      });
+      const projectsByUser = new Map<string, string[]>();
+      for (const row of onProjects) {
+        const list = projectsByUser.get(row.userId) ?? [];
+        list.push(row.project.name);
+        projectsByUser.set(row.userId, list);
+      }
       return members.map((m) => {
         const u = users.find((x) => x.id === m.userId);
         return {
           ...mapUser(u ?? { id: m.userId, name: 'Unknown', email: '' }),
           workspaceRole: m.tenantRole,
+          signsInWith: u?.authProvider === 'microsoft' ? 'Microsoft' : u?.authProvider === 'google' ? 'Google' : '-',
+          projects: (projectsByUser.get(m.userId) ?? []).join(', ') || 'None',
         };
       });
     } catch (err) {

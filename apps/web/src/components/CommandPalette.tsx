@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useProjects, useSearch } from '../api/queries';
 import { useQuickAdd } from './QuickAdd';
 import { highlightParts } from '../lib/search';
@@ -10,6 +10,7 @@ export function CommandPalette() {
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const [projectKey, setProjectKey] = useState<string | null>(null);
+  const { pathname } = useLocation();
   const projects = useProjects().data ?? [];
   const search = useSearch(q.trim().length >= 2 ? q.trim() : '');
   const navigate = useNavigate();
@@ -30,25 +31,26 @@ export function CommandPalette() {
   }, []);
 
   const actions = useMemo(() => {
-    const n = q.trim().toLowerCase();
-    const list = [
-      { id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', kind: 'action' as const, run: () => quickAdd.open() },
-      { id: 'new-project', label: 'New project', kind: 'action' as const, run: () => navigate('/projects/new') },
-      { id: 'my', label: 'Go to My tasks', kind: 'action' as const, run: () => navigate('/') },
-      { id: 'search', label: 'Search', kind: 'action' as const, run: () => navigate(q.trim() ? `/search?q=${encodeURIComponent(q)}` : '/search') },
-      { id: 'projects', label: 'Go to Projects', kind: 'action' as const, run: () => navigate('/projects') },
+    const onProject = pathname.match(/^\/p\/([^/]+)/)?.[1];
+    const boardKey = projectKey ?? onProject ?? projects[0]?.key;
+    return [
+      { id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', hint: 'Q', kind: 'action' as const, run: () => quickAdd.open() },
+      { id: 'new-project', label: 'New project', hint: '', kind: 'action' as const, run: () => navigate('/projects/new') },
+      { id: 'my', label: 'Go to My tasks', hint: 'G then M', kind: 'action' as const, run: () => navigate('/') },
+      { id: 'board', label: 'Switch to board view', hint: 'V', kind: 'action' as const, run: () => { if (boardKey) navigate(`/p/${boardKey}/board`); } },
+      { id: 'search', label: 'Search', hint: '', kind: 'action' as const, run: () => navigate(q.trim() ? `/search?q=${encodeURIComponent(q)}` : '/search') },
+      { id: 'projects', label: 'Go to Projects', hint: '', kind: 'action' as const, run: () => navigate('/projects') },
       ...projects
         .filter((p) => !projectKey || p.key === projectKey)
         .map((p) => ({
         id: `p-${p.key}`,
         label: `Go to ${p.name}`,
+        hint: '',
         kind: 'action' as const,
         run: () => navigate(`/p/${p.key}/list`),
       })),
     ];
-    if (!n) return list;
-    return list.filter((i) => i.label.toLowerCase().includes(n) || i.id.toLowerCase().includes(n));
-  }, [q, projects, projectKey, navigate, quickAdd]);
+  }, [q, projects, projectKey, navigate, quickAdd, pathname]);
 
   const project = projects.find((p) => p.key === projectKey) ?? null;
   const tasks = (search.data?.hits ?? []).filter((t) => !projectKey || t.projectKey === projectKey).slice(0, 6);
@@ -169,7 +171,7 @@ export function CommandPalette() {
               </button>
             );
           })}
-          <div className="bt-nav-heading" style={{ paddingTop: tasks.length ? 10 : 8 }}>Actions</div>
+          <div className="bt-nav-heading" style={{ padding: '10px 10px 4px' }}>Actions</div>
           {actions.map((a, i) => {
             const idx = tasks.length + i;
             return (
@@ -193,6 +195,7 @@ export function CommandPalette() {
                 }}
               >
                 <span style={{ flex: 1 }}>{a.label}</span>
+                {a.hint ? <span style={{ fontSize: 12, color: color.muted }}>{a.hint}</span> : null}
               </button>
             );
           })}

@@ -18,12 +18,12 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `Import.dc.html` | Import from Asana | Built → `src/screens/ImportScreen.tsx` |
 | `ProjectMembers.dc.html` | Project settings · Members | Built → `src/screens/ProjectMembersScreen.tsx` |
 | `ProjectStructure.dc.html` | Project settings · Sections, types, trash | Built → `src/screens/ProjectStructureScreen.tsx` |
-| `GoogleChat.dc.html` | Project settings · Google Chat | To build |
+| `GoogleChat.dc.html` | Project settings · Google Chat | Built → `src/screens/GoogleChatScreen.tsx` |
 | `WorkflowEditor.dc.html` | Workflow editor | Built → `src/screens/WorkflowEditorScreen.tsx` |
 | `AdminPeople.dc.html` | Admin · People & invitations | Built → `src/screens/AdminPeopleScreen.tsx` |
 | `AdminDefaults.dc.html` | Admin · Roles, types, workflows | Built → `src/screens/AdminDefaultsScreen.tsx` |
-| `ApiTokens.dc.html` | Profile · API tokens & MCP | To build |
-| `AdminBilling.dc.html` | Admin · Billing | To build |
+| `ApiTokens.dc.html` | Profile · API tokens & MCP | Built → `src/screens/ApiTokensScreen.tsx` |
+| `AdminBilling.dc.html` | Admin · Billing | Built → `src/screens/AdminBillingScreen.tsx` |
 | `SignIn.dc.html` | Sign in | Built → `src/screens/auth/SignInScreen.tsx` |
 | `AcceptInvite.dc.html` | Accept invitation | Built → `src/screens/auth/AcceptInviteScreen.tsx` |
 | `WelcomeGuest.dc.html` | After accepting · Guest lands in their project | Built → `src/screens/auth/WelcomeGuestScreen.tsx` |
@@ -40,12 +40,12 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetMobile.dc.html` | Sheet · Phone width | To build |
 | `McpConsent.dc.html` | MCP · Allow Claude to connect | To build |
 | `McpConnected.dc.html` | MCP · Connected | To build |
-| `GitHubSettings.dc.html` | Project settings · GitHub | To build |
+| `GitHubSettings.dc.html` | Project settings · GitHub | Built → `src/screens/GitHubSettingsScreen.tsx` |
 | `SheetGitHub.dc.html` | Sheet · GitHub on tasks, cards and branches | To build |
 | `SheetGoogleChat.dc.html` | Sheet · Google Chat setup and messages | To build |
 | `SheetApprovals.dc.html` | Sheet · Idea approval | To build |
 | `SheetDragDrop.dc.html` | Sheet · Drag and drop | To build |
-| `ProfileSettings.dc.html` | Profile and notifications | To build |
+| `ProfileSettings.dc.html` | Profile and notifications | Built → `src/screens/ProfileSettingsScreen.tsx` |
 | `WorkspaceGeneral.dc.html` | Admin · Workspace general | Built → `src/screens/WorkspaceGeneralScreen.tsx` |
 | `CreateWorkspace.dc.html` | New client · Create a workspace | Built → `src/screens/auth/CreateWorkspaceScreen.tsx` |
 | `SheetBillingStates.dc.html` | Sheet · Trial, payment and seat states | To build |

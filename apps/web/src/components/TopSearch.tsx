@@ -2,6 +2,7 @@ import { Input, type InputRef } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { isTaskKey } from '../lib/search';
+import { color, radius } from '../theme/tokens';
 
 export function TopSearch() {
   const navigate = useNavigate();
@@ -65,7 +66,10 @@ export function TopSearch() {
         if (e.key === 'Escape') inputRef.current?.blur?.();
       }}
       suffix={<kbd className="bt-kbd">{pathname === '/search' && value ? 'Esc' : '/'}</kbd>}
-      style={{ flex: '1 1 280px', maxWidth: 520, background: '#FAFBF9' }}
+      styles={{
+        root: { flex: '1 1 280px', maxWidth: 520, height: 38, padding: '0 12px', background: color.subtle, borderRadius: radius.md, fontSize: 13.5 },
+        input: { fontSize: 13.5 },
+      }}
     />
   );
 }

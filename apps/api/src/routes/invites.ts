@@ -6,6 +6,7 @@ import { requireAuth, requireUser, setSession } from '../context.js';
 import { forbidden as forbid, notFound as nf, sendError as send, validation as val } from '../errors.js';
 import { remapRoleSlug } from '../lib/mappers.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
+import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { hashToken, newInviteToken } from '../lib/tokens.js';
 
 const createInviteSchema = z.object({
@@ -39,6 +40,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
           throw forbid('Only admins and leads can invite guests.');
         }
         const { token, hash } = newInviteToken();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         await auth.db.invitation.create({
           data: {
             tenantId: auth.tenantId,
@@ -49,13 +51,21 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
             tokenHash: hash,
             invitedById: auth.userId,
             message: input.message,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt,
           },
         });
         const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
         created.push({ email, url, tenantRole });
-        req.log.info({ inviteUrl: url, email }, 'Invite URL (no Resend configured)');
-        console.log(`[BornTask] Invite for ${email}: ${url}`);
+        await enqueueMail({
+          kind: 'invite',
+          to: email,
+          inviteUrl: url,
+          workspaceName: ws.name,
+          inviterName: actor?.name ?? 'A teammate',
+          roleLabel: roleLabel(tenantRole, roleRows[0]?.name),
+          message: input.message ?? null,
+          expiresAt: expiresAt.toISOString(),
+        });
       }
       return { invites: created };
     } catch (err) {
@@ -150,12 +160,26 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       if (!invite) throw nf();
       if (invite.acceptedAt || invite.revokedAt) throw val('This invitation is no longer pending.');
       const { token, hash } = newInviteToken();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await auth.db.invitation.update({
         where: { id: invite.id },
-        data: { tokenHash: hash, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        data: { tokenHash: hash, expiresAt },
       });
       const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
-      console.log(`[BornTask] Invite for ${invite.email}: ${url}`);
+      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+      const actor = await prisma.user.findUnique({ where: { id: auth.userId } });
+      const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
+      const role = roleIds[0] ? await auth.db.projectRole.findFirst({ where: { id: roleIds[0] } }) : null;
+      await enqueueMail({
+        kind: 'invite',
+        to: invite.email,
+        inviteUrl: url,
+        workspaceName: ws?.name ?? 'BornTask',
+        inviterName: actor?.name ?? 'A teammate',
+        roleLabel: roleLabel(invite.tenantRole, role?.name),
+        message: invite.message,
+        expiresAt: expiresAt.toISOString(),
+      });
       return { email: invite.email, url };
     } catch (err) {
       return send(reply, err);
@@ -190,7 +214,21 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
           invitationId: invite.id,
         },
       });
-      console.log(`[BornTask] Wrong-account request: ${user.email} asked for invite meant for ${invite.email}`);
+      const [inviter, ws] = await Promise.all([
+        prisma.user.findUnique({ where: { id: invite.invitedById } }),
+        prisma.workspace.findUnique({ where: { id: invite.tenantId } }),
+      ]);
+      if (inviter?.email) {
+        await enqueueMail({
+          kind: 'wrong-account',
+          to: inviter.email,
+          requesterName: user.name,
+          requesterEmail: user.email,
+          invitedEmail: invite.email,
+          workspaceName: ws?.name ?? 'the workspace',
+          peopleUrl: `${config.publicUrl.replace(/\/$/, '')}/settings/people`,
+        });
+      }
       return { ok: true };
     } catch (err) {
       return send(reply, err);

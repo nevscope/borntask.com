@@ -27,6 +27,8 @@ export const color = {
   warningTint: '#FFFBF2',
   warningBorder: '#F1D6A6',
   highlight: '#FFE7A3',
+  unreadRow: '#F6FBF8',
+  unreadDot: '#E0731F',
 } as const;
 
 export const font = {
@@ -44,6 +46,21 @@ export const categoryBar = {
   review: '#E0731F',
   done: '#178A5C',
 } as const;
+
+/** Project colour picker (Create project mock). */
+export const projectSwatches = [
+  { id: 'blue', label: 'Blue', hex: '#2F6FDB', tint: '#EAF1FD', ink: '#1F55B8' },
+  { id: 'green', label: 'Green', hex: '#178A5C', tint: '#E9F5EF', ink: '#0F6B46' },
+  { id: 'orange', label: 'Orange', hex: '#E0731F', tint: '#FFF0E5', ink: '#A04A0C' },
+  { id: 'violet', label: 'Violet', hex: '#8E59D9', tint: '#EDE4FA', ink: '#5B3FC4' },
+  { id: 'amber', label: 'Amber', hex: '#C98A1A', tint: '#FDF3E2', ink: '#8A5A0B' },
+  { id: 'graphite', label: 'Graphite', hex: '#3A3F38', tint: '#F1F2EF', ink: '#3A3F38' },
+] as const;
+
+export function projectTint(hex: string) {
+  const match = projectSwatches.find((s) => s.hex.toLowerCase() === hex.toLowerCase());
+  return match ?? { id: 'custom', label: 'Colour', hex, tint: color.chip, ink: color.ink3 };
+}
 
 export const typeStyle: Record<TaskType, { label: string; bg: string; fg: string }> = {
   idea: { label: 'Idea', bg: '#F1EEFC', fg: '#5B3FC4' },

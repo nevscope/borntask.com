@@ -1,12 +1,17 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, createTenantClient } from './db.js';
 import { forbidden, unauthorized } from './errors.js';
+import { hashToken } from './lib/tokens.js';
+import { tokenAllows } from './lib/tokenPolicy.js';
 
 export type Authed = {
   userId: string;
   tenantId: string;
   workspaceRole: 'owner' | 'admin' | 'member' | 'guest' | 'viewer';
   db: ReturnType<typeof createTenantClient>;
+  via: 'app' | 'mcp';
+  actorType: 'user' | 'mcp';
+  tokenScope: 'session' | 'read' | 'read_write';
 };
 
 export function sessionUserId(req: FastifyRequest): string | undefined {
@@ -26,19 +31,62 @@ export async function requireUser(req: FastifyRequest) {
   return user;
 }
 
+function bearerToken(req: FastifyRequest): string | undefined {
+  const header = req.headers.authorization;
+  if (!header) return undefined;
+  const [scheme, token] = header.split(' ');
+  if (!scheme || scheme.toLowerCase() !== 'bearer' || !token?.startsWith('bt_pat_')) return undefined;
+  return token.trim();
+}
+
+async function membershipFor(userId: string, tenantId: string) {
+  const membership = await prisma.tenantMember.findUnique({
+    where: { tenantId_userId: { tenantId, userId } },
+  });
+  if (!membership || !membership.isActive) throw forbidden('You are not a member of this workspace.');
+  const workspace = await prisma.workspace.findUnique({ where: { id: tenantId }, select: { deletedAt: true } });
+  if (!workspace || workspace.deletedAt) throw forbidden('This workspace is closed.');
+  return membership;
+}
+
 export async function requireAuth(req: FastifyRequest): Promise<Authed> {
+  if (req.headers.authorization) {
+    const token = bearerToken(req);
+    if (!token) throw unauthorized('Use a personal token that starts with bt_pat_.');
+    const row = await prisma.apiToken.findFirst({ where: { tokenHash: hashToken(token), revokedAt: null } });
+    if (!row) throw unauthorized('This token is not valid. Create a new one in API tokens.');
+    const membership = await membershipFor(row.userId, row.tenantId);
+    const scopes = Array.isArray(row.scopes) ? row.scopes.map(String) : [];
+    const tokenScope = scopes.includes('write') || scopes.includes('read_write') ? 'read_write' : 'read';
+    const viaHeader = req.headers['x-borntask-via'];
+    const via = viaHeader === 'mcp' ? 'mcp' : 'app';
+    const decision = tokenAllows(req.method, req.url, tokenScope);
+    if (!decision.ok) throw forbidden(decision.message);
+    void prisma.apiToken.update({ where: { id: row.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
+    void prisma.oAuthGrant.updateMany({ where: { tokenId: row.id, revokedAt: null }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
+    return {
+      userId: row.userId,
+      tenantId: row.tenantId,
+      workspaceRole: membership.tenantRole,
+      db: createTenantClient(row.tenantId),
+      via,
+      actorType: via === 'mcp' ? 'mcp' : 'user',
+      tokenScope,
+    };
+  }
+
   const user = await requireUser(req);
   const tenantId = sessionTenantId(req);
   if (!tenantId) throw unauthorized();
-  const membership = await prisma.tenantMember.findUnique({
-    where: { tenantId_userId: { tenantId, userId: user.id } },
-  });
-  if (!membership || !membership.isActive) throw forbidden('You are not a member of this workspace.');
+  const membership = await membershipFor(user.id, tenantId);
   return {
     userId: user.id,
     tenantId,
     workspaceRole: membership.tenantRole,
     db: createTenantClient(tenantId),
+    via: 'app',
+    actorType: 'user',
+    tokenScope: 'session',
   };
 }
 

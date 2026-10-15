@@ -13,6 +13,7 @@ const devLoginSchema = z.object({
   email: z.string().email(),
   name: z.string().trim().min(1).max(80),
   inviteToken: z.string().optional(),
+  next: z.string().optional(),
 });
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
@@ -72,6 +73,16 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       const input = devLoginSchema.parse(req.body);
       if (input.inviteToken) req.session.set('inviteToken', input.inviteToken);
       const redirect = await finishLogin(req, reply, { email: input.email, name: input.name });
+      const next = input.next;
+      if (
+        redirect === '/' &&
+        next &&
+        next.startsWith('/') &&
+        !next.startsWith('//') &&
+        !next.startsWith('/sign-in')
+      ) {
+        return { redirect: next };
+      }
       return { redirect };
     } catch (err) {
       return sendError(reply, err);
@@ -89,7 +100,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!userId) throw unauthorized();
       const user = await requireUser(req);
       const memberships = await prisma.tenantMember.findMany({
-        where: { userId: user.id, isActive: true },
+        where: { userId: user.id, isActive: true, tenant: { deletedAt: null } },
         include: { tenant: true },
         orderBy: { createdAt: 'asc' },
       });

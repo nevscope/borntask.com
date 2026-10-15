@@ -5,6 +5,7 @@ import { requireUser, setSession } from '../context.js';
 import { sendError, validation } from '../errors.js';
 import { config } from '../env.js';
 import { bootstrapWorkspaceDefaults } from '../lib/bootstrapWorkspace.js';
+import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { newInviteToken, projectKeyFromName, slugify } from '../lib/tokens.js';
 
@@ -75,6 +76,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
         if (email === user.email.toLowerCase()) continue;
         const tenantRole = roleForInvite(email, 'member', domains);
         const { token, hash } = newInviteToken();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         await db.invitation.create({
           data: {
             tenantId: workspace.id,
@@ -82,11 +84,20 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
             tenantRole,
             tokenHash: hash,
             invitedById: user.id,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt,
           },
         });
         const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
-        console.log(`[BornTask] Invite for ${email}: ${url}`);
+        await enqueueMail({
+          kind: 'invite',
+          to: email,
+          inviteUrl: url,
+          workspaceName: workspace.name,
+          inviterName: user.name,
+          roleLabel: roleLabel(tenantRole),
+          message: null,
+          expiresAt: expiresAt.toISOString(),
+        });
       }
 
       setSession(req, reply, { userId: user.id, tenantId: workspace.id });

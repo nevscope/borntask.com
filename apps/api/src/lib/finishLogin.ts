@@ -31,7 +31,7 @@ export async function finishLogin(
   req.session.set('inviteToken', undefined);
 
   const memberships = await prisma.tenantMember.findMany({
-    where: { userId: user.id, isActive: true },
+    where: { userId: user.id, isActive: true, tenant: { deletedAt: null } },
     include: { tenant: true },
     orderBy: { createdAt: 'asc' },
   });

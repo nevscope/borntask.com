@@ -3,7 +3,7 @@
 // Mutations change the in-memory store, so the app behaves like the real thing until reload.
 import dayjs from 'dayjs';
 import { ApiError } from './http';
-import type { Activity, Api, Comment, Me, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
+import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
 
@@ -18,6 +18,9 @@ export const users: User[] = [
   { id: 'u_daniela', name: 'Daniela Vella', email: 'daniela@scopecloud.example', initials: 'DV' },
   { id: 'u_karl', name: 'Karl Farrugia', email: 'karl@scopecloud.example', initials: 'KF' },
 ];
+
+const joanna: User = { id: 'u_joanna', name: 'Joanna Zammit', email: 'joanna@harbour.example', initials: 'JZ' };
+const githubBot: User = { id: 'u_github', name: 'GitHub', email: 'notifications@github.example', initials: 'GH' };
 
 const me: Me = {
   user: users[0]!,
@@ -186,6 +189,64 @@ const activity: Record<string, Activity[]> = {
     { id: 'a_3', actorId: 'u_karl', via: 'app', text: 'moved to Testing', at: ago(2) },
   ],
 };
+
+let notifications: Notification[] = [
+  {
+    id: 'n_mention',
+    kind: 'mention',
+    text: 'Maria Borg mentioned you: "still failing when the card needs 3-D Secure"',
+    taskKey: 'WEB-142',
+    projectKey: 'WEB',
+    actor: users[1]!,
+    createdAt: ago(0.58),
+    readAt: null,
+  },
+  {
+    id: 'n_assigned',
+    kind: 'assigned',
+    text: 'Luke Camilleri assigned you Add Apple Pay to checkout',
+    taskKey: 'WEB-139',
+    projectKey: 'WEB',
+    actor: users[2]!,
+    createdAt: ago(2),
+    readAt: null,
+  },
+  {
+    id: 'n_moved',
+    kind: 'moved',
+    text: 'Karl Farrugia moved Lazy-load hero images to Ready for testing',
+    taskKey: 'WEB-133',
+    projectKey: 'WEB',
+    actor: users[4]!,
+    createdAt: ago(3),
+    readAt: null,
+  },
+  {
+    id: 'n_invite',
+    kind: 'invite',
+    text: 'Joanna Zammit accepted your invitation to Harbour Logistics portal',
+    taskKey: null,
+    projectKey: 'HLP',
+    actor: joanna,
+    createdAt: ago(26),
+    readAt: ago(20),
+  },
+  {
+    id: 'n_github',
+    kind: 'github',
+    text: 'Pull request #212 merged, WEB-128 moved to Deployed',
+    taskKey: 'WEB-128',
+    projectKey: 'WEB',
+    actor: githubBot,
+    createdAt: ago(72),
+    readAt: ago(60),
+  },
+];
+
+function notificationList() {
+  const items = [...notifications].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return { items: clone(items), unreadCount: items.filter((n) => !n.readAt).length };
+}
 
 // ---------- helpers ----------
 const LATENCY_MS = 140;
@@ -383,6 +444,12 @@ export const mockApi: Api = {
   async moveTask(key, input) {
     await wait();
     const t = findTask(key);
+    if (input.undo) {
+      t.statusId = input.toStatusId;
+      touch(t);
+      log(key, `undid the move, back to ${input.toStatusId}`);
+      return clone(t);
+    }
     const roles = myRolesIn(t.projectKey);
     const check = checkMove(deliveryWorkflow, t, input.toStatusId, roles);
     if (check.kind === 'no-path') throw new ApiError(422, 'VALIDATION', check.reason);
@@ -467,5 +534,20 @@ export const mockApi: Api = {
     deleted.delete(key);
     tasks.push(t);
     return clone(t);
+  },
+
+  async listNotifications() {
+    await wait();
+    return notificationList();
+  },
+
+  async markNotificationsRead(input) {
+    await wait();
+    const now = new Date().toISOString();
+    for (const n of notifications) {
+      if (n.readAt) continue;
+      if (input.all || n.id === input.id) n.readAt = now;
+    }
+    return notificationList();
   },
 };

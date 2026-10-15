@@ -628,6 +628,7 @@ model ApiToken {
   userId     String
   name       String
   tokenHash  String
+  hint       String    @default("")
   scopes     Json
   lastUsedAt DateTime?
   revokedAt  DateTime?
@@ -661,6 +662,7 @@ model OAuthGrant {
   appName      String
   redirectHost String
   scope        OAuthScope
+  tokenId      String?
   lastUsedAt   DateTime?
   revokedAt    DateTime?
   createdAt    DateTime   @default(now())

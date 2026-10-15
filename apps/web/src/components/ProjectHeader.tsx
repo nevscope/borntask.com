@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useSearchParams } from 'react-router-dom';
+import { projectViewSearch } from './ProjectViewBar';
 import { useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
 import { Avatar } from './Chips';
@@ -10,6 +11,8 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const listed = useProjects().data?.find((p) => p.key === project.key);
   const starred = listed?.starred ?? project.starred;
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
+  const [params] = useSearchParams();
+  const search = projectViewSearch(params);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -31,11 +34,11 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
           <InvitePeopleButton projectId={project.id} projectName={project.name} />
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E8EBE6' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, borderBottom: '1px solid #E8EBE6' }}>
         {(['list', 'board', 'trash', 'members', 'structure'] as const).map((view) => (
           <NavLink
             key={view}
-            to={view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}
+            to={`${view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}${view === 'list' || view === 'board' ? search : ''}`}
             style={({ isActive }) => ({
               height: 38,
               padding: '0 12px',
@@ -52,6 +55,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
           </NavLink>
         ))}
+        <span id="bt-saved-views" style={{ display: 'contents' }} />
       </div>
     </div>
   );

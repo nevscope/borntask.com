@@ -6,7 +6,7 @@ import { BASE_URL } from '../api/http';
 import { USE_PROJECT_MOCKS, useProjects } from '../api/queries';
 import type { Project, StatusCounts } from '../api/types';
 import { ProjectStar } from '../components/ProjectStar';
-import { categoryBar, color, font } from '../theme/tokens';
+import { categoryBar, color, font, projectTint } from '../theme/tokens';
 
 export function ProjectsScreen() {
   const [tab, setTab] = useState<'active' | 'archived'>('active');
@@ -23,7 +23,7 @@ export function ProjectsScreen() {
   const rows = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
 
   return (
-    <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20 }}>
+    <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <h1 className="bt-h1" style={{ flex: '1 1 200px', fontSize: 26 }}>Projects</h1>
         <Segmented
@@ -46,7 +46,7 @@ export function ProjectsScreen() {
           {rows.map((p) => (
             <Link key={p.id} to={`/p/${p.key}/list`} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 18, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12, color: color.ink, textDecoration: 'none' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: color.chip, color: color.ink3, fontSize: 11, fontWeight: 600, fontFamily: font.ui }}>{p.key}</span>
+                <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: projectTint(p.color).tint, color: projectTint(p.color).ink, fontSize: 11, fontWeight: 600, fontFamily: font.ui }}>{p.key}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
                   <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
@@ -58,7 +58,7 @@ export function ProjectsScreen() {
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5, color: color.ink3 }}>
                 <span><strong>{p.counts.backlog + p.counts.active + p.counts.review}</strong> open</span>
                 <span><strong>{p.counts.review}</strong> in review</span>
-                <span><strong>{p.counts.done}</strong> done</span>
+                <span><strong>{p.counts.done}</strong> deployed</span>
                 {p.updatedAt && <span style={{ marginLeft: 'auto', color: color.muted }}>{relTime(p.updatedAt)}</span>}
               </span>
             </Link>

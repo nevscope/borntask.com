@@ -123,6 +123,7 @@ export type Section = z.infer<typeof SectionSchema>;
 export const ProjectMemberSchema = z.object({
   userId: z.string(),
   roles: z.array(ProjectRoleSchema),
+  workspaceRole: WorkspaceRoleSchema.optional(),
 });
 export type ProjectMember = z.infer<typeof ProjectMemberSchema>;
 
@@ -158,6 +159,8 @@ export const TaskSchema = z.object({
   subtaskCount: z.object({ done: z.number().int(), total: z.number().int() }),
   createdAt: z.string(),
   updatedAt: z.string(),
+  deletedByName: z.string().nullable().optional(),
+  daysLeft: z.number().int().nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -186,6 +189,8 @@ export const TaskDetailSchema = TaskSchema.extend({
   subtasks: z.array(SubtaskSchema),
   comments: z.array(CommentSchema),
   activity: z.array(ActivitySchema),
+  /** Set while the task is still in the 30-day trash window. */
+  deletedAt: z.string().nullable().optional(),
 });
 
 export const SearchHitSchema = z.object({
@@ -213,6 +218,27 @@ export const SearchResponseSchema = z.object({
 });
 export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;
+
+export const NotificationKindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github']);
+export type NotificationKind = z.infer<typeof NotificationKindSchema>;
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  kind: NotificationKindSchema,
+  text: z.string(),
+  taskKey: z.string().nullable(),
+  projectKey: z.string().nullable(),
+  actor: UserSchema.nullable(),
+  createdAt: z.string(),
+  readAt: z.string().nullable(),
+});
+export type Notification = z.infer<typeof NotificationSchema>;
+
+export const NotificationListSchema = z.object({
+  items: z.array(NotificationSchema),
+  unreadCount: z.number().int(),
+});
+export type NotificationList = z.infer<typeof NotificationListSchema>;
 
 export const MyTasksSchema = z.object({
   assigned: z.array(TaskSchema),
@@ -258,6 +284,7 @@ export const MoveTaskInputSchema = z.object({
   comment: z.string().optional(),
   /** Only accepted from project leads and workspace owners/admins; logged. */
   overrideReason: z.string().optional(),
+  undo: z.boolean().optional(),
 });
 export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
 
@@ -307,4 +334,6 @@ export interface Api {
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
   restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
+  listNotifications(): Promise<NotificationList>; // GET /me/notifications
+  markNotificationsRead(input: { id?: string; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
 }

@@ -1,7 +1,19 @@
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { JOB, QUEUE } from '@borntask/shared';
 import { runAsanaImport } from './asanaImport.js';
+import { runChatPost } from './chatPost.js';
+import { deliverMail } from './mail.js';
+import type { ChatPostJob } from '@borntask/shared';
+
+const envFile = resolve(fileURLToPath(new URL('../../../.env', import.meta.url)));
+try {
+  process.loadEnvFile(envFile);
+} catch {
+  // The process environment is enough when .env is absent.
+}
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
 const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
@@ -24,8 +36,12 @@ async function main() {
   const notifyWorker = new Worker(
     QUEUE.notify,
     async (job) => {
-      console.log(`[notify] stub ${job.name} ${job.id}`);
-      return { ok: true, stub: true };
+      if (job.name === JOB.chatPost) return runChatPost(job.data as ChatPostJob);
+      if (job.name !== JOB.sendMail) {
+        console.log(`[notify] stub ${job.name} ${job.id}`);
+        return { ok: true, stub: true };
+      }
+      return deliverMail(job.data);
     },
     { connection },
   );

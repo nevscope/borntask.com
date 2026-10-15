@@ -67,7 +67,7 @@ export function SearchScreen() {
   }, [hits]);
 
   return (
-    <div className="bt-page" style={{ maxWidth: 960, margin: '0 auto', width: '100%', gap: 18 }}>
+    <div className="bt-page" style={{ maxWidth: 960, margin: '0 auto', width: '100%', gap: 18, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 10 }}>
         <h1 className="bt-h1" style={{ fontSize: 22 }}>
           {!q.trim()
@@ -87,13 +87,13 @@ export function SearchScreen() {
         <Select
           value={project}
           onChange={setProject}
-          style={{ minWidth: 140 }}
+          style={{ minWidth: 140, height: 32, fontSize: 13 }}
           options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.key, label: p.name }))]}
         />
         <Select
           value={type}
           onChange={setType}
-          style={{ minWidth: 120 }}
+          style={{ minWidth: 120, height: 32, fontSize: 13 }}
           options={[
             { value: 'all', label: 'Any type' },
             { value: 'idea', label: 'Idea' },
@@ -105,10 +105,10 @@ export function SearchScreen() {
         <Select
           value={status}
           onChange={setStatus}
-          style={{ minWidth: 140 }}
+          style={{ minWidth: 140, height: 32, fontSize: 13 }}
           options={[{ value: 'all', label: 'Any status' }, ...statuses]}
         />
-        <Checkbox checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)}>
+        <Checkbox className="bt-check-row" checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)} style={{ height: 32, fontSize: 13 }}>
           Include Deployed and Rejected
         </Checkbox>
       </div>

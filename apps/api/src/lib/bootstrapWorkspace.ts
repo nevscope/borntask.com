@@ -98,6 +98,43 @@ async function seedDelivery(db: Db, tenantId: string, roleIds: Record<string, st
   return wf;
 }
 
+export async function createOpenWorkflow(db: Db, tenantId: string, name: string) {
+  const base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'workflow';
+  let slug = base;
+  const clash = await db.workflow.findFirst({ where: { tenantId, slug } });
+  if (clash) slug = `${base.slice(0, 24)}-${Math.random().toString(36).slice(2, 6)}`;
+  const wf = await db.workflow.create({
+    data: { tenantId, name, slug, isDefault: false, isTemplate: false },
+  });
+  const specs: { slug: string; name: string; category: Prisma.WorkflowStatusCreateInput['category']; position: number }[] = [
+    { slug: 'todo', name: 'To do', category: 'backlog', position: 0 },
+    { slug: 'doing', name: 'Doing', category: 'active', position: 1 },
+    { slug: 'done', name: 'Done', category: 'done', position: 2 },
+  ];
+  const ids: Record<string, string> = {};
+  for (const s of specs) {
+    const row = await db.workflowStatus.create({ data: { tenantId, workflowId: wf.id, ...s } });
+    ids[s.slug] = row.id;
+  }
+  for (const [from, to] of [['todo', 'doing'], ['doing', 'done'], ['done', 'todo'], ['doing', 'todo']] as const) {
+    await db.workflowTransition.create({
+      data: {
+        tenantId,
+        workflowId: wf.id,
+        fromStatusId: ids[from]!,
+        toStatusId: ids[to]!,
+        allowedRoleIds: [],
+      },
+    });
+  }
+  return wf;
+}
+
 async function seedSimple(db: Db, tenantId: string) {
   const wf = await db.workflow.create({
     data: { tenantId, name: 'Simple', slug: 'simple', isDefault: false, isTemplate: true },

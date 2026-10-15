@@ -7,6 +7,7 @@ import {
   CommentSchema,
   MeSchema,
   MyTasksSchema,
+  NotificationListSchema,
   ProjectDetailSchema,
   ProjectSchema,
   SearchResponseSchema,
@@ -75,4 +76,6 @@ export const httpApi: Api = {
   setSubtaskDone: (key, id, done) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, { done }),
   deleteTask: (key) => request('DELETE', `/tasks/${enc(key)}`, null),
   restoreTask: (key) => request('POST', `/tasks/${enc(key)}/restore`, TaskSchema),
+  listNotifications: () => request('GET', '/me/notifications', NotificationListSchema),
+  markNotificationsRead: (input) => request('POST', '/me/notifications/read', NotificationListSchema, input),
 };

@@ -2,8 +2,17 @@ import { App, Button, Form, Input, Modal, Select } from 'antd';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
+import { radius } from '../theme/tokens';
 
-export function InvitePeopleButton({ projectId, projectName }: { projectId?: string; projectName?: string }) {
+export function InvitePeopleButton({
+  projectId,
+  projectName,
+  variant = 'icon',
+}: {
+  projectId?: string;
+  projectName?: string;
+  variant?: 'icon' | 'primary';
+}) {
   const { message } = App.useApp();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -11,15 +20,21 @@ export function InvitePeopleButton({ projectId, projectName }: { projectId?: str
 
   return (
     <>
-      <Button
-        shape="circle"
-        aria-label={`Invite people${projectName ? ` to ${projectName}` : ''}`}
-        title="Invite people"
-        style={{ marginLeft: 6, borderStyle: 'dashed' }}
-        onClick={() => setOpen(true)}
-      >
-        +
-      </Button>
+      {variant === 'primary' ? (
+        <Button type="primary" onClick={() => setOpen(true)} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
+          Invite people
+        </Button>
+      ) : (
+        <Button
+          shape="circle"
+          aria-label={`Invite people${projectName ? ` to ${projectName}` : ''}`}
+          title="Invite people"
+          style={{ marginLeft: 6, borderStyle: 'dashed' }}
+          onClick={() => setOpen(true)}
+        >
+          +
+        </Button>
+      )}
       <Modal title="Invite people" open={open} onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
         <Form
           layout="vertical"

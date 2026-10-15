@@ -3,10 +3,11 @@
 //   needs a comment    → small dialog first (e.g. Fail, Reject)
 //   not allowed        → card stays put; message offers "Ask <role>" and, for leads/admins, "Override…"
 import { App, Button, Input, Modal } from 'antd';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useAddComment, useMe, useMoveTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { canOverride, checkMove, rolesLabel, statusById } from '../lib/workflow';
+import { color } from '../theme/tokens';
 
 interface Pending {
   task: Task;
@@ -15,13 +16,35 @@ interface Pending {
   title: string;
 }
 
-export function useMoveFlow(detail: ProjectDetail | undefined) {
+interface UndoState {
+  key: string;
+  fromStatusId: string;
+  toName: string;
+}
+
+interface BlockedState {
+  task: Task;
+  toStatusId: string;
+  fromName: string;
+  toName: string;
+  roles: ProjectRole[];
+}
+
+export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board?: boolean }) {
   const { message, notification } = App.useApp();
   const me = useMe().data;
   const move = useMoveTask();
   const addComment = useAddComment();
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState('');
+  const [undo, setUndo] = useState<UndoState | null>(null);
+  const [blocked, setBlocked] = useState<BlockedState | null>(null);
+
+  useEffect(() => {
+    if (!undo) return;
+    const timer = window.setTimeout(() => setUndo(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undo]);
 
   const myRoles: ProjectRole[] = detail?.members.find((m) => m.userId === me?.user.id)?.roles ?? [];
   const mayOverride = me ? canOverride(me.workspaceRole, myRoles) : false;
@@ -31,7 +54,7 @@ export function useMoveFlow(detail: ProjectDetail | undefined) {
     move.mutate(
       { key: task.key, input: { toStatusId, ...extra } },
       {
-        onSuccess: () => void message.success(`${task.key} moved to ${to?.name ?? toStatusId}`),
+        onSuccess: () => setUndo({ key: task.key, fromStatusId: task.statusId, toName: to?.name ?? toStatusId }),
         onError: (e) => void notification.error({ message: 'Move failed', description: e.message }),
       },
     );
@@ -62,6 +85,16 @@ export function useMoveFlow(detail: ProjectDetail | undefined) {
       return;
     }
     if (check.kind === 'not-allowed') {
+      if (options?.board) {
+        setBlocked({
+          task,
+          toStatusId,
+          fromName: from?.name ?? 'its current stage',
+          toName: to?.name ?? 'that stage',
+          roles: check.transition.roles,
+        });
+        return;
+      }
       const key = `blocked-${task.key}`;
       notification.warning({
         key,
@@ -92,7 +125,41 @@ export function useMoveFlow(detail: ProjectDetail | undefined) {
     run(task, toStatusId, {});
   }
 
+  function undoMove() {
+    if (!undo) return;
+    const back = undo;
+    setUndo(null);
+    move.mutate(
+      { key: back.key, input: { toStatusId: back.fromStatusId, undo: true } },
+      { onError: (e) => void notification.error({ message: 'Could not undo', description: e.message }) },
+    );
+  }
+
   const modal: ReactNode = (
+    <>
+    {options?.board && blocked && (
+      <div role="status" className="bt-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <strong>{blocked.task.key} stays in {blocked.fromName}.</strong>
+        <span style={{ fontSize: 13.5, color: color.ink3 }}>Only {rolesLabel(blocked.roles)} can move tasks to {blocked.toName}.</span>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button size="small" type="primary" onClick={() => { const current = blocked; setBlocked(null); askPeople(current.task, current.roles, current.toName); }}>
+            Ask {rolesLabel(blocked.roles).toLowerCase()}
+          </Button>
+          {mayOverride && (
+            <Button size="small" onClick={() => { setText(''); setPending({ task: blocked.task, toStatusId: blocked.toStatusId, mode: 'override', title: `Override: move ${blocked.task.key} to ${blocked.toName}` }); setBlocked(null); }}>
+              Override…
+            </Button>
+          )}
+          <Button size="small" onClick={() => setBlocked(null)}>Dismiss</Button>
+        </div>
+      </div>
+    )}
+    {undo && (
+      <div role="status" style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 40, display: 'flex', alignItems: 'center', gap: 12, maxWidth: 520, padding: '12px 14px', background: color.ink, color: color.surface, borderRadius: 12, fontSize: 13.5 }}>
+        <span style={{ flex: 1 }}><strong>{undo.key}</strong> moved to {undo.toName}.</span>
+        <button type="button" onClick={undoMove} style={{ height: 30, padding: '0 12px', border: 0, borderRadius: 6, background: color.surface, color: color.ink, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Undo</button>
+      </div>
+    )}
     <Modal
       open={pending !== null}
       title={pending?.title}
@@ -113,6 +180,7 @@ export function useMoveFlow(detail: ProjectDetail | undefined) {
         placeholder={pending?.mode === 'override' ? 'Why are you overriding the workflow? This is logged.' : 'What should the assignee know?'}
       />
     </Modal>
+    </>
   );
 
   return { requestMove, myRoles, mayOverride, modal, moving: move.isPending };
