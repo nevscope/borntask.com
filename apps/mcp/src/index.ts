@@ -9,7 +9,7 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const host = process.env.MCP_HOST ?? '0.0.0.0';
 const port = Number(process.env.MCP_PORT ?? 3011);
-const publicBase = (process.env.MCP_PUBLIC_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
+const publicBase = (process.env.MCP_PUBLIC_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '').replace(/\/mcp$/i, '');
 const webBase = (process.env.PUBLIC_URL ?? 'http://localhost:5174').replace(/\/$/, '');
 const apiBase = (process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3010').replace(/\/$/, '');
 const resourceUrl = `${publicBase}/mcp`;
