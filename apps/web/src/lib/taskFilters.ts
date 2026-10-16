@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import type { Priority, ProjectDetail, ProjectRole, Task, TaskType } from '../api/types';
 import { priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
 import { dueBucket, dueTone } from './dates';
+import { stripTags } from './descriptionHtml';
 import { statusById } from './workflow';
 
 export const FILTER_FIELDS = [
@@ -291,7 +292,7 @@ export function taskMatches(task: Task, filters: FilterCondition[], detail: Proj
     if (f.field === 'updated') return whenHit(task.updatedAt, f.op, f.values);
     const needle = (f.values[0] ?? '').trim().toLowerCase();
     if (!needle) return true;
-    return `${task.key} ${task.title} ${task.description}`.toLowerCase().includes(needle);
+    return `${task.key} ${task.title} ${stripTags(task.description)}`.toLowerCase().includes(needle);
   });
 }
 

@@ -36,6 +36,7 @@ export function ApiTokensScreen() {
   const [minted, setMinted] = useState<MintedToken | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [pendingGrant, setPendingGrant] = useState<{ id: string; appName: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const rows = tokens.data?.tokens ?? [];
@@ -116,7 +117,7 @@ export function ApiTokensScreen() {
                 {grant.scope === 'read_write' ? 'Read and update' : 'Read only'} · {grant.redirectHost} · last used {when(grant.lastUsedAt)}
               </span>
             </span>
-            <button type="button" onClick={() => revokeGrant.mutate(grant.id)} style={{ height: 32, padding: '0 10px', border: 0, borderRadius: 8, background: 'transparent', font: 'inherit', fontSize: 13, color: color.danger, cursor: 'pointer' }}>Disconnect</button>
+            <button type="button" onClick={() => setPendingGrant({ id: grant.id, appName: grant.appName })} style={{ height: 32, padding: '0 10px', border: 0, borderRadius: 8, background: 'transparent', font: 'inherit', fontSize: 13, color: color.danger, cursor: 'pointer' }}>Disconnect</button>
           </div>
         ))}
       </section>
@@ -173,6 +174,19 @@ export function ApiTokensScreen() {
         }}
       >
         Anything still using it, including an assistant, will stop working. This cannot be undone.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingGrant !== null}
+        title={pendingGrant ? `Disconnect "${pendingGrant.appName}"?` : 'Disconnect this app?'}
+        confirmLabel="Disconnect"
+        busy={revokeGrant.isPending}
+        onCancel={() => setPendingGrant(null)}
+        onConfirm={() => {
+          if (!pendingGrant) return;
+          revokeGrant.mutate(pendingGrant.id, { onSuccess: () => setPendingGrant(null) });
+        }}
+      >
+        Anything using it stops working immediately. This cannot be undone.
       </ConfirmDialog>
     </SettingsFrame>
   );

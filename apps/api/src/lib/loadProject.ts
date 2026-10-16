@@ -12,11 +12,16 @@ export async function workflowView(db: TenantClient, workflowId: string) {
     _count: { _all: true },
   });
   const byId = new Map(grouped.map((g) => [g.statusId, g._count._all]));
-  const projectCount = await db.project.count({ where: { workflowId } });
+  const projects = await db.project.findMany({
+    where: { workflowId },
+    select: { name: true },
+    orderBy: { name: 'asc' },
+  });
   return {
     id: wf.id,
     name: wf.name,
-    projectCount,
+    projectCount: projects.length,
+    projectNames: projects.map((project) => project.name),
     statuses: wf.statuses.map((s) => ({
       ...s,
       taskCount: byId.get(wf.statusIdBySlug[s.id] ?? '') ?? 0,

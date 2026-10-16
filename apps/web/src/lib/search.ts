@@ -1,9 +1,11 @@
+import { stripTags } from './descriptionHtml';
+
 export function isTaskKey(q: string): boolean {
   return /^[A-Za-z][A-Za-z0-9]*-\d+$/.test(q.trim());
 }
 
 export function snippetAround(text: string, q: string, radius = 42): string {
-  const hay = text.replace(/\s+/g, ' ').trim();
+  const hay = stripTags(text).replace(/\s+/g, ' ').trim();
   const i = hay.toLowerCase().indexOf(q.toLowerCase());
   if (i < 0) return hay.slice(0, radius * 2);
   let start = Math.max(0, i - radius);

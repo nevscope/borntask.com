@@ -11,7 +11,9 @@
   --bt-canvas: #F7F8F6;
   --bt-subtle: #FAFBF9;
   --bt-surface: #FFFFFF;
+  --bt-chip: #F1F2EF;
   --bt-display: 'Sora', 'DM Sans', system-ui, sans-serif;
+  --bt-mono: ui-monospace, Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -64,6 +66,16 @@ a { color: var(--bt-brand-strong); }
 .bt-check-row.ant-checkbox-wrapper { align-items: center; gap: 8px; font-size: 13.5px; }
 .bt-hit { background: #FFE7A3; color: inherit; border-radius: 3px; padding: 0 1px; }
 .bt-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.bt-desc-surface { outline: none; min-height: 112px; }
+.bt-desc-surface p { margin: 0 0 8px; }
+.bt-desc-surface p:last-child { margin-bottom: 0; }
+.bt-desc-surface ul, .bt-desc-surface ol { margin: 0 0 10px; padding-left: 20px; }
+.bt-desc-surface code { font-family: var(--bt-mono); font-size: 12.5px; background: var(--bt-chip); padding: 1px 4px; border-radius: 4px; }
+.bt-desc-surface pre { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--bt-chip); overflow: auto; }
+.bt-desc-surface pre code { background: none; padding: 0; }
+.bt-desc-surface .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
+.bt-desc-surface p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--bt-muted); pointer-events: none; }
 
 @media (max-width: 767px) {
   .bt-sidebar { max-width: none; flex-basis: 100%; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--bt-border); }

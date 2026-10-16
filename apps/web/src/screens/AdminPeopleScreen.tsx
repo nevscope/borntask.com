@@ -1,12 +1,14 @@
-import { Alert, Button, Input, Select } from 'antd';
+import { Alert, App, Button, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { useMe } from '../api/queries';
 import type { User, WorkspaceRole } from '../api/types';
 import { Avatar } from '../components/Chips';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { color } from '../theme/tokens';
 
 type Person = User & { workspaceRole: WorkspaceRole; signsInWith?: string; projects?: string };
@@ -19,10 +21,14 @@ function domainsOf(raw: unknown, email?: string): string[] {
 }
 
 export function AdminPeopleScreen() {
+  const { message } = App.useApp();
+  const sent = useStatusToast();
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const qc = useQueryClient();
   const [q, setQ] = useState('');
+  const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null);
+  const [pendingDomain, setPendingDomain] = useState<string | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
   const people = useQuery({
     queryKey: ['people'],
@@ -65,6 +71,19 @@ export function AdminPeopleScreen() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['people'] }),
   });
 
+  const actInvite = async (id: string, email: string, action: 'resend' | 'revoke') => {
+    try {
+      const res = await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}/${action}`, { method: 'POST', credentials: 'include' });
+      const json = await res.json().catch(() => ({})) as { message?: string };
+      if (!res.ok) throw new Error(json.message ?? (action === 'resend' ? 'Could not resend the invitation' : 'Could not revoke the invitation'));
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      if (action === 'resend') sent.show(`Invitation sent to ${email}`);
+      if (action === 'revoke') setPendingRevoke(null);
+    } catch (err) {
+      void message.error(err instanceof Error ? err.message : 'Could not resend the invitation');
+    }
+  };
+
   const saveDomains = async (next: string[]) => {
     setDomains(next);
     await fetch(`${BASE_URL}/workspace`, {
@@ -106,7 +125,7 @@ export function AdminPeopleScreen() {
           <span key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: 8, background: color.chip, fontSize: 13 }}>
             {d}
             {canAdmin && (
-              <button type="button" aria-label={`Remove ${d}`} onClick={() => void saveDomains(liveDomains.filter((x) => x !== d))} style={{ width: 22, height: 22, border: 0, borderRadius: 5, background: 'transparent', cursor: 'pointer' }}>x</button>
+              <button type="button" aria-label={`Remove ${d}`} onClick={() => setPendingDomain(d)} style={{ width: 22, height: 22, border: 0, borderRadius: 5, background: 'transparent', cursor: 'pointer' }}>x</button>
             )}
           </span>
         ))}
@@ -176,7 +195,7 @@ export function AdminPeopleScreen() {
         {(invites.data ?? []).map((i) => {
           const expired = new Date(i.expiresAt).getTime() < Date.now();
           return (
-            <div key={i.id} className="bt-row">
+            <div key={i.id} className="bt-row" style={{ padding: '12px 16px' }}>
               <span style={{ flex: '1 1 260px' }}>
                 <span style={{ display: 'block', fontWeight: 500 }}>{i.email}</span>
                 <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
@@ -184,13 +203,40 @@ export function AdminPeopleScreen() {
               <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
                 {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
               </span>
-              <Button onClick={() => void fetch(`${BASE_URL}/invites/${i.id}/resend`, { method: 'POST', credentials: 'include' }).then(() => qc.invalidateQueries({ queryKey: ['invites'] }))}>Resend</Button>
-              <Button type="link" danger onClick={() => void fetch(`${BASE_URL}/invites/${i.id}/revoke`, { method: 'POST', credentials: 'include' }).then(() => qc.invalidateQueries({ queryKey: ['invites'] }))}>Revoke</Button>
+              <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
+              <Button type="link" danger onClick={() => setPendingRevoke({ id: i.id, email: i.email })}>Revoke</Button>
             </div>
           );
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
       </section>
+      {sent.toast}
+      <ConfirmDialog
+        open={pendingRevoke !== null}
+        title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}
+        confirmLabel="Revoke"
+        onCancel={() => setPendingRevoke(null)}
+        onConfirm={() => {
+          if (!pendingRevoke) return;
+          void actInvite(pendingRevoke.id, pendingRevoke.email, 'revoke');
+        }}
+      >
+        The link stops working. You can invite them again later.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingDomain !== null}
+        title={pendingDomain ? `Remove ${pendingDomain}?` : 'Remove this domain?'}
+        confirmLabel="Remove"
+        onCancel={() => setPendingDomain(null)}
+        onConfirm={() => {
+          if (!pendingDomain) return;
+          const domain = pendingDomain;
+          setPendingDomain(null);
+          void saveDomains(liveDomains.filter((x) => x !== domain));
+        }}
+      >
+        People on this domain will need an invitation to join.
+      </ConfirmDialog>
     </SettingsFrame>
   );
 }

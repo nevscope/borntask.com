@@ -23,7 +23,7 @@ import { tokenRoutes } from './routes/tokens.js';
 import { oauthRoutes } from './routes/oauth.js';
 
 async function main() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: true, trustProxy: true });
 
   await app.register(cors, {
     origin: [config.publicUrl, 'http://localhost:5174', 'http://127.0.0.1:5174'],

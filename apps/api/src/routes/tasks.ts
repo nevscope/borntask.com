@@ -9,6 +9,7 @@ import { notFound, sendError, validation } from '../errors.js';
 import { actorName, enqueueChat, taskUrl, userName } from '../lib/chatNotify.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, taskKey } from '../lib/loadProject.js';
 import { nextPosition } from '../lib/mappers.js';
+import { persistDescription } from '../lib/descriptionHtml.js';
 import { moveTask } from '../lib/moveTask.js';
 
 const createTaskSchema = z.object({
@@ -224,7 +225,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           projectId: project.id,
           number: (last?.number ?? 0) + 1,
           title: input.title,
-          description: input.description,
+          description: persistDescription(input.description),
           typeId: type.id,
           statusId,
           sectionId: input.sectionId,
@@ -295,7 +296,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         where: { id: row.id },
         data: {
           title: input.title,
-          description: input.description,
+          description: input.description === undefined ? undefined : persistDescription(input.description),
           typeId,
           assigneeId: input.assigneeId === undefined ? undefined : input.assigneeId,
           priority: input.priority,

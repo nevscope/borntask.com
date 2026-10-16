@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ApiError } from '../api/http';
 import { useChatSettings, useDisconnectChat, useMe, useProject, useSaveChat, useTestChat, type ChatEvents } from '../api/queries';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LogoMark } from '../components/Logo';
 import { SettingsFrame } from '../components/SettingsNav';
 import { formatWhen } from '../lib/relativeTime';
@@ -35,6 +36,7 @@ export function GoogleChatScreen() {
   const save = useSaveChat(projectKey);
   const test = useTestChat(projectKey);
   const disconnect = useDisconnectChat(projectKey);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [url, setUrl] = useState('');
   const [urlDirty, setUrlDirty] = useState(false);
   const [events, setEvents] = useState<ChatEvents>({
@@ -190,19 +192,7 @@ export function GoogleChatScreen() {
               Send test message
             </Button>
             {connected && (
-              <Button type="text" danger disabled={!canManage} loading={disconnect.isPending} onClick={() => {
-                setError(null);
-                disconnect.mutate(undefined, {
-                  onSuccess: (next) => {
-                    setUrl('');
-                    setUrlDirty(false);
-                    setEvents(next.events);
-                    setEventsReady(true);
-                    setSaved(false);
-                  },
-                  onError: (err) => setError(messageOf(err)),
-                });
-              }}>
+              <Button type="text" danger disabled={!canManage} loading={disconnect.isPending} onClick={() => setConfirmDisconnect(true)}>
                 Disconnect
               </Button>
             )}
@@ -226,6 +216,29 @@ export function GoogleChatScreen() {
           <p style={{ margin: 0, fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>Webhooks only post into the space. Creating tasks from a Chat message needs the BornTask Chat app (planned for v2).</p>
         </aside>
       </div>
+      <ConfirmDialog
+        open={confirmDisconnect}
+        title="Disconnect Google Chat?"
+        confirmLabel="Disconnect"
+        busy={disconnect.isPending}
+        onCancel={() => setConfirmDisconnect(false)}
+        onConfirm={() => {
+          setError(null);
+          disconnect.mutate(undefined, {
+            onSuccess: (next) => {
+              setUrl('');
+              setUrlDirty(false);
+              setEvents(next.events);
+              setEventsReady(true);
+              setSaved(false);
+              setConfirmDisconnect(false);
+            },
+            onError: (err) => setError(messageOf(err)),
+          });
+        }}
+      >
+        This space will stop receiving BornTask updates. You can connect it again later.
+      </ConfirmDialog>
     </SettingsFrame>
   );
 }

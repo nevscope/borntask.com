@@ -4,6 +4,7 @@
 import dayjs from 'dayjs';
 import { ApiError } from './http';
 import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
+import { persistDescription, stripTags } from '../lib/descriptionHtml';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
 
@@ -377,7 +378,7 @@ export const mockApi: Api = {
         pushHit(t, 'title', t.title, null);
         continue;
       }
-      if (t.description.toLowerCase().includes(needle)) {
+      if (stripTags(t.description).toLowerCase().includes(needle)) {
         pushHit(t, 'description', snippetAround(t.description, n), null);
         continue;
       }
@@ -413,7 +414,7 @@ export const mockApi: Api = {
       key: `${input.projectKey}-${max + 1}`,
       projectKey: input.projectKey,
       title: input.title.trim(),
-      description: input.description,
+      description: persistDescription(input.description),
       type: input.type,
       statusId: initialStatusFor(input.type),
       previousStatusId: null,
@@ -436,7 +437,7 @@ export const mockApi: Api = {
   async updateTask(key, input) {
     await wait();
     const t = findTask(key);
-    Object.assign(t, input);
+    Object.assign(t, input.description !== undefined ? { ...input, description: persistDescription(input.description) } : input);
     touch(t);
     return clone(t);
   },

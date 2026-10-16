@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+deploy/plesk/.env.integrations
 .data/
 *.local
 .DS_Store

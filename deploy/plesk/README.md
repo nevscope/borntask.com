@@ -4,9 +4,20 @@ Target: `app.borntask.com` on the existing Plesk + Docker host. **Do not deploy 
 
 Compose project name is `borntask`. Host bind ports (3308 / 6381 / 3010) are chosen so kerd can keep 3307 / 6380 / 3000.
 
+## Agent deploy (after one-time root)
+
+As root, once:
+
 ```bash
-cd /var/www/vhosts/borntask.com/repo/deploy/plesk
-docker compose --env-file /var/www/vhosts/borntask.com/docker/borntask/.env up -d
+bash /var/www/vhosts/borntask.com/repo/deploy/plesk/install-agent-access.sh
 ```
 
-App profile (api + worker) is gated behind `--profile app`.
+After that, Cursor runs `deploy/plesk/deploy.sh` via Plesk domain exec on `borntask.com` (id 144). Optional: GitHub Action **Plesk deploy** with secret `PLESK_SSH_KEY`.
+
+Manual:
+
+```bash
+bash /var/www/vhosts/borntask.com/repo/deploy/plesk/deploy.sh
+```
+
+Nginx extra directives: paste `app.borntask.com.nginx.conf` into Additional nginx directives. App profile (api + worker) is gated behind `--profile app`.

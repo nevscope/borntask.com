@@ -1,5 +1,5 @@
 // Quick add (screen 5). Opens from "New task", "+ Add task" in a section, or Q anywhere.
-// Title line understands @name, !priority and dates; description starts from the type's template;
+// Title line understands @name, !priority and dates; description starts from the type's template (WYSIWYG);
 // screenshots can be pasted (Ctrl/Cmd+V) or dropped. Enter creates, Shift+Enter creates and opens.
 import { App, Button, Input, Modal } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
@@ -11,7 +11,9 @@ import { parseQuickTitle, stripTypeTokens } from '../lib/quickParse';
 import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/workflow';
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
+import { isUntouchedTemplate, persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
+import { DescriptionEditor } from './DescriptionEditor';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 
@@ -128,7 +130,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     setType(t);
     setStatusPick(undefined);
     setMoveComment('');
-    if (!descTouched) setDescription(TEMPLATES[t]);
+    if (!descTouched && isUntouchedTemplate(description, TEMPLATES[type])) setDescription(TEMPLATES[t]);
   }
 
   useEffect(() => {
@@ -161,7 +163,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       void message.error('Add a comment to move it there.');
       return;
     }
-    const cleanDescription = description.trim() === TEMPLATES[type].trim() ? '' : description;
+    const cleanDescription = isUntouchedTemplate(description, TEMPLATES[type]) ? '' : persistDescription(description);
     create.mutate(
       {
         projectKey,
@@ -280,15 +282,18 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
               Clear template
             </button>
           </div>
-          <Input.TextArea
+          <DescriptionEditor
             value={description}
-            onChange={(e) => { setDescription(e.target.value); setDescTouched(true); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
-            autoSize={{ minRows: 8, maxRows: 14 }}
-            style={{ background: color.subtle, borderRadius: 10 }}
+            people={people}
+            minHeight={180}
+            onChange={(next) => {
+              setDescription(next);
+              if (!isUntouchedTemplate(next, TEMPLATES[type])) setDescTouched(true);
+            }}
+            onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
           />
           <span style={{ fontSize: 12, color: color.muted }}>
-            Markdown and @mentions work here. Switching type swaps the template if you haven't typed in it yet.
+            Use the toolbar to format. Switching type swaps the template if you have not typed in it yet.
           </span>
         </div>
 

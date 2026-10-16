@@ -1,4 +1,4 @@
-import { Alert, Button, Dropdown } from 'antd';
+import { Alert, App, Button, Dropdown } from 'antd';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { Avatar, RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
 
@@ -17,12 +18,15 @@ const ALL_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'ob
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
 
 export function ProjectMembersScreen() {
+  const { message } = App.useApp();
+  const sent = useStatusToast();
   const { projectKey = '' } = useParams();
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
   const tasks = useProjectTasks(projectKey).data;
   const [pendingRemove, setPendingRemove] = useState<{ userId: string; name: string } | null>(null);
+  const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null);
   const qc = useQueryClient();
   const invites = useQuery({
     queryKey: ['invites', detail.data?.project.id],
@@ -58,9 +62,17 @@ export function ProjectMembersScreen() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.project(projectKey) }),
   });
 
-  const actInvite = async (id: string, action: 'resend' | 'revoke') => {
-    await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}/${action}`, { method: 'POST', credentials: 'include' });
-    void qc.invalidateQueries({ queryKey: ['invites', detail.data?.project.id] });
+  const actInvite = async (id: string, email: string, action: 'resend' | 'revoke') => {
+    try {
+      const res = await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}/${action}`, { method: 'POST', credentials: 'include' });
+      const json = await res.json().catch(() => ({})) as { message?: string };
+      if (!res.ok) throw new Error(json.message ?? (action === 'resend' ? 'Could not resend the invitation' : 'Could not revoke the invitation'));
+      void qc.invalidateQueries({ queryKey: ['invites', detail.data?.project.id] });
+      if (action === 'resend') sent.show(`Invitation sent to ${email}`);
+      if (action === 'revoke') setPendingRevoke(null);
+    } catch (err) {
+      void message.error(err instanceof Error ? err.message : 'Could not resend the invitation');
+    }
   };
 
   const rows = (detail.data?.members ?? []).map((m) => {
@@ -119,7 +131,7 @@ export function ProjectMembersScreen() {
         {(invites.data ?? []).map((i) => {
           const expired = new Date(i.expiresAt).getTime() < Date.now();
           return (
-            <div key={i.id} className="bt-row">
+            <div key={i.id} className="bt-row" style={{ padding: '12px 16px' }}>
               <span style={{ flex: '1 1 240px' }}>
                 <span style={{ display: 'block', fontWeight: 500 }}>{i.email}</span>
                 <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
@@ -127,13 +139,26 @@ export function ProjectMembersScreen() {
               <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
                 {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
               </span>
-              <Button onClick={() => void actInvite(i.id, 'resend')}>Resend</Button>
-              <Button type="link" danger onClick={() => void actInvite(i.id, 'revoke')}>Revoke</Button>
+              <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
+              <Button type="link" danger onClick={() => setPendingRevoke({ id: i.id, email: i.email })}>Revoke</Button>
             </div>
           );
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
       </section>
+      {sent.toast}
+      <ConfirmDialog
+        open={pendingRevoke !== null}
+        title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}
+        confirmLabel="Revoke"
+        onCancel={() => setPendingRevoke(null)}
+        onConfirm={() => {
+          if (!pendingRevoke) return;
+          void actInvite(pendingRevoke.id, pendingRevoke.email, 'revoke');
+        }}
+      >
+        The link stops working. You can invite them again later.
+      </ConfirmDialog>
       <ConfirmDialog
         open={pendingRemove !== null}
         title={pendingRemove ? `Remove ${pendingRemove.name.split(' ')[0]} from ${detail.data?.project.name ?? 'this project'}?` : 'Remove this member?'}

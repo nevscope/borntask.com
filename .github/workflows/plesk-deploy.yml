@@ -1,0 +1,18 @@
+# Manual or agent-triggered deploy to app.borntask.com. Does not run on every push.
+# Secrets: PLESK_SSH_KEY (root private key), optional PLESK_HOST (default 65.52.158.15).
+name: Plesk deploy
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run host deploy script
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PLESK_HOST || '65.52.158.15' }}
+          username: root
+          key: ${{ secrets.PLESK_SSH_KEY }}
+          script_stop: true
+          script: |
+            bash /var/www/vhosts/borntask.com/repo/deploy/plesk/deploy.sh

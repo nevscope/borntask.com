@@ -10,4 +10,4 @@ alwaysApply: true
 - Copy `.env.example` → `.env` and `apps/web/.env.example` → `apps/web/.env`.
 - Web defaults to `VITE_USE_MOCKS=true` until the API contract is wired.
 - Do not use kerd ports (3306/3307, 6379/6380, 3000, 5180).
-- Do not deploy unless asked. Plesk target is `app.borntask.com`.
+- Do not deploy unless asked. Plesk target is `app.borntask.com`. When asked, follow `.cursor/skills/plesk-deploy/SKILL.md`.

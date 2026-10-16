@@ -80,7 +80,7 @@ export function SignInScreen() {
           <OauthButton mark="M" disabled={!providers.microsoft} onClick={() => start('/auth/microsoft')}>Continue with Microsoft</OauthButton>
           {!providers.google && !providers.microsoft && (
             <p style={{ color: color.muted, fontSize: 13, margin: 0 }}>
-              Production OAuth apps are not configured. Use the local developer sign-in below.
+              Google and Microsoft are not configured on this API. Use developer sign-in below.
             </p>
           )}
           {providers.devLogin && (

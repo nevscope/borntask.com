@@ -2,10 +2,11 @@ import type { FastifyPluginAsync } from 'fastify';
 import { requireAuth } from '../context.js';
 import { sendError } from '../errors.js';
 import { parseTaskKey, taskKey } from '../lib/loadProject.js';
+import { stripTags } from '../lib/descriptionHtml.js';
 import { remapTypeSlug, statusTone } from '../lib/mappers.js';
 
 function snippetAround(text: string, q: string, radius = 42): string {
-  const hay = text.replace(/\s+/g, ' ').trim();
+  const hay = stripTags(text).replace(/\s+/g, ' ').trim();
   const i = hay.toLowerCase().indexOf(q.toLowerCase());
   if (i < 0) return hay.slice(0, radius * 2);
   const start = Math.max(0, i - radius);
@@ -72,7 +73,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       }): { matchField: MatchField; matchSnippet: string; commentAuthor: string | null } => {
         const n = q.toLowerCase();
         if (row.title.toLowerCase().includes(n)) return { matchField: 'title', matchSnippet: row.title, commentAuthor: null };
-        if ((row.description ?? '').toLowerCase().includes(n)) {
+        if (stripTags(row.description ?? '').toLowerCase().includes(n)) {
           return { matchField: 'description', matchSnippet: snippetAround(row.description ?? '', q), commentAuthor: null };
         }
         const c = row.comments.find((x) => x.body.toLowerCase().includes(n));

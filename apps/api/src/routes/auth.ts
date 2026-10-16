@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -7,6 +6,7 @@ import { clearSession, initialsOf, requireUser, sessionTenantId, sessionUserId, 
 import { sendError, unauthorized, validation } from '../errors.js';
 import { finishLogin } from '../lib/finishLogin.js';
 import { googleAuthUrl, googleProfile, microsoftAuthUrl, microsoftProfile } from '../lib/oauth.js';
+import { createOauthState, parseOauthState } from '../lib/oauthState.js';
 import { hashToken } from '../lib/tokens.js';
 
 const devLoginSchema = z.object({
@@ -25,18 +25,16 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/auth/google', async (req, reply) => {
     if (!googleEnabled()) return reply.redirect(`${config.publicUrl}/sign-in?error=google-unconfigured`);
-    const state = randomBytes(16).toString('hex');
-    req.session.set('oauthState', state);
     const invite = typeof req.query === 'object' && req.query && 'invite' in req.query ? String((req.query as { invite?: string }).invite ?? '') : '';
-    if (invite) req.session.set('inviteToken', invite);
-    return reply.redirect(googleAuthUrl(state));
+    return reply.redirect(googleAuthUrl(createOauthState(invite)));
   });
 
   app.get('/auth/google/callback', async (req, reply) => {
     try {
       const q = req.query as { code?: string; state?: string };
-      if (!q.code || q.state !== req.session.get('oauthState')) throw validation('Invalid Google callback.');
-      req.session.set('oauthState', undefined);
+      const parsed = parseOauthState(q.state);
+      if (!q.code || !parsed) throw validation('Invalid Google callback.');
+      if (parsed.invite) req.session.set('inviteToken', parsed.invite);
       const profile = await googleProfile(q.code);
       const next = await finishLogin(req, reply, { ...profile, provider: 'google' });
       return reply.redirect(`${config.publicUrl.replace(/\/$/, '')}${next}`);
@@ -47,18 +45,16 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/auth/microsoft', async (req, reply) => {
     if (!microsoftEnabled()) return reply.redirect(`${config.publicUrl}/sign-in?error=microsoft-unconfigured`);
-    const state = randomBytes(16).toString('hex');
-    req.session.set('oauthState', state);
     const invite = typeof req.query === 'object' && req.query && 'invite' in req.query ? String((req.query as { invite?: string }).invite ?? '') : '';
-    if (invite) req.session.set('inviteToken', invite);
-    return reply.redirect(microsoftAuthUrl(state));
+    return reply.redirect(microsoftAuthUrl(createOauthState(invite)));
   });
 
   app.get('/auth/microsoft/callback', async (req, reply) => {
     try {
       const q = req.query as { code?: string; state?: string };
-      if (!q.code || q.state !== req.session.get('oauthState')) throw validation('Invalid Microsoft callback.');
-      req.session.set('oauthState', undefined);
+      const parsed = parseOauthState(q.state);
+      if (!q.code || !parsed) throw validation('Invalid Microsoft callback.');
+      if (parsed.invite) req.session.set('inviteToken', parsed.invite);
       const profile = await microsoftProfile(q.code);
       const next = await finishLogin(req, reply, { ...profile, provider: 'microsoft' });
       return reply.redirect(`${config.publicUrl.replace(/\/$/, '')}${next}`);

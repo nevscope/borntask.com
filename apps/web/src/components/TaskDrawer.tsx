@@ -3,7 +3,7 @@
 import { App, Button, Checkbox, Drawer, Input, Select, Skeleton } from 'antd';
 import { useIsMutating } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   useAddComment,
@@ -21,7 +21,10 @@ import type { ProjectDetail, TaskDetail, UpdateTaskInput } from '../api/types';
 import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
+import { persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles } from './AttachmentTiles';
+import { DescriptionEditor } from './DescriptionEditor';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
@@ -61,7 +64,9 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
+  const savedDescription = useRef(task.description);
   const [files, setFiles] = useState(() => readTaskAttachments(task.key));
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const setAttachments = (next: typeof files) => {
     setFiles(next);
@@ -91,7 +96,24 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
     update.mutate({ key: task.key, input });
   };
 
+  function persistDesc(next: string) {
+    const html = persistDescription(next);
+    setDescription(html);
+    if (html === savedDescription.current) return;
+    savedDescription.current = html;
+    save({ description: html });
+  }
+
   function remove() {
+    if (task.subtasks.length > 0) {
+      setConfirmDelete(true);
+      return;
+    }
+    doDelete();
+  }
+
+  function doDelete() {
+    setConfirmDelete(false);
     del.mutate(task.key, {
       onSuccess: () => {
         onClose();
@@ -199,10 +221,15 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
         </div>
 
         <Section title="Description">
-          <DescriptionField
+          <DescriptionEditor
             value={description}
-            onChange={setDescription}
-            onBlur={() => description !== task.description && save({ description })}
+            people={memberUsers}
+            minHeight={160}
+            onChange={(next) => {
+              setDescription(next);
+              persistDesc(next);
+            }}
+            onBlur={(next) => persistDesc(next)}
           />
         </Section>
 
@@ -233,93 +260,17 @@ function DrawerBody({ task, detail, onClose }: { task: TaskDetail; detail: Proje
         <Comments task={task} detail={detail} />
 
         {!inTrash && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
+        <ConfirmDialog
+          open={confirmDelete}
+          title={`Delete ${task.key} and its ${task.subtasks.length} ${task.subtasks.length === 1 ? 'subtask' : 'subtasks'}?`}
+          confirmLabel={`Move ${task.subtasks.length + 1} to Trash`}
+          busy={del.isPending}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={doDelete}
+        >
+          They go to Trash for 30 days.
+        </ConfirmDialog>
       </div>
-    </div>
-  );
-}
-
-function DescriptionField({ value, onChange, onBlur }: { value: string; onChange: (value: string) => void; onBlur: () => void }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const [focused, setFocused] = useState(false);
-
-  function apply(kind: 'bold' | 'italic' | 'ol' | 'ul' | 'code' | 'link' | 'mention') {
-    const el = ref.current;
-    if (!el) return;
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? start;
-    let next = value;
-    let caret = end;
-    if (kind === 'mention') {
-      next = `${value.slice(0, start)}@${value.slice(end)}`;
-      caret = start + 1;
-    } else if (kind === 'ol' || kind === 'ul') {
-      const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
-      const lineEndIdx = value.indexOf('\n', end);
-      const lineEnd = lineEndIdx === -1 ? value.length : lineEndIdx;
-      const lines = value.slice(lineStart, lineEnd).split('\n').map((line, index) => {
-        const clean = line.replace(/^\d+\.\s/, '').replace(/^[-*]\s/, '');
-        return kind === 'ol' ? `${index + 1}. ${clean}` : `- ${clean}`;
-      });
-      next = value.slice(0, lineStart) + lines.join('\n') + value.slice(lineEnd);
-      caret = lineStart + lines.join('\n').length;
-    } else {
-      const selected = value.slice(start, end) || (kind === 'link' ? 'link' : 'text');
-      const before = kind === 'bold' ? '**' : kind === 'italic' ? '*' : kind === 'code' ? '`' : '[';
-      const after = kind === 'bold' ? '**' : kind === 'italic' ? '*' : kind === 'code' ? '`' : '](url)';
-      next = value.slice(0, start) + before + selected + after + value.slice(end);
-      caret = start + before.length + selected.length + after.length;
-    }
-    onChange(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(caret, caret);
-    });
-  }
-
-  const tool = (label: string, kind: Parameters<typeof apply>[0], style?: CSSProperties) => (
-    <button type="button" aria-label={label} onMouseDown={(event) => event.preventDefault()} onClick={() => apply(kind)} style={{ width: 32, height: 30, border: 0, borderRadius: 6, background: 'transparent', font: 'inherit', cursor: 'pointer', ...style }}>
-      {label === 'Bold' ? 'B' : label === 'Italic' ? 'I' : label === 'Numbered list' ? '1.' : label === 'Bulleted list' ? '•' : label === 'Code' ? '</>' : label === 'Link' ? 'Link' : '@'}
-    </button>
-  );
-
-  return (
-    <div>
-      <div role="toolbar" aria-label="Formatting" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, padding: 4, border: `1px solid ${focused ? color.brand : color.border}`, borderBottom: 0, borderRadius: '10px 10px 0 0', background: color.subtle }}>
-        {tool('Bold', 'bold', { fontWeight: 700 })}
-        {tool('Italic', 'italic', { fontStyle: 'italic' })}
-        {tool('Numbered list', 'ol', { fontSize: 12 })}
-        {tool('Bulleted list', 'ul')}
-        {tool('Code', 'code', { fontFamily: font.mono, fontSize: 12 })}
-        {tool('Link', 'link', { fontSize: 12 })}
-        {tool('Mention someone', 'mention')}
-        <span style={{ flex: 1 }} />
-        <span style={{ padding: '0 6px', fontSize: 12, color: color.muted }}>Paste images straight in</span>
-      </div>
-      <textarea
-        ref={ref}
-        value={value}
-        aria-label="Description"
-        onChange={(event) => onChange(event.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => { setFocused(false); onBlur(); }}
-        rows={6}
-        placeholder="Add details. Markdown and @mentions work here."
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          marginTop: -1,
-          padding: '12px 14px',
-          border: `1px solid ${focused ? color.brand : color.border}`,
-          borderRadius: '0 0 10px 10px',
-          boxShadow: focused ? `0 0 0 3px ${color.brandTint}` : 'none',
-          font: 'inherit',
-          fontSize: 14,
-          lineHeight: 1.55,
-          color: color.ink2,
-          resize: 'vertical',
-          outline: 'none',
-        }}
-      />
     </div>
   );
 }
