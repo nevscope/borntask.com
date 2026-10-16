@@ -150,7 +150,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const priority = priorityOverride ?? parsed.priority ?? 'none';
   const assignee = people.find((p) => p.id === assigneeId);
   const myRoles: ProjectRole[] = detail?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
-  const startStatus = detail ? statusById(detail.workflow, initialStatusFor(type)) : undefined;
+  const startStatus = detail ? statusById(detail.workflow, initialStatusFor(type, detail.workflow)) : undefined;
   const chosenStatusId = statusPick ?? startStatus?.id;
   const chosenStatus = detail && chosenStatusId ? statusById(detail.workflow, chosenStatusId) : startStatus;
   const moveCheck = detail && startStatus && chosenStatusId && chosenStatusId !== startStatus.id

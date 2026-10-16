@@ -6,3 +6,4 @@ export * from './asanaCsv.js';
 export * from './chat.js';
 export * from './github.js';
 export * from './automations.js';
+export * from './workspacePacks.js';

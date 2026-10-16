@@ -5,6 +5,11 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   plugins: [react()],
   root: fileURLToPath(new URL('.', import.meta.url)),
+  resolve: {
+    alias: {
+      '@borntask/shared': fileURLToPath(new URL('../../packages/shared/dist/index.js', import.meta.url)),
+    },
+  },
   server: {
     port: 5174,
     strictPort: true,

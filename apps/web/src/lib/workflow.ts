@@ -52,7 +52,16 @@ export function canOverride(workspaceRole: WorkspaceRole, myRoles: ProjectRole[]
   return workspaceRole === 'owner' || workspaceRole === 'admin' || myRoles.includes('lead');
 }
 
-/** Bugs skip approval (workspace setting, default on); everything else starts as an Idea. */
-export function initialStatusFor(type: Task['type']): string {
+/** Bugs skip approval when that stage exists; otherwise the first main backlog stage. */
+export function initialStatusFor(type: Task['type'], workflow?: Workflow): string {
+  if (workflow) {
+    const wanted = type === 'bug' ? ['approved', 'new', 'todo', 'submitted', 'backlog', 'idea'] : ['idea', 'new', 'todo', 'submitted', 'backlog'];
+    for (const id of wanted) {
+      if (workflow.statuses.some((status) => status.id === id && !status.side)) return id;
+    }
+    return workflow.statuses.find((status) => status.category === 'backlog' && !status.side)?.id
+      ?? workflow.statuses[0]?.id
+      ?? 'idea';
+  }
   return type === 'bug' ? 'approved' : 'idea';
 }

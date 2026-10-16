@@ -14,6 +14,7 @@ import { color, projectSwatches, toneStyle } from '../theme/tokens';
 type RoleRow = { id: string; name: string; slug: string; colour: string };
 type TypeRow = { id: string; name: string; slug: string; colour: string; template: string | null };
 type Defaults = {
+  defaultWorkflowId?: string | null;
   roles: RoleRow[];
   types: TypeRow[];
   workflows: (Workflow & { projectCount?: number })[];
@@ -38,7 +39,7 @@ export function AdminDefaultsScreen() {
     },
   });
 
-  const defaultId = data.data?.workflows.find((w) => w.name === 'Delivery')?.id ?? data.data?.workflows[0]?.id;
+  const defaultId = data.data?.defaultWorkflowId ?? data.data?.workflows.find((w) => w.name === 'Delivery')?.id ?? data.data?.workflows[0]?.id;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['admin-defaults'] });
     void qc.invalidateQueries({ queryKey: ['workspace-catalog'] });
@@ -207,7 +208,7 @@ export function AdminDefaultsScreen() {
               <Link to={`/settings/workflow?id=${encodeURIComponent(w.id)}`} style={{ display: 'flex', flexDirection: 'column', gap: 12, color: color.ink, textDecoration: 'none' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ flex: 1, fontWeight: 600, fontSize: 15 }}>{w.name}</span>
-                  {(w.id === defaultId || w.name === 'Delivery') && (
+                  {w.id === defaultId && (
                     <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: color.brandTint, color: color.brandStrong }}>Default</span>
                   )}
                 </span>

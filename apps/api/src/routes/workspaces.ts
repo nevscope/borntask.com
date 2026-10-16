@@ -4,6 +4,7 @@ import { prisma, createTenantClient } from '../db.js';
 import { requireUser, setSession } from '../context.js';
 import { sendError, validation } from '../errors.js';
 import { config } from '../env.js';
+import { resolveWorkspacePackId, workspacePackIds } from '@borntask/shared';
 import { bootstrapWorkspaceDefaults } from '../lib/bootstrapWorkspace.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
@@ -12,7 +13,8 @@ import { newInviteToken, projectKeyFromName, slugify } from '../lib/tokens.js';
 const createSchema = z.object({
   name: z.string().trim().min(2).max(80),
   slug: z.string().trim().min(2).max(40).optional(),
-  workflow: z.enum(['delivery', 'simple']).default('delivery'),
+  workflow: z.enum(['delivery', 'simple']).optional(),
+  pack: z.enum(workspacePackIds).optional(),
   allowedDomain: z.string().trim().optional(),
   inviteEmails: z.array(z.string().email()).optional(),
   firstProjectName: z.string().trim().max(80).optional(),
@@ -40,13 +42,11 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       });
 
       const db = createTenantClient(workspace.id);
-      const defaults = await bootstrapWorkspaceDefaults(db, workspace.id);
+      const packId = resolveWorkspacePackId({ pack: input.pack, workflow: input.workflow });
+      const defaults = await bootstrapWorkspaceDefaults(db, workspace.id, packId);
+      if (!defaults.deliveryId) throw validation('That template has no workflow.');
       const workflow = await db.workflow.findFirstOrThrow({
-        where: { slug: input.workflow === 'simple' ? 'simple' : 'delivery' },
-      });
-      await db.workspace.update({
-        where: { id: workspace.id },
-        data: { defaultWorkflowId: workflow.id },
+        where: { id: defaults.deliveryId },
       });
 
       if (input.firstProjectName) {

@@ -1,69 +1,21 @@
+import { workspacePackById, workspacePacks, type WorkspacePack, type WorkspacePackId } from '@borntask/shared';
 import { Button, Checkbox, Form, Input } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '../../api/http';
 import { Logo } from '../../components/Logo';
-import { color } from '../../theme/tokens';
+import { categoryBar, chipFromHex, color } from '../../theme/tokens';
 
-const STEPS = ['Your workspace', 'Invite your team', 'First project'];
+const STEPS = ['Your workspace', 'How you will work', 'Invite your team', 'First project'];
 
 type Draft = {
   name: string;
   slug: string;
-  workflow: 'delivery' | 'simple';
+  pack: WorkspacePackId;
   allowedDomain: string;
   inviteEmails: string;
   firstProjectName: string;
 };
-
-const WORKFLOWS = [
-  {
-    id: 'delivery' as const,
-    title: 'Software delivery',
-    detail: 'Idea → Approved → WIP → Ready for testing → Testing → Deployed, with roles',
-  },
-  {
-    id: 'simple' as const,
-    title: 'Simple tasks',
-    detail: 'To do → Doing → Done, anyone can move tasks',
-  },
-];
-
-function WorkflowChoice({ value, onChange }: { value?: 'delivery' | 'simple'; onChange?: (value: 'delivery' | 'simple') => void }) {
-  return (
-    <div role="radiogroup" aria-label="How does your team work?" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {WORKFLOWS.map((option) => {
-        const on = value === option.id;
-        return (
-          <label
-            key={option.id}
-            style={{
-              display: 'flex',
-              gap: 12,
-              padding: '12px 14px',
-              border: `1px solid ${on ? color.brandBorder : color.border}`,
-              borderRadius: 10,
-              background: on ? color.brandTint : color.surface,
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="radio"
-              name="workflow"
-              checked={on}
-              onChange={() => onChange?.(option.id)}
-              style={{ width: 16, height: 16, marginTop: 2 }}
-            />
-            <span>
-              <span style={{ display: 'block', fontWeight: 600 }}>{option.title}</span>
-              <span style={{ fontSize: 12.5, color: on ? color.ink3 : color.muted }}>{option.detail}</span>
-            </span>
-          </label>
-        );
-      })}
-    </div>
-  );
-}
 
 export function CreateWorkspaceScreen() {
   const navigate = useNavigate();
@@ -75,13 +27,14 @@ export function CreateWorkspaceScreen() {
   const [values, setValues] = useState<Draft>({
     name: '',
     slug: '',
-    workflow: 'delivery',
+    pack: 'software',
     allowedDomain: '',
     inviteEmails: '',
     firstProjectName: '',
   });
 
   const domain = email.split('@')[1] ?? '';
+  const pack = workspacePackById(values.pack);
 
   useEffect(() => {
     void fetch(`${BASE_URL}/me`, { credentials: 'include' })
@@ -98,7 +51,7 @@ export function CreateWorkspaceScreen() {
 
   const next = (patch: Partial<Draft>) => {
     setValues((v) => ({ ...v, ...patch }));
-    setStep((s) => Math.min(2, s + 1));
+    setStep((s) => Math.min(3, s + 1));
   };
 
   const checkSlug = async (raw: string) => {
@@ -128,7 +81,7 @@ export function CreateWorkspaceScreen() {
         body: JSON.stringify({
           name: nextValues.name,
           slug: nextValues.slug || undefined,
-          workflow: nextValues.workflow,
+          pack: nextValues.pack,
           allowedDomain: nextValues.allowedDomain || undefined,
           inviteEmails: nextValues.inviteEmails.split(/[,;\s]+/).filter(Boolean),
           firstProjectName: nextValues.firstProjectName || undefined,
@@ -142,7 +95,7 @@ export function CreateWorkspaceScreen() {
         }
         throw new Error(json.message ?? 'Could not create workspace');
       }
-      window.location.href = '/';
+      window.location.href = '/settings/defaults';
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create workspace');
       setBusy(false);
@@ -193,7 +146,6 @@ export function CreateWorkspaceScreen() {
               onFinish={(v: Draft & { joinDomain?: boolean }) => next({
                 name: v.name,
                 slug: v.slug,
-                workflow: v.workflow,
                 allowedDomain: v.joinDomain && domain ? domain : '',
               })}
             >
@@ -204,9 +156,6 @@ export function CreateWorkspaceScreen() {
               </Form.Item>
               <Form.Item name="slug" label="Web address" extra={slugNote} style={{ marginBottom: 0 }}>
                 <Input className="bt-domain" addonAfter=".borntask.com" placeholder="acme" onBlur={(e) => void checkSlug(e.target.value)} styles={{ input: { height: 42, fontSize: 15 } }} />
-              </Form.Item>
-              <Form.Item name="workflow" label="How does your team work?" style={{ marginBottom: 0 }}>
-                <WorkflowChoice />
               </Form.Item>
               {domain && (
                 <Form.Item name="joinDomain" valuePropName="checked" style={{ marginBottom: 0 }}>
@@ -219,6 +168,50 @@ export function CreateWorkspaceScreen() {
             </Form>
           )}
           {step === 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div>
+                <h1 className="bt-h1">How will you use this workspace?</h1>
+                <p style={{ margin: '6px 0 0', fontSize: 14, color: color.ink3 }}>We will set up roles, task types and a workflow to match. You can amend them after you create the workspace.</p>
+              </div>
+              <div role="radiogroup" aria-label="Workspace template" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                {workspacePacks.map((option) => {
+                  const on = values.pack === option.id;
+                  return (
+                    <label
+                      key={option.id}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        padding: '12px 14px',
+                        border: `1px solid ${on ? color.brandBorder : color.border}`,
+                        borderRadius: 10,
+                        background: on ? color.brandTint : color.surface,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="pack"
+                        checked={on}
+                        onChange={() => setValues((v) => ({ ...v, pack: option.id }))}
+                        style={{ width: 16, height: 16, marginTop: 2 }}
+                      />
+                      <span>
+                        <span style={{ display: 'block', fontWeight: 600 }}>{option.title}</span>
+                        <span style={{ fontSize: 12.5, color: on ? color.ink3 : color.muted }}>{option.summary}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <PackPreview pack={pack} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button onClick={() => setStep(0)}>Back</Button>
+                <Button type="primary" onClick={() => next({})} style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Continue</Button>
+              </div>
+            </div>
+          )}
+          {step === 2 && (
             <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} initialValues={{ inviteEmails: values.inviteEmails }} onFinish={(v: { inviteEmails?: string }) => next({ inviteEmails: v.inviteEmails ?? '' })}>
               <h1 className="bt-h1">Invite your team</h1>
               <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>Optional. An email outside your domain is invited as a guest.</p>
@@ -226,12 +219,12 @@ export function CreateWorkspaceScreen() {
                 <Input.TextArea rows={3} />
               </Form.Item>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => setStep(0)}>Back</Button>
+                <Button onClick={() => setStep(1)}>Back</Button>
                 <Button type="primary" htmlType="submit" style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Continue</Button>
               </div>
             </Form>
           )}
-          {step === 2 && (
+          {step === 3 && (
             <Form
               layout="vertical"
               style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
@@ -239,11 +232,12 @@ export function CreateWorkspaceScreen() {
               onFinish={(v: { firstProjectName?: string }) => void create({ firstProjectName: v.firstProjectName ?? '' })}
             >
               <h1 className="bt-h1">First project</h1>
+              <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>Optional. After create you land on roles, types and workflows so you can amend the {pack.title.toLowerCase()} template.</p>
               <Form.Item name="firstProjectName" label="Project name (optional)" style={{ marginBottom: 0 }}>
                 <Input placeholder="Website" style={{ height: 42, fontSize: 15 }} />
               </Form.Item>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => setStep(1)}>Back</Button>
+                <Button onClick={() => setStep(2)}>Back</Button>
                 <Button type="primary" htmlType="submit" loading={busy} style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Create workspace</Button>
               </div>
             </Form>
@@ -251,5 +245,46 @@ export function CreateWorkspaceScreen() {
         </section>
       </div>
     </div>
+  );
+}
+
+function PackPreview({ pack }: { pack: WorkspacePack }) {
+  const workflow = pack.workflows.find((item) => item.isDefault) ?? pack.workflows[0];
+  const stages = (workflow?.stages ?? []).filter((stage) => stage.position < 90);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, border: `1px solid ${color.divider}`, borderRadius: 12, background: color.subtle }}>
+      <span style={{ fontSize: 13, fontWeight: 600 }}>We will set up</span>
+      <PreviewRow label="Roles">
+        {pack.roles.map((role) => <Chip key={role.slug} label={role.name} colour={role.colour} />)}
+      </PreviewRow>
+      <PreviewRow label="Types">
+        {pack.types.map((type) => <Chip key={type.slug} label={type.name} colour={type.colour} />)}
+      </PreviewRow>
+      <PreviewRow label={workflow?.name ?? 'Workflow'}>
+        {stages.map((stage, i) => (
+          <span key={stage.slug} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: color.ink3 }}>
+            {i > 0 && <span style={{ color: color.muted }}>{'>'}</span>}
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: categoryBar[stage.category] }} />
+            {stage.name}
+          </span>
+        ))}
+      </PreviewRow>
+    </div>
+  );
+}
+
+function PreviewRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+      <span style={{ width: 72, fontSize: 12, color: color.muted }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ label, colour }: { label: string; colour: string }) {
+  const s = chipFromHex(colour, label);
+  return (
+    <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: s.bg, color: s.fg }}>{label}</span>
   );
 }
