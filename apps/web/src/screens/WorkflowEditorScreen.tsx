@@ -1,6 +1,7 @@
 import { Alert, Checkbox, Select } from 'antd';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useWorkspaceCatalog } from '../api/catalog';
 import { BASE_URL } from '../api/http';
 import { useMe, useProject } from '../api/queries';
 import type { StatusCategory, Transition, WorkflowStatus } from '../api/types';
@@ -8,9 +9,10 @@ import { AutomationsCard } from '../components/AutomationsCard';
 import { RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { ColourSwatchRow } from '../components/ProjectColourField';
-import { categoryBar, color, toneStyle } from '../theme/tokens';
+import { color, statusColourByCategory, statusSwatches, toneStyle } from '../theme/tokens';
 
 type Stage = WorkflowStatus & { taskCount: number };
 type EditorWorkflow = {
@@ -51,6 +53,7 @@ export function WorkflowEditorScreen() {
   const wantedId = params.get('id');
   const me = useMe().data;
   const canEdit = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const catalog = useWorkspaceCatalog();
   const [workflows, setWorkflows] = useState<EditorWorkflow[]>([]);
   const [id, setId] = useState('');
   const [stages, setStages] = useState<Stage[]>([]);
@@ -58,7 +61,7 @@ export function WorkflowEditorScreen() {
   const [removals, setRemovals] = useState<PendingRemoval[]>([]);
   const [baseline, setBaseline] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const toast = useStatusToast();
   const [dragId, setDragId] = useState<string | null>(null);
   const [pendingStage, setPendingStage] = useState<{ stage: Stage; index: number } | null>(null);
   const [pendingMove, setPendingMove] = useState<number | null>(null);
@@ -96,13 +99,11 @@ export function WorkflowEditorScreen() {
   const unsaved = useUnsavedChanges(dirty);
 
   const patch = (stageId: string, next: Partial<Stage>) => {
-    setSaved(false);
     setStages((list) => list.map((s) => (s.id === stageId ? { ...s, ...next } : s)));
   };
 
   const reorder = (fromId: string, toId: string) => {
     if (fromId === toId) return;
-    setSaved(false);
     setStages((list) => {
       const from = list.findIndex((s) => s.id === fromId);
       const to = list.findIndex((s) => s.id === toId);
@@ -123,7 +124,6 @@ export function WorkflowEditorScreen() {
     const rest = stages.filter((s) => s.id !== stage.id);
     const to = rest[0]?.id ?? '';
     const dropped = rows.filter((row) => row.from === stage.id || row.to === stage.id);
-    setSaved(false);
     setError(null);
     setRemovals((list) => [...list, { stage, to, index, rows: dropped }]);
     setStages(rest);
@@ -143,7 +143,6 @@ export function WorkflowEditorScreen() {
 
   const save = async () => {
     setError(null);
-    setSaved(false);
     const missing = removals.find((r) => r.stage.taskCount > 0 && !r.to);
     if (missing) {
       setError(`Choose where the tasks on ${missing.stage.name} should go.`);
@@ -167,7 +166,7 @@ export function WorkflowEditorScreen() {
     }
     const next = normalise(json);
     setWorkflows((list) => list.map((w) => (w.id === next.id ? next : w)));
-    setSaved(true);
+    toast.show('Workflow saved.');
   };
 
   const nameOf = (statusId: string) => (statusId === '*' ? 'Any stage' : stages.find((s) => s.id === statusId)?.name ?? statusId);
@@ -193,7 +192,7 @@ export function WorkflowEditorScreen() {
           <input
             aria-label="Workflow name"
             value={name}
-            onChange={(e) => { setSaved(false); setName(e.target.value); }}
+            onChange={(e) => setName(e.target.value)}
             style={{ ...field, width: 200 }}
           />
         )}
@@ -215,7 +214,6 @@ export function WorkflowEditorScreen() {
       </div>
       {!canEdit && <Alert type="warning" showIcon message="You can view this page, but only an owner or admin can save changes." />}
       {error && <Alert type="error" showIcon message={error} />}
-      {saved && <Alert type="success" showIcon message="Workflow saved." />}
 
       {removals.map((r) => (
         <div key={r.stage.id} role="alert" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '12px 14px', border: `1px solid ${color.warningBorder}`, borderRadius: 10, background: color.warningTint, fontSize: 13.5, color: color.warning }}>
@@ -245,8 +243,7 @@ export function WorkflowEditorScreen() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Stages</h2>
             <button type="button" disabled={!canEdit} onClick={() => {
-              setSaved(false);
-              setStages((list) => [...list, { id: `new:${Date.now()}`, name: 'New stage', category: 'backlog', tone: 'neutral', colour: categoryBar.backlog, position: list.length, wipLimit: null, side: false, taskCount: 0 }]);
+              setStages((list) => [...list, { id: `new:${Date.now()}`, name: 'New stage', category: 'backlog', tone: 'neutral', colour: statusColourByCategory.backlog, position: list.length, wipLimit: null, side: false, taskCount: 0 }]);
             }} style={{ height: 32, padding: '0 10px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
               + Add stage
             </button>
@@ -279,8 +276,8 @@ export function WorkflowEditorScreen() {
                 </span>
                 {s.side ? <span style={{ fontSize: 12, color: color.muted }}>side column</span> : null}
               </span>
-              <ColourSwatchRow colour={s.colour ?? categoryBar[s.category]} disabled={!canEdit} onColour={(hex) => patch(s.id, { colour: hex })} />
-              <select aria-label={`Category for ${s.name}`} value={s.category} disabled={!canEdit} onChange={(e) => patch(s.id, { category: e.target.value as StatusCategory, colour: s.colour ?? categoryBar[e.target.value as StatusCategory] })} style={field}>
+              <ColourSwatchRow swatches={statusSwatches} colour={s.colour ?? statusColourByCategory[s.category]} disabled={!canEdit} onColour={(hex) => patch(s.id, { colour: hex })} />
+              <select aria-label={`Category for ${s.name}`} value={s.category} disabled={!canEdit} onChange={(e) => patch(s.id, { category: e.target.value as StatusCategory, colour: s.colour ?? statusColourByCategory[e.target.value as StatusCategory] })} style={field}>
                 {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
               <input
@@ -323,13 +320,36 @@ export function WorkflowEditorScreen() {
               <MoveArrow />
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.to), flex: 'none' }} />{nameOf(r.to)}</span>
               <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-                {r.roles.length === 0 ? <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: color.chip, color: color.ink3 }}>Any member</span> : r.roles.map((role) => <RoleTag key={role} role={role} />)}
+                {canEdit ? (
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    aria-label={`Roles that may move from ${nameOf(r.from)} to ${nameOf(r.to)}`}
+                    placeholder="Any member"
+                    value={r.roles}
+                    options={catalog.roles.map((role) => ({ value: role.slug, label: role.name }))}
+                    onChange={(roles) => {
+                      const next = [...rows];
+                      next[i] = { ...r, roles };
+                      setRows(next);
+                    }}
+                    style={{ minWidth: 180, flex: '1 1 160px' }}
+                    tagRender={(props) => (
+                      <span style={{ marginRight: 4 }}>
+                        <RoleTag role={props.value} />
+                      </span>
+                    )}
+                  />
+                ) : r.roles.length === 0 ? (
+                  <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: color.chip, color: color.ink3 }}>Any member</span>
+                ) : (
+                  r.roles.map((role) => <RoleTag key={role} role={role} />)
+                )}
                 {r.label ? <span style={{ fontSize: 12, color: color.muted }}>{r.label}</span> : null}
                 <Checkbox
                   checked={r.requireComment}
                   disabled={!canEdit}
                   onChange={(e) => {
-                    setSaved(false);
                     const next = [...rows];
                     next[i] = { ...r, requireComment: e.target.checked };
                     setRows(next);
@@ -350,7 +370,6 @@ export function WorkflowEditorScreen() {
               const from = stages[0]?.id;
               const to = stages[1]?.id;
               if (!from || !to) return;
-              setSaved(false);
               setRows([...rows, { from, to, roles: [], requireComment: false, label: null }]);
             }}
             style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed' }}
@@ -403,7 +422,6 @@ export function WorkflowEditorScreen() {
         onCancel={() => setPendingMove(null)}
         onConfirm={() => {
           if (pendingMove === null) return;
-          setSaved(false);
           setRows(rows.filter((_, j) => j !== pendingMove));
           setPendingMove(null);
         }}
@@ -424,7 +442,7 @@ function normalise(wf: EditorWorkflow): EditorWorkflow {
 }
 
 const stageColumns = '28px minmax(110px, 1.4fr) minmax(160px, 1.2fr) minmax(100px, 1fr) 64px 40px 68px';
-const moveColumns = 'minmax(72px, 1fr) 20px minmax(72px, 1fr) minmax(100px, 1.3fr) 64px';
+const moveColumns = 'minmax(72px, 1fr) 20px minmax(72px, 1fr) minmax(220px, 1.6fr) 64px';
 
 function usedByLine(names: string[] | undefined, count: number | undefined, prefer?: string) {
   const list = [...(names ?? [])];

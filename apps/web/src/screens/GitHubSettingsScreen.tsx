@@ -36,8 +36,11 @@ export function GitHubSettingsScreen() {
     if (data?.branchTemplate) setTemplate(data.branchTemplate);
   }, [data?.branchTemplate]);
 
-  const linked = new Set(data?.repos.map((r) => r.name) ?? []);
-  const toAdd = (data?.availableRepos ?? []).filter((r) => !linked.has(r.name));
+  const installed = Boolean(data?.appConfigured && data.connected);
+  const repos = installed ? (data?.repos ?? []) : [];
+  const events = installed ? (data?.events ?? []) : [];
+  const linked = new Set(repos.map((r) => r.name));
+  const toAdd = installed ? (data?.availableRepos ?? []).filter((r) => !linked.has(r.name)) : [];
 
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
@@ -46,7 +49,7 @@ export function GitHubSettingsScreen() {
 
       <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
         <span style={{ width: 40, height: 40, borderRadius: 10, background: color.ink, color: color.surface, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 600 }}>GH</span>
-        {data?.connected ? (
+        {data?.appConfigured && data.connected ? (
           <>
             <span style={{ flex: '1 1 280px' }}>
               <span style={{ display: 'block', fontWeight: 600 }}>
@@ -89,11 +92,11 @@ export function GitHubSettingsScreen() {
         <section className="bt-card" style={{ flex: '1 1 340px' }}>
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Repositories for this project</h2>
-            {canManage && data?.connected && (
+            {canManage && installed && (
               <Button type="link" onClick={() => setAddOpen(true)} style={{ height: 30, fontWeight: 600 }}>+ Add</Button>
             )}
           </div>
-          {(data?.repos ?? []).map((repo) => (
+          {repos.map((repo) => (
             <div key={repo.name} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
               <span style={{ flex: 1, fontFamily: font.mono, fontSize: 13 }}>{repo.name}</span>
               <span style={{ fontSize: 12.5, color: color.muted }}>default branch {repo.defaultBranch}</span>
@@ -158,10 +161,10 @@ export function GitHubSettingsScreen() {
 
       <section className="bt-card">
         <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>Recent events</h2>
-        {(data?.events ?? []).length === 0 && (
+        {events.length === 0 && (
           <div style={{ padding: '14px 16px', fontSize: 13.5, color: color.muted }}>Events appear here once the GitHub App is installed and a linked repository receives a push or pull request.</div>
         )}
-        {(data?.events ?? []).map((event) => (
+        {events.map((event) => (
           <div key={event.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 14px', minHeight: 44, padding: '6px 16px', borderBottom: `1px solid ${color.divider}`, fontSize: 13.5 }}>
             <span style={{ width: 64, fontSize: 12.5, color: color.muted }}>{new Date(event.when).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
             <span style={{ flex: '1 1 320px' }}>{event.text}</span>

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useMe } from '../api/queries';
 import type { ProjectRole, User, WorkspaceRole } from '../api/types';
+import { useWorkspaceCatalog } from '../api/catalog';
 import { RoleTag } from '../components/Chips';
 import { ProjectColourField } from '../components/ProjectColourField';
 import { color, font, parseProjectHex, projectSwatches, radius } from '../theme/tokens';
@@ -35,6 +36,16 @@ export function CreateProjectScreen() {
   const [picked, setPicked] = useState<{ userId: string; roles: ProjectRole[] }[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<ProjectRole>('business');
+  const [pendingInvites, setPendingInvites] = useState<{ email: string; role: ProjectRole }[]>([]);
+  const catalog = useWorkspaceCatalog();
+  const roleChoices = (catalog.roles.filter((r) => r.slug !== 'lead').length
+    ? catalog.roles.filter((r) => r.slug !== 'lead')
+    : [
+      { slug: 'business' as ProjectRole, name: 'Business' },
+      { slug: 'developer' as ProjectRole, name: 'Developer' },
+      { slug: 'tester' as ProjectRole, name: 'Tester' },
+      { slug: 'observer' as ProjectRole, name: 'Observer' },
+    ]);
 
   const people = useQuery({
     queryKey: ['people'],
@@ -85,18 +96,22 @@ export function CreateProjectScreen() {
       const json = await res.json() as { message?: string; project?: { key: string; id?: string } };
       if (!res.ok) throw new Error(json.message ?? 'Could not create project');
       const createdKey = json.project?.key ?? derivedKey;
-      if (inviteEmail.trim() && json.project?.id) {
-        await fetch(`${BASE_URL}/invites`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            emails: [inviteEmail.trim()],
-            tenantRole: 'member',
-            projectId: json.project.id,
-            projectRoleSlugs: [inviteRole],
-          }),
-        });
+      const invites = [...pendingInvites];
+      if (inviteEmail.trim()) invites.push({ email: inviteEmail.trim(), role: inviteRole });
+      if (json.project?.id) {
+        for (const invite of invites) {
+          await fetch(`${BASE_URL}/invites`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              emails: [invite.email],
+              tenantRole: 'guest',
+              projectId: json.project.id,
+              projectRoleSlugs: [invite.role],
+            }),
+          });
+        }
       }
       void qc.invalidateQueries({ queryKey: qk.projects });
       navigate(`/p/${createdKey}/list`);
@@ -242,9 +257,9 @@ export function CreateProjectScreen() {
                     {m.roles.map((role) => <RoleTag key={role} role={role} />)}
                     <Select<ProjectRole>
                       placeholder="+ role"
-                      style={{ width: 120 }}
+                      style={{ width: 140 }}
                       value={undefined}
-                      options={(['business', 'developer', 'tester', 'observer'] as ProjectRole[]).filter((r) => !m.roles.includes(r)).map((r) => ({ value: r, label: r }))}
+                      options={roleChoices.filter((r) => !m.roles.includes(r.slug as ProjectRole)).map((r) => ({ value: r.slug as ProjectRole, label: r.name }))}
                       onChange={(role) => setPicked(picked.map((x) => x.userId === m.userId ? { ...x, roles: [...x.roles, role] } : x))}
                     />
                   </div>
@@ -269,8 +284,24 @@ export function CreateProjectScreen() {
                   value={inviteRole}
                   onChange={setInviteRole}
                   style={{ width: 130 }}
-                  options={(['business', 'developer', 'tester', 'observer'] as ProjectRole[]).map((r) => ({ value: r, label: r[0]!.toUpperCase() + r.slice(1) }))}
+                  options={roleChoices.map((r) => ({ value: r.slug as ProjectRole, label: r.name }))}
                 />
+                <Button
+                  onClick={() => {
+                    const email = inviteEmail.trim();
+                    if (!email || pendingInvites.some((row) => row.email.toLowerCase() === email.toLowerCase())) return;
+                    setPendingInvites([...pendingInvites, { email, role: inviteRole }]);
+                    setInviteEmail('');
+                  }}
+                >
+                  Invite
+                </Button>
+                {pendingInvites.map((row) => (
+                  <span key={row.email} style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    {row.email}
+                    <RoleTag role={row.role} />
+                  </span>
+                ))}
                 <span style={{ flexBasis: '100%', fontSize: 12.5, color: color.muted }}>
                   External email: joins as a <strong style={{ color: color.ink3 }}>Guest</strong> and only sees this project. They can sign in with Google or Microsoft.
                 </span>

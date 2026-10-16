@@ -14,10 +14,9 @@ import { color } from '../theme/tokens';
 type Person = User & { workspaceRole: WorkspaceRole; signsInWith?: string; projects?: string };
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
 
-function domainsOf(raw: unknown, email?: string): string[] {
-  if (Array.isArray(raw)) return raw.filter((d): d is string => typeof d === 'string');
-  const fromEmail = email?.split('@')[1];
-  return fromEmail ? [fromEmail] : [];
+function storedDomains(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((d): d is string => typeof d === 'string' && d.trim().length > 0);
 }
 
 export function AdminPeopleScreen() {
@@ -55,7 +54,8 @@ export function AdminPeopleScreen() {
     },
   });
   const [domains, setDomains] = useState<string[] | null>(null);
-  const liveDomains = domains ?? domainsOf(ws.data?.allowedDomains, me?.user.email);
+  const liveDomains = domains ?? storedDomains(ws.data?.allowedDomains);
+  const domainsKnown = domains !== null || ws.isSuccess;
 
   const setRole = useMutation({
     mutationFn: async ({ userId, tenantRole }: { userId: string; tenantRole: WorkspaceRole }) => {
@@ -128,6 +128,9 @@ export function AdminPeopleScreen() {
             )}
           </span>
         ))}
+        {domainsKnown && liveDomains.length === 0 && (
+          <span style={{ fontSize: 13, color: color.muted }}>No sign-in domain is saved yet.</span>
+        )}
         {canAdmin && (
           <span style={{ display: 'inline-flex', gap: 6 }}>
             <Input value={domainDraft} onChange={(e) => setDomainDraft(e.target.value)} placeholder="company.com" style={{ width: 140, height: 32 }} />

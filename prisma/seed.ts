@@ -64,7 +64,7 @@ async function seedWorkspace(opts: {
     { slug: 'business', name: 'Business', colour: '#3B49B8' },
     { slug: 'developer', name: 'Developer', colour: '#1F55B8' },
     { slug: 'tester', name: 'Tester', colour: '#8A5A0B' },
-    { slug: 'observer', name: 'Observer', colour: '#5B6157' },
+    { slug: 'observer', name: 'Observer', colour: '#3A3F38' },
   ];
   const roleIds: Record<string, string> = {};
   for (const r of roles) {

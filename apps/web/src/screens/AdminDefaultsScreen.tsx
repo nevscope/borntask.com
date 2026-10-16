@@ -10,9 +10,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ColourSwatchRow } from '../components/ProjectColourField';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { color, projectSwatches, toneStyle } from '../theme/tokens';
+import { chipSwatches, color, toneStyle } from '../theme/tokens';
 
-type RoleRow = { id: string; name: string; slug: string; colour: string };
+type RoleRow = { id: string; name: string; slug: string; colour: string; people?: number };
 type TypeRow = { id: string; name: string; slug: string; colour: string; template: string | null };
 type Defaults = {
   defaultWorkflowId?: string | null;
@@ -134,7 +134,7 @@ export function AdminDefaultsScreen() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Project roles</h2>
             {canAdmin && (
-              <button type="button" onClick={() => setRoleDraft({ id: 'new', name: '', colour: projectSwatches[5]?.hex ?? color.muted })} style={addBtn}>
+              <button type="button" onClick={() => setRoleDraft({ id: 'new', name: '', colour: chipSwatches.find((s) => s.id === 'graphite')?.hex ?? color.ink3 })} style={addBtn}>
                 + Add role
               </button>
             )}
@@ -142,7 +142,7 @@ export function AdminDefaultsScreen() {
           {roleDraft && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderBottom: `1px solid ${color.divider}` }}>
               <Input value={roleDraft.name} onChange={(e) => setRoleDraft({ ...roleDraft, name: e.target.value })} placeholder="Role name" onPressEnter={() => void saveRole()} />
-              <ColourSwatchRow colour={roleDraft.colour} onColour={(hex) => setRoleDraft({ ...roleDraft, colour: hex })} />
+              <ColourSwatchRow swatches={chipSwatches} colour={roleDraft.colour} onColour={(hex) => setRoleDraft({ ...roleDraft, colour: hex })} />
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button type="primary" onClick={() => void saveRole()}>{roleDraft.id === 'new' ? 'Add' : 'Save'}</Button>
                 <Button onClick={() => setRoleDraft(null)}>Cancel</Button>
@@ -152,7 +152,8 @@ export function AdminDefaultsScreen() {
           {(data.data?.roles ?? []).map((r) => (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
               <RoleTag role={r.slug} />
-              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{r.slug}</span>
+              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{r.name}</span>
+              <span style={{ fontSize: 12.5, color: color.ink3 }}>{peopleCount(r.people)}</span>
               {canAdmin && (
                 <>
                   <button type="button" onClick={() => setRoleDraft({ id: r.id, name: r.name, colour: r.colour })} style={editBtn}>Edit</button>
@@ -166,7 +167,7 @@ export function AdminDefaultsScreen() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Task types</h2>
             {canAdmin && (
-              <button type="button" onClick={() => setTypeDraft({ id: 'new', name: '', colour: projectSwatches[1]?.hex ?? color.brand, template: '' })} style={addBtn}>
+              <button type="button" onClick={() => setTypeDraft({ id: 'new', name: '', colour: chipSwatches.find((s) => s.id === 'blue')?.hex ?? color.brand, template: '' })} style={addBtn}>
                 + Add type
               </button>
             )}
@@ -174,7 +175,7 @@ export function AdminDefaultsScreen() {
           {typeDraft && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderBottom: `1px solid ${color.divider}` }}>
               <Input value={typeDraft.name} onChange={(e) => setTypeDraft({ ...typeDraft, name: e.target.value })} placeholder="Type name" onPressEnter={() => void saveType()} />
-              <ColourSwatchRow colour={typeDraft.colour} onColour={(hex) => setTypeDraft({ ...typeDraft, colour: hex })} />
+              <ColourSwatchRow swatches={chipSwatches} colour={typeDraft.colour} onColour={(hex) => setTypeDraft({ ...typeDraft, colour: hex })} />
               <Input.TextArea
                 value={typeDraft.template}
                 onChange={(e) => setTypeDraft({ ...typeDraft, template: e.target.value })}
@@ -193,7 +194,7 @@ export function AdminDefaultsScreen() {
               <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{templateLine(t.template)}</span>
               {canAdmin && (
                 <>
-                  <button type="button" onClick={() => setTypeDraft({ id: t.id, name: t.name, colour: t.colour, template: t.template ?? '' })} style={editBtn}>Edit</button>
+                  <button type="button" onClick={() => setTypeDraft({ id: t.id, name: t.name, colour: t.colour, template: t.template ?? '' })} style={editBtn}>Edit template</button>
                   <button type="button" onClick={() => setPending({ kind: 'type', id: t.id, name: t.name })} style={removeBtn}>Delete</button>
                 </>
               )}
@@ -257,6 +258,11 @@ export function AdminDefaultsScreen() {
 const addBtn = { height: 30, padding: '0 8px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' } as const;
 const editBtn = { height: 30, padding: 0, border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, cursor: 'pointer' } as const;
 const removeBtn = { height: 30, padding: 0, border: 0, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: 'pointer' } as const;
+
+function peopleCount(n: number | undefined) {
+  const count = n ?? 0;
+  return `${count} ${count === 1 ? 'person' : 'people'}`;
+}
 
 function templateLine(template: string | null) {
   if (!template?.trim()) return 'No template';

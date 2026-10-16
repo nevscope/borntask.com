@@ -19,7 +19,7 @@ export type WorkspacePack = {
 };
 
 const LEAD = { slug: 'lead', name: 'Project lead', colour: '#121417' };
-const OBSERVER = { slug: 'observer', name: 'Observer', colour: '#5B6157' };
+const OBSERVER = { slug: 'observer', name: 'Observer', colour: '#3A3F38' };
 
 const HOLD: WorkspacePack['workflows'][number]['stages'] = [
   { slug: 'on_hold', name: 'On hold', category: 'backlog', position: 90 },

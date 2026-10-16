@@ -47,8 +47,10 @@ export function WrongAccountScreen() {
   const signedIn = info?.signedInEmail ?? 'this address';
 
   return (
-    <AuthFrame title="This invitation is for another email address">
-      <span style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: color.warningTint, color: color.warning }}>Different account</span>
+    <AuthFrame
+      title="This invitation is for another email address"
+      eyebrow={<span style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: color.warningTint, color: color.warning }}>Different account</span>}
+    >
       {missing && <Alert type="error" message="This invitation was not found." />}
       <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', rowGap: 10, padding: '14px 16px', borderRadius: 10, background: color.subtle, border: `1px solid ${color.divider}`, fontSize: 13.5 }}>
         <dt style={{ color: color.muted }}>Invited</dt>

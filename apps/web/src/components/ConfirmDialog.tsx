@@ -10,6 +10,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   confirmLabel,
   busy = false,
+  confirmDisabled = false,
   onCancel,
   onConfirm,
 }: {
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   cancelLabel?: string;
   confirmLabel: string;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -35,10 +37,10 @@ export function ConfirmDialog({
     >
       <div role="alertdialog" aria-label={title} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={{ fontFamily: font.display, fontSize: 15, fontWeight: 600 }}>{title}</span>
-        <span style={{ fontSize: 13, lineHeight: 1.45, color: color.ink3 }}>{children}</span>
+        <div style={{ fontSize: 13, lineHeight: 1.45, color: color.ink3 }}>{children}</div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" onClick={onCancel} style={ghostBtn}>{cancelLabel}</button>
-          <button type="button" onClick={onConfirm} disabled={busy} style={dangerBtn}>{confirmLabel}</button>
+          <button type="button" onClick={onConfirm} disabled={busy || confirmDisabled} style={{ ...dangerBtn, opacity: busy || confirmDisabled ? 0.45 : 1 }}>{confirmLabel}</button>
         </div>
       </div>
     </Modal>

@@ -86,21 +86,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       requireOwnerAdmin(auth.workspaceRole);
-      const [roles, types, workflows, counts, ws] = await Promise.all([
+      const [roles, types, workflows, counts, grants, ws] = await Promise.all([
         auth.db.projectRole.findMany({ orderBy: { name: 'asc' } }),
         auth.db.taskType.findMany({ orderBy: { name: 'asc' } }),
         auth.db.workflow.findMany({ orderBy: { name: 'asc' } }),
         auth.db.project.groupBy({ by: ['workflowId'], _count: { _all: true } }),
+        auth.db.projectMemberRole.findMany({ select: { roleId: true, member: { select: { userId: true } } } }),
         auth.db.workspace.findUnique({ where: { id: auth.tenantId }, select: { defaultWorkflowId: true } }),
       ]);
       const used = new Map(counts.map((row) => [row.workflowId, row._count._all]));
+      const peopleByRole = new Map<string, Set<string>>();
+      for (const grant of grants) {
+        const set = peopleByRole.get(grant.roleId) ?? new Set<string>();
+        set.add(grant.member.userId);
+        peopleByRole.set(grant.roleId, set);
+      }
       const detailed = await Promise.all(workflows.map(async (w) => ({
         ...(await loadWorkflow(auth.db, w.id)),
         projectCount: used.get(w.id) ?? 0,
       })));
       return {
         defaultWorkflowId: ws?.defaultWorkflowId ?? null,
-        roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
+        roles: roles.map((r) => ({
+          id: r.id,
+          name: r.name,
+          slug: r.slug,
+          colour: r.colour,
+          people: peopleByRole.get(r.id)?.size ?? 0,
+        })),
         types: types.map((t) => ({ id: t.id, name: t.name, slug: t.slug, colour: t.colour, template: t.template })),
         workflows: detailed,
       };

@@ -2,9 +2,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { defaultMapping, parseDelimited, type ParsedSheet } from '@borntask/shared';
-import { parseXlsx, sheetToCsv } from '../lib/xlsxSheet.js';
-import { requireAuth } from '../context.js';
+import { defaultMapping, parseDelimited } from '@borntask/shared';
+import { prisma } from '../db.js';
+import { requireAuth, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { getImportQueue, JOB } from '../lib/queue.js';
@@ -17,7 +17,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         throw forbidden('Guests and viewers cannot import.');
       }
       const file = await req.file();
-      if (!file) throw validation('Choose a .csv or .xlsx export.');
+      if (!file) throw validation('Choose a CSV export.');
       const qKey = String((req.query as { projectKey?: string }).projectKey ?? '');
       const field = file.fields.projectKey;
       const fieldKey = field && !Array.isArray(field) && 'value' in field ? String(field.value) : '';
@@ -27,19 +27,11 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const buf = await file.toBuffer();
       const name = file.filename || 'asana-export.csv';
       const isXlsx = name.toLowerCase().endsWith('.xlsx') || (buf[0] === 0x50 && buf[1] === 0x4b);
-      let text: string;
-      let parsed: ParsedSheet;
       if (isXlsx) {
-        try {
-          parsed = parseXlsx(buf);
-        } catch (err) {
-          throw validation(err instanceof Error ? err.message : 'Could not read that workbook.');
-        }
-        text = sheetToCsv(parsed);
-      } else {
-        text = buf.toString('utf8');
-        parsed = parseDelimited(text);
+        throw validation('Save the Asana export as CSV for now. XLSX parsing is not bundled yet.');
       }
+      const text = buf.toString('utf8');
+      const parsed = parseDelimited(text);
       if (parsed.headers.length === 0) throw validation('That file has no header row.');
       const job = await auth.db.importJob.create({
         data: {
@@ -58,7 +50,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const storageKey = join('imports', auth.tenantId, `${job.id}.csv`);
       await writeFile(join(config.blobRoot, storageKey), text, 'utf8');
       await auth.db.importJob.update({ where: { id: job.id }, data: { storageKey } });
-      return serializeImport(job.id, name, parsed, defaultMapping(parsed.headers), project.key, parsed.rows.length);
+      const known = await memberEmails(auth);
+      return serializeImport(job.id, name, parsed, defaultMapping(parsed.headers), project.key, parsed.rows.length, known);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -75,8 +68,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const text = await readFile(join(config.blobRoot, job.storageKey), 'utf8');
       const parsed = parseDelimited(text);
       const mapping = flattenMapping(job.mapping, parsed.headers);
+      const known = await memberEmails(auth);
       return {
-        ...serializeImport(job.id, job.fileName, parsed, mapping, project?.key ?? '', job.rowsTotal),
+        ...serializeImport(job.id, job.fileName, parsed, mapping, project?.key ?? '', job.rowsTotal, known),
         status: job.status,
         rowsDone: job.rowsDone,
         errors: job.errors,
@@ -134,6 +128,16 @@ function flattenMapping(raw: unknown, headers: string[]): Record<string, string>
   return defaultMapping(headers);
 }
 
+async function memberEmails(auth: Authed): Promise<Set<string>> {
+  const members = await auth.db.tenantMember.findMany({ where: { isActive: true }, select: { userId: true } });
+  if (members.length === 0) return new Set();
+  const users = await prisma.user.findMany({
+    where: { id: { in: members.map((m) => m.userId) } },
+    select: { email: true },
+  });
+  return new Set(users.map((u) => u.email.toLowerCase()));
+}
+
 function serializeImport(
   id: string,
   fileName: string,
@@ -141,14 +145,20 @@ function serializeImport(
   mapping: Record<string, string>,
   projectKey: string,
   rowsTotal: number,
+  knownEmails: Set<string>,
 ) {
   const preview = parsed.rows.slice(0, 20);
   const emails = new Set<string>();
+  let matchedEmailCount = 0;
   const emailCol = Object.entries(mapping).find(([, f]) => f === 'assigneeEmail')?.[0];
   if (emailCol) {
+    const seen = new Set<string>();
     for (const row of parsed.rows) {
       const e = (row[emailCol] ?? '').trim().toLowerCase();
-      if (e.includes('@')) emails.add(e);
+      if (!e.includes('@') || seen.has(e)) continue;
+      seen.add(e);
+      if (knownEmails.has(e)) matchedEmailCount += 1;
+      else emails.add(e);
     }
   }
   return {
@@ -160,5 +170,23 @@ function serializeImport(
     mapping,
     preview,
     unknownEmails: [...emails],
+    matchedEmailCount,
+    sectionValues: columnCounts(parsed.rows, colFor(mapping, 'section')),
+    statusValues: columnCounts(parsed.rows, colFor(mapping, 'status')),
   };
+}
+
+function colFor(mapping: Record<string, string>, field: string): string | undefined {
+  return Object.entries(mapping).find(([, f]) => f === field)?.[0];
+}
+
+function columnCounts(rows: Record<string, string>[], col: string | undefined): { name: string; n: number }[] {
+  if (!col) return [];
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    const name = (row[col] ?? '').trim();
+    if (!name) continue;
+    map.set(name, (map.get(name) ?? 0) + 1);
+  }
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, n }));
 }

@@ -200,7 +200,7 @@ export function CommandPalette() {
             );
           })}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '10px 18px', background: color.subtle, borderTop: `1px solid ${color.divider}`, fontSize: 12, color: color.muted }}>
+        <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 16, padding: '10px 18px', background: color.subtle, borderTop: `1px solid ${color.divider}`, fontSize: 12, color: color.muted, whiteSpace: 'nowrap' }}>
           <span>↑ ↓ to move</span>
           <span>↵ to open</span>
           <span>Tab to filter by project</span>

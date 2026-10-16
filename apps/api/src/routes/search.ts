@@ -9,8 +9,16 @@ function snippetAround(text: string, q: string, radius = 42): string {
   const hay = stripTags(text).replace(/\s+/g, ' ').trim();
   const i = hay.toLowerCase().indexOf(q.toLowerCase());
   if (i < 0) return hay.slice(0, radius * 2);
-  const start = Math.max(0, i - radius);
-  const end = Math.min(hay.length, i + q.length + radius);
+  let start = Math.max(0, i - radius);
+  let end = Math.min(hay.length, i + q.length + radius);
+  if (start > 0) {
+    const space = hay.lastIndexOf(' ', i);
+    if (space >= 0 && i - space < radius + 12) start = space + 1;
+  }
+  if (end < hay.length) {
+    const space = hay.indexOf(' ', end);
+    if (space >= 0 && space - end < 12) end = space;
+  }
   return `${start > 0 ? '…' : ''}${hay.slice(start, end)}${end < hay.length ? '…' : ''}`;
 }
 

@@ -58,7 +58,7 @@ export function TopSearch() {
       ref={inputRef}
       allowClear
       aria-label="Search tasks"
-      placeholder="Search tasks or jump to WEB-142"
+      placeholder="Search tasks or jump to a task key"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onPressEnter={() => goSearch(value)}

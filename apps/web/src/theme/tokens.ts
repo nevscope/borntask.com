@@ -60,7 +60,7 @@ export const categoryBar = {
   done: '#178A5C',
 } as const;
 
-/** Project colour picker (Create project mock). */
+/** Project colour picker (Create project mock). Solid marks, not role or type chips. */
 export const projectSwatches = [
   { id: 'blue', label: 'Blue', hex: '#2F6FDB', tint: '#EAF1FD', ink: '#1F55B8' },
   { id: 'green', label: 'Green', hex: '#178A5C', tint: '#E9F5EF', ink: '#0F6B46' },
@@ -69,6 +69,40 @@ export const projectSwatches = [
   { id: 'amber', label: 'Amber', hex: '#C98A1A', tint: '#FDF3E2', ink: '#8A5A0B' },
   { id: 'graphite', label: 'Graphite', hex: '#3A3F38', tint: '#F1F2EF', ink: '#3A3F38' },
 ] as const;
+
+/**
+ * Role and type chips from the Admin defaults mock.
+ * `hex` is what we store. `bg` / `fg` are how the chip paints.
+ * `also` covers older seeds and project swatches that should land on the same chip.
+ */
+export const chipSwatches = [
+  { id: 'red', label: 'Red', hex: '#B42323', bg: '#FDECEC', fg: '#B42323' },
+  { id: 'orange', label: 'Orange', hex: '#A04A0C', bg: '#FFF0E5', fg: '#A04A0C', also: ['#E0731F'] },
+  { id: 'amber', label: 'Amber', hex: '#8A5A0B', bg: '#FDF3E2', fg: '#8A5A0B', also: ['#C98A1A'] },
+  { id: 'green', label: 'Green', hex: '#0F6B46', bg: '#E9F5EF', fg: '#0F6B46', also: ['#178A5C'] },
+  { id: 'blue', label: 'Blue', hex: '#1F55B8', bg: '#EAF1FD', fg: '#1F55B8', also: ['#2F6FDB'] },
+  { id: 'indigo', label: 'Indigo', hex: '#3B49B8', bg: '#EEF0FB', fg: '#3B49B8', also: ['#5865D6'] },
+  { id: 'violet', label: 'Violet', hex: '#5B3FC4', bg: '#F1EEFC', fg: '#5B3FC4', also: ['#8E59D9'] },
+  { id: 'graphite', label: 'Graphite', hex: '#3A3F38', bg: '#F1F2EF', fg: '#3A3F38', also: ['#5B6157', '#8A9086'] },
+  { id: 'ink', label: 'Ink', hex: '#121417', bg: '#121417', fg: '#FFFFFF' },
+] as const;
+
+/** Status dots from the workflow mocks. */
+export const statusSwatches = [
+  { id: 'slate', label: 'Slate', hex: '#8A9086' },
+  { id: 'indigo', label: 'Indigo', hex: '#5865D6' },
+  { id: 'blue', label: 'Blue', hex: '#2F6FDB' },
+  { id: 'amber', label: 'Amber', hex: '#C98A1A' },
+  { id: 'orange', label: 'Orange', hex: '#E0731F' },
+  { id: 'green', label: 'Green', hex: '#178A5C' },
+] as const;
+
+export const statusColourByCategory = {
+  backlog: '#8A9086',
+  active: '#2F6FDB',
+  review: '#E0731F',
+  done: '#178A5C',
+} as const;
 
 /** Accepts #RGB or #RRGGBB. Returns uppercase #RRGGBB or null. */
 export function parseProjectHex(value: string): string | null {
@@ -122,12 +156,19 @@ export const priorityStyle: Record<Priority, { label: string; color: string; key
   none: { label: 'No priority', color: '#E8EBE6', key: '0' },
 };
 
+export function chipSwatchFor(hex: string) {
+  const key = (parseProjectHex(hex) ?? hex).toLowerCase();
+  return chipSwatches.find((s) => s.hex.toLowerCase() === key || ('also' in s && s.also.some((alias) => alias.toLowerCase() === key))) ?? null;
+}
+
 export function chipFromHex(hex: string, label: string): { label: string; bg: string; fg: string } {
+  const match = chipSwatchFor(hex);
+  if (match) return { label, bg: match.bg, fg: match.fg };
   const tint = projectTint(hex);
   const parsed = parseProjectHex(hex) ?? tint.hex;
   const n = parseInt(parsed.slice(1), 16);
   const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-  if (lum < 0.42) return { label, bg: parsed, fg: color.surface };
+  if (lum < 0.18) return { label, bg: parsed, fg: color.surface };
   return { label, bg: tint.tint, fg: tint.ink };
 }
 

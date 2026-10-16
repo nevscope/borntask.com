@@ -1,8 +1,9 @@
-import { Alert, Button, Checkbox, Form, Input, Modal, Select } from 'antd';
+import { Alert, Button, Checkbox, Form, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useChatAppStatus, useMe } from '../api/queries';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -52,6 +53,7 @@ export function WorkspaceGeneralScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const toast = useStatusToast();
   const isOwner = me?.workspaceRole === 'owner';
   const ws = useQuery({
@@ -217,14 +219,16 @@ export function WorkspaceGeneralScreen() {
           <Button danger onClick={() => { setConfirmName(''); setDeleteError(null); setDeleteOpen(true); }}>Delete workspace…</Button>
         </section>
       )}
-      <Modal
-        title="Delete workspace"
+      <ConfirmDialog
         open={deleteOpen}
-        okText="Delete workspace"
-        okButtonProps={{ danger: true, disabled: confirmName !== (ws.data?.name ?? '') }}
+        title="Delete workspace"
+        confirmLabel="Delete workspace"
+        confirmDisabled={confirmName !== (ws.data?.name ?? '')}
+        busy={deleteBusy}
         onCancel={() => setDeleteOpen(false)}
-        onOk={() => {
+        onConfirm={() => {
           setDeleteError(null);
+          setDeleteBusy(true);
           void fetch(`${BASE_URL}/workspace/delete`, {
             method: 'POST',
             credentials: 'include',
@@ -232,6 +236,7 @@ export function WorkspaceGeneralScreen() {
             body: JSON.stringify({ name: confirmName }),
           }).then(async (res) => {
             const json = await res.json().catch(() => ({})) as { message?: string; next?: string };
+            setDeleteBusy(false);
             if (!res.ok) {
               setDeleteError(json.message ?? 'Could not delete the workspace.');
               return;
@@ -243,7 +248,7 @@ export function WorkspaceGeneralScreen() {
         <p style={{ marginTop: 0 }}>Type <strong>{ws.data?.name}</strong> to close this workspace. It is removed for good after 30 days.</p>
         {deleteError && <Alert type="error" message={deleteError} style={{ marginBottom: 12 }} />}
         <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} aria-label="Workspace name" />
-      </Modal>
+      </ConfirmDialog>
       {unsaved}
     </SettingsFrame>
   );

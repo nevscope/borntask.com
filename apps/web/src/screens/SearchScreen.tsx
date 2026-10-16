@@ -167,7 +167,7 @@ export function SearchScreen() {
       ))}
 
       <p style={{ margin: 0, fontSize: 13, color: color.muted }}>
-        Tip: type a task key like <kbd className="bt-kbd">WEB-142</kbd> to jump straight to it.
+        Tip: type a task key, such as <kbd className="bt-kbd">WEB-1</kbd>, to jump straight to it.
       </p>
     </div>
   );

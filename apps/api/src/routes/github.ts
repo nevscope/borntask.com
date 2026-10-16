@@ -194,14 +194,17 @@ export const githubRoutes: FastifyPluginAsync = async (app) => {
 type FastifyRequestRaw = { rawBody?: string };
 
 async function githubPayload(auth: Authed, project: { id: string; key: string; leadId: string | null }, key: string) {
-  const install = await auth.db.gitHubInstallation.findFirst();
-  const repos = await auth.db.projectRepo.findMany({ where: { projectId: project.id } });
+  const appOn = githubAppEnabled();
+  const install = appOn ? await auth.db.gitHubInstallation.findFirst() : null;
+  const repos = appOn ? await auth.db.projectRepo.findMany({ where: { projectId: project.id } }) : [];
   const settings = await auth.db.projectGithubSettings.findFirst({ where: { projectId: project.id } });
-  const events = await auth.db.gitHubEventLog.findMany({
-    where: { projectId: project.id },
-    orderBy: { at: 'desc' },
-    take: 20,
-  });
+  const events = appOn
+    ? await auth.db.gitHubEventLog.findMany({
+      where: { projectId: project.id },
+      orderBy: { at: 'desc' },
+      take: 20,
+    })
+    : [];
   const installer = install
     ? await prisma.user.findUnique({ where: { id: install.installedByUserId }, select: { name: true } })
     : null;

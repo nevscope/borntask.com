@@ -1,9 +1,12 @@
 import { Alert, Button, Select, Upload } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
-import { useProjects } from '../api/queries';
+import { useProject, useProjects } from '../api/queries';
+import type { WorkflowStatus } from '../api/types';
 import { color } from '../theme/tokens';
+
+const XLSX_MESSAGE = 'Save the Asana export as CSV for now. XLSX parsing is not bundled yet.';
 
 const FIELDS = [
   { value: 'skip', label: 'Skip' },
@@ -29,6 +32,9 @@ type ImportState = {
   mapping: Record<string, string>;
   preview: Record<string, string>[];
   unknownEmails: string[];
+  matchedEmailCount?: number;
+  sectionValues?: { name: string; n: number }[];
+  statusValues?: { name: string; n: number }[];
   status?: string;
 };
 
@@ -41,8 +47,23 @@ export function ImportScreen() {
   const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('statuses');
   const [showPreview, setShowPreview] = useState(false);
 
+  useEffect(() => {
+    if (!projectKey && projects[0]?.key) setProjectKey(projects[0].key);
+  }, [projectKey, projects]);
+
   const step = !job ? 0 : job.status === 'running' ? 3 : showPreview ? 2 : 1;
   const project = projects.find((p) => p.key === projectKey);
+  const detail = useProject(job?.projectKey ?? projectKey).data;
+  const stages = detail?.workflow.statuses ?? [];
+
+  const pickFile = (file: File) => {
+    if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet')) {
+      setError(XLSX_MESSAGE);
+      return false;
+    }
+    void upload(file).catch((e: Error) => setError(e.message));
+    return false;
+  };
 
   const upload = async (file: File) => {
     setError(null);
@@ -127,17 +148,10 @@ export function ImportScreen() {
             onChange={setProjectKey}
             options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
           />
-          <Upload
-            accept=".csv,.tsv,.txt,.xlsx"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              void upload(file).catch((e: Error) => setError(e.message));
-              return false;
-            }}
-          >
-            <Button type="primary" disabled={!projectKey}>Choose CSV or XLSX</Button>
+          <Upload accept=".csv,.tsv,.txt" showUploadList={false} beforeUpload={pickFile}>
+            <Button type="primary" disabled={!projectKey}>Choose CSV</Button>
           </Upload>
-          <span style={{ fontSize: 13, color: color.muted }}>Asana exports as CSV or XLSX. The first sheet is mapped.</span>
+          <span style={{ fontSize: 13, color: color.muted }}>Asana exports as CSV. Save an XLSX export as CSV first.</span>
         </section>
       )}
       {job && (
@@ -148,7 +162,7 @@ export function ImportScreen() {
               <span style={{ display: 'block', fontWeight: 600 }}>{job.fileName}</span>
               <span style={{ fontSize: 12.5, color: color.muted }}>{job.rowsTotal} rows · {job.headers.length} columns · into project <strong style={{ color: color.ink3 }}>{project?.name ?? job.projectKey} ({job.projectKey})</strong></span>
             </span>
-            <Upload accept=".csv,.tsv,.txt,.xlsx" showUploadList={false} beforeUpload={(file) => { void upload(file).catch((e: Error) => setError(e.message)); return false; }}>
+            <Upload accept=".csv,.tsv,.txt" showUploadList={false} beforeUpload={pickFile}>
               <Button>Replace file</Button>
             </Upload>
           </section>
@@ -179,6 +193,7 @@ export function ImportScreen() {
               })}
             </section>
             <div style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {hasMapped(job.mapping, 'section') && (
               <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <h2 style={{ margin: 0, fontSize: 15 }}>Asana sections become</h2>
                 <div role="group" aria-label="Asana sections become" style={{ display: 'flex', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9 }}>
@@ -204,12 +219,23 @@ export function ImportScreen() {
                     ? 'Section or column names from Asana are mapped onto this project\'s workflow stages.'
                     : 'Section or column names from Asana become list sections in this project.'}
                 </p>
+                {sectionsAs === 'statuses' && (
+                  <StatusMap values={valuesFor(job, 'section')} stages={stages} />
+                )}
               </section>
+              )}
+              {hasMapped(job.mapping, 'status') && sectionsAs !== 'statuses' && (
+                <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <h2 style={{ margin: 0, fontSize: 15 }}>Status map</h2>
+                  <StatusMap values={valuesFor(job, 'status')} stages={stages} />
+                </section>
+              )}
               <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <h2 style={{ margin: 0, fontSize: 15 }}>People</h2>
                 {job.unknownEmails.length > 0 ? (
                   <>
                     <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
+                      {job.matchedEmailCount ? `${job.matchedEmailCount} ${job.matchedEmailCount === 1 ? 'assignee matches' : 'assignees match'} people already here. ` : null}
                       <strong>{job.unknownEmails.length} {job.unknownEmails.length === 1 ? 'email is' : 'emails are'} new</strong> and will receive an invitation as a Member.
                     </p>
                     {job.unknownEmails.slice(0, 6).map((e) => (
@@ -257,6 +283,53 @@ export function ImportScreen() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function hasMapped(mapping: Record<string, string>, field: string) {
+  return Object.values(mapping).includes(field);
+}
+
+function valuesFor(job: ImportState, field: 'section' | 'status') {
+  const col = Object.entries(job.mapping).find(([, f]) => f === field)?.[0];
+  const fromApi = field === 'section' ? job.sectionValues : job.statusValues;
+  if (fromApi?.length) return fromApi;
+  if (!col) return [];
+  const map = new Map<string, number>();
+  for (const row of job.preview) {
+    const name = (row[col] ?? '').trim();
+    if (!name) continue;
+    map.set(name, (map.get(name) ?? 0) + 1);
+  }
+  return [...map.entries()].map(([name, n]) => ({ name, n }));
+}
+
+function guessStage(name: string, stages: WorkflowStatus[]) {
+  const lower = name.toLowerCase();
+  return stages.find((s) => s.name.toLowerCase() === lower)
+    ?? stages.find((s) => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()))
+    ?? stages[0];
+}
+
+function StatusMap({ values, stages }: { values: { name: string; n: number }[]; stages: WorkflowStatus[] }) {
+  if (values.length === 0) return <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>No values in the mapped column yet.</p>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {values.map((v) => {
+        const to = guessStage(v.name, stages);
+        return (
+          <div key={v.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <span style={{ flex: 1, color: color.ink3 }}>{v.name}</span>
+            <span aria-hidden="true" style={{ color: color.muted }}>to</span>
+            <span style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: to?.colour ?? color.dashed }} />
+              {to?.name ?? 'Unmapped'}
+            </span>
+            <span style={{ fontSize: 12, color: color.muted }}>{v.n}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

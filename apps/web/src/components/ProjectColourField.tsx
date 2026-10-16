@@ -1,20 +1,29 @@
 import { Input } from 'antd';
-import { color, font, parseProjectHex, projectSwatches } from '../theme/tokens';
+import { chipSwatchFor, color, font, parseProjectHex, projectSwatches } from '../theme/tokens';
+
+type Swatch = { id: string; label: string; hex: string; bg?: string; fg?: string };
 
 export function ColourSwatchRow({
   colour,
   onColour,
   disabled = false,
+  swatches = projectSwatches,
 }: {
   colour: string;
   onColour: (hex: string) => void;
   disabled?: boolean;
+  swatches?: readonly Swatch[];
 }) {
-  const customColour = !projectSwatches.some((s) => s.hex.toLowerCase() === colour.toLowerCase());
+  const chip = chipSwatchFor(colour);
+  const customColour = !swatches.some((s) => s.hex.toLowerCase() === colour.toLowerCase()) && !(chip && swatches.some((s) => s.hex.toLowerCase() === chip.hex.toLowerCase()));
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-      {projectSwatches.map((s) => {
-        const selected = colour.toLowerCase() === s.hex.toLowerCase();
+      {swatches.map((s) => {
+        const onThisChip = Boolean(s.bg) && chip?.hex.toLowerCase() === s.hex.toLowerCase();
+        const selected = colour.toLowerCase() === s.hex.toLowerCase() || onThisChip;
+        const ink = s.fg ?? s.hex;
+        const wash = s.bg;
+        const tinted = Boolean(wash && wash.toLowerCase() !== ink.toLowerCase());
         return (
           <button
             key={s.id}
@@ -28,11 +37,20 @@ export function ColourSwatchRow({
               height: 24,
               borderRadius: 8,
               border: 0,
-              background: s.hex,
+              padding: 0,
+              display: 'grid',
+              placeItems: 'center',
+              background: tinted ? wash : ink,
               cursor: disabled ? 'default' : 'pointer',
-              boxShadow: selected ? `0 0 0 2px ${color.surface}, 0 0 0 4px ${s.hex}` : undefined,
+              boxShadow: selected
+                ? `0 0 0 2px ${color.surface}, 0 0 0 4px ${ink}`
+                : tinted
+                  ? `inset 0 0 0 1px ${color.border}`
+                  : undefined,
             }}
-          />
+          >
+            {tinted ? <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 999, background: ink }} /> : null}
+          </button>
         );
       })}
       <label

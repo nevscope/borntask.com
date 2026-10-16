@@ -2,7 +2,7 @@ import { Button, Dropdown, Tag } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
-import { USE_MOCKS, USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useProjects } from '../api/queries';
+import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useProjects } from '../api/queries';
 import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
 import { readWelcome } from '../lib/welcome';
 import { color, radius } from '../theme/tokens';
@@ -191,11 +191,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         {!guest && <NavLink to="/settings/people" className="bt-nav-link">Settings</NavLink>}
-        {USE_MOCKS && (
-          <div style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: '#FFFBF2', border: '1px solid #F1D6A6', fontSize: 12.5, color: '#5C3D07', lineHeight: 1.45 }}>
-            <strong>{USE_PROJECT_MOCKS || USE_TASK_MOCKS ? 'Mocks on.' : 'Live API with mock fallback.'}</strong>{' '}
+        {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && (
+          <div style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.warningTint, border: `1px solid ${color.warningBorder}`, fontSize: 12.5, color: color.warning, lineHeight: 1.45 }}>
+            <strong>Mocks on.</strong>{' '}
             Projects {USE_PROJECT_MOCKS ? 'mocked' : 'live'}. Tasks {USE_TASK_MOCKS ? 'mocked' : 'live'}.
-            Set VITE_MOCK_PROJECTS=false and VITE_MOCK_TASKS=false in apps/web/.env after sign-in, then restart Vite.
           </div>
         )}
       </nav>
@@ -204,7 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="bt-topbar">
           <TopSearch />
           <div style={{ flex: 1 }} />
-          {USE_MOCKS && <Tag color="gold">{USE_PROJECT_MOCKS || USE_TASK_MOCKS ? 'Mocks' : 'API + fallback'}</Tag>}
+          {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && <Tag color="gold">Mocks</Tag>}
           <Button type="primary" onClick={() => {
             const key = pathname.match(/^\/p\/([^/]+)/)?.[1];
             quickAdd.open(key ? { projectKey: key } : {});
