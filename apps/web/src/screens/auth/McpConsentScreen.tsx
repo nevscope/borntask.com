@@ -76,7 +76,7 @@ export function McpConsentScreen() {
       <section className="bt-card" style={{ width: '100%', maxWidth: 520, overflow: 'hidden' }}>
         <div style={{ padding: '28px 32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center' }}>
           <h1 style={{ margin: 0, fontFamily: font.display, fontSize: 22, fontWeight: 600, letterSpacing: '-0.025em', lineHeight: 1.3 }}>{appName} wants to connect to your BornTask account</h1>
-          <p style={{ margin: 0, fontSize: 14, color: color.ink3, lineHeight: 1.5 }}>It will act as <strong>you</strong>, with your projects and your workflow permissions. Every change it makes is labelled "via Claude" in the activity log.</p>
+          <p style={{ margin: 0, fontSize: 14, color: color.ink3, lineHeight: 1.5 }}>This window opened from your assistant. After you allow access, it will send you back. {appName} will act as <strong>you</strong>, with your projects and workflow permissions. Changes are labelled "via MCP" in the activity log.</p>
         </div>
         {!user && !loading && (
           <div style={{ padding: '0 32px 24px' }}>

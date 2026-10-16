@@ -91,7 +91,7 @@ export function ApiTokensScreen() {
         <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Connect an AI assistant over MCP</h2>
         <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, lineHeight: 1.5, color: color.ink2 }}>
           <li>In Claude or Cursor, add a custom MCP connector with this server URL.</li>
-          <li>When asked, paste the token you created above, or allow access and pick Read only or Read and update.</li>
+          <li>A browser window should open so you can sign in to BornTask and allow access (read only, or read and update). You can also paste a personal token if the client asks for one.</li>
           <li>Ask things like "what's blocking this project?" or "create a bug for the checkout issue".</li>
         </ol>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -173,7 +173,7 @@ export function ApiTokensScreen() {
           revoke.mutate(revokeId, { onSuccess: () => { setRevokeId(null); setMinted(null); } });
         }}
       >
-        Anything still using it, including an assistant, will stop working. This cannot be undone.
+        Anything using it stops working immediately. This can't be undone.
       </ConfirmDialog>
       <ConfirmDialog
         open={pendingGrant !== null}
@@ -186,7 +186,7 @@ export function ApiTokensScreen() {
           revokeGrant.mutate(pendingGrant.id, { onSuccess: () => setPendingGrant(null) });
         }}
       >
-        Anything using it stops working immediately. This cannot be undone.
+        Anything using it stops working immediately. This can't be undone.
       </ConfirmDialog>
     </SettingsFrame>
   );

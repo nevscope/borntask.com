@@ -12,6 +12,8 @@ const port = Number(process.env.MCP_PORT ?? 3011);
 const publicBase = (process.env.MCP_PUBLIC_URL ?? `http://127.0.0.1:${port}`).replace(/\/$/, '');
 const webBase = (process.env.PUBLIC_URL ?? 'http://localhost:5174').replace(/\/$/, '');
 const apiBase = (process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3010').replace(/\/$/, '');
+const resourceUrl = `${publicBase}/mcp`;
+const resourceMetadata = `${publicBase}/.well-known/oauth-protected-resource`;
 
 type Rpc = {
   jsonrpc?: string;
@@ -31,7 +33,30 @@ function rpcError(id: Rpc['id'], code: number, message: string) {
   return { jsonrpc: '2.0', id: id ?? null, error: { code, message } };
 }
 
-async function handleRpc(message: Rpc, token: string | undefined) {
+function protectedResource() {
+  return {
+    resource: resourceUrl,
+    authorization_servers: [publicBase],
+    bearer_methods_supported: ['header'],
+    scopes_supported: ['read', 'read_write'],
+  };
+}
+
+function authorizationServer() {
+  return {
+    issuer: publicBase,
+    authorization_endpoint: `${publicBase}/oauth/authorize`,
+    token_endpoint: `${publicBase}/oauth/token`,
+    registration_endpoint: `${publicBase}/oauth/register`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    scopes_supported: ['read', 'read_write'],
+    token_endpoint_auth_methods_supported: ['none'],
+  };
+}
+
+function handleRpc(message: Rpc, token: string | undefined) {
   const method = message.method ?? '';
   if (method === 'notifications/initialized' || method.startsWith('notifications/')) return null;
   if (method === 'initialize') {
@@ -47,74 +72,78 @@ async function handleRpc(message: Rpc, token: string | undefined) {
   }
   if (method === 'ping') return { jsonrpc: '2.0', id: message.id ?? null, result: {} };
   if (!token) return rpcError(message.id, -32001, 'Sign in with a personal token (bt_pat_) or complete the OAuth consent.');
-  if (method === 'tools/list') {
-    return { jsonrpc: '2.0', id: message.id ?? null, result: { tools: TOOLS } };
+  return { method, token, id: message.id, params: message.params };
+}
+
+async function callNamedTool(token: string, name: string, args: Record<string, unknown>) {
+  try {
+    return await callTool(token, name, args);
+  } catch (err) {
+    const messageText = err instanceof Error ? err.message : 'Tool failed.';
+    return { content: [{ type: 'text', text: messageText }], isError: true };
   }
-  if (method === 'tools/call') {
-    const name = message.params?.name ?? '';
-    const args = message.params?.arguments ?? {};
-    try {
-      const result = await callTool(token, name, args);
-      return { jsonrpc: '2.0', id: message.id ?? null, result };
-    } catch (err) {
-      const messageText = err instanceof Error ? err.message : 'Tool failed.';
-      return {
-        jsonrpc: '2.0',
-        id: message.id ?? null,
-        result: { content: [{ type: 'text', text: messageText }], isError: true },
-      };
-    }
-  }
-  return rpcError(message.id, -32601, `Method not found: ${method}`);
 }
 
 async function main() {
   const app = Fastify({ logger: true });
 
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const params = new URLSearchParams(String(body));
+      const out: Record<string, string> = {};
+      params.forEach((value, key) => {
+        out[key] = value;
+      });
+      done(null, out);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
+  app.addHook('onRequest', async (req, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    reply.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, MCP-Protocol-Version');
+    reply.header('Access-Control-Expose-Headers', 'WWW-Authenticate, MCP-Protocol-Version');
+    if (req.method === 'OPTIONS') {
+      return reply.code(204).send();
+    }
+  });
+
   app.get('/health', async () => ({ status: 'ok', service: 'borntask-mcp', tools: TOOLS.map((tool) => tool.name) }));
 
-  app.get('/.well-known/oauth-protected-resource', async () => ({
-    resource: `${publicBase}/mcp`,
-    authorization_servers: [publicBase],
-    bearer_methods_supported: ['header'],
-    scopes_supported: ['read', 'read_write'],
-  }));
-
-  app.get('/.well-known/oauth-authorization-server', async () => ({
-    issuer: publicBase,
-    authorization_endpoint: `${publicBase}/oauth/authorize`,
-    token_endpoint: `${publicBase}/oauth/token`,
-    registration_endpoint: `${publicBase}/oauth/register`,
-    response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code'],
-    code_challenge_methods_supported: ['S256'],
-    scopes_supported: ['read', 'read_write'],
-    token_endpoint_auth_methods_supported: ['none'],
-  }));
+  const sendProtected = async () => protectedResource();
+  const sendAuthorization = async () => authorizationServer();
+  app.get('/.well-known/oauth-protected-resource', sendProtected);
+  app.get('/.well-known/oauth-protected-resource/mcp', sendProtected);
+  app.get('/mcp/.well-known/oauth-protected-resource', sendProtected);
+  app.get('/.well-known/oauth-authorization-server', sendAuthorization);
+  app.get('/.well-known/oauth-authorization-server/mcp', sendAuthorization);
 
   app.get('/oauth/authorize', async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;
     const url = new URL('/oauth/consent', webBase);
-    const clientName = q.client_name || q.client_id || 'Claude';
+    const clientName = (q.client_name || q.client_id || 'Claude').trim() || 'Claude';
     url.searchParams.set('client_name', clientName);
     if (q.redirect_uri) url.searchParams.set('redirect_uri', q.redirect_uri);
     if (q.state) url.searchParams.set('state', q.state);
     if (q.code_challenge) url.searchParams.set('code_challenge', q.code_challenge);
-    if (q.scope === 'read' || q.scope === 'read_write') url.searchParams.set('scope', q.scope);
+    const scope = q.scope?.split(/[ +]/).find((part) => part === 'read' || part === 'read_write');
+    if (scope) url.searchParams.set('scope', scope);
     return reply.redirect(url.toString());
   });
 
-  app.post('/oauth/register', async (req) => {
-    const body = (req.body ?? {}) as { client_name?: string; redirect_uris?: string[] };
-    const name = body.client_name?.trim() || 'MCP client';
-    return {
+  app.post('/oauth/register', async (req, reply) => {
+    const body = (req.body ?? {}) as { client_name?: string; client_id?: string; redirect_uris?: string[] };
+    const name = body.client_name?.trim() || body.client_id?.trim() || 'MCP client';
+    return reply.code(201).send({
       client_id: name,
       client_name: name,
       redirect_uris: body.redirect_uris ?? [],
       grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
-    };
+    });
   });
 
   app.post('/oauth/token', async (req, reply) => {
@@ -128,22 +157,41 @@ async function main() {
   });
 
   app.post('/mcp', async (req, reply) => {
+    reply.header('WWW-Authenticate', `Bearer realm="BornTask", resource_metadata="${resourceMetadata}"`);
     const token = bearer(req.headers.authorization);
     const body = req.body;
-    if (Array.isArray(body)) {
-      const out = [];
-      for (const item of body as Rpc[]) {
-        const result = await handleRpc(item, token);
-        if (result) out.push(result);
+    const items = Array.isArray(body) ? (body as Rpc[]) : [(body ?? {}) as Rpc];
+    const out = [];
+    for (const item of items) {
+      const handled = handleRpc(item, token);
+      if (handled === null) continue;
+      if ('error' in handled && handled.error && !token && (item.method === 'tools/list' || item.method === 'tools/call')) {
+        out.push(handled);
+        if (!Array.isArray(body)) return reply.code(401).send(handled);
+        continue;
       }
-      return out;
+      if ('method' in handled && handled.method === 'tools/list') {
+        out.push({ jsonrpc: '2.0', id: handled.id ?? null, result: { tools: TOOLS } });
+        continue;
+      }
+      if ('method' in handled && handled.method === 'tools/call' && handled.token) {
+        const name = handled.params?.name ?? '';
+        const args = handled.params?.arguments ?? {};
+        const result = await callNamedTool(handled.token, name, args);
+        out.push({ jsonrpc: '2.0', id: handled.id ?? null, result });
+        continue;
+      }
+      if ('jsonrpc' in handled) out.push(handled);
     }
-    const result = await handleRpc((body ?? {}) as Rpc, token);
-    if (!result) return reply.code(202).send();
-    return result;
+    if (!Array.isArray(body)) {
+      if (out.length === 0) return reply.code(202).send();
+      return out[0];
+    }
+    return out;
   });
 
   app.get('/mcp', async (_req, reply) => {
+    reply.header('WWW-Authenticate', `Bearer realm="BornTask", resource_metadata="${resourceMetadata}"`);
     return reply.code(405).send({ error: 'method_not_allowed', message: 'Send JSON-RPC POST requests to this URL.' });
   });
 
