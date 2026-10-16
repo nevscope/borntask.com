@@ -183,6 +183,7 @@ export function mapTask(row: {
     subtaskCount: { done: sub.filter((s) => s.completedAt).length, total: sub.length },
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    githubBadge: null as 'pr_running' | 'pr_passed' | 'pr_failed' | 'merged' | 'branch' | null,
   };
 }
 

@@ -125,7 +125,7 @@ function seed(s: Seed, position: number): Task {
 let tasks: Task[] = [
   // WEB · Homepage
   seed({ key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', type: 'bug', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_maria', dueDate: day(3), priority: 'high' }, 1),
-  seed({ key: 'WEB-133', title: 'Lazy-load hero and product images', type: 'improvement', statusId: 'ready', sectionId: 's_web_home', assigneeId: 'u_karl', dueDate: day(2), priority: 'high', labels: ['performance'] }, 2),
+  seed({ key: 'WEB-133', title: 'Lazy-load hero and product images', type: 'improvement', statusId: 'ready', sectionId: 's_web_home', assigneeId: 'u_karl', dueDate: day(2), priority: 'high', labels: ['performance'], githubBadge: 'merged' }, 2),
   seed({ key: 'WEB-151', title: 'Hero copy for the autumn campaign', type: 'improvement', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_scope', dueDate: day(-1), priority: 'medium' }, 3),
   seed({ key: 'WEB-160', title: 'Customer reviews on product pages', type: 'idea', statusId: 'idea', sectionId: 's_web_home', reporterId: 'u_luke', description: 'Show star ratings and written reviews under each product, with moderation.' }, 4),
   seed({ key: 'WEB-155', title: 'Exit-intent discount popup', type: 'idea', statusId: 'idea', sectionId: 's_web_home', priority: 'low' }, 5),
@@ -134,8 +134,9 @@ let tasks: Task[] = [
     key: 'WEB-142', title: 'Checkout fails on Safari 17', type: 'bug', statusId: 'testing', sectionId: 's_web_checkout', assigneeId: 'u_scope', dueDate: day(0), priority: 'urgent', labels: ['safari', 'payments'],
     description: 'Steps to reproduce\n1. Open the site in Safari 17 on macOS\n2. Add any product to the basket\n3. Pay by card with 3-D Secure\n\nExpected\nThe bank\'s 3-D Secure window opens.\n\nActual\nThe page reloads and the basket empties.',
     subtaskCount: { done: 1, total: 2 },
+    githubBadge: 'pr_running',
   }, 1),
-  seed({ key: 'WEB-139', title: 'Add Apple Pay to checkout', type: 'feature', statusId: 'wip', sectionId: 's_web_checkout', assigneeId: 'u_luke', dueDate: day(7), priority: 'high', subtaskCount: { done: 2, total: 3 } }, 2),
+  seed({ key: 'WEB-139', title: 'Add Apple Pay to checkout', type: 'feature', statusId: 'wip', sectionId: 's_web_checkout', assigneeId: 'u_luke', dueDate: day(7), priority: 'high', subtaskCount: { done: 2, total: 3 }, githubBadge: 'branch' }, 2),
   seed({
     key: 'WEB-144', title: 'Show the delivery date before payment', type: 'feature', statusId: 'approved', sectionId: 's_web_checkout', dueDate: day(11),
     description: 'The promised window should be shown on the checkout summary step before the customer pays.',
@@ -400,7 +401,36 @@ export const mockApi: Api = {
   async getTask(key): Promise<TaskDetail> {
     await wait();
     const t = findTask(key);
-    return clone({ ...t, subtasks: subtasks[key] ?? [], comments: comments[key] ?? [], activity: activity[key] ?? [] });
+    return clone({
+      ...t,
+      subtasks: subtasks[key] ?? [],
+      comments: comments[key] ?? [],
+      activity: activity[key] ?? [],
+      watcherIds: key === 'WEB-139' ? ['u_karl'] : [],
+      attachments: [],
+      development: key.startsWith('WEB-')
+        ? {
+            enabled: true,
+            suggestedBranch: `bug/${key}-${t.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48)}`,
+            gitCheckout: `git checkout -b bug/${key}-work`,
+            links:
+              key === 'WEB-142'
+                ? [
+                    { id: 'd1', kind: 'pr' as const, title: '#231 Fix 3-D Secure redirect on Safari', url: 'https://github.com/example/checkout-service/pull/231', repo: 'checkout-service', author: 'karl-f', prState: 'open', checks: 'running' as const, extra: 'Fix 3-D Secure redirect on Safari' },
+                    { id: 'd2', kind: 'pr' as const, title: '#224 Add Safari polyfill for payment iframe', url: 'https://github.com/example/website/pull/224', repo: 'website', author: 'karl-f', prState: 'merged', checks: 'passed' as const, extra: 'Add Safari polyfill for payment iframe' },
+                    { id: 'd3', kind: 'branch' as const, title: 'bug/WEB-142-checkout-fails-on-safari-17', url: 'https://github.com/example/checkout-service/tree/bug/WEB-142-checkout-fails-on-safari-17', repo: 'checkout-service', author: '', prState: null, checks: null, extra: 'bug/WEB-142-checkout-fails-on-safari-17' },
+                  ]
+                : [],
+            githubActivity:
+              key === 'WEB-142'
+                ? [
+                    { when: ago(0.1), text: 'PR #231 opened by karl-f' },
+                    { when: ago(30), text: 'PR #224 merged. Moved to Ready for testing via GitHub' },
+                  ]
+                : [],
+          }
+        : { enabled: false, suggestedBranch: '', gitCheckout: '', links: [], githubActivity: [] },
+    });
   },
 
   async createTask(input) {

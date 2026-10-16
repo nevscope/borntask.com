@@ -1,10 +1,13 @@
 // Dark bar shown when list rows are selected. Moves still go through moveTask.
-import { App, DatePicker, Select } from 'antd';
+import { DatePicker, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { useDeleteTask, useMoveTask, useUpdateTask } from '../api/queries';
+import { useDeleteTask, useMe, useMoveTask, useRestoreTask, useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { moveOptions } from '../lib/workflow';
 import { color, radius } from '../theme/tokens';
+import { trashToldCopy } from '../lib/toldPeople';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useStatusToast } from './StatusToast';
 
 export function BulkBar({
   tasks,
@@ -17,13 +20,16 @@ export function BulkBar({
   roles: ProjectRole[];
   onClear: () => void;
 }) {
-  const { message, modal } = App.useApp();
+  const toast = useStatusToast();
+  const me = useMe().data;
   const move = useMoveTask();
   const update = useUpdateTask();
   const del = useDeleteTask();
+  const restore = useRestoreTask();
   const [commentFor, setCommentFor] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -54,8 +60,6 @@ export function BulkBar({
     for (const task of tasks) {
       await move.mutateAsync({ key: task.key, input: { toStatusId: statusId, comment: extra?.comment } });
     }
-    const name = detail.workflow.statuses.find((status) => status.id === statusId)?.name ?? statusId;
-    void message.success(`${tasks.length} moved to ${name}`);
     setCommentFor(null);
     onClear();
   }
@@ -64,8 +68,14 @@ export function BulkBar({
     for (const task of tasks) {
       await update.mutateAsync({ key: task.key, input });
     }
-    void message.success('Updated');
     onClear();
+  }
+
+  function bulkToldNames() {
+    const ids = tasks.flatMap((task) => [task.assigneeId, task.reporterId]).filter(
+      (id): id is string => Boolean(id) && id !== me?.user.id,
+    );
+    return [...new Set(ids)].map((id) => detail.users.find((user) => user.id === id)?.name).filter((name): name is string => Boolean(name));
   }
 
   return (
@@ -123,7 +133,6 @@ export function BulkBar({
               await update.mutateAsync({ key: task.key, input: { labels: [...new Set([...task.labels, ...labels])] } });
             }
             setLabels([]);
-            void message.success('Labels added');
             onClear();
           })();
         }}
@@ -131,19 +140,7 @@ export function BulkBar({
       />
       <button
         type="button"
-        onClick={() => {
-          modal.confirm({
-            title: `Delete ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}?`,
-            content: 'Deleted tasks stay in Trash for 30 days.',
-            okText: 'Delete',
-            okButtonProps: { danger: true },
-            onOk: async () => {
-              for (const task of tasks) await del.mutateAsync(task.key);
-              void message.success('Moved to Trash');
-              onClear();
-            },
-          });
-        }}
+        onClick={() => setConfirmDelete(true)}
         style={{ height: 34, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
       >
         Delete
@@ -165,6 +162,32 @@ export function BulkBar({
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}?`}
+        confirmLabel={tasks.length === 1 ? 'Move 1 to Trash' : `Move ${tasks.length} to Trash`}
+        busy={del.isPending}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          const keys = tasks.map((task) => task.key);
+          for (const key of keys) await del.mutateAsync(key);
+          setConfirmDelete(false);
+          if (keys.length === 1 && keys[0]) {
+            const key = keys[0];
+            toast.show({
+              text: <><strong>{key}</strong> moved to Trash</>,
+              onUndo: () => restore.mutate(key),
+              showShortcut: true,
+              durationMs: 10000,
+            });
+          } else {
+            toast.show(`${keys.length} moved to Trash. They stay there for 30 days.`);
+          }
+          onClear();
+        }}
+      >
+        {trashToldCopy(bulkToldNames())}
+      </ConfirmDialog>
     </div>
   );
 }

@@ -22,6 +22,13 @@ export const config = {
   microsoftClientId: process.env.MICROSOFT_CLIENT_ID ?? '',
   microsoftClientSecret: process.env.MICROSOFT_CLIENT_SECRET ?? '',
   blobRoot: env('BLOB_ROOT', '.data/blobs'),
+  githubAppId: process.env.GITHUB_APP_ID ?? '',
+  githubPrivateKey: (process.env.GITHUB_APP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+  githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? '',
+  githubAppSlug: process.env.GITHUB_APP_SLUG ?? '',
+  googleChatAppClientId: process.env.GOOGLE_CHAT_APP_CLIENT_ID ?? '',
+  googleChatAppClientSecret: process.env.GOOGLE_CHAT_APP_CLIENT_SECRET ?? '',
+  googleChatAppVerificationToken: process.env.GOOGLE_CHAT_APP_VERIFICATION_TOKEN ?? '',
 };
 
 export function googleEnabled(): boolean {
@@ -30,4 +37,16 @@ export function googleEnabled(): boolean {
 
 export function microsoftEnabled(): boolean {
   return Boolean(config.microsoftClientId && config.microsoftClientSecret);
+}
+
+export function githubAppEnabled(): boolean {
+  return Boolean(config.githubAppId && config.githubPrivateKey && config.githubAppSlug);
+}
+
+export function chatAppEnabled(): boolean {
+  return Boolean(
+    config.googleChatAppClientId &&
+      config.googleChatAppClientSecret &&
+      config.googleChatAppVerificationToken,
+  );
 }

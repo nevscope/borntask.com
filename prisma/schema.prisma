@@ -1,4 +1,4 @@
-// BornTask dogfood schema. GitHub and Subscription/Invoice tables are deferred to v1.2.
+// BornTask dogfood schema. Subscription/Invoice tables are deferred.
 
 generator client {
   provider = "prisma-client-js"
@@ -92,6 +92,19 @@ enum ImportStatus {
   failed
 }
 
+enum DevLinkKind {
+  branch
+  pr
+  commit
+}
+
+enum DevCheckState {
+  pending
+  running
+  passed
+  failed
+}
+
 model User {
   id            String       @id @default(cuid())
   name          String
@@ -101,6 +114,7 @@ model User {
   providerId    String?
   digestMode    DigestMode   @default(workdays)
   digestHour    Int          @default(8)
+  timeZone      String       @default("Europe/Malta")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -112,6 +126,7 @@ model User {
   watchers      TaskWatcher[]
   notifications Notification[]
   notifyPrefs   NotificationPreference[]
+  chatIntegrations ChatIntegration[]
   apiTokens     ApiToken[]
   oauthGrants   OAuthGrant[]
   savedViews    SavedView[]
@@ -119,6 +134,7 @@ model User {
   accessRequests AccessRequest[]
   inviteRequests InviteRequest[] @relation("InviteRequester")
   activities    ActivityLog[]
+  githubInstalls GitHubInstallation[]
 
   @@index([providerId])
 }
@@ -170,6 +186,12 @@ model Workspace {
   statuses         WorkflowStatus[]
   transitions      WorkflowTransition[]
   taskLabels       TaskLabel[]
+  githubInstalls   GitHubInstallation[]
+  projectRepos     ProjectRepo[]
+  projectGithub    ProjectGithubSettings[]
+  devLinks         DevLink[]
+  githubEvents     GitHubEventLog[]
+  automations      Automation[]
 }
 
 model TenantMember {
@@ -266,9 +288,31 @@ model Project {
   accessRequests AccessRequest[]
   importJobs   ImportJob[]
   chatIntegrations ChatIntegration[]
+  repos            ProjectRepo[]
+  githubSettings   ProjectGithubSettings?
+  githubEvents     GitHubEventLog[]
+  automations      Automation[]
 
   @@unique([tenantId, key])
   @@index([tenantId])
+}
+
+model Automation {
+  id           String   @id @default(cuid())
+  tenantId     String
+  projectId    String
+  onStatusSlug String
+  action       String
+  roleSlug     String
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, onStatusSlug, action])
+  @@index([tenantId, projectId])
 }
 
 model ProjectRole {
@@ -442,6 +486,7 @@ model Task {
   attachments    Attachment[]
   activity       ActivityLog[]
   notifications  Notification[]
+  devLinks       DevLink[]
 
   @@unique([projectId, number])
   @@index([tenantId, projectId])
@@ -612,13 +657,16 @@ model ChatIntegration {
   id             String  @id @default(cuid())
   tenantId       String
   projectId      String?
+  userId         String?
   provider       String  @default("google_chat")
   webhookUrlEnc  String  @db.Text
   events         Json
 
   tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   project Project?  @relation(fields: [projectId], references: [id])
+  user    User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, userId, provider])
   @@index([tenantId])
 }
 
@@ -692,4 +740,84 @@ model ImportJob {
   project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, projectId])
+}
+
+model GitHubInstallation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  installationId    String   @unique
+  accountLogin      String
+  installedByUserId String
+  createdAt         DateTime @default(now())
+
+  tenant      Workspace     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  installedBy User          @relation(fields: [installedByUserId], references: [id])
+  repos       ProjectRepo[]
+
+  @@index([tenantId])
+}
+
+model ProjectRepo {
+  id             String @id @default(cuid())
+  tenantId       String
+  projectId      String
+  installationId String
+  repoFullName   String
+  defaultBranch  String @default("main")
+
+  tenant       Workspace          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installation GitHubInstallation @relation(fields: [installationId], references: [installationId], onDelete: Cascade)
+
+  @@unique([projectId, repoFullName])
+  @@index([tenantId])
+  @@index([repoFullName])
+}
+
+model ProjectGithubSettings {
+  id             String @id @default(cuid())
+  tenantId       String
+  projectId      String @unique
+  branchTemplate String @default("{type}/{key}-{title}")
+  rules          Json
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model DevLink {
+  id           String         @id @default(cuid())
+  tenantId     String
+  taskId       String
+  kind         DevLinkKind
+  repoFullName String
+  ref          String
+  url          String
+  prState      String?
+  checks       DevCheckState?
+  authorLogin  String?
+  extra        String?
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, kind, repoFullName, ref])
+  @@index([tenantId, taskId])
+}
+
+model GitHubEventLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  projectId String
+  at        DateTime @default(now())
+  text      String   @db.Text
+  result    String
+  tone      String   @default("ink")
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId, at])
 }

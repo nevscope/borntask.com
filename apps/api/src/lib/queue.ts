@@ -7,6 +7,7 @@ const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
 let connection: Redis | undefined;
 let importQueue: Queue | undefined;
 let notifyQueue: Queue | undefined;
+let githubQueue: Queue | undefined;
 
 export function getRedis() {
   if (!connection) connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
@@ -25,6 +26,11 @@ export function getImportQueue() {
 export function getNotifyQueue() {
   if (!notifyQueue) notifyQueue = new Queue(QUEUE.notify, { connection: redis() });
   return notifyQueue;
+}
+
+export function getGithubQueue() {
+  if (!githubQueue) githubQueue = new Queue(QUEUE.github, { connection: redis() });
+  return githubQueue;
 }
 
 export { JOB, QUEUE };

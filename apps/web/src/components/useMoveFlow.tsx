@@ -2,24 +2,19 @@
 //   allowed            → move straight away
 //   needs a comment    → small dialog first (e.g. Fail, Reject)
 //   not allowed        → card stays put; message offers "Ask <role>" and, for leads/admins, "Override…"
-import { App, Button, Input, Modal } from 'antd';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Button, Input, Modal } from 'antd';
+import { useState, type ReactNode } from 'react';
 import { useAddComment, useMe, useMoveTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { canOverride, checkMove, rolesLabel, statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
+import { useStatusToast } from './StatusToast';
 
 interface Pending {
   task: Task;
   toStatusId: string;
   mode: 'comment' | 'override';
   title: string;
-}
-
-interface UndoState {
-  key: string;
-  fromStatusId: string;
-  toName: string;
 }
 
 interface BlockedState {
@@ -31,20 +26,13 @@ interface BlockedState {
 }
 
 export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board?: boolean }) {
-  const { message, notification } = App.useApp();
+  const toast = useStatusToast();
   const me = useMe().data;
   const move = useMoveTask();
   const addComment = useAddComment();
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState('');
-  const [undo, setUndo] = useState<UndoState | null>(null);
   const [blocked, setBlocked] = useState<BlockedState | null>(null);
-
-  useEffect(() => {
-    if (!undo) return;
-    const timer = window.setTimeout(() => setUndo(null), 8000);
-    return () => window.clearTimeout(timer);
-  }, [undo]);
 
   const myRoles: ProjectRole[] = detail?.members.find((m) => m.userId === me?.user.id)?.roles ?? [];
   const mayOverride = me ? canOverride(me.workspaceRole, myRoles) : false;
@@ -54,8 +42,21 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     move.mutate(
       { key: task.key, input: { toStatusId, ...extra } },
       {
-        onSuccess: () => setUndo({ key: task.key, fromStatusId: task.statusId, toName: to?.name ?? toStatusId }),
-        onError: (e) => void notification.error({ message: 'Move failed', description: e.message }),
+        onSuccess: () => {
+          const assignee = detail?.users.find((user) => user.id === task.assigneeId);
+          const notified = assignee && assignee.id !== me?.user.id ? ` ${assignee.name} was notified.` : '';
+          const fromStatusId = task.statusId;
+          toast.show({
+            text: <><strong>{task.key}</strong> moved to {to?.name ?? toStatusId}.{notified}</>,
+            onUndo: () => {
+              move.mutate(
+                { key: task.key, input: { toStatusId: fromStatusId, undo: true } },
+                { onError: () => toast.show({ kind: 'error', text: 'Could not undo.' }) },
+              );
+            },
+          });
+        },
+        onError: () => toast.show({ kind: 'error', text: 'Could not move this task.' }),
       },
     );
   }
@@ -69,7 +70,7 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     const mentions = names.map((n) => `@${n}`).join(' ');
     addComment.mutate(
       { key: task.key, body: `${mentions} could you move this to ${toName}?` },
-      { onSuccess: () => void message.success(`Asked ${names.join(' and ') || 'the team'} on ${task.key}`) },
+      { onSuccess: () => toast.show(`Asked ${names.join(' and ') || 'the team'} on ${task.key}`) },
     );
   }
 
@@ -81,7 +82,7 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     const check = checkMove(wf, task, toStatusId, myRoles);
 
     if (check.kind === 'no-path') {
-      void message.info(`${task.key} can't go from ${from?.name} straight to ${to?.name}.`);
+      toast.show({ kind: 'error', text: `${task.key} can't go from ${from?.name} straight to ${to?.name}.` });
       return;
     }
     if (check.kind === 'not-allowed') {
@@ -95,25 +96,16 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
         });
         return;
       }
-      const key = `blocked-${task.key}`;
-      notification.warning({
-        key,
-        message: `Only ${rolesLabel(check.transition.roles)} can move tasks to ${to?.name}`,
-        description: (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <span>{task.key} stays in {from?.name}.</span>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button size="small" type="primary" onClick={() => { notification.destroy(key); askPeople(task, check.transition.roles, to?.name ?? ''); }}>
-                Ask {rolesLabel(check.transition.roles).toLowerCase()}
-              </Button>
-              {mayOverride && (
-                <Button size="small" onClick={() => { notification.destroy(key); setText(''); setPending({ task, toStatusId, mode: 'override', title: `Override: move ${task.key} to ${to?.name}` }); }}>
-                  Override…
-                </Button>
-              )}
-            </div>
-          </div>
-        ),
+      toast.show({
+        kind: 'plain',
+        text: `${task.key} stays in ${from?.name}. Only ${rolesLabel(check.transition.roles)} can move tasks to ${to?.name}.`,
+        actions: [
+          { label: `Ask ${rolesLabel(check.transition.roles).toLowerCase()}`, onClick: () => askPeople(task, check.transition.roles, to?.name ?? '') },
+          ...(mayOverride
+            ? [{ label: 'Override…', onClick: () => { setText(''); setPending({ task, toStatusId, mode: 'override', title: `Override: move ${task.key} to ${to?.name}` }); } }]
+            : []),
+        ],
+        durationMs: 10000,
       });
       return;
     }
@@ -123,16 +115,6 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
       return;
     }
     run(task, toStatusId, {});
-  }
-
-  function undoMove() {
-    if (!undo) return;
-    const back = undo;
-    setUndo(null);
-    move.mutate(
-      { key: back.key, input: { toStatusId: back.fromStatusId, undo: true } },
-      { onError: (e) => void notification.error({ message: 'Could not undo', description: e.message }) },
-    );
   }
 
   const modal: ReactNode = (
@@ -152,12 +134,6 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
           )}
           <Button size="small" onClick={() => setBlocked(null)}>Dismiss</Button>
         </div>
-      </div>
-    )}
-    {undo && (
-      <div role="status" style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 40, display: 'flex', alignItems: 'center', gap: 12, maxWidth: 520, padding: '12px 14px', background: color.ink, color: color.surface, borderRadius: 12, fontSize: 13.5 }}>
-        <span style={{ flex: 1 }}><strong>{undo.key}</strong> moved to {undo.toName}.</span>
-        <button type="button" onClick={undoMove} style={{ height: 30, padding: '0 12px', border: 0, borderRadius: 6, background: color.surface, color: color.ink, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Undo</button>
       </div>
     )}
     <Modal

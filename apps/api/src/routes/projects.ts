@@ -9,7 +9,7 @@ import { projectKeyFromName } from '../lib/tokens.js';
 const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   key: z.string().trim().min(2).max(6).optional(),
-  colour: z.string().optional(),
+  colour: z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C').optional(),
   workflowId: z.string().optional(),
   workflow: z.enum(['delivery', 'simple']).optional(),
   sections: z.array(z.string().trim().min(1)).optional(),
@@ -93,7 +93,9 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           tenantId: auth.tenantId,
           name: input.name,
           key,
-          colour: input.colour ?? '#178A5C',
+          colour: input.colour
+            ? `#${input.colour.replace(/^#/, '').toUpperCase().replace(/^([0-9A-F])([0-9A-F])([0-9A-F])$/, (_, a, b, c) => `${a}${a}${b}${b}${c}${c}`)}`
+            : '#178A5C',
           leadId: auth.userId,
           workflowId,
         },

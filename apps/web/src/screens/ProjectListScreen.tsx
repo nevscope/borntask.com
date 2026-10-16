@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
+import { GitHubBadge } from '../components/Chips';
 import { BulkBar } from '../components/BulkBar';
 import { ListFields } from '../components/ListFields';
 import { NoAccess } from '../components/NoAccess';
@@ -247,6 +248,7 @@ function Row({
       <button className="bt-row-title" style={{ color: done ? color.muted : undefined }} onClick={() => openTask(task.key)}>
         {task.title}
         {task.subtaskCount.total > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+        {task.githubBadge && <span style={{ marginLeft: 8 }}><GitHubBadge kind={task.githubBadge} compact /></span>}
       </button>
       <ListFields task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} />
     </div>

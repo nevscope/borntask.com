@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useMe } from '../api/queries';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color } from '../theme/tokens';
 
 type WorkspaceSettings = {
@@ -19,6 +20,23 @@ type WorkspaceSettings = {
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
 };
+
+const SAVED_FIELDS = [
+  'name',
+  'slug',
+  'timeZone',
+  'weekStart',
+  'defaultWorkflowId',
+  'bugsStartIn',
+  'allowGoogle',
+  'allowMicrosoft',
+  'membersCanInviteGuests',
+] as const;
+
+function settingsSnapshot(values: Partial<WorkspaceSettings> | undefined) {
+  if (!values) return '';
+  return JSON.stringify(SAVED_FIELDS.map((key) => values[key] ?? null));
+}
 
 export function WorkspaceGeneralScreen() {
   const me = useMe().data;
@@ -42,6 +60,10 @@ export function WorkspaceGeneralScreen() {
   useEffect(() => {
     if (ws.data) form.setFieldsValue(ws.data);
   }, [ws.data, form]);
+
+  const draft = Form.useWatch([], form) as Partial<WorkspaceSettings> | undefined;
+  const dirty = Boolean(ws.data && draft && settingsSnapshot(draft) !== settingsSnapshot(ws.data));
+  const unsaved = useUnsavedChanges(dirty);
 
   const initials = (ws.data?.name ?? me?.workspace.name ?? 'BT')
     .split(/\s+/)
@@ -123,6 +145,12 @@ export function WorkspaceGeneralScreen() {
           </div>
         </section>
         <section className="bt-card" style={{ padding: '16px 18px' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600 }}>Google Chat app</h2>
+          <p style={{ margin: 0, fontSize: 13, color: color.muted, lineHeight: 1.5 }}>
+            The BornTask Chat app is configured on the server with GOOGLE_CHAT_APP_CLIENT_ID, GOOGLE_CHAT_APP_CLIENT_SECRET and GOOGLE_CHAT_APP_VERIFICATION_TOKEN. Ops (not done from this screen): create a Google Cloud project, enable the Chat API, list the app, and allow it on the Workspace. Direct messages need that allowlist. Space webhooks stay available without it. See docs/GOOGLE-CHAT-APP.md.
+          </p>
+        </section>
+        <section className="bt-card" style={{ padding: '16px 18px' }}>
           <h2 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 600 }}>Security</h2>
           <Form.Item name="allowGoogle" valuePropName="checked" style={{ marginBottom: 8 }}><Checkbox className="bt-check-row">Allow sign-in with Google</Checkbox></Form.Item>
           <Form.Item name="allowMicrosoft" valuePropName="checked" style={{ marginBottom: 8 }}>
@@ -170,6 +198,7 @@ export function WorkspaceGeneralScreen() {
         {deleteError && <Alert type="error" message={deleteError} style={{ marginBottom: 12 }} />}
         <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} aria-label="Workspace name" />
       </Modal>
+      {unsaved}
     </SettingsFrame>
   );
 }

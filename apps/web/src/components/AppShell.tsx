@@ -12,6 +12,8 @@ import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
 import { NotificationBell } from './NotificationBell';
 import { TopSearch } from './TopSearch';
+import { useStatusToast } from './StatusToast';
+import { useLiveUpdates } from '../hooks/useLiveUpdates';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe().data;
@@ -22,8 +24,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const welcome = params.get('welcome');
-  const [toastOn, setToastOn] = useState(true);
   const [shortcuts, setShortcuts] = useState(false);
+  const joined = useStatusToast();
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
   const workspaceId = me?.workspace.id;
@@ -35,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     .filter((p): p is NonNullable<typeof p> => p !== undefined && !favouriteKeys.has(p.key))
     .slice(0, 10);
   const myCount = (myTasks?.assigned.length ?? 0) + (myTasks?.approvals.length ?? 0);
+  useLiveUpdates(Boolean(me));
   const workspaces = me?.workspaces ?? [];
   const pinned = guest ? projects : favourites;
 
@@ -43,6 +46,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       navigate('/create-workspace', { replace: true });
     }
   }, [me, navigate]);
+
+  useEffect(() => {
+    if (welcome !== 'member') return;
+    joined.show({
+      text: <>You've joined <strong>{stored?.workspaceName || me?.workspace.name || 'the workspace'}</strong></>,
+    });
+  }, [welcome]);
 
   useEffect(() => {
     let armed = false;
@@ -221,16 +231,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main>{children}</main>
       </div>
-      {welcome && toastOn && (
-        <div role="status" style={{ position: 'fixed', top: 72, right: 24, zIndex: 30, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', maxWidth: 360, background: color.ink, color: color.surface, borderRadius: 10, fontSize: 13.5 }}>
-          <span style={{ width: 20, height: 20, borderRadius: '50%', display: 'grid', placeItems: 'center', background: color.brand, flex: 'none' }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={color.surface} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
-          </span>
-          <span style={{ flex: 1 }}>You've joined <strong>{stored?.workspaceName || me?.workspace.name || 'the workspace'}</strong></span>
-          <button type="button" aria-label="Dismiss" onClick={() => setToastOn(false)} style={{ border: 0, background: 'transparent', color: color.surface, cursor: 'pointer', font: 'inherit' }}>×</button>
-        </div>
-      )}
-
       <TaskDrawer />
       {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
     </div>

@@ -4,9 +4,11 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { useMe, useProject } from '../api/queries';
 import type { StatusCategory, Transition, WorkflowStatus } from '../api/types';
+import { AutomationsCard } from '../components/AutomationsCard';
 import { RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color, toneStyle } from '../theme/tokens';
 
 type Stage = WorkflowStatus & { taskCount: number };
@@ -86,6 +88,7 @@ export function WorkflowEditorScreen() {
 
   const wf = workflows.find((w) => w.id === id);
   const dirty = JSON.stringify({ stages, rows }) !== baseline || removals.length > 0;
+  const unsaved = useUnsavedChanges(dirty);
 
   const patch = (stageId: string, next: Partial<Stage>) => {
     setSaved(false);
@@ -337,6 +340,7 @@ export function WorkflowEditorScreen() {
           </button>
         </div>
       </section>
+      {projectKey ? <AutomationsCard projectKey={projectKey} /> : null}
       <ConfirmDialog
         open={pendingStage !== null}
         title={pendingStage ? `Remove ${pendingStage.stage.name}?` : 'Remove this stage?'}
@@ -351,6 +355,7 @@ export function WorkflowEditorScreen() {
           ? `It has ${pendingStage.stage.taskCount} ${pendingStage.stage.taskCount === 1 ? 'task' : 'tasks'}. Choose where ${pendingStage.stage.taskCount === 1 ? 'it goes' : 'they go'}, then save the workflow.`
           : 'Moves into and out of this stage are removed too. Save the workflow to keep the change.'}
       </ConfirmDialog>
+      {unsaved}
       <ConfirmDialog
         open={pendingMove !== null && pendingRow != null}
         title={pendingRow ? `Remove the move from ${nameOf(pendingRow.from)} to ${nameOf(pendingRow.to)}?` : 'Remove this move?'}

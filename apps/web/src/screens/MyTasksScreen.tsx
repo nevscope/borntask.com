@@ -1,5 +1,5 @@
 // Screen 1 · My tasks. Ideas waiting for my decision first, then my tasks by due date.
-import { App, Button, Segmented, Skeleton } from 'antd';
+import { Button, Segmented, Skeleton } from 'antd';
 import { useQueries } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
@@ -8,6 +8,7 @@ import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/que
 import type { ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TypeTag } from '../components/Chips';
 import { useQuickAdd } from '../components/QuickAdd';
+import { useStatusToast } from '../components/StatusToast';
 import { useTaskParam } from '../components/useTaskParam';
 import { GuestWelcome, MemberEmpty } from '../components/WelcomeInShell';
 import { dueBucket, dueColor, dueLabel, dueTone, type DueBucket } from '../lib/dates';
@@ -28,7 +29,7 @@ export function MyTasksScreen() {
   const quickAdd = useQuickAdd();
   const { openTask } = useTaskParam();
   const move = useMoveTask();
-  const { message } = App.useApp();
+  const toast = useStatusToast();
   const [params] = useSearchParams();
 
   const keys = [...new Set([...(mine.data?.assigned ?? []), ...(mine.data?.approvals ?? [])].map((t) => t.projectKey))];
@@ -45,7 +46,10 @@ export function MyTasksScreen() {
   const approve = (t: Task) =>
     move.mutate(
       { key: t.key, input: { toStatusId: 'approved' } },
-      { onSuccess: () => void message.success(`${t.key} approved. The developers have been told.`), onError: (e) => void message.error(e.message) },
+      {
+        onSuccess: () => toast.show({ text: <><strong>{t.key}</strong> moved to Approved.</>, onUndo: () => move.mutate({ key: t.key, input: { toStatusId: t.statusId, undo: true } }) }),
+        onError: () => toast.show({ kind: 'error', text: 'Could not approve this idea.' }),
+      },
     );
 
   return (

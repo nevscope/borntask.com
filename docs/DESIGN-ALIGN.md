@@ -1,5 +1,36 @@
 # BornTask spacing and alignment audit
 
+## Toasts, inline messages, and confirmations
+
+Source of truth: `SheetModals.dc.html`, `SheetDragDrop.dc.html`, `WelcomeMember.dc.html`, `SheetApprovals.dc.html`, `SheetStates.dc.html`. Live chrome is `StatusToast` (dark ink, optional Undo / Ctrl Z) and `ConfirmDialog`. Ant Design `message` / `notification` / `modal.confirm` are no longer used for these.
+
+| Mock | Live (before) | Action |
+| --- | --- | --- |
+| Invite sent (check toast, `SheetModals` / invite copy) | `StatusToast` on invite | Keep |
+| You've joined workspace (`WelcomeMember`) | Duplicate inline toast in `AppShell` | Done |
+| Welcome guest | No floating toast in mock | Keep |
+| `{key} moved to Trash` + Undo + Ctrl Z | Ant `message.open` in `TaskDrawer` | Done |
+| Delete task with subtasks alertdialog | `ConfirmDialog` | Done |
+| Bulk delete | Ant `modal.confirm` | Done |
+| Single-task delete dialog | None (already toast-only) | Keep |
+| `{key} moved to {status}. {name} was notified.` + Undo | Bottom-right custom bar, missing notified | Done |
+| List drag SR announce | No toast (correct) | Keep |
+| Copy link / Watch | Ant success toasts | Done |
+| Quick add `{key} created` | Ant success | Done |
+| Approve from My tasks | Ant success with extra sentence | Done |
+| Types toggle on Structure | Ant info | Done |
+| Invite / save / move errors | Ant snackbar, often raw API | Done |
+| Blocked move (list) | Ant `notification.warning` | Done |
+| Blocked move (board) | Inline card | Keep |
+| Reject / override comment | Ant `Modal` | Keep |
+| Remove member / revoke invite | `ConfirmDialog` | Keep |
+| Revoke token / disconnect app | `ConfirmDialog` | Keep |
+| Disconnect Chat | `ConfirmDialog` | Keep |
+| Remove saved view / unsaved leave / workflow remove | `ConfirmDialog` | Keep |
+| Workflow save confirm | `ConfirmDialog` | Keep |
+
+## Spacing findings (earlier audit)
+
 Measured in the running app at `http://localhost:5174`, signed in as `owner@borntask.com`, against `apps/web/docs/design/*.dc.html`.
 
 Viewport was set to **1440 × 900** CSS pixels (`Emulation.setDeviceMetricsOverride`). Layout viewport stayed 1440 wide for every screen below. `tokens.ts` defines `radius` only (`sm` 6, `md` 8, `lg` 12, `xl` 14). There is no gap or padding scale, so suggestions name the spec pixel value and a radius token when one exists.

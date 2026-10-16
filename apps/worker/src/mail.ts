@@ -1,4 +1,4 @@
-import { mailJobSchema, type MailJob } from '@borntask/shared';
+import { digestSubject, mailJobSchema, type MailJob } from '@borntask/shared';
 
 const FROM = { email: 'notify@borntask.com', name: 'BornTask' };
 
@@ -26,11 +26,68 @@ function shell(body: string, footer: string): string {
 </body></html>`;
 }
 
-function button(href: string, label: string): string {
-  return `<a href="${esc(href)}" style="display:inline-block;height:46px;line-height:46px;padding:0 22px;border-radius:10px;background:#178A5C;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;">${esc(label)}</a>`;
+function button(href: string, label: string, ink = false): string {
+  const bg = ink ? '#121417' : '#178A5C';
+  return `<a href="${esc(href)}" style="display:inline-block;height:46px;line-height:46px;padding:0 22px;border-radius:10px;background:${bg};color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;">${esc(label)}</a>`;
+}
+
+function digestLine(item: { key: string; title: string; statusName?: string; extra?: string }): string {
+  const extra = item.statusName || item.extra;
+  return extra ? `${item.key}  ${item.title}  (${extra})` : `${item.key}  ${item.title}`;
 }
 
 export function renderMail(job: MailJob): { subject: string; text: string; html: string } {
+  if (job.kind === 'digest') {
+    const dueCount = job.due.length + job.overdue.length;
+    const subject = digestSubject(dueCount, job.mentions.length);
+    const sections: string[] = [];
+    if (job.due.length) {
+      sections.push(['Due today', ...job.due.map(digestLine)].join('\n'));
+    }
+    if (job.overdue.length) {
+      sections.push(['Overdue', ...job.overdue.map(digestLine)].join('\n'));
+    }
+    if (job.mentions.length) {
+      sections.push(['Mentions', ...job.mentions.map((item) => `${item.key}: ${item.extra ?? item.title}`)].join('\n'));
+    }
+    if (job.staleIdeas.length) {
+      sections.push(['Ideas waiting more than 5 working days', ...job.staleIdeas.map(digestLine)].join('\n'));
+    }
+    const text = [
+      `Good morning, ${job.greetingName}`,
+      '',
+      ...sections.flatMap((block) => [block, '']),
+      `Open My tasks: ${job.myTasksUrl}`,
+      '',
+      job.footerNote,
+      job.profileUrl,
+    ].join('\n');
+    const htmlSection = (
+      title: string,
+      colour: string,
+      rows: { key: string; title: string; url: string; statusName?: string; extra?: string }[],
+    ) => {
+      if (!rows.length) return '';
+      const items = rows
+        .map(
+          (row) =>
+            `<a href="${esc(row.url)}" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #EEF0EC;color:#121417;text-decoration:none;font-size:14.5px;"><span style="color:#5B6157;width:64px;">${esc(row.key)}</span><span style="flex:1;">${esc(row.title)}${row.extra ? ` - ${esc(row.extra)}` : ''}</span>${row.statusName ? `<span style="color:#A04A0C;font-size:13px;">${esc(row.statusName)}</span>` : ''}</a>`,
+        )
+        .join('');
+      return `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:${colour};">${esc(title)}</span>${items}</div>`;
+    };
+    const html = shell(
+      `<div style="display:flex;align-items:baseline;gap:12px;margin:0 0 16px;"><p style="margin:0;font-size:20px;font-weight:600;line-height:1.3;">Good morning, ${esc(job.greetingName)}</p><span style="margin-left:auto;font-size:13px;color:#5B6157;">${esc(job.dateLabel)}</span></div>
+       ${htmlSection('Due today', '#B42323', job.due)}
+       ${htmlSection('Overdue', '#B42323', job.overdue)}
+       ${htmlSection('Mentions', '#5B6157', job.mentions.map((m) => ({ ...m, title: m.extra ?? m.title })))}
+       ${htmlSection('Ideas waiting more than 5 working days', '#5B6157', job.staleIdeas)}
+       <p style="margin:18px 0 0;">${button(job.myTasksUrl, 'Open My tasks', true)}</p>`,
+      `${esc(job.footerNote)} <a href="${esc(job.profileUrl)}" style="color:#0F6B46;">Change email settings</a>`,
+    );
+    return { subject, text, html };
+  }
+
   if (job.kind === 'wrong-account') {
     const subject = `${job.requesterName} asked for an invitation to ${job.workspaceName}`;
     const text = [
@@ -87,6 +144,10 @@ function devLog(job: MailJob) {
   }
   if (job.kind === 'invite') {
     console.log(`[BornTask] Invite for ${job.to}: ${job.inviteUrl}`);
+    return;
+  }
+  if (job.kind === 'digest') {
+    console.log(`[BornTask] Digest for ${job.to}: ${renderMail(job).subject}`);
     return;
   }
   console.log(`[BornTask] Wrong-account request: ${job.requesterEmail} asked for an invite meant for ${job.invitedEmail}`);

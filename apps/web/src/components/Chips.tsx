@@ -1,5 +1,5 @@
 import type { Priority, ProjectRole, TaskType, User, WorkflowStatus } from '../api/types';
-import { avatarTones, priorityStyle, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
+import { avatarTones, githubBadgeStyle, priorityStyle, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
 
 export function TypeTag({ type, small = false }: { type: TaskType; small?: boolean }) {
   const s = typeStyle[type];
@@ -39,6 +39,29 @@ export function PriorityLabel({ priority }: { priority: Priority }) {
 export function RoleTag({ role }: { role: ProjectRole }) {
   const r = roleStyle[role];
   return <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: r.bg, color: r.fg }}>{r.label}</span>;
+}
+
+export function GitForkIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="18" r="2.5" />
+      <path d="M6 8.5v7M18 15.5V10a3 3 0 0 0-3-3h-4" />
+    </svg>
+  );
+}
+
+export function GitHubBadge({ kind, compact = false }: { kind: keyof typeof githubBadgeStyle | null | undefined; compact?: boolean }) {
+  if (!kind) return null;
+  const s = githubBadgeStyle[kind];
+  const label = compact ? (kind === 'merged' ? 'Merged' : kind === 'branch' ? 'Branch' : 'PR 1') : s.label;
+  return (
+    <span title={s.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: compact ? '1px 7px' : '2px 8px', borderRadius: 6, background: s.bg, color: s.fg, fontWeight: 600, fontSize: 12, marginLeft: 'auto' }}>
+      <GitForkIcon />
+      {label}
+    </span>
+  );
 }
 
 export function LockIcon({ size = 12 }: { size?: number }) {

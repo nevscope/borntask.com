@@ -1,4 +1,4 @@
-import { Alert, App, Button, Dropdown } from 'antd';
+import { Alert, Button, Dropdown } from 'antd';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,6 @@ const ALL_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'ob
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
 
 export function ProjectMembersScreen() {
-  const { message } = App.useApp();
   const sent = useStatusToast();
   const { projectKey = '' } = useParams();
   const me = useMe().data;
@@ -71,7 +70,7 @@ export function ProjectMembersScreen() {
       if (action === 'resend') sent.show(`Invitation sent to ${email}`);
       if (action === 'revoke') setPendingRevoke(null);
     } catch (err) {
-      void message.error(err instanceof Error ? err.message : 'Could not resend the invitation');
+      sent.show({ kind: 'error', text: 'Could not resend the invitation.' });
     }
   };
 
@@ -146,7 +145,6 @@ export function ProjectMembersScreen() {
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
       </section>
-      {sent.toast}
       <ConfirmDialog
         open={pendingRevoke !== null}
         title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}

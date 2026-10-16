@@ -34,6 +34,12 @@ export const TENANT_SCOPED_MODELS = new Set<Prisma.ModelName>([
   'OAuthClient',
   'OAuthGrant',
   'ImportJob',
+  'GitHubInstallation',
+  'ProjectRepo',
+  'ProjectGithubSettings',
+  'DevLink',
+  'GitHubEventLog',
+  'Automation',
 ]);
 
 function andTenant(where: unknown, tenantId: string): Record<string, unknown> {

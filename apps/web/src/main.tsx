@@ -5,9 +5,10 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/en-gb';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
 import { QuickAddProvider } from './components/QuickAdd';
+import { StatusToastHost } from './components/StatusToast';
 import { antdTheme } from './theme/antdTheme';
 import './theme/global.css';
 
@@ -17,6 +18,19 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, refetchOnWindowFocus: false, retry: 1 } },
 });
 
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: (
+      <StatusToastHost>
+        <QuickAddProvider>
+          <App />
+        </QuickAddProvider>
+      </StatusToastHost>
+    ),
+  },
+]);
+
 const root = document.getElementById('root');
 if (!root) throw new Error('#root missing');
 
@@ -25,11 +39,7 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <ConfigProvider theme={antdTheme} locale={enGB}>
         <AntApp>
-          <BrowserRouter>
-            <QuickAddProvider>
-              <App />
-            </QuickAddProvider>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </AntApp>
       </ConfigProvider>
     </QueryClientProvider>

@@ -1,5 +1,5 @@
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { Button, Input, Modal, Select, Switch, App } from 'antd';
+import { Button, Input, Modal, Select, Switch } from 'antd';
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { BASE_URL } from '../api/http';
 import { SettingsFrame } from '../components/SettingsNav';
 import { TypeTag } from '../components/Chips';
 import { color } from '../theme/tokens';
+import { useStatusToast } from '../components/StatusToast';
 import type { TaskType } from '../api/types';
 
 const TYPE_TPL: Record<TaskType, string> = {
@@ -19,8 +20,8 @@ const TYPE_TPL: Record<TaskType, string> = {
 
 export function ProjectStructureScreen() {
   const { projectKey = '' } = useParams();
-  const { message } = App.useApp();
   const me = useMe().data;
+  const toast = useStatusToast();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
   const tasks = useProjectTasks(projectKey);
@@ -164,7 +165,7 @@ export function ProjectStructureScreen() {
               <Switch
                 checked
                 aria-label={`Use ${slug} in this project`}
-                onChange={() => { void message.info('Types are workspace-wide for now. Per-project toggles are not stored yet.'); }}
+                onChange={() => toast.show('Types for this project stay on.')}
               />
             </label>
           ))}

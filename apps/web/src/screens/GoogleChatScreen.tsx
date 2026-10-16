@@ -1,11 +1,12 @@
 import { Button, Checkbox, Input } from 'antd';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ApiError } from '../api/http';
 import { useChatSettings, useDisconnectChat, useMe, useProject, useSaveChat, useTestChat, type ChatEvents } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LogoMark } from '../components/Logo';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
 import { color, font } from '../theme/tokens';
 
@@ -57,6 +58,10 @@ export function GoogleChatScreen() {
     if (chat.data.webhookMask) setUrl(chat.data.webhookMask);
     setEventsReady(true);
   }, [chat.data, eventsReady]);
+
+  const eventsDirty = Boolean(eventsReady && chat.data && JSON.stringify(events) !== JSON.stringify(chat.data.events));
+  const dirty = urlDirty || eventsDirty;
+  const unsaved = useUnsavedChanges(dirty);
 
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const myRoles = project?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
@@ -213,9 +218,19 @@ export function GoogleChatScreen() {
               </div>
             </div>
           </div>
-          <p style={{ margin: 0, fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>Webhooks only post into the space. Creating tasks from a Chat message needs the BornTask Chat app (planned for v2).</p>
+          <p style={{ margin: 0, fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>Webhooks only post into the space. Creating tasks from a Chat message needs the BornTask Chat app.</p>
         </aside>
       </div>
+      <section className="bt-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted }}>BornTask Chat app</span>
+        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5 }}>
+          {chat.data?.appConfigured
+            ? 'The Chat app is configured on this server. Slash commands, Create BornTask task, and idea Approve / Reject use it.'
+            : 'The Chat app is not configured on this server yet. Space webhooks still work.'}
+          {' '}
+          Workspace owners set this under <Link to="/settings/workspace">Workspace</Link> with the server env (Google Cloud project, Chat API, app listing, Workspace allowlist).
+        </p>
+      </section>
       <ConfirmDialog
         open={confirmDisconnect}
         title="Disconnect Google Chat?"
@@ -239,6 +254,7 @@ export function GoogleChatScreen() {
       >
         This space will stop receiving BornTask updates. You can connect it again later.
       </ConfirmDialog>
+      {unsaved}
     </SettingsFrame>
   );
 }

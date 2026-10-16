@@ -1,4 +1,4 @@
-import { App, Modal, Select } from 'antd';
+import { Modal, Select } from 'antd';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
@@ -35,7 +35,6 @@ export function InvitePeopleButton({
   projectName?: string;
   variant?: 'icon' | 'primary';
 }) {
-  const { message } = App.useApp();
   const sent = useStatusToast();
   const qc = useQueryClient();
   const me = useMe().data;
@@ -84,7 +83,7 @@ export function InvitePeopleButton({
     commitDraft();
     const list = [...new Set([...emails, ...parseEmails(draft)])];
     if (list.length === 0) {
-      void message.error('Add at least one email address.');
+      sent.show({ kind: 'error', text: 'Add at least one email address.' });
       return;
     }
     setBusy(true);
@@ -107,7 +106,7 @@ export function InvitePeopleButton({
       sent.show(inviteSentText(json.invites ?? []));
       setOpen(false);
     } catch (e) {
-      void message.error(e instanceof Error ? e.message : 'Invite failed');
+      sent.show({ kind: 'error', text: 'Could not send the invitation.' });
     } finally {
       setBusy(false);
     }
@@ -115,7 +114,6 @@ export function InvitePeopleButton({
 
   return (
     <>
-      {sent.toast}
       {variant === 'primary' ? (
         <button type="button" onClick={() => setOpen(true)} style={primaryBtn}>
           <PlusIcon />

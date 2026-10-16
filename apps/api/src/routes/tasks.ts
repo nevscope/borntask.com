@@ -1,16 +1,24 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { suggestedBranchName } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
-import { config } from '../env.js';
-import { notFound, sendError, validation } from '../errors.js';
-import { actorName, enqueueChat, taskUrl, userName } from '../lib/chatNotify.js';
+import { forbidden, notFound, sendError, validation } from '../errors.js';
+import { actorName, enqueueChat, enqueuePersonalChat, mentionUserIds, taskUrl, userName, workspacePeople } from '../lib/chatNotify.js';
+import { badgesForTasks } from '../lib/githubBadge.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, taskKey } from '../lib/loadProject.js';
 import { nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { moveTask } from '../lib/moveTask.js';
+import { publishTaskChange } from '../lib/live.js';
+import {
+  attachPendingToTask,
+  mapAttachment,
+  openAttachmentFile,
+  removeAttachmentFile,
+  storePendingUpload,
+  storeTaskUpload,
+} from '../lib/attachments.js';
 
 const createTaskSchema = z.object({
   projectKey: z.string(),
@@ -64,7 +72,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         },
         orderBy: { position: 'asc' },
       });
-      return rows.map(mapTask);
+      const badges = await badgesForTasks(auth.db, rows.map((row) => row.id));
+      return rows.map((row) => ({ ...mapTask(row), githubBadge: badges.get(row.id) ?? null }));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -173,8 +182,39 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       });
       const children = await auth.db.task.findMany({ where: { parentId: row.id, deletedAt: null } });
       const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
+      const badges = await badgesForTasks(auth.db, [row.id]);
+      const repoCount = await auth.db.projectRepo.count({ where: { projectId: row.projectId } });
+      const ghSettings = await auth.db.projectGithubSettings.findFirst({ where: { projectId: row.projectId } });
+      const links = await auth.db.devLink.findMany({ where: { taskId: row.id }, orderBy: { kind: 'asc' } });
+      const branch = suggestedBranchName(
+        ghSettings?.branchTemplate ?? '{type}/{key}-{title}',
+        row.type.slug,
+        taskKey(row.project.key, row.number),
+        row.title,
+      );
+      const ghActivity = activity.filter((a) => a.via === 'github').slice(0, 8);
+      const attachments = await auth.db.attachment.findMany({ where: { taskId: row.id }, orderBy: { createdAt: 'asc' } });
+      const mappedKey = taskKey(row.project.key, row.number);
       return {
         ...mapTask({ ...row, subtasks: children }),
+        githubBadge: badges.get(row.id) ?? null,
+        development: {
+          enabled: repoCount > 0,
+          suggestedBranch: branch,
+          gitCheckout: `git checkout -b ${branch}`,
+          links: links.map((link) => ({
+            id: link.id,
+            kind: link.kind,
+            title: link.extra || (link.kind === 'pr' ? `#${link.ref}` : link.ref),
+            url: link.url,
+            repo: link.repoFullName.split('/')[1] ?? link.repoFullName,
+            author: link.authorLogin ?? '',
+            prState: link.prState,
+            checks: link.checks,
+            extra: link.extra ?? '',
+          })),
+          githubActivity: ghActivity.map((a) => ({ when: a.at.toISOString(), text: a.action })),
+        },
         subtasks: children.map((c) => ({ id: c.id, title: c.title, done: Boolean(c.completedAt) })),
         comments: comments.map((c) => ({
           id: c.id,
@@ -186,11 +226,12 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         activity: activity.map((a) => ({
           id: a.id,
           actorId: a.actorId ?? '',
-          via: a.via === 'automation' ? 'app' : a.via,
+          via: a.via,
           text: a.action,
           at: a.at.toISOString(),
         })),
         watcherIds: watchers.map((w) => w.userId),
+        attachments: attachments.map((att) => mapAttachment(mappedKey, att)),
         deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
       };
     } catch (err) {
@@ -237,6 +278,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
+      await attachPendingToTask(auth, created.id, input.attachmentIds);
       await auth.db.activityLog.create({
         data: {
           tenantId: auth.tenantId,
@@ -261,19 +303,23 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           url,
         });
       }
+      const mappedCreated = mapTask(created);
+      publishTaskChange(auth, mappedCreated, 'create');
       if (created.assigneeId) {
         const assignee = await userName(created.assigneeId);
-        await enqueueChat(auth, {
+        const assignedJob = {
           projectId: created.projectId,
-          event: 'assigned',
+          event: 'assigned' as const,
           title: created.title,
           taskKey: createdKey,
           projectName: created.project.name,
           text: assignee ? `${name} assigned it to ${assignee}.` : `${name} assigned it.`,
           url,
-        });
+        };
+        await enqueueChat(auth, assignedJob);
+        await enqueuePersonalChat(auth, created.assigneeId, assignedJob);
       }
-      return mapTask(created);
+      return mappedCreated;
     } catch (err) {
       return sendError(reply, err);
     }
@@ -317,21 +363,25 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           },
         });
       }
+      const mappedUpdated = mapTask(updated);
+      publishTaskChange(auth, mappedUpdated, 'patch');
       if (input.assigneeId && input.assigneeId !== row.assigneeId) {
         const name = await actorName(auth.userId);
         const assignee = await userName(input.assigneeId);
         const updatedKey = taskKey(updated.project.key, updated.number);
-        await enqueueChat(auth, {
+        const assignedJob = {
           projectId: updated.projectId,
-          event: 'assigned',
+          event: 'assigned' as const,
           title: updated.title,
           taskKey: updatedKey,
           projectName: updated.project.name,
           text: assignee ? `${name} assigned it to ${assignee}.` : `${name} assigned it.`,
           url: taskUrl(updated.project.key, updatedKey),
-        });
+        };
+        await enqueueChat(auth, assignedJob);
+        await enqueuePersonalChat(auth, input.assigneeId, assignedJob);
       }
-      return mapTask(updated);
+      return mappedUpdated;
     } catch (err) {
       return sendError(reply, err);
     }
@@ -350,6 +400,28 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         })
         .parse(req.body);
       return await moveTask(auth, key, input);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/github/start-work', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      if (auth.via === 'mcp') throw forbidden('MCP cannot change GitHub settings.');
+      const key = (req.params as { key: string }).key;
+      const input = z.object({ assignAndMove: z.boolean() }).parse(req.body);
+      const row = await findTaskByKey(auth.db, key);
+      if (!row || row.deletedAt) throw notFound();
+      if (input.assignAndMove) {
+        await auth.db.task.update({ where: { id: row.id }, data: { assigneeId: auth.userId } });
+        try {
+          await moveTask(auth, key, { toStatusId: 'wip' });
+        } catch {
+          publishTaskChange(auth, { key, projectKey: row.project.key }, 'patch');
+        }
+      }
+      return { ok: true };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -383,7 +455,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       }
       const fresh = await findTaskByKey(auth.db, key);
       if (!fresh) throw notFound();
-      return mapTask(fresh);
+      const mapped = mapTask(fresh);
+      publishTaskChange(auth, mapped, 'reorder');
+      return mapped;
     } catch (err) {
       return sendError(reply, err);
     }
@@ -411,19 +485,39 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           },
         });
       }
+      const name = await actorName(auth.userId);
+      const commentKey = taskKey(row.project.key, row.number);
+      const commentUrl = taskUrl(row.project.key, commentKey);
       if (body.body.includes('@')) {
-        const name = await actorName(auth.userId);
-        const commentKey = taskKey(row.project.key, row.number);
-        await enqueueChat(auth, {
+        const mentionJob = {
           projectId: row.projectId,
-          event: 'mention',
+          event: 'mention' as const,
           title: row.title,
           taskKey: commentKey,
           projectName: row.project.name,
           text: `${name} mentioned someone in a comment.`,
-          url: taskUrl(row.project.key, commentKey),
-        });
+          url: commentUrl,
+        };
+        await enqueueChat(auth, mentionJob);
+        const people = await workspacePeople(auth);
+        for (const userId of mentionUserIds(body.body, people)) {
+          await enqueuePersonalChat(auth, userId, mentionJob);
+        }
       }
+      const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
+      const commentJob = {
+        projectId: row.projectId,
+        event: 'watch_comment' as const,
+        title: row.title,
+        taskKey: commentKey,
+        projectName: row.project.name,
+        text: `${name} commented.`,
+        url: commentUrl,
+      };
+      for (const watcher of watchers) {
+        await enqueuePersonalChat(auth, watcher.userId, commentJob);
+      }
+      publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');
       return { id: c.id, authorId: c.authorId, body: c.body, via: auth.via, createdAt: c.createdAt.toISOString() };
     } catch (err) {
       return sendError(reply, err);
@@ -452,6 +546,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           position: nextPosition(null),
         },
       });
+      publishTaskChange(auth, { key, projectKey: row.project.key }, 'patch');
       return { id: child.id, title: child.title, done: false };
     } catch (err) {
       return sendError(reply, err);
@@ -467,6 +562,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         where: { id },
         data: { completedAt: body.done ? new Date() : null },
       });
+      const parentKey = (req.params as { key: string }).key;
+      const parent = await findTaskByKey(auth.db, parentKey);
+      if (parent) publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
       return { id: child.id, title: child.title, done: Boolean(child.completedAt) };
     } catch (err) {
       return sendError(reply, err);
@@ -486,6 +584,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       await auth.db.activityLog.create({
         data: { tenantId: auth.tenantId, taskId: row.id, actorId: auth.userId, via: 'app', action: 'moved to Trash' },
       });
+      publishTaskChange(auth, { key, projectKey: row.project.key }, 'delete');
       return reply.code(204).send();
     } catch (err) {
       return sendError(reply, err);
@@ -510,7 +609,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         data: { deletedAt: null, deletedById: null },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
-      return mapTask(updated);
+      const mapped = mapTask(updated);
+      publishTaskChange(auth, mapped, 'restore');
+      return mapped;
     } catch (err) {
       return sendError(reply, err);
     }
@@ -539,26 +640,84 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get('/tasks/:key/attachments', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const row = await findTaskByKey(auth.db, key);
+      if (!row || row.deletedAt) throw notFound();
+      const attachments = await auth.db.attachment.findMany({ where: { taskId: row.id }, orderBy: { createdAt: 'asc' } });
+      return attachments.map((att) => mapAttachment(key, att));
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/attachments', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const row = await findTaskByKey(auth.db, key);
+      if (!row || row.deletedAt) throw notFound();
+      const file = await req.file();
+      if (!file) throw validation('No file.');
+      const buf = await file.toBuffer();
+      const att = await storeTaskUpload(auth, row.id, {
+        filename: file.filename,
+        mimetype: file.mimetype,
+        buffer: buf,
+      });
+      return mapAttachment(key, att);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/tasks/:key/attachments/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const row = await findTaskByKey(auth.db, key);
+      if (!row) throw notFound();
+      const att = await auth.db.attachment.findFirst({ where: { id, taskId: row.id } });
+      if (!att) throw notFound();
+      const stream = await openAttachmentFile(auth.tenantId, att.storageKey);
+      return reply
+        .header('Content-Type', att.mime || 'application/octet-stream')
+        .header('Content-Disposition', `attachment; filename="${att.name.replace(/"/g, '')}"`)
+        .send(stream);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/tasks/:key/attachments/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const row = await findTaskByKey(auth.db, key);
+      if (!row || row.deletedAt) throw notFound();
+      const att = await auth.db.attachment.findFirst({ where: { id, taskId: row.id } });
+      if (!att) throw notFound();
+      await removeAttachmentFile(auth.tenantId, att.storageKey);
+      await auth.db.attachment.delete({ where: { id: att.id } });
+      return reply.code(204).send();
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post('/uploads', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
       const file = await req.file();
       if (!file) throw validation('No file.');
       const buf = await file.toBuffer();
-      if (buf.length > 25 * 1024 * 1024) throw validation('Files must be 25 MB or smaller.');
-      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      const dir = join(config.blobRoot, auth.tenantId);
-      await mkdir(dir, { recursive: true });
-      const storageKey = `${auth.tenantId}/${id}-${file.filename}`;
-      await writeFile(join(config.blobRoot, storageKey), buf);
-      const taskId = (req.query as { taskId?: string }).taskId;
-      if (taskId) {
-        const att = await auth.db.attachment.create({
-          data: { tenantId: auth.tenantId, taskId, storageKey, name: file.filename, size: buf.length, mime: file.mimetype },
-        });
-        return { id: att.id, name: att.name, size: att.size };
-      }
-      return { id, name: file.filename, size: buf.length, storageKey };
+      return storePendingUpload(auth.tenantId, {
+        filename: file.filename,
+        mimetype: file.mimetype,
+        buffer: buf,
+      });
     } catch (err) {
       return sendError(reply, err);
     }

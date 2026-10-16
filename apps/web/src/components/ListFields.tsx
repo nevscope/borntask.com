@@ -1,4 +1,4 @@
-import { App } from 'antd';
+import { useStatusToast } from './StatusToast';
 import { useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task, UpdateTaskInput } from '../api/types';
 import { dueColor, dueLabel, dueTone } from '../lib/dates';
@@ -20,7 +20,7 @@ export function ListFields({
   roles: ProjectRole[];
   onMove: (task: Task, statusId: string) => void;
 }) {
-  const { message } = App.useApp();
+  const toast = useStatusToast();
   const update = useUpdateTask();
   const status = statusById(detail.workflow, task.statusId);
   const user = detail.users.find((row) => row.id === task.assigneeId);
@@ -30,7 +30,7 @@ export function ListFields({
   function save(input: UpdateTaskInput) {
     update.mutate(
       { key: task.key, input },
-      { onError: (err) => void message.error(err.message) },
+      { onError: () => toast.show({ kind: 'error', text: 'Could not save this field.' }) },
     );
   }
 

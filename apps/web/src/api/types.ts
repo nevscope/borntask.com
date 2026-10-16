@@ -23,7 +23,7 @@ export const StatusToneSchema = z.enum(['neutral', 'indigo', 'blue', 'amber', 'o
 export type StatusTone = z.infer<typeof StatusToneSchema>;
 
 /** Who made a change: the app itself, Claude/Cursor over MCP, GitHub automation or the Asana import. */
-export const ActorViaSchema = z.enum(['app', 'mcp', 'github', 'import']);
+export const ActorViaSchema = z.enum(['app', 'mcp', 'github', 'import', 'automation']);
 export type ActorVia = z.infer<typeof ActorViaSchema>;
 
 // ---------- people and workspace ----------
@@ -161,6 +161,7 @@ export const TaskSchema = z.object({
   updatedAt: z.string(),
   deletedByName: z.string().nullable().optional(),
   daysLeft: z.number().int().nullable().optional(),
+  githubBadge: z.enum(['pr_running', 'pr_passed', 'pr_failed', 'merged', 'branch']).nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -185,12 +186,47 @@ export const ActivitySchema = z.object({
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
+export const DevLinkSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['branch', 'pr', 'commit']),
+  title: z.string(),
+  url: z.string(),
+  repo: z.string(),
+  author: z.string(),
+  prState: z.string().nullable(),
+  checks: z.enum(['pending', 'running', 'passed', 'failed']).nullable(),
+  extra: z.string(),
+  ref: z.string().optional(),
+});
+export type DevLink = z.infer<typeof DevLinkSchema>;
+
+export const TaskDevelopmentSchema = z.object({
+  enabled: z.boolean(),
+  suggestedBranch: z.string(),
+  gitCheckout: z.string(),
+  links: z.array(DevLinkSchema),
+  githubActivity: z.array(z.object({ when: z.string(), text: z.string() })),
+});
+export type TaskDevelopment = z.infer<typeof TaskDevelopmentSchema>;
+
+export const AttachmentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  size: z.number(),
+  mime: z.string(),
+  url: z.string().optional(),
+});
+export type Attachment = z.infer<typeof AttachmentSchema>;
+
 export const TaskDetailSchema = TaskSchema.extend({
   subtasks: z.array(SubtaskSchema),
   comments: z.array(CommentSchema),
   activity: z.array(ActivitySchema),
+  watcherIds: z.array(z.string()).optional(),
+  attachments: z.array(AttachmentSchema).optional(),
   /** Set while the task is still in the 30-day trash window. */
   deletedAt: z.string().nullable().optional(),
+  development: TaskDevelopmentSchema.optional(),
 });
 
 export const SearchHitSchema = z.object({

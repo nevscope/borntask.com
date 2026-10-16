@@ -15,6 +15,8 @@ export async function enqueueMail(job: MailJob): Promise<void> {
       console.log(`[BornTask] Invite for ${job.to}: ${job.inviteUrl}`);
     } else if (dev && job.kind === 'wrong-account') {
       console.log(`[BornTask] Wrong-account request: ${job.requesterEmail} asked for an invite meant for ${job.invitedEmail}`);
+    } else if (dev && job.kind === 'digest') {
+      console.log(`[BornTask] Digest for ${job.to}`);
     } else {
       console.error('[BornTask] Could not queue email', err instanceof Error ? err.message : 'unknown');
     }

@@ -12,6 +12,7 @@ interface Props {
   value: string;
   onChange: (html: string) => void;
   onBlur?: (html: string) => void;
+  onFocusChange?: (focused: boolean) => void;
   people?: User[];
   placeholder?: string;
   minHeight?: number;
@@ -23,6 +24,7 @@ export function DescriptionEditor({
   value,
   onChange,
   onBlur,
+  onFocusChange,
   people = [],
   placeholder = 'Add details.',
   minHeight = 140,
@@ -31,6 +33,8 @@ export function DescriptionEditor({
 }: Props) {
   const peopleRef = useRef(people);
   peopleRef.current = people;
+  const focusCb = useRef(onFocusChange);
+  focusCb.current = onFocusChange;
   const applying = useRef(false);
   const [focused, setFocused] = useState(false);
 
@@ -67,9 +71,13 @@ export function DescriptionEditor({
       if (applying.current) return;
       onChange(persistDescription(next.isEmpty ? '' : next.getHTML()));
     },
-    onFocus: () => setFocused(true),
+    onFocus: () => {
+      setFocused(true);
+      focusCb.current?.(true);
+    },
     onBlur: ({ editor: next }) => {
       setFocused(false);
+      focusCb.current?.(false);
       const html = persistDescription(next.isEmpty ? '' : next.getHTML());
       onChange(html);
       onBlur?.(html);
@@ -77,14 +85,14 @@ export function DescriptionEditor({
   });
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || focused) return;
     const next = toEditorHtml(value);
     const current = persistDescription(editor.isEmpty ? '' : editor.getHTML());
     if (current === persistDescription(next)) return;
     applying.current = true;
     editor.commands.setContent(next || '', { emitUpdate: false });
     applying.current = false;
-  }, [editor, value]);
+  }, [editor, value, focused]);
 
   return (
     <div>

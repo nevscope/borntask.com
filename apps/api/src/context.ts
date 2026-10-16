@@ -9,8 +9,8 @@ export type Authed = {
   tenantId: string;
   workspaceRole: 'owner' | 'admin' | 'member' | 'guest' | 'viewer';
   db: ReturnType<typeof createTenantClient>;
-  via: 'app' | 'mcp';
-  actorType: 'user' | 'mcp';
+  via: 'app' | 'mcp' | 'github';
+  actorType: 'user' | 'mcp' | 'automation';
   tokenScope: 'session' | 'read' | 'read_write';
 };
 

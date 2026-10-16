@@ -1,4 +1,4 @@
-import { Alert, App, Button, Input, Select } from 'antd';
+import { Alert, Button, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
@@ -21,7 +21,6 @@ function domainsOf(raw: unknown, email?: string): string[] {
 }
 
 export function AdminPeopleScreen() {
-  const { message } = App.useApp();
   const sent = useStatusToast();
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
@@ -80,7 +79,7 @@ export function AdminPeopleScreen() {
       if (action === 'resend') sent.show(`Invitation sent to ${email}`);
       if (action === 'revoke') setPendingRevoke(null);
     } catch (err) {
-      void message.error(err instanceof Error ? err.message : 'Could not resend the invitation');
+      sent.show({ kind: 'error', text: 'Could not resend the invitation.' });
     }
   };
 
@@ -210,7 +209,6 @@ export function AdminPeopleScreen() {
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
       </section>
-      {sent.toast}
       <ConfirmDialog
         open={pendingRevoke !== null}
         title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}

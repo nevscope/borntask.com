@@ -21,5 +21,27 @@ const wrongAccountMailSchema = z.object({
   peopleUrl: z.string().url(),
 });
 
-export const mailJobSchema = z.discriminatedUnion('kind', [inviteMailSchema, wrongAccountMailSchema]);
+const digestItemSchema = z.object({
+  key: z.string(),
+  title: z.string(),
+  statusName: z.string().optional(),
+  url: z.string().url(),
+  extra: z.string().optional(),
+});
+
+const digestMailSchema = z.object({
+  kind: z.literal('digest'),
+  to: z.string().email(),
+  greetingName: z.string().min(1),
+  dateLabel: z.string().min(1),
+  myTasksUrl: z.string().url(),
+  profileUrl: z.string().url(),
+  due: z.array(digestItemSchema),
+  overdue: z.array(digestItemSchema),
+  mentions: z.array(digestItemSchema),
+  staleIdeas: z.array(digestItemSchema),
+  footerNote: z.string().min(1),
+});
+
+export const mailJobSchema = z.discriminatedUnion('kind', [inviteMailSchema, wrongAccountMailSchema, digestMailSchema]);
 export type MailJob = z.infer<typeof mailJobSchema>;

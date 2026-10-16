@@ -7,6 +7,7 @@ export function ConfirmDialog({
   open,
   title,
   children,
+  cancelLabel = 'Cancel',
   confirmLabel,
   busy = false,
   onCancel,
@@ -15,6 +16,7 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
   children: ReactNode;
+  cancelLabel?: string;
   confirmLabel: string;
   busy?: boolean;
   onCancel: () => void;
@@ -35,7 +37,7 @@ export function ConfirmDialog({
         <span style={{ fontFamily: font.display, fontSize: 15, fontWeight: 600 }}>{title}</span>
         <span style={{ fontSize: 13, lineHeight: 1.45, color: color.ink3 }}>{children}</span>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+          <button type="button" onClick={onCancel} style={ghostBtn}>{cancelLabel}</button>
           <button type="button" onClick={onConfirm} disabled={busy} style={dangerBtn}>{confirmLabel}</button>
         </div>
       </div>

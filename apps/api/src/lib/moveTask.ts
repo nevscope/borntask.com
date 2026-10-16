@@ -1,7 +1,10 @@
+import { GITHUB_BLOCKED, isForwardGithubMove } from '@borntask/shared';
 import type { Authed } from '../context.js';
 import { ApiError } from '../errors.js';
-import { actorName, enqueueChat, eventsForStatus, taskUrl } from './chatNotify.js';
+import { actorName, enqueueChat, enqueuePersonalChat, eventsForStatus, taskUrl } from './chatNotify.js';
+import { runProjectAutomations } from './runAutomations.js';
 import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
+import { publishTaskChange } from './live.js';
 
 function jsonStatus(value: unknown): string {
   if (!value || typeof value !== 'object' || !('status' in value)) return '';
@@ -35,7 +38,13 @@ export async function moveTask(
   let requireComment = false;
   let transitionLabel: string | null = null;
 
-  if (fromSlug === 'on_hold') {
+  if (auth.via === 'github') {
+    const positions = wf.statuses.map((s) => ({ slug: s.id, position: s.position }));
+    if (GITHUB_BLOCKED.has(toSlug) || !isForwardGithubMove(fromSlug, toSlug, positions)) {
+      throw new ApiError(403, 'TRANSITION_NOT_ALLOWED', 'GitHub can only move tasks forward, and never into Testing or Deployed.');
+    }
+    allowed = true;
+  } else if (fromSlug === 'on_hold') {
     allowed = row.previousStatus?.slug === toSlug;
   } else {
     const match = wf.transitions.find((t) => t.to === toSlug && (t.from === fromSlug || t.from === '*'));
@@ -138,5 +147,48 @@ export async function moveTask(
       url,
     });
   }
-  return mapTask(updated);
+  const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
+  const stageJob = {
+    projectId: row.projectId,
+    event: 'watch_stage' as const,
+    title: row.title,
+    taskKey: keyLabel,
+    projectName: row.project.name,
+    text,
+    url,
+  };
+  for (const watcher of watchers) {
+    await enqueuePersonalChat(auth, watcher.userId, stageJob);
+  }
+  if (toSlug === 'deployed') {
+    await enqueuePersonalChat(auth, row.reporterId, {
+      projectId: row.projectId,
+      event: 'reporter_deployed',
+      title: row.title,
+      taskKey: keyLabel,
+      projectName: row.project.name,
+      text,
+      url,
+    });
+  }
+  try {
+    await runProjectAutomations(auth, {
+      projectId: row.projectId,
+      leadId: row.project.leadId,
+      taskId: row.id,
+      taskNumber: row.number,
+      title: row.title,
+      projectKey: row.project.key,
+      projectName: row.project.name,
+      toSlug,
+      statusName,
+      currentAssigneeId: updated.assigneeId,
+    });
+  } catch (err) {
+    console.error('[automations] after move', err);
+  }
+  const latest = await findTaskByKey(auth.db, key);
+  const mapped = mapTask(latest ?? updated);
+  publishTaskChange(auth, mapped, 'move');
+  return mapped;
 }

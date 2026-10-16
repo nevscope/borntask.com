@@ -4,6 +4,7 @@ const READ_PATHS = [
   /^\/projects\/[^/]+\/tasks$/,
   /^\/me$/,
   /^\/me\/tasks$/,
+  /^\/me\/profile$/,
   /^\/search$/,
   /^\/people$/,
   /^\/tasks\/[^/]+$/,

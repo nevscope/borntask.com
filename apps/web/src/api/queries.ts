@@ -167,6 +167,20 @@ export const useProjectTrash = (projectKey: string) =>
 export const useNotifications = () => useQuery({ queryKey: qk.notifications, queryFn: () => api.listNotifications() });
 
 // ---------- cache helpers ----------
+export type LiveTaskEvent = {
+  tenantId: string;
+  projectKey: string;
+  taskKey: string;
+  kind: string;
+  actorId?: string;
+};
+
+export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?: { skipTask?: boolean }) {
+  void qc.invalidateQueries({ queryKey: qk.projectTasks(event.projectKey) });
+  void qc.invalidateQueries({ queryKey: qk.myTasks });
+  if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
+}
+
 function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectKey'>) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(task.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
@@ -330,10 +344,189 @@ const ChatSettingsSchema = z.object({
   events: ChatEventsSchema,
   lastPostedAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  appConfigured: z.boolean().optional(),
 });
 
 export type ChatSettings = z.infer<typeof ChatSettingsSchema>;
 export type ChatEvents = z.infer<typeof ChatEventsSchema>;
+
+const GithubRulesSchema = z.object({
+  branchCreated: z.boolean(),
+  prOpened: z.boolean(),
+  draftPr: z.boolean(),
+  prMerged: z.boolean(),
+  prClosedUnmerged: z.boolean(),
+});
+
+const GithubSettingsSchema = z.object({
+  appConfigured: z.boolean(),
+  canManage: z.boolean(),
+  connected: z.boolean(),
+  receivingEvents: z.boolean(),
+  accountLogin: z.string().nullable(),
+  installedByName: z.string().nullable(),
+  repoAccessCount: z.number(),
+  manageUrl: z.string(),
+  installPath: z.string(),
+  repos: z.array(z.object({ name: z.string(), defaultBranch: z.string() })),
+  availableRepos: z.array(z.object({ name: z.string(), defaultBranch: z.string() })),
+  branchTemplate: z.string(),
+  exampleBranch: z.string(),
+  projectKey: z.string(),
+  rules: GithubRulesSchema,
+  events: z.array(z.object({ id: z.string(), when: z.string(), text: z.string(), result: z.string(), tone: z.string() })),
+});
+export type GithubSettings = z.infer<typeof GithubSettingsSchema>;
+export type GithubRules = z.infer<typeof GithubRulesSchema>;
+
+function mockGithub(projectKey: string, connected: boolean): GithubSettings {
+  const rules = { branchCreated: true, prOpened: true, draftPr: false, prMerged: true, prClosedUnmerged: true };
+  if (!connected) {
+    return {
+      appConfigured: true,
+      canManage: true,
+      connected: false,
+      receivingEvents: false,
+      accountLogin: null,
+      installedByName: null,
+      repoAccessCount: 0,
+      manageUrl: '',
+      installPath: `/github/install?project=${encodeURIComponent(projectKey)}`,
+      repos: [],
+      availableRepos: [],
+      branchTemplate: '{type}/{key}-{title}',
+      exampleBranch: `bug/${projectKey}-142-checkout-fails-on-safari-17`,
+      projectKey,
+      rules,
+      events: [],
+    };
+  }
+  return {
+    appConfigured: true,
+    canManage: true,
+    connected: true,
+    receivingEvents: true,
+    accountLogin: '[your-github-org]',
+    installedByName: 'Luke Camilleri',
+    repoAccessCount: 3,
+    manageUrl: 'https://github.com/apps/borntask',
+    installPath: `/github/install?project=${encodeURIComponent(projectKey)}`,
+    repos: [
+      { name: '[your-github-org]/website', defaultBranch: 'main' },
+      { name: '[your-github-org]/checkout-service', defaultBranch: 'main' },
+    ],
+    availableRepos: [{ name: '[your-github-org]/design-system', defaultBranch: 'main' }],
+    branchTemplate: '{type}/{key}-{title}',
+    exampleBranch: `bug/${projectKey}-142-checkout-fails-on-safari-17`,
+    projectKey,
+    rules,
+    events: [
+      { id: 'e1', when: new Date().toISOString(), text: 'PR 231 "Fix 3-D Secure redirect" opened by karl-f, linked to WEB-142', result: 'Comment added', tone: 'ink' },
+      { id: 'e2', when: new Date().toISOString(), text: 'Branch improvement/WEB-133-lazy-load-images merged into main', result: 'Moved to Ready for testing', tone: 'brand' },
+      { id: 'e3', when: new Date().toISOString(), text: 'Commit mentions WEB-999, which does not exist', result: 'Ignored', tone: 'warning' },
+    ],
+  };
+}
+
+const AutomationRuleSchema = z.object({
+  onStatusSlug: z.string(),
+  action: z.enum(['assign_role', 'notify_role']),
+  roleSlug: z.string(),
+  enabled: z.boolean(),
+});
+const AutomationsSchema = z.object({
+  automations: z.array(AutomationRuleSchema),
+  canManage: z.boolean(),
+});
+export type AutomationRule = z.infer<typeof AutomationRuleSchema>;
+
+const mockAutomations = {
+  automations: [
+    { onStatusSlug: 'ready_for_testing', action: 'assign_role' as const, roleSlug: 'tester', enabled: false },
+    { onStatusSlug: 'deployed', action: 'notify_role' as const, roleSlug: 'business', enabled: false },
+  ],
+  canManage: true,
+};
+
+export function useProjectAutomations(projectKey: string) {
+  return useQuery({
+    queryKey: ['automations', projectKey],
+    enabled: projectKey.length > 0,
+    queryFn: async () => {
+      try {
+        return await request('GET', `/projects/${encodeURIComponent(projectKey)}/automations`, AutomationsSchema);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) {
+          return { ...mockAutomations, canManage: false };
+        }
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) return mockAutomations;
+        throw err;
+      }
+    },
+  });
+}
+
+export function useSaveProjectAutomations(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (automations: AutomationRule[]) => {
+      try {
+        return await request('PUT', `/projects/${encodeURIComponent(projectKey)}/automations`, AutomationsSchema, { automations });
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          const next = { automations, canManage: true };
+          qc.setQueryData(['automations', projectKey], next);
+          return next;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (data) => qc.setQueryData(['automations', projectKey], data),
+  });
+}
+
+export function useGithubSettings(projectKey: string) {
+  return useQuery({
+    queryKey: ['github', projectKey],
+    enabled: projectKey.length > 0,
+    queryFn: async () => {
+      try {
+        return await request('GET', `/projects/${encodeURIComponent(projectKey)}/github`, GithubSettingsSchema);
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          return mockGithub(projectKey, projectKey === 'WEB');
+        }
+        throw err;
+      }
+    },
+  });
+}
+
+export function useSaveGithub(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { branchTemplate?: string; rules?: GithubRules; addRepo?: string; removeRepo?: string }) => {
+      try {
+        return await request('PUT', `/projects/${encodeURIComponent(projectKey)}/github`, GithubSettingsSchema, input);
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          const current = qc.getQueryData<GithubSettings>(['github', projectKey]) ?? mockGithub(projectKey, true);
+          const repos = current.repos.filter((r) => r.name !== input.removeRepo);
+          if (input.addRepo) repos.push({ name: input.addRepo, defaultBranch: 'main' });
+          return {
+            ...current,
+            connected: true,
+            repos,
+            branchTemplate: input.branchTemplate ?? current.branchTemplate,
+            rules: input.rules ?? current.rules,
+          };
+        }
+        throw err;
+      }
+    },
+    onSuccess: (data) => qc.setQueryData(['github', projectKey], data),
+  });
+}
 
 const TokenRowSchema = z.object({
   id: z.string(),
@@ -387,6 +580,59 @@ export function useTestChat(projectKey: string) {
     mutationFn: (input: { webhookUrl?: string }) =>
       request('POST', `/projects/${encodeURIComponent(projectKey)}/chat/test`, z.object({ ok: z.boolean(), lastPostedAt: z.string(), lastError: z.string().nullable() }), input),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['chat', projectKey] }),
+  });
+}
+
+const PersonalChatPrefsSchema = z.object({
+  assigned: z.boolean(),
+  mention: z.boolean(),
+  watch_stage: z.boolean(),
+  watch_comment: z.boolean(),
+  reporter_deployed: z.boolean(),
+});
+
+const MyChatSchema = z.object({
+  connected: z.boolean(),
+  webhookMask: z.string(),
+  lastPostedAt: z.string().nullable(),
+  lastError: z.string().nullable(),
+  prefs: PersonalChatPrefsSchema,
+  appConfigured: z.boolean().optional(),
+});
+
+export type PersonalChatPrefs = z.infer<typeof PersonalChatPrefsSchema>;
+export type MyChat = z.infer<typeof MyChatSchema>;
+
+export function useMyChat() {
+  return useQuery({
+    queryKey: ['me', 'chat'],
+    queryFn: () => request('GET', '/me/chat', MyChatSchema),
+  });
+}
+
+export function useSaveMyChat() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { webhookUrl?: string; prefs?: PersonalChatPrefs }) =>
+      request('PUT', '/me/chat', MyChatSchema, input),
+    onSuccess: (data) => qc.setQueryData(['me', 'chat'], data),
+  });
+}
+
+export function useTestMyChat() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { webhookUrl?: string }) =>
+      request('POST', '/me/chat/test', z.object({ ok: z.boolean(), lastPostedAt: z.string(), lastError: z.string().nullable() }), input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['me', 'chat'] }),
+  });
+}
+
+export function useDisconnectMyChat() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request('DELETE', '/me/chat', MyChatSchema),
+    onSuccess: (data) => qc.setQueryData(['me', 'chat'], data),
   });
 }
 

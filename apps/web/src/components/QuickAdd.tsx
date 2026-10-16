@@ -1,21 +1,33 @@
 // Quick add (screen 5). Opens from "New task", "+ Add task" in a section, or Q anywhere.
 // Title line understands @name, !priority and dates; description starts from the type's template (WYSIWYG);
 // screenshots can be pasted (Ctrl/Cmd+V) or dropped. Enter creates, Shift+Enter creates and opens.
-import { App, Button, Input, Modal } from 'antd';
-import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Button, Input, Modal } from 'antd';
+import type { InputRef } from 'antd';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCreateTask, useMe, useMoveTask, useProject, useProjects } from '../api/queries';
-import type { Priority, ProjectRole, TaskType } from '../api/types';
+import type { Priority, ProjectRole, TaskType, User } from '../api/types';
 import { dueLabel } from '../lib/dates';
-import { parseQuickTitle, stripTypeTokens } from '../lib/quickParse';
+import {
+  mentionHandle,
+  parseQuickTitle,
+  PRIORITY_TOKENS,
+  replaceQuickToken,
+  stripTypeTokens,
+  tokenAtCursor,
+  TYPE_TOKENS,
+} from '../lib/quickParse';
 import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/workflow';
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
+import { uploadPendingFile } from '../lib/uploadAttachment';
 import { isUntouchedTemplate, persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
+import { ConfirmDialog } from './ConfirmDialog';
 import { DescriptionEditor } from './DescriptionEditor';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
+import { useStatusToast } from './StatusToast';
 
 const TEMPLATES: Record<TaskType, string> = {
   idea: 'Problem\n\nWho benefits\n',
@@ -68,7 +80,7 @@ function projectKeyFromPath(pathname: string) {
 }
 
 function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => void }) {
-  const { message } = App.useApp();
+  const toast = useStatusToast();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const me = useMe().data;
@@ -86,6 +98,11 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [statusPick, setStatusPick] = useState<string | undefined>(undefined);
   const [moveComment, setMoveComment] = useState('');
   const [files, setFiles] = useState<AttachmentItem[]>([]);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [caret, setCaret] = useState(0);
+  const [suggestIndex, setSuggestIndex] = useState(0);
+  const [suggestDismissed, setSuggestDismissed] = useState(false);
+  const titleRef = useRef<InputRef>(null);
   const create = useCreateTask();
   const move = useMoveTask();
 
@@ -107,6 +124,16 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     [detail],
   );
   const parsed = parseQuickTitle(raw, people);
+  const token = tokenAtCursor(raw, caret);
+  const suggestions = useMemo(
+    () => (token && !suggestDismissed ? suggestionsFor(token.kind, token.query, people) : []),
+    [token, suggestDismissed, people],
+  );
+  const suggestOpen = !!token && !suggestDismissed;
+
+  useEffect(() => {
+    setSuggestIndex(0);
+  }, [token?.kind, token?.query, token?.start]);
   const assigneeId = assigneeOverride !== undefined ? assigneeOverride : parsed.assigneeId;
   const dueDate = dueOverride !== undefined ? dueOverride : parsed.dueDate;
   const priority = priorityOverride ?? parsed.priority ?? 'none';
@@ -147,8 +174,71 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     if (next.length) setFiles((prev) => [...prev, ...next]);
   }
 
+  const hasDraft = raw.trim() !== '' || descTouched || files.length > 0 || moveComment.trim() !== '';
+
+  function readCaret() {
+    const el = titleRef.current?.input;
+    setCaret(el?.selectionStart ?? raw.length);
+  }
+
+  function applySuggestion(insert: string) {
+    if (!token) return;
+    const next = replaceQuickToken(raw, token, insert);
+    const piece = insert.endsWith(' ') ? insert : `${insert} `;
+    const nextCaret = token.start + piece.length;
+    setRaw(next);
+    setSuggestDismissed(true);
+    requestAnimationFrame(() => {
+      const el = titleRef.current?.input;
+      el?.focus();
+      el?.setSelectionRange(nextCaret, nextCaret);
+      setCaret(nextCaret);
+    });
+  }
+
+  function onTitleKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (suggestOpen && suggestions.length) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSuggestIndex((i) => Math.min(i + 1, suggestions.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSuggestIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        const pick = suggestions[suggestIndex] ?? suggestions[0];
+        if (pick) {
+          e.preventDefault();
+          applySuggestion(pick.insert);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setSuggestDismissed(true);
+        return;
+      }
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submit(e.shiftKey);
+    }
+  }
+
+  function requestClose() {
+    if (hasDraft) {
+      setDiscardOpen(true);
+      return;
+    }
+    onClose();
+  }
+
   function finish(taskKey: string, taskProjectKey: string, openAfter: boolean) {
-    void message.success(`${taskKey} created`);
+    toast.show({ text: <><strong>{taskKey}</strong> created</> });
     onClose();
     if (openAfter) navigate(`/p/${taskProjectKey}/list?task=${taskKey}`);
   }
@@ -156,14 +246,31 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   function submit(openAfter: boolean) {
     if (!parsed.title) return;
     if (!projectKey || !sectionId) {
-      void message.error('Pick a project and section.');
+      toast.show({ kind: 'error', text: 'Pick a project and section.' });
       return;
     }
     if (needsComment && !moveComment.trim()) {
-      void message.error('Add a comment to move it there.');
+      toast.show({ kind: 'error', text: 'Add a comment to move it there.' });
       return;
     }
     const cleanDescription = isUntouchedTemplate(description, TEMPLATES[type]) ? '' : persistDescription(description);
+    void (async () => {
+      let uploaded = files;
+      try {
+        if (files.length) {
+          uploaded = [];
+          for (const item of files) {
+            const local = item as AttachmentItem & { file?: File };
+            const file = local.file;
+            if (!file) throw new Error('That file is no longer available. Attach it again.');
+            uploaded.push(await uploadPendingFile(file));
+          }
+          setFiles(uploaded);
+        }
+      } catch (err) {
+        toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not upload attachments.' });
+        return;
+      }
     create.mutate(
       {
         projectKey,
@@ -175,18 +282,18 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         priority,
         dueDate: dueDate ?? null,
         labels: [],
-        attachmentIds: files.map((f) => f.id),
+        attachmentIds: uploaded.map((f) => f.id),
       },
       {
         onSuccess: (task) => {
-          rememberTaskAttachments(task.key, files);
+          rememberTaskAttachments(task.key, uploaded);
           if (chosenStatusId && chosenStatusId !== task.statusId) {
             move.mutate(
               { key: task.key, input: { toStatusId: chosenStatusId, comment: needsComment ? moveComment.trim() : undefined } },
               {
                 onSuccess: () => finish(task.key, task.projectKey, openAfter),
-                onError: (e) => {
-                  void message.error(e.message);
+                onError: () => {
+                  toast.show({ kind: 'error', text: 'Created, but could not move it to that stage.' });
                   finish(task.key, task.projectKey, openAfter);
                 },
               },
@@ -195,19 +302,23 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           }
           finish(task.key, task.projectKey, openAfter);
         },
-        onError: (e) => void message.error(e.message),
+        onError: () => toast.show({ kind: 'error', text: 'Could not create this task.' }),
       },
     );
+    })();
   }
 
   return (
+    <>
     <Modal
       open
-      onCancel={onClose}
+      onCancel={requestClose}
       footer={null}
       title={null}
       width={660}
       closable={false}
+      keyboard={!discardOpen}
+      mask={{ closable: false }}
       styles={{ body: { padding: 0, overflow: 'hidden', borderRadius: radius.xl }, container: { padding: 0, borderRadius: radius.xl } }}
     >
       <div
@@ -256,17 +367,91 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           })}
         </div>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 18px 6px' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 18px 6px', position: 'relative' }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: color.muted }}>Title</span>
           <Input
+            ref={titleRef}
             autoFocus
             variant="borderless"
             value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            onPressEnter={(e) => submit(e.shiftKey)}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestOpen}
+            aria-controls="quick-title-suggest"
+            onChange={(e) => {
+              setRaw(e.target.value);
+              setSuggestDismissed(false);
+              setCaret(e.target.selectionStart ?? e.target.value.length);
+            }}
+            onClick={readCaret}
+            onKeyUp={readCaret}
+            onSelect={readCaret}
+            onKeyDown={onTitleKeyDown}
             placeholder="What needs doing? A short summary"
             styles={{ input: { padding: 0, fontFamily: 'var(--bt-display)', fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' } }}
           />
+          {suggestOpen && (
+            <ul
+              id="quick-title-suggest"
+              role="listbox"
+              style={{
+                position: 'absolute',
+                left: 18,
+                right: 18,
+                top: '100%',
+                zIndex: 2,
+                margin: 0,
+                padding: 4,
+                listStyle: 'none',
+                border: `1px solid ${color.border}`,
+                borderRadius: radius.md,
+                background: color.surface,
+                maxHeight: 240,
+                overflow: 'auto',
+              }}
+            >
+              {suggestions.length === 0 ? (
+                <li style={{ padding: '8px 10px', fontSize: 13, color: color.muted }}>
+                  {token?.kind === '@' ? 'No matching people' : token?.kind === '#' ? 'No matching type' : 'No matching priority'}
+                </li>
+              ) : (
+                suggestions.map((item, index) => {
+                  const on = index === suggestIndex;
+                  return (
+                    <li key={item.id} role="option" aria-selected={on}>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setSuggestIndex(index)}
+                        onClick={() => applySuggestion(item.insert)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          width: '100%',
+                          textAlign: 'left',
+                          border: 0,
+                          borderRadius: radius.sm,
+                          padding: '7px 8px',
+                          font: 'inherit',
+                          fontSize: 13,
+                          background: on ? color.brandTint : 'transparent',
+                          color: color.ink,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {item.kind === '@' && item.user ? <Avatar user={item.user} size={22} /> : (
+                          <span style={{ width: 8, height: 8, borderRadius: 2, flex: 'none', background: item.swatch ?? color.faint }} />
+                        )}
+                        <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
+                        <span style={{ fontSize: 12, color: color.muted }}>{item.insert}</span>
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          )}
         </label>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 18px 6px' }}>
@@ -385,7 +570,66 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         </div>
       </div>
     </Modal>
+    <ConfirmDialog
+      open={discardOpen}
+      title="Discard this task?"
+      cancelLabel="Stay"
+      confirmLabel="Discard"
+      onCancel={() => setDiscardOpen(false)}
+      onConfirm={() => {
+        setDiscardOpen(false);
+        onClose();
+      }}
+    >
+      This task has not been created yet.
+    </ConfirmDialog>
+    </>
   );
+}
+
+interface TitleSuggestion {
+  id: string;
+  kind: '@' | '#' | '!';
+  label: string;
+  insert: string;
+  swatch?: string;
+  user?: User;
+}
+
+function suggestionsFor(kind: '@' | '#' | '!', query: string, people: User[]): TitleSuggestion[] {
+  const q = query.toLowerCase();
+  if (kind === '@') {
+    return people
+      .filter((person) => person.name.toLowerCase().includes(q) || person.email.toLowerCase().includes(q))
+      .slice(0, 8)
+      .map((person) => ({
+        id: person.id,
+        kind: '@' as const,
+        label: person.name,
+        insert: `@${mentionHandle(person, people)}`,
+        user: person,
+      }));
+  }
+  if (kind === '#') {
+    return TYPE_TOKENS
+      .filter((item) => item.token.includes(q) || typeStyle[item.type].label.toLowerCase().includes(q))
+      .map((item) => ({
+        id: item.type,
+        kind: '#' as const,
+        label: typeStyle[item.type].label,
+        insert: `#${item.token}`,
+        swatch: typeStyle[item.type].fg,
+      }));
+  }
+  return PRIORITY_TOKENS
+    .filter((item) => item.token.includes(q) || priorityStyle[item.priority].label.toLowerCase().includes(q) || priorityStyle[item.priority].key === q)
+    .map((item) => ({
+      id: item.priority,
+      kind: '!' as const,
+      label: priorityStyle[item.priority].label,
+      insert: `!${item.token}`,
+      swatch: priorityStyle[item.priority].color,
+    }));
 }
 
 const clipLabel: CSSProperties = {

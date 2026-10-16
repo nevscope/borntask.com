@@ -18,9 +18,14 @@ import { searchRoutes } from './routes/search.js';
 import { adminRoutes } from './routes/admin.js';
 import { importRoutes } from './routes/import.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { profileRoutes } from './routes/profile.js';
 import { chatRoutes } from './routes/chat.js';
+import { chatAppRoutes } from './routes/chatApp.js';
 import { tokenRoutes } from './routes/tokens.js';
 import { oauthRoutes } from './routes/oauth.js';
+import { githubRoutes } from './routes/github.js';
+import { automationRoutes } from './routes/automations.js';
+import { streamRoutes } from './routes/stream.js';
 
 async function main() {
   const app = Fastify({ logger: true, trustProxy: true });
@@ -52,9 +57,14 @@ async function main() {
   await app.register(adminRoutes);
   await app.register(importRoutes);
   await app.register(notificationRoutes);
+  await app.register(profileRoutes);
   await app.register(chatRoutes);
+  await app.register(chatAppRoutes);
   await app.register(tokenRoutes);
   await app.register(oauthRoutes);
+  await app.register(githubRoutes);
+  await app.register(automationRoutes);
+  await app.register(streamRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

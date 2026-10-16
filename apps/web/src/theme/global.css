@@ -77,6 +77,8 @@ a { color: var(--bt-brand-strong); }
 .bt-desc-surface .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
 .bt-desc-surface p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--bt-muted); pointer-events: none; }
 
+@keyframes bt-toast-bar { from { width: 100%; } to { width: 0%; } }
+
 @media (max-width: 767px) {
   .bt-sidebar { max-width: none; flex-basis: 100%; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--bt-border); }
   .bt-page { padding: 16px; }

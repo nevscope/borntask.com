@@ -10,6 +10,7 @@ export interface AttachmentItem {
   mime: string;
   previewUrl?: string;
   progress?: number;
+  file?: File;
 }
 
 export function filesFromClipboard(data: DataTransfer | null): File[] {
@@ -38,6 +39,7 @@ export function itemsFromFiles(list: FileList | File[]): AttachmentItem[] {
       size: file.size,
       mime,
       previewUrl: mime.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      file,
     };
   });
 }
@@ -63,11 +65,13 @@ export function AttachmentTiles({
   items,
   onAdd,
   onRemove,
+  onOpen,
   hint = true,
 }: {
   items: AttachmentItem[];
   onAdd: (files: File[]) => void;
   onRemove: (id: string) => void;
+  onOpen?: (item: AttachmentItem) => void;
   hint?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,9 +86,11 @@ export function AttachmentTiles({
       {items.map((item) => (
         <div key={item.id} style={{ position: 'relative', width: 132, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div
-            role={item.previewUrl ? 'img' : undefined}
-            aria-label={item.previewUrl ? `${item.name} preview` : undefined}
+            role={onOpen ? 'button' : item.previewUrl ? 'img' : undefined}
+            aria-label={onOpen ? `Download ${item.name}` : item.previewUrl ? `${item.name} preview` : undefined}
+            onClick={() => onOpen?.(item)}
             style={{
+              cursor: onOpen ? 'pointer' : undefined,
               height: 84,
               borderRadius: radius.md,
               border: `1px solid ${color.border}`,

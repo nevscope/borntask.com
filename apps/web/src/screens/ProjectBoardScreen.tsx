@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMe, useProject, useProjectTasks } from '../api/queries';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
-import { Avatar, LockIcon, TypeTag } from '../components/Chips';
+import { Avatar, GitHubBadge, LockIcon, TypeTag } from '../components/Chips';
 import { NoAccess } from '../components/NoAccess';
 import { ProjectHeader } from '../components/ProjectHeader';
 import { ProjectViewBar, useProjectView } from '../components/ProjectViewBar';
@@ -233,7 +233,8 @@ function Card({ task, detail, overlay = false, dragging = false }: { task: Task;
       <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: color.muted }}>
         <Avatar user={user} size={22} />
         <span style={{ color: dueColor[tone], fontWeight: tone === 'today' || tone === 'overdue' ? 600 : 400 }}>{dueLabel(task.dueDate)}</span>
-        {task.subtaskCount.total > 0 && <span style={{ marginLeft: 'auto' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+        {task.subtaskCount.total > 0 && <span style={{ marginLeft: task.githubBadge ? 0 : 'auto' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+        <GitHubBadge kind={task.githubBadge} compact />
       </span>
     </div>
   );

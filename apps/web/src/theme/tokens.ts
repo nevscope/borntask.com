@@ -26,9 +26,22 @@ export const color = {
   warning: '#8A5A0B',
   warningTint: '#FFFBF2',
   warningBorder: '#F1D6A6',
+  info: '#1A3F82',
+  infoTint: '#EAF1FD',
+  infoBorder: '#C9DAF7',
   highlight: '#FFE7A3',
   unreadRow: '#F6FBF8',
   unreadDot: '#E0731F',
+  mergedTint: '#EEE8FB',
+  merged: '#5B3FC4',
+} as const;
+
+export const githubBadgeStyle = {
+  pr_running: { bg: '#FDF3E2', fg: '#8A5A0B', label: 'PR · checks running' },
+  pr_passed: { bg: '#E9F5EF', fg: '#0F6B46', label: 'PR · checks passed' },
+  pr_failed: { bg: '#FDECEC', fg: '#B42323', label: 'PR · checks failed' },
+  merged: { bg: '#EEE8FB', fg: '#5B3FC4', label: 'Merged' },
+  branch: { bg: '#F1F2EF', fg: '#3A3F38', label: 'Branch only' },
 } as const;
 
 export const font = {
@@ -57,9 +70,31 @@ export const projectSwatches = [
   { id: 'graphite', label: 'Graphite', hex: '#3A3F38', tint: '#F1F2EF', ink: '#3A3F38' },
 ] as const;
 
+/** Accepts #RGB or #RRGGBB. Returns uppercase #RRGGBB or null. */
+export function parseProjectHex(value: string): string | null {
+  const raw = value.trim();
+  const m = raw.match(/^#?([0-9A-Fa-f]{6})$/) ?? raw.match(/^#?([0-9A-Fa-f]{3})$/);
+  if (!m) return null;
+  let h = m[1]!;
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  return `#${h.toUpperCase()}`;
+}
+
+function mixTowardWhite(hex: string, amount: number) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * amount);
+  const r = mix((n >> 16) & 255);
+  const g = mix((n >> 8) & 255);
+  const b = mix(n & 255);
+  return `#${[r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
 export function projectTint(hex: string) {
   const match = projectSwatches.find((s) => s.hex.toLowerCase() === hex.toLowerCase());
-  return match ?? { id: 'custom', label: 'Colour', hex, tint: color.chip, ink: color.ink3 };
+  if (match) return match;
+  const parsed = parseProjectHex(hex);
+  if (!parsed) return { id: 'custom', label: 'Colour', hex, tint: color.chip, ink: color.ink3 };
+  return { id: 'custom', label: 'Custom', hex: parsed, tint: mixTowardWhite(parsed, 0.88), ink: parsed };
 }
 
 export const typeStyle: Record<TaskType, { label: string; bg: string; fg: string }> = {

@@ -24,6 +24,54 @@ const TYPE_WORDS: Record<string, TaskType> = {
   feat: 'feature',
 };
 
+export type QuickTrigger = '@' | '#' | '!';
+
+export interface QuickToken {
+  kind: QuickTrigger;
+  query: string;
+  start: number;
+  end: number;
+}
+
+/** Active @ / # / ! token at the caret, so Quick add can offer a filtered list. */
+export function tokenAtCursor(raw: string, caret: number): QuickToken | null {
+  const pos = Math.max(0, Math.min(caret, raw.length));
+  const before = raw.slice(0, pos);
+  const m = before.match(/(?:^|[\s])([@#!])([^\s]*)$/u);
+  if (!m) return null;
+  const trigger = m[1] as QuickTrigger;
+  const query = m[2] ?? '';
+  const start = before.length - trigger.length - query.length;
+  const rest = raw.slice(pos).match(/^[^\s]*/u)?.[0] ?? '';
+  return { kind: trigger, query, start, end: pos + rest.length };
+}
+
+export function replaceQuickToken(raw: string, token: QuickToken, insert: string) {
+  const piece = insert.endsWith(' ') ? insert : `${insert} `;
+  return `${raw.slice(0, token.start)}${piece}${raw.slice(token.end)}`;
+}
+
+export function mentionHandle(person: User, people: User[]) {
+  const first = person.name.split(/\s+/)[0] ?? person.name;
+  const collisions = people.filter((other) => (other.name.split(/\s+/)[0] ?? '').toLowerCase() === first.toLowerCase());
+  if (collisions.length <= 1) return first;
+  return person.name.replace(/\s+/g, '');
+}
+
+export const TYPE_TOKENS: { token: string; type: TaskType }[] = [
+  { token: 'idea', type: 'idea' },
+  { token: 'bug', type: 'bug' },
+  { token: 'feature', type: 'feature' },
+  { token: 'improvement', type: 'improvement' },
+];
+
+export const PRIORITY_TOKENS: { token: string; priority: Priority }[] = [
+  { token: 'urgent', priority: 'urgent' },
+  { token: 'high', priority: 'high' },
+  { token: 'medium', priority: 'medium' },
+  { token: 'low', priority: 'low' },
+];
+
 export function stripTypeTokens(raw: string) {
   return ` ${raw} `
     .replace(/\s#([\p{L}]+)/giu, (m, word: string) => (TYPE_WORDS[word.toLowerCase()] ? ' ' : m))
@@ -55,7 +103,10 @@ export function parseQuickTitle(raw: string, people: User[]): ParsedTitle {
 
   text = text.replace(/\s@([\p{L}.-]+)/giu, (m, name: string) => {
     const n = name.toLowerCase();
-    const hit = people.find((p) => p.name.toLowerCase().split(' ')[0] === n) ?? people.find((p) => p.name.toLowerCase().startsWith(n));
+    const hit =
+      people.find((p) => p.name.toLowerCase().split(' ')[0] === n) ??
+      people.find((p) => p.name.toLowerCase().replace(/\s+/g, '') === n) ??
+      people.find((p) => p.name.toLowerCase().startsWith(n));
     if (!hit) return m;
     assigneeId = hit.id;
     return ' ';
