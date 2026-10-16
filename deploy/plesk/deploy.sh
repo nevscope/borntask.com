@@ -72,6 +72,8 @@ chown -R "$OWNER" "$DOCROOT" || true
 echo "--- health ---"
 curl -sS --max-time 10 http://127.0.0.1:3010/health
 echo
+curl -sS --max-time 10 http://127.0.0.1:3011/health
+echo
 curl -sS --max-time 10 -H 'Host: app.borntask.com' http://127.0.0.1/api/health || true
 echo
 curl -sS --max-time 10 https://app.borntask.com/api/health || true

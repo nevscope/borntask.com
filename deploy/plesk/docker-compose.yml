@@ -58,7 +58,7 @@ services:
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-common}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-https://app.borntask.com/mcp}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-https://app.borntask.com}
       BLOB_ROOT: ${BLOB_ROOT:-/data/blobs}
     ports:
       - "127.0.0.1:3010:3010"
@@ -91,6 +91,25 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  mcp:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: apps/mcp/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "3011"
+      PUBLIC_URL: ${PUBLIC_URL:-https://app.borntask.com}
+      API_PUBLIC_URL: http://api:3010
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-https://app.borntask.com}
+    ports:
+      - "127.0.0.1:3011:3011"
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   borntask_mysql:
