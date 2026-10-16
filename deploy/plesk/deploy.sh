@@ -4,6 +4,16 @@
 # Does not bind kerd ports 3000 / 3307 / 6380.
 set -euo pipefail
 
+builder_ctx=
+cleanup() {
+  code=$?
+  if [[ -n "${builder_ctx:-}" ]]; then
+    rm -rf "$builder_ctx"
+  fi
+  echo "DEPLOY_EXIT:$code"
+}
+trap cleanup EXIT
+
 REPO=/var/www/vhosts/borntask.com/repo
 ENV_FILE=/var/www/vhosts/borntask.com/docker/borntask/.env
 INTEGRATIONS_FILE=/var/www/vhosts/borntask.com/repo/deploy/plesk/.env.integrations
@@ -47,6 +57,13 @@ docker_cmd compose "${compose_env[@]}" --profile app up -d --build
 docker_cmd compose "${compose_env[@]}" --profile app exec -T api \
   npx prisma db push --schema /app/prisma/schema.prisma --accept-data-loss=false
 
+# Context is only the Dockerfile. deploy/plesk also holds .env.integrations.
+builder_ctx=$(mktemp -d)
+cp "$COMPOSE_DIR/web-builder.Dockerfile" "$builder_ctx/Dockerfile"
+docker_cmd build -t borntask-web-builder:node22 "$builder_ctx"
+rm -rf "$builder_ctx"
+builder_ctx=
+
 docker_cmd run --rm \
   -v "$REPO:/app" \
   -w /app \
@@ -55,8 +72,8 @@ docker_cmd run --rm \
   -e VITE_MOCK_TASKS=false \
   -e VITE_API_URL=/api \
   -e VITE_MCP_URL=https://app.borntask.com/mcp \
-  node:22-bookworm-slim \
-  bash -lc 'apt-get update -qq && apt-get install -y -qq ca-certificates git python3 make g++ >/dev/null && npm ci && npm run build -w @borntask/web'
+  borntask-web-builder:node22 \
+  bash -lc 'if [[ ! -f node_modules/.package-lock.stamp ]] || ! cmp -s package-lock.json node_modules/.package-lock.stamp; then npm ci && cp package-lock.json node_modules/.package-lock.stamp; fi && npm run build -w @borntask/shared && npm run build -w @borntask/web'
 
 OWNER=$(stat -c '%U:%G' "$DOCROOT")
 rsync -a --delete "$REPO/apps/web/dist/" "$DOCROOT/"

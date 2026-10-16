@@ -23,7 +23,9 @@ export function ProjectMembersScreen() {
   const { projectKey = '' } = useParams();
   const me = useMe().data;
   const catalog = useWorkspaceCatalog();
-  const ALL_ROLES = catalog.roles.length ? catalog.roles.map((r) => r.slug) : FALLBACK_ROLES;
+  const roleOptions = catalog.roles.length
+    ? catalog.roles.map((r) => ({ slug: r.slug, name: r.name }))
+    : FALLBACK_ROLES.map((slug) => ({ slug, name: slug.charAt(0).toUpperCase() + slug.slice(1) }));
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
   const tasks = useProjectTasks(projectKey).data;
@@ -110,10 +112,10 @@ export function ProjectMembersScreen() {
                 {r.roles.map((role) => <RoleTag key={role} role={role} />)}
                 <Dropdown
                   menu={{
-                    items: ALL_ROLES.filter((role) => !r.roles.includes(role)).map((role) => ({
-                      key: role,
-                      label: role,
-                      onClick: () => saveRoles.mutate({ userId: r.userId, roleSlugs: [...r.roles, role] }),
+                    items: roleOptions.filter((role) => !r.roles.includes(role.slug)).map((role) => ({
+                      key: role.slug,
+                      label: role.name,
+                      onClick: () => saveRoles.mutate({ userId: r.userId, roleSlugs: [...r.roles, role.slug] }),
                     })),
                   }}
                 >

@@ -41,7 +41,7 @@ export type User = z.infer<typeof UserSchema>;
 
 export const MeSchema = z.object({
   user: UserSchema,
-  workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional() }),
+  workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional(), logo: z.boolean().optional() }),
   workspaceRole: WorkspaceRoleSchema,
   workspaces: z
     .array(
@@ -50,6 +50,7 @@ export const MeSchema = z.object({
         name: z.string(),
         slug: z.string(),
         role: WorkspaceRoleSchema,
+        logo: z.boolean().optional(),
       }),
     )
     .optional(),
@@ -114,6 +115,7 @@ export const ProjectSchema = z.object({
   leadName: z.string().nullable().optional(),
   guestCount: z.number().int().optional(),
   updatedAt: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 

@@ -5,6 +5,7 @@ import { requireAuth, type Authed } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
+import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 
 const colourSchema = z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C');
@@ -326,12 +327,26 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const body = z.object({ archived: z.boolean() }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await visibleProject(auth, key);
+      await assertCanEditProject(auth, project);
       await auth.db.project.update({
         where: { id: project.id },
         data: { archivedAt: body.archived ? new Date() : null },
       });
+      return { ok: true, archived: body.archived };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/delete', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const body = z.object({ name: z.string() }).parse(req.body);
+      const project = await visibleProject(auth, key);
+      await assertCanEditProject(auth, project);
+      await deleteProject(auth, project, body.name);
       return { ok: true };
     } catch (err) {
       return sendError(reply, err);

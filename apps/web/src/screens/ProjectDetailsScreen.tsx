@@ -1,12 +1,13 @@
-import { Alert, Button, Input, Select } from 'antd';
+import { Alert, Button, Input, Modal, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProjectColourField } from '../components/ProjectColourField';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color, parseProjectHex } from '../theme/tokens';
 
@@ -24,6 +25,8 @@ export function ProjectDetailsScreen() {
   const detail = useProject(projectKey);
   const project = detail.data?.project;
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const toast = useStatusToast();
   const [name, setName] = useState('');
   const [colour, setColour] = useState('');
   const [hexDraft, setHexDraft] = useState('');
@@ -32,6 +35,12 @@ export function ProjectDetailsScreen() {
   const [saved, setSaved] = useState<SavedProject | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmWorkflow, setConfirmWorkflow] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const workflows = useQuery({
     queryKey: ['workflows'],
@@ -103,6 +112,32 @@ export function ProjectDetailsScreen() {
     }
   }
 
+  async function setArchived(archived: boolean) {
+    setClosing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/archive`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived }),
+      });
+      const json = await res.json().catch(() => ({})) as { message?: string };
+      if (!res.ok) throw new Error(json.message ?? (archived ? 'Could not archive this project.' : 'Could not restore this project.'));
+      void qc.invalidateQueries({ queryKey: qk.projects });
+      void qc.invalidateQueries({ queryKey: ['projects', 'archived'] });
+      void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
+      setConfirmArchive(false);
+      setConfirmRestore(false);
+      toast.show(archived ? `${project?.name ?? 'Project'} archived.` : `${project?.name ?? 'Project'} restored.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update this project.');
+    } finally {
+      setClosing(false);
+    }
+  }
+
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       {unsaved}
@@ -113,6 +148,9 @@ export function ProjectDetailsScreen() {
       {!canManage && project && <Alert type="warning" message="You can view this page, but only a project lead or workspace admin can save changes." />}
       {detail.isError && <Alert type="error" message="Could not load this project." />}
       {error && <Alert type="error" message={error} />}
+      {project?.archived && (
+        <Alert type="info" showIcon message="This project is archived. It sits on the Archived tab until you restore it." />
+      )}
       {project && (
         <section className="bt-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
@@ -166,6 +204,44 @@ export function ProjectDetailsScreen() {
           </div>
         </section>
       )}
+      {canManage && project && (
+        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <span style={{ flex: '1 1 280px' }}>
+              <span style={{ display: 'block', fontWeight: 600 }}>{project.archived ? 'Restore project' : 'Archive project'}</span>
+              <span style={{ fontSize: 13, color: color.muted }}>
+                {project.archived
+                  ? 'Puts it back on Active. Tasks, members and the key stay as they are.'
+                  : 'Hides it from Active. Use this when work has stopped. You can restore it from the Archived tab.'}
+              </span>
+            </span>
+            {project.archived ? (
+              <Button onClick={() => setConfirmRestore(true)} loading={closing}>Restore…</Button>
+            ) : (
+              <Button onClick={() => setConfirmArchive(true)} loading={closing}>Archive…</Button>
+            )}
+          </div>
+          <div style={{ height: 1, background: color.divider }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <span style={{ flex: '1 1 280px' }}>
+              <span style={{ display: 'block', fontWeight: 600, color: color.danger }}>Delete project</span>
+              <span style={{ fontSize: 13, color: color.muted }}>
+                Removes the project and its tasks for good. Use this when it was created by mistake. You will be asked to type the project name.
+              </span>
+            </span>
+            <Button
+              danger
+              onClick={() => {
+                setConfirmName('');
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+            >
+              Delete project…
+            </Button>
+          </div>
+        </section>
+      )}
       <ConfirmDialog
         open={confirmWorkflow}
         title="Change workflow?"
@@ -176,6 +252,63 @@ export function ProjectDetailsScreen() {
       >
         Tasks on this project move to the closest stage. A stage with the same name stays put. Review stages on a workflow without them, such as Simple, move to the first active stage.
       </ConfirmDialog>
+      <ConfirmDialog
+        open={confirmArchive}
+        title="Archive this project?"
+        confirmLabel="Archive project"
+        busy={closing}
+        onCancel={() => setConfirmArchive(false)}
+        onConfirm={() => void setArchived(true)}
+      >
+        {project?.name ?? 'This project'} leaves Active and moves to the Archived tab. Tasks stay in place. You can restore it later.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirmRestore}
+        title="Restore this project?"
+        confirmLabel="Restore project"
+        busy={closing}
+        onCancel={() => setConfirmRestore(false)}
+        onConfirm={() => void setArchived(false)}
+      >
+        {project?.name ?? 'This project'} goes back on the Active tab.
+      </ConfirmDialog>
+      <Modal
+        title="Delete project"
+        open={deleteOpen}
+        okText="Delete project"
+        okButtonProps={{ danger: true, disabled: confirmName !== (project?.name ?? ''), loading: closing }}
+        onCancel={() => setDeleteOpen(false)}
+        onOk={() => {
+          if (!project || confirmName !== project.name) return;
+          setDeleteError(null);
+          setClosing(true);
+          void fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/delete`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: confirmName }),
+          }).then(async (res) => {
+            const json = await res.json().catch(() => ({})) as { message?: string };
+            setClosing(false);
+            if (!res.ok) {
+              setDeleteError(json.message ?? 'Could not delete this project.');
+              return;
+            }
+            setDeleteOpen(false);
+            void qc.invalidateQueries({ queryKey: qk.projects });
+            void qc.invalidateQueries({ queryKey: ['projects', 'archived'] });
+            void qc.invalidateQueries({ queryKey: qk.myTasks });
+            toast.show(`${project.name} deleted.`);
+            navigate('/projects');
+          });
+        }}
+      >
+        <p style={{ marginTop: 0 }}>
+          Type <strong>{project?.name}</strong> to delete this project and its tasks. This is for projects created by mistake. It cannot be undone.
+        </p>
+        {deleteError && <Alert type="error" message={deleteError} style={{ marginBottom: 12 }} />}
+        <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} aria-label="Project name" />
+      </Modal>
     </SettingsFrame>
   );
 }

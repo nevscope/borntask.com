@@ -9,6 +9,7 @@ import { RoleTag, TypeTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ColourSwatchRow } from '../components/ProjectColourField';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color, projectSwatches, toneStyle } from '../theme/tokens';
 
 type RoleRow = { id: string; name: string; slug: string; colour: string };
@@ -102,6 +103,8 @@ export function AdminDefaultsScreen() {
     navigate(`/settings/workflow?id=${encodeURIComponent(json.id)}`);
   };
 
+  const unsaved = useUnsavedChanges(Boolean(roleDraft || typeDraft));
+
   const confirmDelete = async () => {
     if (!pending) return;
     setError(null);
@@ -120,6 +123,7 @@ export function AdminDefaultsScreen() {
 
   return (
     <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
+      {unsaved}
       <h1 className="bt-h1">Roles, types and workflows</h1>
       <p style={{ color: color.muted, margin: '6px 0 0', fontSize: 13.5 }}>Add, edit or remove the defaults every project in {me?.workspace.name ?? 'this workspace'} can use.</p>
       {!canAdmin && <Alert type="warning" message="Only an owner or admin can open workspace defaults." />}

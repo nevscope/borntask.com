@@ -12,7 +12,7 @@ As root, once:
 bash /var/www/vhosts/borntask.com/repo/deploy/plesk/install-agent-access.sh
 ```
 
-After that, Cursor runs `deploy/plesk/deploy.sh` via Plesk domain exec on `borntask.com` (id 144). Optional: GitHub Action **Plesk deploy** with secret `PLESK_SSH_KEY`.
+After that, Cursor starts `deploy/plesk/deploy.sh` detached via Plesk domain exec on `borntask.com` (id 144) and reads `deploy/plesk/last-deploy.log`. A 30s panel timeout is normal. Optional: GitHub Action **Plesk deploy** with secret `PLESK_SSH_KEY`.
 
 Manual:
 

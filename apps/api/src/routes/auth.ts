@@ -110,14 +110,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return {
         user: { id: user.id, name: user.name, email: user.email, initials: initialsOf(user.name) },
         workspace: current
-          ? { id: current.tenant.id, name: current.tenant.name, slug: current.tenant.slug }
-          : { id: '', name: '', slug: '' },
+          ? { id: current.tenant.id, name: current.tenant.name, slug: current.tenant.slug, logo: Boolean(current.tenant.logo) }
+          : { id: '', name: '', slug: '', logo: false },
         workspaceRole: current?.tenantRole ?? 'member',
         workspaces: memberships.map((m) => ({
           id: m.tenant.id,
           name: m.tenant.name,
           slug: m.tenant.slug,
           role: m.tenantRole,
+          logo: Boolean(m.tenant.logo),
         })),
       };
     } catch (err) {

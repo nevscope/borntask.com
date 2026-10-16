@@ -254,7 +254,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const buf = await readFile(join(config.blobRoot, ws.logo));
       const ext = ws.logo.split('.').pop()?.toLowerCase();
       const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
-      return reply.type(mime).send(buf);
+      return reply.header('Cache-Control', 'no-store').type(mime).send(buf);
     } catch (err) {
       return sendError(reply, err);
     }

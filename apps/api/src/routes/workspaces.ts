@@ -1,8 +1,10 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma, createTenantClient } from '../db.js';
 import { requireUser, setSession } from '../context.js';
-import { sendError, validation } from '../errors.js';
+import { notFound, sendError, validation } from '../errors.js';
 import { config } from '../env.js';
 import { resolveWorkspacePackId, workspacePackIds } from '@borntask/shared';
 import { bootstrapWorkspaceDefaults } from '../lib/bootstrapWorkspace.js';
@@ -102,6 +104,25 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
 
       setSession(req, reply, { userId: user.id, tenantId: workspace.id });
       return { id: workspace.id, name: workspace.name, slug: workspace.slug };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/workspaces/:id/logo', async (req, reply) => {
+    try {
+      const user = await requireUser(req);
+      const { id } = req.params as { id: string };
+      const membership = await prisma.tenantMember.findUnique({
+        where: { tenantId_userId: { tenantId: id, userId: user.id } },
+        include: { tenant: true },
+      });
+      if (!membership?.isActive || membership.tenant.deletedAt) throw notFound();
+      if (!membership.tenant.logo) throw notFound();
+      const buf = await readFile(join(config.blobRoot, membership.tenant.logo));
+      const ext = membership.tenant.logo.split('.').pop()?.toLowerCase();
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+      return reply.header('Cache-Control', 'no-store').type(mime).send(buf);
     } catch (err) {
       return sendError(reply, err);
     }

@@ -8,7 +8,6 @@ import { BASE_URL } from '../api/http';
 import { SettingsFrame } from '../components/SettingsNav';
 import { TypeTag } from '../components/Chips';
 import { color } from '../theme/tokens';
-import { useStatusToast } from '../components/StatusToast';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { BuiltinTaskType } from '../api/types';
 
@@ -23,7 +22,6 @@ export function ProjectStructureScreen() {
   const { projectKey = '' } = useParams();
   const me = useMe().data;
   const catalog = useWorkspaceCatalog();
-  const toast = useStatusToast();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
   const tasks = useProjectTasks(projectKey);
@@ -166,8 +164,8 @@ export function ProjectStructureScreen() {
               <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{slug in TYPE_TPL ? TYPE_TPL[slug as BuiltinTaskType] : 'No template'}</span>
               <Switch
                 checked
+                disabled
                 aria-label={`Use ${slug} in this project`}
-                onChange={() => toast.show('Types for this project stay on.')}
               />
             </label>
           ))}

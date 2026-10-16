@@ -69,3 +69,42 @@ Evening (mock flags off, Vite restarted):
 ## Still later
 
 Sheets, Chat, MCP, billing, GitHub, Plesk, XLSX parsing, API snippet word boundary, import unknown-email filter, create-project dialog vs spec, sign-in domain chips, delete workspace.
+
+# QA log - 16 Oct 2026
+
+App: http://localhost:5174 with `VITE_USE_MOCKS=false` (live API on 3010). Signed in as `owner@borntask.com` (BornTask Owner). Project key WEB (Website). Brand sample on Members: body DM Sans, h1 Sora, New task `rgb(23, 138, 92)` (`#178A5C`). No saffron in the page HTML. Toasts seen were StatusToast or inline Alert. Confirmations were ConfirmDialog (Stay / Leave, Revoke, Disconnect, Remove).
+
+Gates after the fixes below: `npm run typecheck` passed, `npm run design:lint` 0 errors.
+
+| Route | Result | What was checked |
+|---|---|---|
+| `/settings/workspace` | pass | Name, timezone, week start, bugs start in, members can invite guests. Dirty leave warned Stay / Leave. Save persisted across reload, then restored (BornTask, Europe/Malta, Monday, Approved, guests on). After Save, leave was silent. Toast: Workspace saved. |
+| `/settings/people` | pass | Invite outside the domain saved as guest. Resend toast. Revoke used ConfirmDialog and removed the invite. Guest workspace role changed to Viewer, reloaded, restored to Guest. Domain remove dialog cancelled. |
+| `/settings/defaults` | fail, then pass | Roles, types and workflows load. Added role QA probe, reload persisted, Delete confirm removed it. **P0:** a typed role draft navigated to People with no Stay / Leave. Wired `useUnsavedChanges` while a role or type draft is open. Retest: draft "QA probe" blocked leave; Stay kept the draft; Cancel then leave was silent. |
+| `/settings/workflow` | pass | Unsaved banner. Leave blocked until Stay. Added stage QA probe, Save workflow, reload, Remove confirm, Save. Delivery restored to 8 stages. "Workflow saved." is an inline Alert. After Save, leave was silent. |
+| `/settings/billing` | pass | Visible. Copy says card collection is not connected. No Stripe. |
+| `/settings/profile` | pass | Chat column on because the Chat app env is set. Name, timezone, digest and the notify grid saved and reloaded, then restored. Invalid personal webhook blocked leave and Save. A fake webhook saved masked, test returned Google rejected the URL (not an Ant snackbar), Disconnect confirm cleared it. |
+| `/settings/tokens` | pass | MCP URL `http://localhost:3011/mcp`. Created QA retest, copy-now banner, reload showed only the mask. Revoke confirm says "This can't be undone." Token removed. |
+| `/p/WEB/settings/details` | pass | Name and colour saved and reloaded, then restored to Website / `#178A5C`. Dirty leave warned. After Save, leave was silent. Workflow left on Delivery. |
+| `/p/WEB/settings/members` | pass | Remove confirm cancelled. Role add persisted and was cleared. **P1:** + role menu showed slugs. Labels now use the catalog name. Retest menu: Business, Developer, Observer. |
+| `/p/WEB/settings/structure` | fail, then pass | Added section QA shelf, reload persisted, delete moved tasks to Inbox and removed it. Trash empty. **P0:** clicking a type switch raised StatusToast "Types for this project stay on." Switches are now checked and disabled. Retest: click kept the switch on and showed no toast. |
+| `/p/WEB/settings/workflow` | pass | Automations card present (Ready for testing assigns Tester, Deployed notifies Business). Toggled the tester rule off, API 200, toggled it back on. Dirty stage name blocked leave (Stay / Leave). Clearing the edit left for GitHub with no dialog. |
+| `/p/WEB/settings/chat` | pass | Already connected to a real space webhook (left in place). Event "Any status change" saved, reloaded, restored off. Invalid URL blocked Save with no request. Disconnect confirm opened and cancelled. Dirty URL blocked leave. Footnote: webhooks only post into the space; creating tasks from Chat needs the Chat app. |
+| `/p/WEB/settings/github` | pass | No crash. Seed installation is connected (`your-github-org`, repo `your-github-org/website`) even though `GITHUB_APP_*` is unset (`appConfigured` false). Draft pull request rule saved on, reloaded, restored off. |
+| Guest and member nav | pass | Guest sidebar has no Settings link. Direct settings URLs omit General, Roles/types/workflows, Workflow editor and Billing. Member (QA user temporarily) saw People, Profile and API tokens only. Workspace Save stayed disabled. Role restored to guest. Owner session restored. |
+
+## Skip
+
+- Chat "Send test message" on `/p/WEB/settings/chat` was not sent. The stored webhook is a real Google Chat URL, and a test would post into that space. Profile already proved the test path against a fake URL ("Google rejected the URL").
+- Project details workflow was not switched off Delivery (that moves tasks).
+- Stripe, Chat API DMs, and deploy were not started.
+
+## Fixes
+
+- `AdminDefaultsScreen.tsx`: leave warning while a role or type draft is open.
+- `ProjectStructureScreen.tsx`: type switches stay on and disabled, with no info toast.
+- `ProjectMembersScreen.tsx`: + role menu shows the role name.
+
+## Data left
+
+Workspace, profile, WEB name and colour, Delivery stages, guest role, GitHub draft-PR rule, Chat events, and the tester automation match the state from before this pass. The project Chat webhook was not disconnected. Pending invites that were already there (`audit.invite@example.com`, `anna@borntask.com`) were not revoked. QA probe role, QA probe stage, QA shelf section, and the QA retest token are gone.

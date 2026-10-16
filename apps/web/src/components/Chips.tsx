@@ -1,3 +1,4 @@
+import { BASE_URL } from '../api/http';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectRole, TaskType, User, WorkflowStatus } from '../api/types';
 import { avatarTones, chipFromHex, color, githubBadgeStyle, priorityStyle, projectTint, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
@@ -86,6 +87,58 @@ function hash(s: string) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
+}
+
+export function WorkspaceMark({
+  name,
+  id,
+  logo,
+  size = 20,
+  version,
+}: {
+  name: string;
+  id?: string;
+  logo?: boolean;
+  size?: number;
+  version?: number | string;
+}) {
+  const initials = name
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'BT';
+  if (logo && id) {
+    const src = `${BASE_URL}/workspaces/${id}/logo${version != null ? `?v=${version}` : ''}`;
+    return (
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.22)), objectFit: 'cover', flex: 'none' }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.max(4, Math.round(size * 0.22)),
+        display: 'inline-grid',
+        placeItems: 'center',
+        background: color.brand,
+        color: color.surface,
+        fontSize: Math.round(size * 0.42),
+        fontWeight: 600,
+        flex: 'none',
+      }}
+    >
+      {initials}
+    </span>
+  );
 }
 
 export function Avatar({ user, size = 24, fontSize }: { user: User | null | undefined; size?: number; fontSize?: number }) {

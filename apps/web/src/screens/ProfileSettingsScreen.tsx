@@ -6,6 +6,7 @@ import { qk, useDisconnectMyChat, useMe, useMyChat, useSaveMyChat, useTestMyChat
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
 import { color } from '../theme/tokens';
@@ -93,6 +94,7 @@ export function ProfileSettingsScreen() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatSaved, setChatSaved] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const toast = useStatusToast();
 
   useEffect(() => {
     if (!chat.data || chatReady) return;
@@ -157,6 +159,7 @@ export function ProfileSettingsScreen() {
     setPrefs(json.prefs);
     setBaseline(snapshot(json));
     setSaved(true);
+    toast.show('Profile saved.');
     void qc.invalidateQueries({ queryKey: qk.me });
   };
 
@@ -165,7 +168,6 @@ export function ProfileSettingsScreen() {
       <h1 className="bt-h1">Profile and notifications</h1>
       {profile.error && <Alert type="error" message={profile.error.message} style={{ marginTop: 12 }} />}
       {error && <Alert type="error" message={error} style={{ marginTop: 12 }} />}
-      {saved && !dirty && <Alert type="success" showIcon message="Profile saved." style={{ marginTop: 12 }} />}
       <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
         <Avatar user={me?.user} size={64} />
         <div style={{ flex: '1 1 300px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
@@ -346,9 +348,12 @@ export function ProfileSettingsScreen() {
           ]}
         />
       </section>
-      <Button type="primary" loading={busy} disabled={!dirty} onClick={() => void save()}>
-        {saved && !dirty ? 'Saved' : 'Save'}
-      </Button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Button type="primary" loading={busy} disabled={!dirty} onClick={() => void save()}>
+          {saved && !dirty ? 'Saved' : 'Save changes'}
+        </Button>
+        {dirty && !busy && <span style={{ fontSize: 13, color: color.warning }}>Unsaved changes</span>}
+      </div>
       <ConfirmDialog
         open={confirmDisconnect}
         title="Disconnect Google Chat?"

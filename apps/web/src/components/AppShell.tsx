@@ -6,7 +6,7 @@ import { USE_MOCKS, USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, usePro
 import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
 import { readWelcome } from '../lib/welcome';
 import { color, radius } from '../theme/tokens';
-import { Avatar } from './Chips';
+import { Avatar, WorkspaceMark } from './Chips';
 import { Logo } from './Logo';
 import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
@@ -16,7 +16,8 @@ import { useStatusToast } from './StatusToast';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const me = useMe().data;
+  const meQuery = useMe();
+  const me = meQuery.data;
   const projects = useProjects().data ?? [];
   const myTasks = useMyTasks().data;
   const quickAdd = useQuickAdd();
@@ -111,7 +112,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           trigger={['click']}
           menu={{
             items: [
-              ...workspaces.map((w) => ({ key: w.id, label: w.name })),
+              ...workspaces.map((w) => ({
+                key: w.id,
+                label: (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <WorkspaceMark name={w.name} id={w.id} logo={w.logo} size={18} version={meQuery.dataUpdatedAt} />
+                    {w.name}
+                  </span>
+                ),
+              })),
               { type: 'divider' as const },
               { key: 'create', label: 'Create workspace' },
             ],
@@ -131,9 +140,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <button
             type="button"
-            style={{ height: 36, width: '100%', margin: '0 0 10px', padding: '0 10px', display: 'flex', alignItems: 'center', border: '1px solid #E8EBE6', borderRadius: 8, background: '#FAFBF9', fontSize: 13, color: '#3A3F38', cursor: 'pointer', font: 'inherit' }}
+            style={{ height: 36, width: '100%', margin: '0 0 10px', padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${color.border}`, borderRadius: 8, background: color.subtle, fontSize: 13, color: color.ink3, cursor: 'pointer', font: 'inherit' }}
           >
-            {me?.workspace.name ?? 'Workspace'}
+            <WorkspaceMark name={me?.workspace.name ?? 'Workspace'} id={me?.workspace.id} logo={me?.workspace.logo} size={20} version={meQuery.dataUpdatedAt} />
+            <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {me?.workspace.name ?? 'Workspace'}
+            </span>
           </button>
         </Dropdown>
         <NavLink to="/" end className="bt-nav-link">
