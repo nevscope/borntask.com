@@ -21,9 +21,12 @@ html, body, #root { height: 100%; }
 body { margin: 0; background: var(--bt-canvas); color: var(--bt-ink); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
 a { color: var(--bt-brand-strong); }
 
-.bt-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-wrap: wrap; }
-.bt-sidebar { flex: 1 1 232px; max-width: 272px; padding: 16px 12px; background: var(--bt-surface); border-right: 1px solid var(--bt-border); display: flex; flex-direction: column; gap: 2px; }
-.bt-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
+.bt-shell { height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; display: flex; flex-wrap: nowrap; overflow: hidden; }
+.bt-sidebar { flex: 0 0 240px; width: 240px; height: 100%; padding: 16px 12px; background: var(--bt-surface); border-right: 1px solid var(--bt-border); display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.bt-sidebar-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.bt-sidebar-dock { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding-top: 8px; }
+.bt-main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.bt-main-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .bt-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 28px; background: var(--bt-surface); border-bottom: 1px solid var(--bt-border); }
 .bt-page { padding: 24px 28px 56px; display: flex; flex-direction: column; gap: 16px; }
 
@@ -76,6 +79,12 @@ a { color: var(--bt-brand-strong); }
 .bt-desc-surface pre code { background: none; padding: 0; }
 .bt-desc-surface .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
 .bt-desc-surface p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--bt-muted); pointer-events: none; }
+
+.bt-legal-body { font-size: 14px; line-height: 1.55; color: var(--bt-ink3); }
+.bt-legal-body p { margin: 0 0 10px; }
+.bt-legal-body p:last-child { margin-bottom: 0; }
+.bt-legal-body ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.bt-legal-body li { margin: 0; }
 
 @keyframes bt-toast-bar { from { width: 100%; } to { width: 0%; } }
 

@@ -1,6 +1,6 @@
 import { Button, Form, Input } from 'antd';
 import { useEffect, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../../api/http';
 import { useMe } from '../../api/queries';
 import { safeNext } from '../../lib/safeNext';
@@ -126,6 +126,12 @@ export function SignInScreen() {
           )}
           <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: color.ink3 }}>
             No invite is required to start. After you sign in with no workspace, you create one. Invites are for adding teammates.
+          </p>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: color.muted }}>
+            By continuing you agree to the{' '}
+            <Link to="/terms" style={{ color: color.brandStrong, fontWeight: 500 }}>Terms of use</Link>
+            {' '}and the{' '}
+            <Link to="/privacy" style={{ color: color.brandStrong, fontWeight: 500 }}>Privacy notice</Link>.
           </p>
         </div>
       </section>

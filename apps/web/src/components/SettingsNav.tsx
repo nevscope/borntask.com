@@ -23,6 +23,8 @@ const workspaceLinks = (canAdmin: boolean, isOwner: boolean) => [
 const youLinks = [
   { to: '/settings/profile', label: 'Profile and notifications' },
   { to: '/settings/tokens', label: 'API tokens and MCP' },
+  { to: '/settings/privacy', label: 'Privacy' },
+  { to: '/settings/terms', label: 'Terms of use' },
 ];
 
 export function SettingsNav({
@@ -81,7 +83,7 @@ export function SettingsFrame({
   const backLabel = projectKey ? (project.data?.project.name ?? 'the project') : 'My tasks';
   return (
     <div className="bt-page" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
-      <div style={{ flex: '0 1 220px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ flex: '0 1 220px', display: 'flex', flexDirection: 'column', gap: 8, position: 'sticky', top: 0, alignSelf: 'flex-start', maxHeight: '100%', overflow: 'auto' }}>
         <Link to={backTo} style={{ fontSize: 13, color: color.muted, textDecoration: 'none' }}>← Back to {backLabel}</Link>
         <SettingsNav projectKey={projectKey} canAdmin={canAdmin} isOwner={isOwner} />
       </div>

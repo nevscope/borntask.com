@@ -107,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="bt-shell">
       <nav aria-label="Main" className="bt-sidebar">
+        <div className="bt-sidebar-scroll">
         <div style={{ padding: '4px 10px 14px' }}><Logo /></div>
         <Dropdown
           trigger={['click']}
@@ -184,7 +185,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </>
         )}
-        <div style={{ flex: 1, minHeight: 24 }} />
+        </div>
+        <div className="bt-sidebar-dock">
         {guest && (
           <div style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.subtle, fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
             <strong style={{ color: color.ink3 }}>Guest access.</strong> You only see the projects you were invited to.
@@ -197,6 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Projects {USE_PROJECT_MOCKS ? 'mocked' : 'live'}. Tasks {USE_TASK_MOCKS ? 'mocked' : 'live'}.
           </div>
         )}
+        </div>
       </nav>
 
       <div className="bt-main">
@@ -224,6 +227,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
                 <MenuLink onClick={() => navigate('/settings/profile')}>Profile and notifications</MenuLink>
                 <MenuLink onClick={() => navigate('/settings/tokens')}>Connected apps and tokens</MenuLink>
+                <MenuLink onClick={() => navigate('/settings/privacy')}>Privacy</MenuLink>
+                <MenuLink onClick={() => navigate('/settings/terms')}>Terms of use</MenuLink>
                 <MenuLink onClick={() => setShortcuts(true)}>
                   <span style={{ flex: 1 }}>Keyboard shortcuts</span>
                   <kbd className="bt-kbd">?</kbd>
@@ -240,7 +245,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span style={{ cursor: 'pointer' }}><Avatar user={me?.user} size={34} /></span>
           </Dropdown>
         </header>
-        <main>{children}</main>
+        <main className="bt-main-scroll">{children}</main>
       </div>
       <TaskDrawer />
       {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}

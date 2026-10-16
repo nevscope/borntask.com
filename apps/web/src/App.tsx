@@ -35,6 +35,8 @@ import { GoogleChatScreen } from './screens/GoogleChatScreen';
 import { ProfileSettingsScreen } from './screens/ProfileSettingsScreen';
 import { McpConnectedScreen } from './screens/auth/McpConnectedScreen';
 import { McpConsentScreen } from './screens/auth/McpConsentScreen';
+import { PublicLegalScreen } from './screens/auth/PublicLegalScreen';
+import { LegalSettingsScreen } from './screens/LegalSettingsScreen';
 
 const DEMO_SCREENS: Record<string, { path: string; task?: string; quickAdd?: boolean }> = {
   'my-tasks': { path: '/' },
@@ -93,6 +95,8 @@ function Shell() {
         <Route path="/settings/billing" element={<AdminBillingScreen />} />
         <Route path="/settings/profile" element={<ProfileSettingsScreen />} />
         <Route path="/settings/tokens" element={<ApiTokensScreen />} />
+        <Route path="/settings/privacy" element={<LegalSettingsScreen key="privacy" kind="privacy" />} />
+        <Route path="/settings/terms" element={<LegalSettingsScreen key="terms" kind="terms" />} />
         <Route path="/p/:projectKey" element={<Navigate to="list" replace />} />
         <Route path="/p/:projectKey/list" element={<ProjectListScreen />} />
         <Route path="/p/:projectKey/board" element={<ProjectBoardScreen />} />
@@ -113,6 +117,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInScreen />} />
+      <Route path="/privacy" element={<PublicLegalScreen key="privacy" kind="privacy" />} />
+      <Route path="/terms" element={<PublicLegalScreen key="terms" kind="terms" />} />
       <Route path="/invite/:token" element={<AcceptInviteScreen />} />
       <Route path="/invite/:token/wrong-account" element={<WrongAccountScreen />} />
       <Route element={<RequireAuth />}>

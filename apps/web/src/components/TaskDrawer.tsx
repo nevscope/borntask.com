@@ -66,7 +66,19 @@ export function TaskDrawer() {
 
   return (
     <>
-      <Drawer open={!!taskKey} onClose={requestClose} maskClosable={false} width={600} closable={false} styles={{ body: { padding: 0 } }} destroyOnHidden>
+      <Drawer
+        open={!!taskKey}
+        onClose={requestClose}
+        maskClosable={false}
+        width={600}
+        closable={false}
+        destroyOnHidden
+        styles={{
+          wrapper: { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
+          content: { height: '100%' },
+          body: { padding: 0, height: '100%', overflow: 'auto' },
+        }}
+      >
         {task.data && detail.data ? (
           <DrawerBody key={task.data.key} task={task.data} detail={detail.data} onClose={requestClose} closeNow={closeTask} guard={guard} />
         ) : task.isError ? (
