@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { TenantClient } from '../tenantPrisma.js';
+import { colourForCategory } from './mappers.js';
 
 const TYPE_TEMPLATES: Record<string, string> = {
   idea: '## Problem\n\n## Who benefits\n',
@@ -61,7 +62,9 @@ async function seedDelivery(db: Db, tenantId: string, roleIds: Record<string, st
   ];
   const ids: Record<string, string> = {};
   for (const s of specs) {
-    const row = await db.workflowStatus.create({ data: { tenantId, workflowId: wf.id, ...s } });
+    const row = await db.workflowStatus.create({
+      data: { tenantId, workflowId: wf.id, colour: colourForCategory(s.category), ...s },
+    });
     ids[s.slug] = row.id;
   }
   const biz = [roleIds.business, roleIds.lead].filter((x): x is string => !!x);
@@ -118,7 +121,9 @@ export async function createOpenWorkflow(db: Db, tenantId: string, name: string)
   ];
   const ids: Record<string, string> = {};
   for (const s of specs) {
-    const row = await db.workflowStatus.create({ data: { tenantId, workflowId: wf.id, ...s } });
+    const row = await db.workflowStatus.create({
+      data: { tenantId, workflowId: wf.id, colour: colourForCategory(s.category), ...s },
+    });
     ids[s.slug] = row.id;
   }
   for (const [from, to] of [['todo', 'doing'], ['doing', 'done'], ['done', 'todo'], ['doing', 'todo']] as const) {
@@ -146,7 +151,9 @@ async function seedSimple(db: Db, tenantId: string) {
   ];
   const ids: Record<string, string> = {};
   for (const s of specs) {
-    const row = await db.workflowStatus.create({ data: { tenantId, workflowId: wf.id, ...s } });
+    const row = await db.workflowStatus.create({
+      data: { tenantId, workflowId: wf.id, colour: colourForCategory(s.category), ...s },
+    });
     ids[s.slug] = row.id;
   }
   for (const [from, to] of [['todo', 'doing'], ['doing', 'done'], ['done', 'todo'], ['doing', 'todo']] as const) {

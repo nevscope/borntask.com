@@ -1,42 +1,52 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { prisma } from '../db.js';
-import { requireAuth, setSession } from '../context.js';
+import { requireAuth, setSession, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
+import { colourSchema, deleteRole, deleteType, deleteWorkflow, patchRole, patchType, uniqueSlug } from '../lib/adminCatalog.js';
 import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
-import { slugify } from '../lib/tokens.js';
 
 function requireOwnerAdmin(role: string) {
   if (role !== 'owner' && role !== 'admin') throw forbidden('Owners and admins only.');
+}
+
+async function workspaceSettings(auth: Authed) {
+  const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+  if (!ws) throw notFound();
+  const [workflows, roles, types] = await Promise.all([
+    auth.db.workflow.findMany({ orderBy: { name: 'asc' } }),
+    auth.db.projectRole.findMany({ orderBy: { name: 'asc' } }),
+    auth.db.taskType.findMany({ orderBy: { name: 'asc' } }),
+  ]);
+  return {
+    id: ws.id,
+    name: ws.name,
+    slug: ws.slug,
+    timeZone: ws.timeZone,
+    weekStart: ws.weekStart,
+    defaultWorkflowId: ws.defaultWorkflowId,
+    bugsStartIn: ws.bugsStartIn,
+    allowGoogle: ws.allowGoogle,
+    allowMicrosoft: ws.allowMicrosoft,
+    membersCanInviteGuests: ws.membersCanInviteGuests,
+    allowedDomains: ws.allowedDomains,
+    isInternal: ws.isInternal,
+    logo: Boolean(ws.logo),
+    workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
+    roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
+    types: types.map((t) => ({ id: t.id, name: t.name, slug: t.slug, colour: t.colour, template: t.template })),
+  };
 }
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/workspace', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
-      if (!ws) throw notFound();
-      const workflows = await auth.db.workflow.findMany({ orderBy: { name: 'asc' } });
-      return {
-        id: ws.id,
-        name: ws.name,
-        slug: ws.slug,
-        timeZone: ws.timeZone,
-        weekStart: ws.weekStart,
-        defaultWorkflowId: ws.defaultWorkflowId,
-        bugsStartIn: ws.bugsStartIn,
-        allowGoogle: ws.allowGoogle,
-        allowMicrosoft: ws.allowMicrosoft,
-        membersCanInviteGuests: ws.membersCanInviteGuests,
-        allowedDomains: ws.allowedDomains,
-        isInternal: ws.isInternal,
-        logo: Boolean(ws.logo),
-        workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
-      };
+      return await workspaceSettings(auth);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -52,7 +62,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           slug: z.string().trim().min(2).max(40).optional(),
           timeZone: z.string().min(1).optional(),
           weekStart: z.enum(['monday', 'sunday']).optional(),
-          defaultWorkflowId: z.string().optional(),
+          defaultWorkflowId: z.string().min(1).nullable().optional(),
           bugsStartIn: z.enum(['approved', 'idea']).optional(),
           allowGoogle: z.boolean().optional(),
           allowMicrosoft: z.boolean().optional(),
@@ -64,9 +74,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         const clash = await prisma.workspace.findFirst({ where: { slug: body.slug, NOT: { id: auth.tenantId } } });
         if (clash) throw forbidden('That web address is already taken.');
       }
-      const ws = await auth.db.workspace.update({ where: { id: auth.tenantId }, data: body });
-      return { ok: true, name: ws.name, slug: ws.slug };
+      await auth.db.workspace.update({ where: { id: auth.tenantId }, data: body });
+      return await workspaceSettings(auth);
     } catch (err) {
+      if (err instanceof ZodError) return sendError(reply, validation('Check the workspace fields and try again.'));
       return sendError(reply, err);
     }
   });
@@ -100,14 +111,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       requireOwnerAdmin(auth.workspaceRole);
-      const body = z.object({ name: z.string().trim().min(2).max(40) }).parse(req.body);
-      let slug = slugify(body.name);
-      const clash = await auth.db.projectRole.findFirst({ where: { slug } });
-      if (clash) slug = `${slug.slice(0, 24)}-${Math.random().toString(36).slice(2, 6)}`;
+      const body = z.object({
+        name: z.string().trim().min(2).max(40),
+        colour: colourSchema.optional(),
+      }).parse(req.body);
+      const taken = new Set((await auth.db.projectRole.findMany({ select: { slug: true } })).map((r) => r.slug));
+      const slug = uniqueSlug(body.name, taken);
       const row = await auth.db.projectRole.create({
-        data: { tenantId: auth.tenantId, name: body.name, slug, colour: '#5B6157' },
+        data: { tenantId: auth.tenantId, name: body.name, slug, colour: body.colour ?? '#5B6157' },
       });
-      return { id: row.id, name: row.name, slug: row.slug };
+      return { id: row.id, name: row.name, slug: row.slug, colour: row.colour };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -119,21 +132,21 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       requireOwnerAdmin(auth.workspaceRole);
       const body = z.object({
         name: z.string().trim().min(2).max(40),
+        colour: colourSchema.optional(),
         template: z.string().max(4000).optional(),
       }).parse(req.body);
-      let slug = slugify(body.name);
-      const clash = await auth.db.taskType.findFirst({ where: { slug } });
-      if (clash) slug = `${slug.slice(0, 24)}-${Math.random().toString(36).slice(2, 6)}`;
+      const taken = new Set((await auth.db.taskType.findMany({ select: { slug: true } })).map((t) => t.slug));
+      const slug = uniqueSlug(body.name, taken);
       const row = await auth.db.taskType.create({
         data: {
           tenantId: auth.tenantId,
           name: body.name,
           slug,
-          colour: '#178A5C',
+          colour: body.colour ?? '#178A5C',
           template: body.template?.trim() || null,
         },
       });
-      return { id: row.id, name: row.name, slug: row.slug };
+      return { id: row.id, name: row.name, slug: row.slug, colour: row.colour };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -146,6 +159,64 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({ name: z.string().trim().min(2).max(60).default('New workflow') }).parse(req.body ?? {});
       const wf = await createOpenWorkflow(auth.db, auth.tenantId, body.name);
       return { id: wf.id, name: wf.name, slug: wf.slug };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.patch('/admin/roles/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const id = (req.params as { id: string }).id;
+      const body = z.object({
+        name: z.string().trim().min(2).max(40).optional(),
+        colour: colourSchema.optional(),
+      }).parse(req.body);
+      const row = await patchRole(auth, id, body);
+      return { id: row.id, name: row.name, slug: row.slug, colour: row.colour };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/admin/roles/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      return await deleteRole(auth, (req.params as { id: string }).id);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.patch('/admin/types/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const id = (req.params as { id: string }).id;
+      const body = z.object({
+        name: z.string().trim().min(2).max(40).optional(),
+        colour: colourSchema.optional(),
+        template: z.string().max(4000).nullable().optional(),
+      }).parse(req.body);
+      const row = await patchType(auth, id, body);
+      return { id: row.id, name: row.name, slug: row.slug, colour: row.colour, template: row.template };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/admin/types/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      return await deleteType(auth, (req.params as { id: string }).id);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/admin/workflows/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      return await deleteWorkflow(auth, (req.params as { id: string }).id);
     } catch (err) {
       return sendError(reply, err);
     }

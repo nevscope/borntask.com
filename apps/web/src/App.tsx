@@ -23,6 +23,7 @@ import { AdminDefaultsScreen } from './screens/AdminDefaultsScreen';
 import { AdminPeopleScreen } from './screens/AdminPeopleScreen';
 import { CreateProjectScreen } from './screens/CreateProjectScreen';
 import { ImportScreen } from './screens/ImportScreen';
+import { ProjectDetailsScreen } from './screens/ProjectDetailsScreen';
 import { ProjectMembersScreen } from './screens/ProjectMembersScreen';
 import { ProjectStructureScreen } from './screens/ProjectStructureScreen';
 import { ProjectsScreen } from './screens/ProjectsScreen';
@@ -96,6 +97,7 @@ function Shell() {
         <Route path="/p/:projectKey/list" element={<ProjectListScreen />} />
         <Route path="/p/:projectKey/board" element={<ProjectBoardScreen />} />
         <Route path="/p/:projectKey/trash" element={<TrashScreen />} />
+        <Route path="/p/:projectKey/settings/details" element={<ProjectDetailsScreen />} />
         <Route path="/p/:projectKey/settings/members" element={<ProjectMembersScreen />} />
         <Route path="/p/:projectKey/settings/structure" element={<ProjectStructureScreen />} />
         <Route path="/p/:projectKey/settings/workflow" element={<WorkflowEditorScreen />} />

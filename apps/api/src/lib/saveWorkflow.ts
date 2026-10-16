@@ -1,5 +1,7 @@
 import type { Authed } from '../context.js';
 import { forbidden, notFound, validation } from '../errors.js';
+import { colourSchema } from './adminCatalog.js';
+import { colourForCategory } from './mappers.js';
 import { loadWorkflow, workflowView } from './loadProject.js';
 
 const categorySchema = ['backlog', 'active', 'review', 'done'] as const;
@@ -9,6 +11,7 @@ export type StageInput = {
   id: string;
   name: string;
   category: Category;
+  colour?: string | null;
   wipLimit: number | null;
 };
 
@@ -102,6 +105,7 @@ async function replaceStages(
       data: {
         name: stage.name,
         category: stage.category,
+        colour: parseColour(stage.colour) ?? colourForCategory(stage.category),
         position: stage.position,
         wipLimit: stage.wipLimit,
       },
@@ -125,6 +129,7 @@ async function replaceStages(
         slug,
         name: stage.name,
         category: stage.category,
+        colour: parseColour(stage.colour) ?? colourForCategory(stage.category),
         position: stage.position,
         wipLimit: stage.wipLimit,
       },
@@ -167,6 +172,12 @@ async function replaceStages(
     }
     await auth.db.workflowStatus.deleteMany({ where: { id: fromDb } });
   }
+}
+
+function parseColour(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const parsed = colourSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 async function replaceTransitions(auth: Authed, workflowId: string, transitions: TransitionInput[]) {

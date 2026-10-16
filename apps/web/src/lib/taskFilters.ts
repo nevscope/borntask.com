@@ -1,6 +1,6 @@
 // One filter model for the project list and board. The URL holds the conditions.
 import dayjs from 'dayjs';
-import type { Priority, ProjectDetail, ProjectRole, Task, TaskType } from '../api/types';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectDetail, Task } from '../api/types';
 import { priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
 import { dueBucket, dueTone } from './dates';
 import { stripTags } from './descriptionHtml';
@@ -178,12 +178,12 @@ export function choicesFor(field: FilterField, detail: ProjectDetail, op: Filter
   if (field === 'text') return 'text';
   if (field === 'created' || field === 'updated') return 'date';
   if (field === 'due') return op === 'is' ? DUE_PRESETS : 'date';
-  if (field === 'type') return (Object.keys(typeStyle) as TaskType[]).map((t) => ({ value: t, label: typeStyle[t].label }));
+  if (field === 'type') return (Object.keys(typeStyle) as BuiltinTaskType[]).map((t) => ({ value: t, label: typeStyle[t].label }));
   if (field === 'status') return detail.workflow.statuses.map((s) => ({ value: s.id, label: s.name }));
   if (field === 'category') return Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ value, label }));
   if (field === 'section') return detail.sections.map((s) => ({ value: s.id, label: s.name }));
   if (field === 'priority') return (Object.keys(priorityStyle) as Priority[]).map((p) => ({ value: p, label: priorityStyle[p].label }));
-  if (field === 'role') return (Object.keys(roleStyle) as ProjectRole[]).map((r) => ({ value: r, label: roleStyle[r].label }));
+  if (field === 'role') return (Object.keys(roleStyle) as BuiltinProjectRole[]).map((r) => ({ value: r, label: roleStyle[r].label }));
   if (field === 'label') return [...new Set(labels)].sort((a, b) => a.localeCompare(b, 'en-GB')).map((value) => ({ value, label: value }));
   return [];
 }
@@ -199,9 +199,9 @@ export function personChoices(detail: ProjectDetail, field: 'assignee' | 'report
 }
 
 function valueLabel(field: FilterField, value: string, detail: ProjectDetail): string {
-  if (field === 'type' && value in typeStyle) return typeStyle[value as TaskType].label;
+  if (field === 'type' && value in typeStyle) return typeStyle[value as BuiltinTaskType].label;
   if (field === 'priority' && value in priorityStyle) return priorityStyle[value as Priority].label;
-  if (field === 'role' && value in roleStyle) return roleStyle[value as ProjectRole].label;
+  if (field === 'role' && value in roleStyle) return roleStyle[value as BuiltinProjectRole].label;
   if (field === 'category') return CATEGORY_LABEL[value] ?? value;
   if (field === 'status') return statusById(detail.workflow, value)?.name ?? value;
   if (field === 'section') return detail.sections.find((s) => s.id === value)?.name ?? value;

@@ -4,6 +4,7 @@ import { useProject } from '../api/queries';
 import { color } from '../theme/tokens';
 
 const projectLinks = (key: string) => [
+  { to: `/p/${key}/settings/details`, label: 'Name, colour and workflow' },
   { to: `/p/${key}/settings/members`, label: 'Members' },
   { to: `/p/${key}/settings/structure`, label: 'Sections, types and trash' },
   { to: `/p/${key}/settings/workflow`, label: 'Workflow' },

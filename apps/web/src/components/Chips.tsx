@@ -1,8 +1,12 @@
-import type { Priority, ProjectRole, TaskType, User, WorkflowStatus } from '../api/types';
-import { avatarTones, githubBadgeStyle, priorityStyle, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
+import { useWorkspaceCatalog } from '../api/catalog';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectRole, TaskType, User, WorkflowStatus } from '../api/types';
+import { avatarTones, chipFromHex, color, githubBadgeStyle, priorityStyle, projectTint, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
 
 export function TypeTag({ type, small = false }: { type: TaskType; small?: boolean }) {
-  const s = typeStyle[type];
+  const catalog = useWorkspaceCatalog();
+  const custom = catalog.types.find((item) => item.slug === type);
+  const builtin = type in typeStyle ? typeStyle[type as BuiltinTaskType] : null;
+  const s = custom ? chipFromHex(custom.colour, custom.name) : builtin ?? chipFromHex(color.muted, type);
   return (
     <span style={{ fontSize: small ? 11.5 : 12, fontWeight: 500, padding: small ? '1px 7px' : '2px 8px', borderRadius: 6, background: s.bg, color: s.fg, whiteSpace: 'nowrap' }}>
       {s.label}
@@ -13,9 +17,10 @@ export function TypeTag({ type, small = false }: { type: TaskType; small?: boole
 export function StatusPill({ status }: { status: WorkflowStatus | undefined }) {
   if (!status) return null;
   const s = toneStyle[status.tone];
+  const tint = status.colour ? projectTint(status.colour) : null;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 999, background: s.bg, color: s.fg, fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 999, background: tint?.tint ?? s.bg, color: tint?.ink ?? s.fg, fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: tint?.hex ?? s.dot }} />
       {status.name}
     </span>
   );
@@ -23,7 +28,8 @@ export function StatusPill({ status }: { status: WorkflowStatus | undefined }) {
 
 export function StatusDot({ status }: { status: WorkflowStatus | undefined }) {
   if (!status) return null;
-  return <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: toneStyle[status.tone].dot, flex: 'none' }} />;
+  const fill = status.colour ? projectTint(status.colour).hex : toneStyle[status.tone].dot;
+  return <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: fill, flex: 'none' }} />;
 }
 
 export function PriorityLabel({ priority }: { priority: Priority }) {
@@ -37,7 +43,10 @@ export function PriorityLabel({ priority }: { priority: Priority }) {
 }
 
 export function RoleTag({ role }: { role: ProjectRole }) {
-  const r = roleStyle[role];
+  const catalog = useWorkspaceCatalog();
+  const custom = catalog.roles.find((item) => item.slug === role);
+  const builtin = role in roleStyle ? roleStyle[role as BuiltinProjectRole] : null;
+  const r = custom ? chipFromHex(custom.colour, custom.name) : builtin ?? chipFromHex(color.muted, role);
   return <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: r.bg, color: r.fg }}>{r.label}</span>;
 }
 

@@ -3,9 +3,6 @@
 
 type StatusTone = 'neutral' | 'indigo' | 'blue' | 'amber' | 'orange' | 'green' | 'slate';
 type StatusCategory = 'backlog' | 'active' | 'review' | 'done';
-type RoleSlug = 'lead' | 'business' | 'developer' | 'tester' | 'observer';
-type TypeSlug = 'idea' | 'bug' | 'improvement' | 'feature';
-
 const TONE_BY_SLUG: Record<string, StatusTone> = {
   idea: 'neutral',
   approved: 'indigo',
@@ -50,22 +47,34 @@ export function nextPosition(after: string | null): string {
   return `${after}z`;
 }
 
-export function remapRoleSlug(slug: string): RoleSlug {
+export function remapRoleSlug(slug: string): string {
   if (slug === 'lead' || slug === 'business' || slug === 'developer' || slug === 'tester' || slug === 'observer') {
     return slug;
   }
-  return 'observer';
+  return slug || 'observer';
 }
 
-export function remapTypeSlug(slug: string): TypeSlug {
+export function remapTypeSlug(slug: string): string {
   if (slug === 'idea' || slug === 'bug' || slug === 'improvement' || slug === 'feature') return slug;
-  return 'idea';
+  return slug || 'idea';
+}
+
+const COLOUR_BY_CATEGORY: Record<StatusCategory, string> = {
+  backlog: '#8A9086',
+  active: '#2F6FDB',
+  review: '#E0731F',
+  done: '#178A5C',
+};
+
+export function colourForCategory(category: StatusCategory): string {
+  return COLOUR_BY_CATEGORY[category];
 }
 
 export function mapStatus(s: {
   slug: string;
   name: string;
   category: StatusCategory;
+  colour?: string | null;
   position: number;
   wipLimit: number | null;
 }) {
@@ -74,6 +83,7 @@ export function mapStatus(s: {
     name: s.name,
     category: s.category,
     tone: statusTone(s.slug),
+    colour: s.colour?.trim() || colourForCategory(s.category),
     position: s.position,
     wipLimit: s.wipLimit,
     side: isSideStatus(s.slug),

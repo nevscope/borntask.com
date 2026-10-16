@@ -4,13 +4,17 @@
 import { z } from 'zod';
 
 // ---------- enums ----------
-export const TaskTypeSchema = z.enum(['idea', 'bug', 'improvement', 'feature']);
+export const BuiltinTaskTypeSchema = z.enum(['idea', 'bug', 'improvement', 'feature']);
+export type BuiltinTaskType = z.infer<typeof BuiltinTaskTypeSchema>;
+export const TaskTypeSchema = z.string().min(1);
 export type TaskType = z.infer<typeof TaskTypeSchema>;
 
 export const PrioritySchema = z.enum(['urgent', 'high', 'medium', 'low', 'none']);
 export type Priority = z.infer<typeof PrioritySchema>;
 
-export const ProjectRoleSchema = z.enum(['lead', 'business', 'developer', 'tester', 'observer']);
+export const BuiltinProjectRoleSchema = z.enum(['lead', 'business', 'developer', 'tester', 'observer']);
+export type BuiltinProjectRole = z.infer<typeof BuiltinProjectRoleSchema>;
+export const ProjectRoleSchema = z.string().min(1);
 export type ProjectRole = z.infer<typeof ProjectRoleSchema>;
 
 export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'member', 'guest', 'viewer']);
@@ -58,6 +62,7 @@ export const WorkflowStatusSchema = z.object({
   name: z.string(),
   category: StatusCategorySchema,
   tone: StatusToneSchema,
+  colour: z.string().optional(),
   position: z.number(),
   wipLimit: z.number().int().nullable(),
   /** Side statuses (On hold, Rejected) render as collapsible columns at the end of the board. */

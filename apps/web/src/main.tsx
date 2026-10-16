@@ -6,6 +6,7 @@ import 'dayjs/locale/en-gb';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { WorkspaceCatalogProvider } from './api/catalog';
 import { App } from './App';
 import { QuickAddProvider } from './components/QuickAdd';
 import { StatusToastHost } from './components/StatusToast';
@@ -37,11 +38,13 @@ if (!root) throw new Error('#root missing');
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <WorkspaceCatalogProvider>
       <ConfigProvider theme={antdTheme} locale={enGB}>
         <AntApp>
           <RouterProvider router={router} />
         </AntApp>
       </ConfigProvider>
+      </WorkspaceCatalogProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -9,9 +9,10 @@ import { SettingsFrame } from '../components/SettingsNav';
 import { TypeTag } from '../components/Chips';
 import { color } from '../theme/tokens';
 import { useStatusToast } from '../components/StatusToast';
-import type { TaskType } from '../api/types';
+import { useWorkspaceCatalog } from '../api/catalog';
+import type { BuiltinTaskType } from '../api/types';
 
-const TYPE_TPL: Record<TaskType, string> = {
+const TYPE_TPL: Record<BuiltinTaskType, string> = {
   idea: 'Template: problem, who benefits',
   bug: 'Template: steps, expected, actual',
   improvement: 'Template: current, proposed',
@@ -21,6 +22,7 @@ const TYPE_TPL: Record<TaskType, string> = {
 export function ProjectStructureScreen() {
   const { projectKey = '' } = useParams();
   const me = useMe().data;
+  const catalog = useWorkspaceCatalog();
   const toast = useStatusToast();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
@@ -158,10 +160,10 @@ export function ProjectStructureScreen() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Task types used here</h2>
           </div>
-          {(Object.keys(TYPE_TPL) as TaskType[]).map((slug) => (
+          {(catalog.types.length ? catalog.types.map((t) => t.slug) : (Object.keys(TYPE_TPL) as BuiltinTaskType[])).map((slug) => (
             <label key={slug} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 52, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
               <TypeTag type={slug} />
-              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{TYPE_TPL[slug]}</span>
+              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{slug in TYPE_TPL ? TYPE_TPL[slug as BuiltinTaskType] : 'No template'}</span>
               <Switch
                 checked
                 aria-label={`Use ${slug} in this project`}

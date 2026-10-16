@@ -47,6 +47,9 @@ export function WorkspaceGeneralScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
   const isOwner = me?.workspaceRole === 'owner';
   const ws = useQuery({
     queryKey: ['workspace-settings'],
@@ -77,21 +80,52 @@ export function WorkspaceGeneralScreen() {
       <h1 className="bt-h1">Workspace</h1>
       <p style={{ color: color.muted, margin: '6px 0 0' }}>Owners and admins only.</p>
       {!canAdmin && <Alert type="warning" message="You can view this page, but only an owner or admin can save changes." />}
-      {ws.error && <Alert type="error" message={ws.error.message} />}
+      {ws.error && <Alert type="error" showIcon message={ws.error.message} />}
+      {saveError && <Alert type="error" showIcon message={saveError} />}
+      {saved && <Alert type="success" showIcon message="Workspace saved." />}
       <Form
         form={form}
         layout="vertical"
         disabled={!canAdmin}
-        onFinish={async (values) => {
-          const res = await fetch(`${BASE_URL}/workspace`, {
-            method: 'PATCH',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(values),
-          });
-          if (!res.ok) return;
-          void qc.invalidateQueries({ queryKey: qk.me });
-          void qc.invalidateQueries({ queryKey: ['workspace-settings'] });
+        onValuesChange={() => {
+          setSaved(false);
+          setSaveError(null);
+        }}
+        onFinish={async (values: Partial<WorkspaceSettings>) => {
+          setSaveError(null);
+          setSaved(false);
+          setBusy(true);
+          try {
+            const res = await fetch(`${BASE_URL}/workspace`, {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: values.name,
+                slug: values.slug,
+                timeZone: values.timeZone,
+                weekStart: values.weekStart,
+                defaultWorkflowId: values.defaultWorkflowId ?? null,
+                bugsStartIn: values.bugsStartIn,
+                allowGoogle: values.allowGoogle,
+                allowMicrosoft: values.allowMicrosoft,
+                membersCanInviteGuests: values.membersCanInviteGuests,
+              }),
+            });
+            const json = await res.json().catch(() => ({})) as WorkspaceSettings & { message?: string };
+            if (!res.ok) {
+              setSaveError(json.message ?? 'Could not save workspace settings.');
+              return;
+            }
+            qc.setQueryData(['workspace-settings'], json);
+            form.setFieldsValue(json);
+            setSaved(true);
+            void qc.invalidateQueries({ queryKey: qk.me });
+          } catch {
+            setSaveError('Could not save workspace settings.');
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
@@ -160,7 +194,10 @@ export function WorkspaceGeneralScreen() {
             <Checkbox className="bt-check-row">Members can invite guests <span style={{ fontSize: 12.5, color: color.muted }}>(otherwise only admins and project leads)</span></Checkbox>
           </Form.Item>
         </section>
-        <Button type="primary" htmlType="submit">Save</Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Button type="primary" htmlType="submit" loading={busy}>{saved ? 'Saved' : 'Save changes'}</Button>
+          {dirty && !saved && !busy && <span style={{ fontSize: 13, color: color.warning }}>Unsaved changes</span>}
+        </div>
       </Form>
       {isOwner && (
         <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>

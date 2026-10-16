@@ -410,6 +410,7 @@ model WorkflowStatus {
   name      String
   slug      String
   category  StatusCategory
+  colour    String         @default("#8A9086")
   position  Int
   wipLimit  Int?
 

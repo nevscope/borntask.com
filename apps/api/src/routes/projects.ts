@@ -4,12 +4,21 @@ import { prisma } from '../db.js';
 import { requireAuth, type Authed } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.js';
+import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { projectKeyFromName } from '../lib/tokens.js';
+
+const colourSchema = z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C');
+
+function normaliseColour(value: string): string {
+  const hex = value.trim().replace(/^#/, '').toUpperCase();
+  const full = hex.length === 3 ? hex.replace(/^(.)(.)(.)$/, '$1$1$2$2$3$3') : hex;
+  return `#${full}`;
+}
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   key: z.string().trim().min(2).max(6).optional(),
-  colour: z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C').optional(),
+  colour: colourSchema.optional(),
   workflowId: z.string().optional(),
   workflow: z.enum(['delivery', 'simple']).optional(),
   sections: z.array(z.string().trim().min(1)).optional(),
@@ -28,6 +37,16 @@ async function visibleProject(auth: Authed, key: string) {
     if (!on) throw forbidden("You're not on this project.");
   }
   return project;
+}
+
+async function assertCanEditProject(auth: Authed, project: { id: string; leadId: string | null }) {
+  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin' || project.leadId === auth.userId) return;
+  const member = await auth.db.projectMember.findFirst({
+    where: { projectId: project.id, userId: auth.userId },
+    include: { roles: { include: { role: true } } },
+  });
+  if (member?.roles.some((role) => role.role.slug === 'lead')) return;
+  throw forbidden('Only a project lead or workspace admin can change this project.');
 }
 
 export const projectRoutes: FastifyPluginAsync = async (app) => {
@@ -71,6 +90,38 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.patch('/projects/:key', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const parsed = z.object({
+        name: z.string().trim().min(2).max(80).optional(),
+        colour: colourSchema.optional(),
+        workflowId: z.string().min(1).optional(),
+      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined, {
+        message: 'Send a name, a colour or a workflow to update.',
+      }).safeParse(req.body);
+      if (!parsed.success) throw validation(parsed.error.issues[0]?.message ?? 'Check the name, colour and workflow.');
+      const project = await visibleProject(auth, key);
+      await assertCanEditProject(auth, project);
+      let workflowId = project.workflowId;
+      if (parsed.data.workflowId && parsed.data.workflowId !== project.workflowId) {
+        const switched = await switchProjectWorkflow(auth, project.id, parsed.data.workflowId);
+        workflowId = switched.workflowId;
+      }
+      const data = {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.colour !== undefined ? { colour: normaliseColour(parsed.data.colour) } : {}),
+      };
+      const updated = Object.keys(data).length
+        ? await auth.db.project.update({ where: { id: project.id }, data })
+        : project;
+      return { name: updated.name, colour: updated.colour, workflowId };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post('/projects', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
@@ -93,9 +144,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           tenantId: auth.tenantId,
           name: input.name,
           key,
-          colour: input.colour
-            ? `#${input.colour.replace(/^#/, '').toUpperCase().replace(/^([0-9A-F])([0-9A-F])([0-9A-F])$/, (_, a, b, c) => `${a}${a}${b}${b}${c}${c}`)}`
-            : '#178A5C',
+          colour: input.colour ? normaliseColour(input.colour) : '#178A5C',
           leadId: auth.userId,
           workflowId,
         },

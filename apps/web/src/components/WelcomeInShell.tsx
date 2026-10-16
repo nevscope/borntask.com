@@ -2,7 +2,7 @@ import { Button } from 'antd';
 import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe, useMoveTask, useMyTasks, useProject, useProjectTasks, useProjects } from '../api/queries';
-import type { ProjectRole, Task } from '../api/types';
+import type { BuiltinProjectRole, Task } from '../api/types';
 import { StatusPill, TypeTag } from './Chips';
 import { useQuickAdd } from './QuickAdd';
 import { useTaskParam } from './useTaskParam';
@@ -70,7 +70,7 @@ export function GuestWelcome() {
   const { openTask } = useTaskParam();
   const project = detail?.project ?? projects.find((p) => p.key === projectKey);
   const roleSlug = stored?.projectRole;
-  const role = roleSlug && roleSlug in roleStyle ? roleStyle[roleSlug as ProjectRole].label : 'a guest';
+  const role = roleSlug && roleSlug in roleStyle ? roleStyle[roleSlug as BuiltinProjectRole].label : 'a guest';
   const projectName = stored?.projectName || project?.name || 'your project';
   const ideas = (taskQuery.data ?? []).filter((t) => t.statusId === 'idea');
   const waiting = approvals.length ? approvals : ideas;

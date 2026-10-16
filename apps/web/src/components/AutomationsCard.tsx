@@ -2,10 +2,11 @@ import { Switch } from 'antd';
 import { useProject, useProjectAutomations, useSaveProjectAutomations } from '../api/queries';
 import type { AutomationRule } from '../api/queries';
 import { RoleTag } from './Chips';
+import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole } from '../api/types';
 import { color } from '../theme/tokens';
 
-const ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
+const FALLBACK_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
 
 function statusLabel(slug: string, names: Map<string, string>) {
   return names.get(slug) ?? slug.replace(/_/g, ' ');
@@ -15,11 +16,10 @@ function actionLabel(action: AutomationRule['action']) {
   return action === 'assign_role' ? 'Assign' : 'Notify';
 }
 
-function asRole(slug: string): ProjectRole | null {
-  return ROLES.includes(slug as ProjectRole) ? (slug as ProjectRole) : null;
-}
-
 export function AutomationsCard({ projectKey }: { projectKey: string }) {
+  const catalog = useWorkspaceCatalog();
+  const ROLES = catalog.roles.length ? catalog.roles.map((r) => r.slug) : FALLBACK_ROLES;
+  const asRole = (slug: string): ProjectRole | null => (ROLES.includes(slug) ? slug : null);
   const project = useProject(projectKey);
   const query = useProjectAutomations(projectKey);
   const save = useSaveProjectAutomations(projectKey);

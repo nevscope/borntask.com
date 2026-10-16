@@ -1,7 +1,8 @@
-import { NavLink, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useSearchParams } from 'react-router-dom';
 import { projectViewSearch } from './ProjectViewBar';
 import { useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
+import { color } from '../theme/tokens';
 import { Avatar } from './Chips';
 import { InvitePeopleButton } from './InvitePeople';
 import { ProjectStar } from './ProjectStar';
@@ -23,6 +24,9 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             <span style={{ width: 12, height: 12, borderRadius: 4, background: project.color }} />
             {project.name}
           </h1>
+          <Link to={`/p/${project.key}/settings/details`} style={{ display: 'inline-block', marginTop: 6, fontSize: 13, fontWeight: 500, color: color.brandStrong, textDecoration: 'none' }}>
+            Edit name, colour and workflow
+          </Link>
         </div>
         <ProjectStar projectKey={project.key} name={project.name} starred={starred} />
         <div style={{ display: 'flex', alignItems: 'center' }}>

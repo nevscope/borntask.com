@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { useMe, useProjects } from '../api/queries';
+import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole } from '../api/types';
+import { RoleTag } from './Chips';
 import { inviteSentText, useStatusToast } from './StatusToast';
 import { categoryBar, color, font, radius, roleStyle } from '../theme/tokens';
 
-const PROJECT_ROLES: ProjectRole[] = ['business', 'developer', 'tester', 'observer'];
+const FALLBACK_ROLES: ProjectRole[] = ['business', 'developer', 'tester', 'observer'];
 
 function emailDomain(email: string) {
   const at = email.lastIndexOf('@');
@@ -38,6 +40,10 @@ export function InvitePeopleButton({
   const sent = useStatusToast();
   const qc = useQueryClient();
   const me = useMe().data;
+  const catalog = useWorkspaceCatalog();
+  const PROJECT_ROLES = (catalog.roles.filter((r) => r.slug !== 'lead').map((r) => r.slug)).length
+    ? catalog.roles.filter((r) => r.slug !== 'lead').map((r) => r.slug)
+    : FALLBACK_ROLES;
   const projects = useProjects().data ?? [];
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -247,7 +253,6 @@ export function InvitePeopleButton({
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {PROJECT_ROLES.map((role) => {
                     const pressed = projectRoles.includes(role);
-                    const s = roleStyle[role];
                     return (
                       <button
                         key={role}
@@ -256,18 +261,15 @@ export function InvitePeopleButton({
                         onClick={() => toggleRole(role)}
                         style={{
                           height: 30,
-                          padding: '0 10px',
-                          border: `1px solid ${pressed ? s.fg : color.border}`,
+                          padding: '0 8px',
+                          border: `1px solid ${pressed ? color.brand : color.border}`,
                           borderRadius: 7,
-                          background: pressed ? s.bg : color.surface,
-                          color: pressed ? s.fg : color.ink,
+                          background: pressed ? color.brandTint : color.surface,
                           font: 'inherit',
-                          fontSize: 13,
-                          fontWeight: pressed ? 600 : 400,
                           cursor: 'pointer',
                         }}
                       >
-                        {s.label}
+                        <RoleTag role={role} />
                       </button>
                     );
                   })}

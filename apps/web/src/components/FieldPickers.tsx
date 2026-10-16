@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import type { Priority, ProjectDetail, TaskType, User, WorkflowStatus } from '../api/types';
+import { useWorkspaceCatalog } from '../api/catalog';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectDetail, TaskType, User, WorkflowStatus } from '../api/types';
 import { dueLabel, parseDuePhrase } from '../lib/dates';
 import { rolesLabel, type MoveCheck } from '../lib/workflow';
 import { color, priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
@@ -12,7 +13,7 @@ type StatusOption = {
   check: MoveCheck;
 };
 
-const TYPE_HINT: Record<TaskType, string> = {
+const TYPE_HINT: Record<BuiltinTaskType, string> = {
   idea: 'Not yet approved',
   bug: 'Something is broken',
   improvement: 'Make something better',
@@ -22,22 +23,27 @@ const TYPE_HINT: Record<TaskType, string> = {
 const PRIORITIES: Priority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
 export function TypePicker({ value, onChange, bare, trigger }: { value: TaskType; onChange: (type: TaskType) => void; bare?: boolean; trigger?: ReactNode }) {
+  const catalog = useWorkspaceCatalog();
+  const types = catalog.types.length
+    ? catalog.types.map((item) => ({ id: item.slug, name: item.name, hint: item.slug in TYPE_HINT ? TYPE_HINT[item.slug as BuiltinTaskType] : '' }))
+    : (Object.keys(typeStyle) as BuiltinTaskType[]).map((type) => ({ id: type, name: typeStyle[type].label, hint: TYPE_HINT[type] }));
+  const current = types.find((item) => item.id === value)?.name ?? (value in typeStyle ? typeStyle[value as BuiltinTaskType].label : value);
   return (
-    <Picker bare={bare} label={trigger ?? typeStyle[value].label} ariaLabel="Change type">
+    <Picker bare={bare} label={trigger ?? current} ariaLabel="Change type">
       {(close) => (
         <FilterList
           label="Find a type"
-          items={(Object.keys(typeStyle) as TaskType[]).map((type) => ({
-            id: type,
-            text: `${typeStyle[type].label} ${TYPE_HINT[type]}`,
+          items={types.map((type) => ({
+            id: type.id,
+            text: `${type.name} ${type.hint}`,
             node: (
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
-                <span style={{ fontSize: 12, fontWeight: 500, padding: '2px 8px', borderRadius: 6, background: typeStyle[type].bg, color: typeStyle[type].fg }}>{typeStyle[type].label}</span>
-                <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{TYPE_HINT[type]}</span>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{type.name}</span>
+                <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{type.hint}</span>
               </span>
             ),
           }))}
-          onPick={(id) => { onChange(id as TaskType); close(); }}
+          onPick={(id) => { onChange(id); close(); }}
         />
       )}
     </Picker>
@@ -100,7 +106,7 @@ function AssigneeList({
           <RowButton key={user.id} active={user.id === selected} onClick={() => onChange(user.id)}>
             <Avatar user={user} size={24} />
             <span style={{ flex: 1 }}>{user.name}</span>
-            <span style={{ fontSize: 12, color: color.muted }}>{roles[0] ? roleStyle[roles[0]].label : 'Member'}</span>
+            <span style={{ fontSize: 12, color: color.muted }}>{roles[0] && roles[0] in roleStyle ? roleStyle[roles[0] as BuiltinProjectRole].label : roles[0] ?? 'Member'}</span>
           </RowButton>
         );
       })}

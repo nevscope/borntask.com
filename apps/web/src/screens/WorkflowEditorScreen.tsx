@@ -1,6 +1,6 @@
 import { Alert, Checkbox, Select } from 'antd';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { useMe, useProject } from '../api/queries';
 import type { StatusCategory, Transition, WorkflowStatus } from '../api/types';
@@ -9,7 +9,8 @@ import { RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { color, toneStyle } from '../theme/tokens';
+import { ColourSwatchRow } from '../components/ProjectColourField';
+import { categoryBar, color, toneStyle } from '../theme/tokens';
 
 type Stage = WorkflowStatus & { taskCount: number };
 type EditorWorkflow = {
@@ -45,6 +46,7 @@ const field: CSSProperties = {
 
 export function WorkflowEditorScreen() {
   const { projectKey } = useParams();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const wantedId = params.get('id');
   const me = useMe().data;
@@ -60,6 +62,8 @@ export function WorkflowEditorScreen() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [pendingStage, setPendingStage] = useState<{ stage: Stage; index: number } | null>(null);
   const [pendingMove, setPendingMove] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState(false);
+  const [name, setName] = useState('');
   const projectName = useProject(projectKey ?? '').data?.project.name;
 
   useEffect(() => {
@@ -82,12 +86,13 @@ export function WorkflowEditorScreen() {
     if (!wf) return;
     setStages(wf.statuses);
     setRows(wf.transitions);
+    setName(wf.name);
     setRemovals([]);
-    setBaseline(JSON.stringify({ stages: wf.statuses, rows: wf.transitions }));
+    setBaseline(JSON.stringify({ name: wf.name, stages: wf.statuses, rows: wf.transitions }));
   }, [id, workflows]);
 
   const wf = workflows.find((w) => w.id === id);
-  const dirty = JSON.stringify({ stages, rows }) !== baseline || removals.length > 0;
+  const dirty = JSON.stringify({ name, stages, rows }) !== baseline || removals.length > 0;
   const unsaved = useUnsavedChanges(dirty);
 
   const patch = (stageId: string, next: Partial<Stage>) => {
@@ -149,7 +154,8 @@ export function WorkflowEditorScreen() {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        statuses: stages.map((s) => ({ id: s.id, name: s.name.trim(), category: s.category, wipLimit: s.wipLimit })),
+        name: name.trim() || wf?.name,
+        statuses: stages.map((s) => ({ id: s.id, name: s.name.trim(), category: s.category, colour: s.colour, wipLimit: s.wipLimit })),
         remaps: removals.map((r) => ({ from: r.stage.id, to: r.to })),
         transitions: rows,
       }),
@@ -168,7 +174,7 @@ export function WorkflowEditorScreen() {
   const dotOf = (statusId: string) => {
     if (statusId === '*') return color.dashed;
     const stage = stages.find((s) => s.id === statusId);
-    return stage ? dotFor(stage.category) : color.dashed;
+    return stage ? (stage.colour ?? dotFor(stage.category)) : color.dashed;
   };
   const usedBy = usedByLine(wf?.projectNames, wf?.projectCount, projectName);
   const pendingRow = pendingMove === null ? null : rows[pendingMove];
@@ -180,9 +186,17 @@ export function WorkflowEditorScreen() {
         <div style={{ flex: '1 1 300px' }}>
           <h1 className="bt-h1">Workflow</h1>
           <p style={{ margin: '6px 0 0', fontSize: 13.5, color: color.muted }}>
-            {wf?.name ?? 'Choose a workflow'} · used by {usedBy}
+            Stages, colours and who can move tasks · used by {usedBy}
           </p>
         </div>
+        {canEdit && (
+          <input
+            aria-label="Workflow name"
+            value={name}
+            onChange={(e) => { setSaved(false); setName(e.target.value); }}
+            style={{ ...field, width: 200 }}
+          />
+        )}
         {dirty && <span style={{ fontSize: 13, color: color.warning }}>Unsaved changes</span>}
         {workflows.length > 1 && (
           <Select
@@ -195,6 +209,9 @@ export function WorkflowEditorScreen() {
           />
         )}
         <button type="button" disabled={!canEdit || !id} onClick={() => void save()} style={{ ...saveBtn, ...((!canEdit || !id) ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}>Save workflow</button>
+        {canEdit && workflows.length > 1 && (
+          <button type="button" onClick={() => setPendingDelete(true)} style={{ ...removeBtn, textAlign: 'left' }}>Delete workflow</button>
+        )}
       </div>
       {!canEdit && <Alert type="warning" showIcon message="You can view this page, but only an owner or admin can save changes." />}
       {error && <Alert type="error" showIcon message={error} />}
@@ -229,7 +246,7 @@ export function WorkflowEditorScreen() {
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Stages</h2>
             <button type="button" disabled={!canEdit} onClick={() => {
               setSaved(false);
-              setStages((list) => [...list, { id: `new:${Date.now()}`, name: 'New stage', category: 'backlog', tone: 'neutral', position: list.length, wipLimit: null, side: false, taskCount: 0 }]);
+              setStages((list) => [...list, { id: `new:${Date.now()}`, name: 'New stage', category: 'backlog', tone: 'neutral', colour: categoryBar.backlog, position: list.length, wipLimit: null, side: false, taskCount: 0 }]);
             }} style={{ height: 32, padding: '0 10px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
               + Add stage
             </button>
@@ -237,6 +254,7 @@ export function WorkflowEditorScreen() {
           <div style={{ display: 'grid', gridTemplateColumns: stageColumns, gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
             <span />
             <span>Name</span>
+            <span>Colour</span>
             <span>Category</span>
             <span>WIP limit</span>
             <span>Tasks</span>
@@ -256,12 +274,13 @@ export function WorkflowEditorScreen() {
               </button>
               <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, minWidth: 0 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 80px', minWidth: 0 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: dotFor(s.category), flex: 'none' }} />
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: s.colour ?? dotFor(s.category), flex: 'none' }} />
                   <input aria-label={`Name for ${s.name}`} value={s.name} disabled={!canEdit} onChange={(e) => patch(s.id, { name: e.target.value })} style={{ ...field, minWidth: 0 }} />
                 </span>
                 {s.side ? <span style={{ fontSize: 12, color: color.muted }}>side column</span> : null}
               </span>
-              <select aria-label={`Category for ${s.name}`} value={s.category} disabled={!canEdit} onChange={(e) => patch(s.id, { category: e.target.value as StatusCategory })} style={field}>
+              <ColourSwatchRow colour={s.colour ?? categoryBar[s.category]} disabled={!canEdit} onColour={(hex) => patch(s.id, { colour: hex })} />
+              <select aria-label={`Category for ${s.name}`} value={s.category} disabled={!canEdit} onChange={(e) => patch(s.id, { category: e.target.value as StatusCategory, colour: s.colour ?? categoryBar[e.target.value as StatusCategory] })} style={field}>
                 {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
               <input
@@ -357,6 +376,27 @@ export function WorkflowEditorScreen() {
       </ConfirmDialog>
       {unsaved}
       <ConfirmDialog
+        open={pendingDelete}
+        title={wf ? `Delete ${wf.name}?` : 'Delete this workflow?'}
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(false)}
+        onConfirm={() => {
+          void (async () => {
+            setError(null);
+            const res = await fetch(`${BASE_URL}/workflows/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
+            const json = await res.json().catch(() => ({})) as { message?: string };
+            if (!res.ok) {
+              setError(json.message ?? 'Could not delete this workflow.');
+              setPendingDelete(false);
+              return;
+            }
+            navigate('/settings/defaults');
+          })();
+        }}
+      >
+        Switch any projects off this workflow first. This cannot be undone.
+      </ConfirmDialog>
+      <ConfirmDialog
         open={pendingMove !== null && pendingRow != null}
         title={pendingRow ? `Remove the move from ${nameOf(pendingRow.from)} to ${nameOf(pendingRow.to)}?` : 'Remove this move?'}
         confirmLabel="Remove"
@@ -383,7 +423,7 @@ function normalise(wf: EditorWorkflow): EditorWorkflow {
   };
 }
 
-const stageColumns = '28px minmax(110px, 1.6fr) minmax(100px, 1fr) 64px 40px 68px';
+const stageColumns = '28px minmax(110px, 1.4fr) minmax(160px, 1.2fr) minmax(100px, 1fr) 64px 40px 68px';
 const moveColumns = 'minmax(72px, 1fr) 20px minmax(72px, 1fr) minmax(100px, 1.3fr) 64px';
 
 function usedByLine(names: string[] | undefined, count: number | undefined, prefer?: string) {

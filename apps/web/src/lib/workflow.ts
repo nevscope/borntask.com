@@ -1,7 +1,7 @@
 // Workflow rules, shared by the board, the task drawer, My tasks and the mock API.
 // The Fastify API must enforce the same rules in moveTask(); the UI only uses them to show
 // what is possible before the user tries.
-import type { ProjectRole, Task, Transition, Workflow, WorkflowStatus, WorkspaceRole } from '../api/types';
+import type { BuiltinProjectRole, ProjectRole, Task, Transition, Workflow, WorkflowStatus, WorkspaceRole } from '../api/types';
 import { roleStyle } from '../theme/tokens';
 
 export type MoveCheck =
@@ -30,7 +30,7 @@ export function findTransition(wf: Workflow, task: Pick<Task, 'statusId' | 'prev
 }
 
 export function rolesLabel(roles: ProjectRole[]): string {
-  return roles.map((r) => roleStyle[r].label).join(' or ');
+  return roles.map((r) => (r in roleStyle ? roleStyle[r as BuiltinProjectRole].label : r)).join(' or ');
 }
 
 export function checkMove(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string, myRoles: ProjectRole[]): MoveCheck {

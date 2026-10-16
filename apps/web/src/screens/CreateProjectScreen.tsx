@@ -6,6 +6,7 @@ import { BASE_URL } from '../api/http';
 import { qk, useMe } from '../api/queries';
 import type { ProjectRole, User, WorkspaceRole } from '../api/types';
 import { RoleTag } from '../components/Chips';
+import { ProjectColourField } from '../components/ProjectColourField';
 import { color, font, parseProjectHex, projectSwatches, radius } from '../theme/tokens';
 import { ProjectsScreen } from './ProjectsScreen';
 
@@ -44,7 +45,6 @@ export function CreateProjectScreen() {
     },
   });
 
-  const customColour = !projectSwatches.some((s) => s.hex.toLowerCase() === colour.toLowerCase());
   const derivedKey = keyTouched ? key : keyFromName(name);
   const others = useMemo(
     () => (people.data ?? []).filter((p) => p.id !== me?.user.id),
@@ -170,81 +170,12 @@ export function CreateProjectScreen() {
             </label>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
-            <fieldset style={{ margin: 0, padding: 0, border: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <legend style={{ padding: '0 0 8px', fontSize: 13, fontWeight: 500 }}>Colour</legend>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                {projectSwatches.map((s) => {
-                  const selected = colour.toLowerCase() === s.hex.toLowerCase();
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-label={selected ? `${s.label}, selected` : s.label}
-                      aria-pressed={selected}
-                      onClick={() => { setColour(s.hex); setHexDraft(s.hex); }}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        border: 0,
-                        background: s.hex,
-                        cursor: 'pointer',
-                        boxShadow: selected ? `0 0 0 2px ${color.surface}, 0 0 0 4px ${s.hex}` : undefined,
-                      }}
-                    />
-                  );
-                })}
-                <label
-                  style={{
-                    position: 'relative',
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: customColour ? colour : color.subtle,
-                    color: customColour ? color.surface : color.muted,
-                    boxShadow: customColour ? `0 0 0 2px ${color.surface}, 0 0 0 4px ${colour}` : `inset 0 0 0 1px ${color.dashed}`,
-                    fontSize: 16,
-                    fontWeight: 500,
-                    lineHeight: 1,
-                  }}
-                >
-                  {!customColour && <span aria-hidden="true">+</span>}
-                  <span className="bt-sr-only">Custom colour</span>
-                  <input
-                    type="color"
-                    value={parseProjectHex(colour) ?? color.faint}
-                    aria-label="Custom colour"
-                    onChange={(e) => {
-                      const next = e.target.value.toUpperCase();
-                      setColour(next);
-                      setHexDraft(next);
-                    }}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', border: 0, padding: 0, width: '100%', height: '100%' }}
-                  />
-                </label>
-                <Input
-                  value={hexDraft}
-                  aria-label="Colour hex"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setHexDraft(raw);
-                    const parsed = parseProjectHex(raw);
-                    if (parsed) setColour(parsed);
-                  }}
-                  onBlur={() => {
-                    const parsed = parseProjectHex(hexDraft);
-                    if (parsed) setHexDraft(parsed);
-                    else setHexDraft(colour);
-                  }}
-                  maxLength={7}
-                  style={{ width: 88, height: 28, fontFamily: font.mono, fontSize: 12, letterSpacing: '0.02em' }}
-                />
-              </div>
-            </fieldset>
+            <ProjectColourField
+              colour={colour}
+              hexDraft={hexDraft}
+              onColour={setColour}
+              onHexDraft={setHexDraft}
+            />
             <label style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
               Workflow
               <Select

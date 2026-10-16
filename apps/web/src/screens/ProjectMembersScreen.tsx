@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject, useProjectTasks } from '../api/queries';
+import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole } from '../api/types';
 import { Avatar, RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -13,7 +14,7 @@ import { useStatusToast } from '../components/StatusToast';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
 
-const ALL_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
+const FALLBACK_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
 
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
 
@@ -21,6 +22,8 @@ export function ProjectMembersScreen() {
   const sent = useStatusToast();
   const { projectKey = '' } = useParams();
   const me = useMe().data;
+  const catalog = useWorkspaceCatalog();
+  const ALL_ROLES = catalog.roles.length ? catalog.roles.map((r) => r.slug) : FALLBACK_ROLES;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
   const tasks = useProjectTasks(projectKey).data;

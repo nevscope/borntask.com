@@ -6,7 +6,8 @@ import type { InputRef } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCreateTask, useMe, useMoveTask, useProject, useProjects } from '../api/queries';
-import type { Priority, ProjectRole, TaskType, User } from '../api/types';
+import { useWorkspaceCatalog } from '../api/catalog';
+import type { BuiltinTaskType, Priority, ProjectRole, TaskType, User } from '../api/types';
 import { dueLabel } from '../lib/dates';
 import {
   mentionHandle,
@@ -29,14 +30,22 @@ import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
 
-const TEMPLATES: Record<TaskType, string> = {
+const TEMPLATES: Record<BuiltinTaskType, string> = {
   idea: 'Problem\n\nWho benefits\n',
   bug: 'Steps to reproduce\n1. \n\nExpected\n\nActual\n',
   improvement: 'Today\n\nProposed\n',
   feature: 'Acceptance criteria\n- \n',
 };
 
-const TYPES: TaskType[] = ['idea', 'bug', 'improvement', 'feature'];
+const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature'];
+
+function templateOf(type: string) {
+  return type in TEMPLATES ? TEMPLATES[type as BuiltinTaskType] : '';
+}
+
+function typeLook(type: string) {
+  return type in typeStyle ? typeStyle[type as BuiltinTaskType] : { label: type, bg: color.chip, fg: color.ink3 };
+}
 
 interface OpenOptions {
   projectKey?: string;
@@ -90,7 +99,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);
   const [type, setType] = useState<TaskType>(opts.type ?? 'idea');
   const [raw, setRaw] = useState('');
-  const [description, setDescription] = useState(TEMPLATES[opts.type ?? 'idea']);
+  const catalog = useWorkspaceCatalog();
+  const typeList = catalog.types.length ? catalog.types.map((item) => item.slug) : TYPES;
+  const [description, setDescription] = useState(templateOf(opts.type ?? 'idea'));
   const [descTouched, setDescTouched] = useState(false);
   const [assigneeOverride, setAssigneeOverride] = useState<string | null | undefined>(undefined);
   const [dueOverride, setDueOverride] = useState<string | null | undefined>(undefined);
@@ -157,7 +168,10 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     setType(t);
     setStatusPick(undefined);
     setMoveComment('');
-    if (!descTouched && isUntouchedTemplate(description, TEMPLATES[type])) setDescription(TEMPLATES[t]);
+    const nextTemplate = catalog.types.find((item) => item.slug === t)?.template?.trim() || templateOf(t);
+    if (!descTouched && isUntouchedTemplate(description, catalog.types.find((item) => item.slug === type)?.template?.trim() || templateOf(type))) {
+      setDescription(nextTemplate);
+    }
   }
 
   useEffect(() => {
@@ -253,7 +267,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       toast.show({ kind: 'error', text: 'Add a comment to move it there.' });
       return;
     }
-    const cleanDescription = isUntouchedTemplate(description, TEMPLATES[type]) ? '' : persistDescription(description);
+    const cleanDescription = isUntouchedTemplate(description, templateOf(type)) ? '' : persistDescription(description);
     void (async () => {
       let uploaded = files;
       try {
@@ -339,9 +353,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '14px 18px 0' }}>
           <span style={{ fontSize: 12.5, color: color.muted, marginRight: 4 }}>Type</span>
-          {TYPES.map((t) => {
+          {typeList.map((t) => {
             const on = type === t;
-            const s = typeStyle[t];
+            const s = typeLook(t);
             return (
               <button
                 key={t}
@@ -457,7 +471,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 18px 6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: color.muted }}>Description</span>
-            <span style={{ fontSize: 12, color: color.muted }}>· {typeStyle[type].label} template</span>
+            <span style={{ fontSize: 12, color: color.muted }}>· {typeLook(type).label} template</span>
             <span style={{ flex: 1 }} />
             <button
               type="button"
@@ -473,7 +487,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
             minHeight={180}
             onChange={(next) => {
               setDescription(next);
-              if (!isUntouchedTemplate(next, TEMPLATES[type])) setDescTouched(true);
+              if (!isUntouchedTemplate(next, templateOf(type))) setDescTouched(true);
             }}
             onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
           />
@@ -612,13 +626,13 @@ function suggestionsFor(kind: '@' | '#' | '!', query: string, people: User[]): T
   }
   if (kind === '#') {
     return TYPE_TOKENS
-      .filter((item) => item.token.includes(q) || typeStyle[item.type].label.toLowerCase().includes(q))
+      .filter((item) => item.token.includes(q) || typeLook(item.type).label.toLowerCase().includes(q))
       .map((item) => ({
         id: item.type,
         kind: '#' as const,
-        label: typeStyle[item.type].label,
+        label: typeLook(item.type).label,
         insert: `#${item.token}`,
-        swatch: typeStyle[item.type].fg,
+        swatch: typeLook(item.type).fg,
       }));
   }
   return PRIORITY_TOKENS

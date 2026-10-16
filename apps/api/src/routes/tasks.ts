@@ -23,7 +23,7 @@ import {
 const createTaskSchema = z.object({
   projectKey: z.string(),
   sectionId: z.string(),
-  type: z.enum(['idea', 'bug', 'improvement', 'feature']),
+  type: z.string().min(1),
   title: z.string().trim().min(1).max(200),
   description: z.string(),
   assigneeId: z.string().nullable(),
@@ -37,7 +37,7 @@ const updateTaskSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
     description: z.string(),
-    type: z.enum(['idea', 'bug', 'improvement', 'feature']),
+    type: z.string().min(1),
     assigneeId: z.string().nullable(),
     priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
     dueDate: z.string().nullable(),

@@ -1,6 +1,6 @@
 // BornTask design tokens, taken from the approved screens (BornTask Screens canvas).
 // Every colour in components should come from here or from the AntD theme built on it.
-import type { Priority, ProjectRole, StatusTone, TaskType } from '../api/types';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, StatusTone } from '../api/types';
 
 export const color = {
   brand: '#178A5C',
@@ -97,7 +97,7 @@ export function projectTint(hex: string) {
   return { id: 'custom', label: 'Custom', hex: parsed, tint: mixTowardWhite(parsed, 0.88), ink: parsed };
 }
 
-export const typeStyle: Record<TaskType, { label: string; bg: string; fg: string }> = {
+export const typeStyle: Record<BuiltinTaskType, { label: string; bg: string; fg: string }> = {
   idea: { label: 'Idea', bg: '#F1EEFC', fg: '#5B3FC4' },
   bug: { label: 'Bug', bg: '#FDECEC', fg: '#B42323' },
   improvement: { label: 'Improvement', bg: '#FDF3E2', fg: '#8A5A0B' },
@@ -122,7 +122,16 @@ export const priorityStyle: Record<Priority, { label: string; color: string; key
   none: { label: 'No priority', color: '#E8EBE6', key: '0' },
 };
 
-export const roleStyle: Record<ProjectRole, { label: string; bg: string; fg: string }> = {
+export function chipFromHex(hex: string, label: string): { label: string; bg: string; fg: string } {
+  const tint = projectTint(hex);
+  const parsed = parseProjectHex(hex) ?? tint.hex;
+  const n = parseInt(parsed.slice(1), 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  if (lum < 0.42) return { label, bg: parsed, fg: color.surface };
+  return { label, bg: tint.tint, fg: tint.ink };
+}
+
+export const roleStyle: Record<BuiltinProjectRole, { label: string; bg: string; fg: string }> = {
   lead: { label: 'Project lead', bg: '#121417', fg: '#FFFFFF' },
   business: { label: 'Business', bg: '#EEF0FB', fg: '#3B49B8' },
   developer: { label: 'Developer', bg: '#EAF1FD', fg: '#1F55B8' },
