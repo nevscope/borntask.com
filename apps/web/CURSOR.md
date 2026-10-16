@@ -57,7 +57,7 @@ docs/design/          43 canvas screens (visual spec) + INDEX.md showing built v
 - **List drag** changes order or section only, never status.
 - **Board drag** changes status only. While dragging, allowed columns are tinted green, blocked ones fade, and their "Developer only" reason is shown. Dropping on a blocked column opens a notification with *Ask <role>* (posts an @mention comment) and *Override…* (asks for a reason, owner/admin/lead only).
 - **Task drawer** is driven by `?task=KEY` on any route. It autosaves on blur/change and shows "Saving… / ✓ Saved" from `useIsMutating`.
-- **Quick add:** press `Q` anywhere outside inputs. The title parses `@person`, `!urgent|high|medium|low` and `today/tomorrow/mon…sun/next week`. The description starts from the type's template. Screenshots can be pasted or dropped. Enter creates; Shift+Enter creates and opens.
+- **Quick add:** press `Q` anywhere outside inputs. The title parses `@person`, `!urgent|high|medium|low` and `today/tomorrow/mon…sun/next week`. The description starts from the type's template. Screenshots can be pasted or dropped. Chosen files upload to `POST /uploads` before create, and the task is created with those attachment ids. Enter creates; Shift+Enter creates and opens. The drawer adds, downloads and removes files on the task. Files over 25 MB are rejected.
 
 ## Next to build (from docs/design, in suggested order)
 
@@ -69,7 +69,6 @@ docs/design/          43 canvas screens (visual spec) + INDEX.md showing built v
 
 ## Known gaps in this handoff
 
-- The upload endpoint is not wired. Quick add keeps attachments locally and sends `attachmentIds: []`.
 - The search input and the invite "+" button are placeholders.
 - No auth guard yet. `getMe` failing with 401 should redirect to `/sign-in`.
 - The bundle is about 1.1 MB, one chunk. Lazy-load routes with `React.lazy` when the admin screens arrive.

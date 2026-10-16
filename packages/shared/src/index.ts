@@ -4,6 +4,7 @@ export * from './digest.js';
 export * from './domain.js';
 export * from './asanaCsv.js';
 export * from './chat.js';
+export * from './chatDm.js';
 export * from './github.js';
 export * from './automations.js';
 export * from './workspacePacks.js';

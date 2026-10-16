@@ -1,3 +1,5 @@
+import { parseChatServiceAccount } from '@borntask/shared';
+
 export function env(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (value === undefined) throw new Error(`Missing env ${name}`);
@@ -49,4 +51,12 @@ export function chatAppEnabled(): boolean {
       config.googleChatAppClientSecret &&
       config.googleChatAppVerificationToken,
   );
+}
+
+export function chatDmConfigured(): boolean {
+  return parseChatServiceAccount({
+    json: process.env.GOOGLE_CHAT_APP_SERVICE_ACCOUNT_JSON,
+    clientEmail: process.env.GOOGLE_CHAT_APP_SERVICE_ACCOUNT_EMAIL,
+    privateKey: process.env.GOOGLE_CHAT_APP_SERVICE_ACCOUNT_PRIVATE_KEY,
+  }) !== null;
 }

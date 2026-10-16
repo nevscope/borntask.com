@@ -13,7 +13,7 @@ import {
   type PersonalChatPrefs,
 } from '@borntask/shared';
 import { requireAuth, type Authed } from '../context.js';
-import { chatAppEnabled, config } from '../env.js';
+import { chatAppEnabled, chatDmConfigured, config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { decryptSecret, encryptSecret } from '../lib/secrets.js';
 
@@ -276,6 +276,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const row = await personalRow(auth);
       const appConfigured = chatAppEnabled();
+      const dmConfigured = chatDmConfigured();
       if (!row) {
         return {
           connected: false,
@@ -284,6 +285,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
           lastError: null,
           prefs: await loadPersonalPrefs(auth, appConfigured),
           appConfigured,
+          dmConfigured,
         };
       }
       const meta = chatMeta(row.events);
@@ -294,6 +296,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         lastError: meta.lastError,
         prefs: await loadPersonalPrefs(auth, true),
         appConfigured,
+        dmConfigured,
       };
     } catch (err) {
       return sendError(reply, err);
@@ -350,6 +353,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         lastError: meta.lastError,
         prefs,
         appConfigured,
+        dmConfigured: chatDmConfigured(),
       };
     } catch (err) {
       return sendError(reply, err);
@@ -412,6 +416,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         lastError: null,
         prefs: defaultPersonalChatPrefs(),
         appConfigured: chatAppEnabled(),
+        dmConfigured: chatDmConfigured(),
       };
     } catch (err) {
       return sendError(reply, err);

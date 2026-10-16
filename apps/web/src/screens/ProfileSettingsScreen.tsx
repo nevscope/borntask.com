@@ -105,6 +105,7 @@ export function ProfileSettingsScreen() {
 
   const chatConnected = Boolean(chat.data?.connected);
   const chatAppOn = Boolean(chat.data?.appConfigured);
+  const chatDmOn = Boolean(chat.data?.dmConfigured);
   const chatColumnOn = chatConnected || chatAppOn;
   const lastChatError = chatError ?? chat.data?.lastError ?? null;
 
@@ -326,9 +327,11 @@ export function ProfileSettingsScreen() {
             );
           })}
           <div style={{ padding: '12px 16px', fontSize: 12.5, color: color.muted }}>
-            {chatAppOn
-              ? 'Google Chat DMs need the BornTask Chat app and a Workspace allowlist. Assigned and @mention use Chat when this column is on. A personal webhook is still the fallback if the app cannot DM.'
-              : 'Google Chat posts go to the space webhook you save above. Incoming webhooks cannot DM a person. The Chat column turns on when the BornTask Chat app is configured on the server.'}
+            {chatDmOn
+              ? 'Direct messages come from the BornTask Chat app; a saved webhook is the fallback.'
+              : chatAppOn
+                ? 'The Chat column is on. A saved webhook receives posts until the Chat app service account is set on the server.'
+                : 'Google Chat posts go to the space webhook you save above. Incoming webhooks cannot DM a person. The Chat column turns on when the BornTask Chat app is configured on the server.'}
           </div>
         </div>
       </section>

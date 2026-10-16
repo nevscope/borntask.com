@@ -599,6 +599,7 @@ const MyChatSchema = z.object({
   lastError: z.string().nullable(),
   prefs: PersonalChatPrefsSchema,
   appConfigured: z.boolean().optional(),
+  dmConfigured: z.boolean().optional(),
 });
 
 export type PersonalChatPrefs = z.infer<typeof PersonalChatPrefsSchema>;
