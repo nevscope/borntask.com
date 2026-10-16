@@ -2,8 +2,9 @@ import { Alert, Button, Checkbox, Form, Input, Modal, Select } from 'antd';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe } from '../api/queries';
+import { qk, useChatAppStatus, useMe } from '../api/queries';
 import { SettingsFrame } from '../components/SettingsNav';
+import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color } from '../theme/tokens';
 
@@ -40,6 +41,7 @@ function settingsSnapshot(values: Partial<WorkspaceSettings> | undefined) {
 
 export function WorkspaceGeneralScreen() {
   const me = useMe().data;
+  const chatApp = useChatAppStatus();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const qc = useQueryClient();
   const [form] = Form.useForm();
@@ -50,6 +52,7 @@ export function WorkspaceGeneralScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const toast = useStatusToast();
   const isOwner = me?.workspaceRole === 'owner';
   const ws = useQuery({
     queryKey: ['workspace-settings'],
@@ -82,7 +85,6 @@ export function WorkspaceGeneralScreen() {
       {!canAdmin && <Alert type="warning" message="You can view this page, but only an owner or admin can save changes." />}
       {ws.error && <Alert type="error" showIcon message={ws.error.message} />}
       {saveError && <Alert type="error" showIcon message={saveError} />}
-      {saved && <Alert type="success" showIcon message="Workspace saved." />}
       <Form
         form={form}
         layout="vertical"
@@ -120,6 +122,7 @@ export function WorkspaceGeneralScreen() {
             qc.setQueryData(['workspace-settings'], json);
             form.setFieldsValue(json);
             setSaved(true);
+            toast.show('Workspace saved.');
             void qc.invalidateQueries({ queryKey: qk.me });
           } catch {
             setSaveError('Could not save workspace settings.');
@@ -151,7 +154,9 @@ export function WorkspaceGeneralScreen() {
                   void fetch(`${BASE_URL}/workspace/logo`, { method: 'POST', credentials: 'include', body }).then(async (res) => {
                     if (!res.ok) return;
                     setLogoVersion((n) => n + 1);
+                    toast.show('Workspace logo updated.');
                     void qc.invalidateQueries({ queryKey: ['workspace-settings'] });
+                    void qc.invalidateQueries({ queryKey: qk.me });
                   });
                 }}
               />
@@ -181,7 +186,11 @@ export function WorkspaceGeneralScreen() {
         <section className="bt-card" style={{ padding: '16px 18px' }}>
           <h2 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600 }}>Google Chat app</h2>
           <p style={{ margin: 0, fontSize: 13, color: color.muted, lineHeight: 1.5 }}>
-            The BornTask Chat app is configured on the server with GOOGLE_CHAT_APP_CLIENT_ID, GOOGLE_CHAT_APP_CLIENT_SECRET and GOOGLE_CHAT_APP_VERIFICATION_TOKEN. Ops (not done from this screen): create a Google Cloud project, enable the Chat API, list the app, and allow it on the Workspace. Direct messages need that allowlist. Space webhooks stay available without it. See docs/GOOGLE-CHAT-APP.md.
+            {chatApp.data?.configured
+              ? 'The Chat app is configured on this server. Slash commands, Create BornTask task, and idea Approve / Reject use it. Space webhooks still work. Direct messages need the app to be allowed on your Google Workspace.'
+              : chatApp.isLoading
+                ? 'Checking whether the Chat app is configured on this server.'
+                : 'The Chat app is not configured on this server yet. Space webhooks still work.'}
           </p>
         </section>
         <section className="bt-card" style={{ padding: '16px 18px' }}>

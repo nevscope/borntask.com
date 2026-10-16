@@ -122,6 +122,7 @@ export const api: Api = {
 
 export const qk = {
   me: ['me'] as const,
+  chatAppStatus: ['chat', 'app', 'status'] as const,
   projects: ['projects'] as const,
   project: (key: string) => ['projects', key] as const,
   projectTasks: (key: string) => ['projects', key, 'tasks'] as const,
@@ -607,6 +608,29 @@ export function useMyChat() {
   return useQuery({
     queryKey: ['me', 'chat'],
     queryFn: () => request('GET', '/me/chat', MyChatSchema),
+  });
+}
+
+const ChatAppStatusSchema = z.object({
+  configured: z.boolean(),
+  docs: z.string().optional(),
+});
+
+export type ChatAppStatus = z.infer<typeof ChatAppStatusSchema>;
+
+export function useChatAppStatus() {
+  return useQuery({
+    queryKey: qk.chatAppStatus,
+    queryFn: async () => {
+      try {
+        return await request('GET', '/chat/app/status', ChatAppStatusSchema);
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          return { configured: true };
+        }
+        throw err;
+      }
+    },
   });
 }
 
