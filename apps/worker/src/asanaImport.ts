@@ -18,6 +18,8 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
   if (!job) throw new Error('Import job not found');
   const project = await prisma.project.findUnique({ where: { id: job.projectId } });
   if (!project) throw new Error('Project not found');
+  const projectId = project.id;
+  const workflowId = project.workflowId;
 
   const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
   const parsed = parseDelimited(text);
@@ -32,24 +34,51 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
   const sectionCol = col('section');
   const statusCol = col('status');
   const dueCol = col('dueDate');
+  const startCol = col('startDate');
+  const createdCol = col('createdAt');
+  const completedCol = col('completedAt');
+  const updatedCol = col('updatedAt');
+  const labelsCol = col('labels');
   const typeCol = col('type');
   const parentCol = col('parentAsanaId');
+
+  function parseWhen(raw: string) {
+    const value = new Date(raw);
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  function parseTags(raw: string) {
+    return [...new Set(raw.split(/[,;|]/).map((part) => part.trim()).filter(Boolean))];
+  }
 
   const types = await prisma.taskType.findMany({ where: { tenantId: data.tenantId } });
   const defaultType = types.find((t) => t.slug === 'idea') ?? types[0];
   if (!defaultType) throw new Error('No task types');
   const statuses = await prisma.workflowStatus.findMany({
-    where: { tenantId: data.tenantId, workflowId: project.workflowId },
+    where: { tenantId: data.tenantId, workflowId },
     orderBy: { position: 'asc' },
   });
   const startStatus = statuses.find((s) => s.slug === 'idea' || s.slug === 'todo') ?? statuses[0];
   if (!startStatus) throw new Error('No statuses');
-  let sections = await prisma.section.findMany({ where: { projectId: project.id }, orderBy: { position: 'asc' } });
+  let sections = await prisma.section.findMany({ where: { projectId }, orderBy: { position: 'asc' } });
   if (sections.length === 0) {
     const inbox = await prisma.section.create({
-      data: { tenantId: data.tenantId, projectId: project.id, name: 'Inbox', position: 'a0' },
+      data: { tenantId: data.tenantId, projectId, name: 'Inbox', position: 'a0' },
     });
     sections = [inbox];
+  }
+
+  let labels = await prisma.label.findMany({ where: { tenantId: data.tenantId, projectId } });
+  const labelColour = '#5B6157';
+
+  async function labelFor(name: string) {
+    const found = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    if (found) return found;
+    const created = await prisma.label.create({
+      data: { tenantId: data.tenantId, projectId, name, colour: labelColour },
+    });
+    labels.push(created);
+    return created;
   }
 
   const members = await prisma.tenantMember.findMany({ where: { tenantId: data.tenantId, isActive: true } });
@@ -58,7 +87,7 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
 
   const errors: string[] = [];
   const asanaToTaskId = new Map<string, string>();
-  let last = await prisma.task.findFirst({ where: { projectId: project.id }, orderBy: { number: 'desc' } });
+  let last = await prisma.task.findFirst({ where: { projectId }, orderBy: { number: 'desc' } });
   let number = last?.number ?? 0;
   let done = 0;
 
@@ -83,7 +112,7 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
         const created = await prisma.section.create({
           data: {
             tenantId: data.tenantId,
-            projectId: project.id,
+            projectId,
             name: sectionName,
             position: `a${sections.length}`,
           },
@@ -97,8 +126,12 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
     const status = statuses.find((s) => s.slug === statusName || s.name.toLowerCase() === statusName) ?? startStatus;
     const typeName = typeCol ? (row[typeCol] ?? '').trim().toLowerCase() : '';
     const type = types.find((t) => t.slug === typeName || t.name.toLowerCase() === typeName) ?? defaultType;
-    const dueRaw = dueCol ? (row[dueCol] ?? '').trim() : '';
-    const dueDate = dueRaw ? new Date(dueRaw) : null;
+    const dueDate = dueCol ? parseWhen((row[dueCol] ?? '').trim()) : null;
+    const startDate = startCol ? parseWhen((row[startCol] ?? '').trim()) : null;
+    const createdAt = createdCol ? parseWhen((row[createdCol] ?? '').trim()) : null;
+    const completedAt = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
+    const updatedAt = updatedCol ? parseWhen((row[updatedCol] ?? '').trim()) : null;
+    const tagNames = labelsCol ? parseTags(row[labelsCol] ?? '') : [];
     const assignee = email ? userByEmail.get(email) : undefined;
 
     const payload = {
@@ -108,25 +141,30 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
       statusId: status.id,
       sectionId: section.id,
       assigneeId: assignee?.id ?? null,
-      dueDate: dueDate && !Number.isNaN(dueDate.getTime()) ? dueDate : null,
+      dueDate,
+      startDate,
+      completedAt,
       asanaTaskId: asanaId || null,
+      ...(createdAt ? { createdAt } : {}),
     };
 
+    let taskId = existing?.id;
     if (existing) {
       await prisma.task.update({ where: { id: existing.id }, data: payload });
-      if (asanaId) asanaToTaskId.set(asanaId, existing.id);
     } else {
       number += 1;
       const created = await prisma.task.create({
         data: {
           tenantId: data.tenantId,
-          projectId: project.id,
+          projectId,
           number,
           reporterId: data.actorId,
           position: `a${number}`,
           ...payload,
+          ...(updatedAt ? { updatedAt } : {}),
         },
       });
+      taskId = created.id;
       await prisma.activityLog.create({
         data: {
           tenantId: data.tenantId,
@@ -136,7 +174,17 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
           action: 'imported from Asana',
         },
       });
-      if (asanaId) asanaToTaskId.set(asanaId, created.id);
+    }
+    if (taskId && asanaId) asanaToTaskId.set(asanaId, taskId);
+    if (taskId && tagNames.length > 0) {
+      for (const name of tagNames) {
+        const label = await labelFor(name);
+        await prisma.taskLabel.upsert({
+          where: { taskId_labelId: { taskId, labelId: label.id } },
+          create: { tenantId: data.tenantId, taskId, labelId: label.id },
+          update: {},
+        });
+      }
     }
     done += 1;
     if (done % 25 === 0) {
@@ -166,7 +214,7 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
         tenantId: data.tenantId,
         email,
         tenantRole: 'member',
-        projectId: project.id,
+        projectId,
         tokenHash: hashToken(token),
         invitedById: data.actorId,
         expiresAt,

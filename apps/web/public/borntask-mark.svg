@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 48 48" role="img" aria-label="BornTask">
+  <rect width="48" height="48" rx="13.5" fill="#178A5C"/>
+  <circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"/>
+  <circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"/>
+  <path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -17,6 +17,11 @@ const FIELDS = [
   { value: 'section', label: 'Section' },
   { value: 'status', label: 'Status (see right)' },
   { value: 'dueDate', label: 'Due date' },
+  { value: 'startDate', label: 'Start date' },
+  { value: 'createdAt', label: 'Created date' },
+  { value: 'completedAt', label: 'Completed date' },
+  { value: 'updatedAt', label: 'Last modified' },
+  { value: 'labels', label: 'Labels (tags)' },
   { value: 'type', label: 'Task type' },
   { value: 'parentAsanaId', label: 'Parent task (subtask)' },
 ];
