@@ -237,7 +237,7 @@ export function InboxSheet({ open, onClose }: { open: boolean; onClose: () => vo
   if (!open) return null;
   return (
     <div role="presentation" className="bt-phone-sheet" onClick={onClose}>
-      <div onClick={(event) => event.stopPropagation()} style={{ height: '100%', background: color.surface }}>
+      <div onClick={(event) => event.stopPropagation()} style={{ flex: 1, minHeight: 0, height: '100%', background: color.surface, display: 'flex', flexDirection: 'column' }}>
         <NotificationPanel onClose={onClose} phone />
       </div>
     </div>

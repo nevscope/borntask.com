@@ -97,7 +97,6 @@ export function YouSheet({
           background: color.surface,
           borderTop: `1px solid ${color.border}`,
           borderRadius: '16px 16px 0 0',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         <AccountMenu

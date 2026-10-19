@@ -42,7 +42,8 @@ a { color: var(--bt-brand-strong); }
 .bt-h1 { margin: 0; font-family: var(--bt-display); font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
 .bt-card { background: var(--bt-surface); border: 1px solid var(--bt-border); border-radius: 12px; overflow: hidden; }
 .bt-group-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 40px; font-size: 13px; font-weight: 600; background: var(--bt-subtle); border-bottom: 1px solid var(--bt-divider); }
-.bt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 44px; padding: 4px 16px 4px 4px; border-bottom: 1px solid var(--bt-divider); background: var(--bt-surface); }
+.bt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 44px; padding: 4px 16px 4px 4px; border: 0; border-bottom: 1px solid var(--bt-divider); background: var(--bt-surface); }
+button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-row:hover { background: var(--bt-subtle); }
 .bt-row.drop-before { box-shadow: inset 0 2px 0 var(--bt-brand); }
 .bt-row-title { flex: 1 1 240px; min-width: 0; margin-left: -4px; color: var(--bt-ink); text-decoration: none; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; border: 0; padding: 0; text-align: left; font: inherit; cursor: pointer; }
@@ -166,7 +167,8 @@ a { color: var(--bt-brand-strong); }
     inset: 0;
     bottom: calc(56px + env(safe-area-inset-bottom, 0px));
     z-index: 45;
-    background: color-mix(in srgb, var(--bt-ink) 22%, transparent);
+    isolation: isolate;
+    background: var(--bt-canvas);
     display: flex;
     flex-direction: column;
   }
