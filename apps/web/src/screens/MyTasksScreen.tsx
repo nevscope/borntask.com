@@ -11,15 +11,17 @@ import { useQuickAdd } from '../components/QuickAdd';
 import { useStatusToast } from '../components/StatusToast';
 import { useTaskParam } from '../components/useTaskParam';
 import { GuestWelcome, MemberEmpty } from '../components/WelcomeInShell';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { dueBucket, dueColor, dueLabel, dueTone, type DueBucket } from '../lib/dates';
 import { statusById } from '../lib/workflow';
+import { color } from '../theme/tokens';
 
 const BUCKETS: { id: DueBucket; label: string; color: string }[] = [
-  { id: 'overdue', label: 'Overdue', color: '#B42323' },
-  { id: 'today', label: 'Today', color: '#0F6B46' },
-  { id: 'week', label: 'This week', color: '#121417' },
-  { id: 'later', label: 'Later', color: '#121417' },
-  { id: 'none', label: 'No date', color: '#5B6157' },
+  { id: 'overdue', label: 'Overdue', color: color.danger },
+  { id: 'today', label: 'Today', color: color.brandStrong },
+  { id: 'week', label: 'This week', color: color.ink },
+  { id: 'later', label: 'Later', color: color.ink },
+  { id: 'none', label: 'No date', color: color.muted },
 ];
 
 export function MyTasksScreen() {
@@ -31,6 +33,7 @@ export function MyTasksScreen() {
   const move = useMoveTask();
   const toast = useStatusToast();
   const [params] = useSearchParams();
+  const isPhone = useIsPhone();
 
   const keys = [...new Set([...(mine.data?.assigned ?? []), ...(mine.data?.approvals ?? [])].map((t) => t.projectKey))];
   const details = useQueries({ queries: keys.map((k) => ({ queryKey: qk.project(k), queryFn: () => api.getProject(k) })) });
@@ -53,10 +56,10 @@ export function MyTasksScreen() {
     );
 
   return (
-    <div className="bt-page" style={{ maxWidth: 1100, margin: '0 auto', width: '100%', paddingTop: 32, gap: 22 }}>
+    <div className="bt-page" style={{ maxWidth: 1100, margin: '0 auto', width: '100%', paddingTop: isPhone ? 8 : 32, gap: isPhone ? 12 : 22 }}>
       <div>
         <h1 className="bt-h1" style={{ fontSize: 26 }}>My tasks</h1>
-        <p style={{ margin: '6px 0 0', color: '#5B6157', fontSize: 13.5 }}>
+        <p style={{ margin: '6px 0 0', color: color.muted, fontSize: 13.5 }}>
           {dayjs().format('dddd D MMMM')} · {assigned.length} open{approvals.length ? ` · ${approvals.length} waiting for your approval` : ''}
         </p>
         <Segmented
@@ -73,16 +76,30 @@ export function MyTasksScreen() {
 
       {approvals.length > 0 && (
         <section className="bt-card">
-          <div className="bt-group-head" style={{ color: '#5B3FC4' }}>Needs your approval <span style={{ color: '#5B6157', fontWeight: 500 }}>{approvals.length}</span></div>
+          <div className="bt-group-head" style={{ color: color.merged }}>Needs your approval <span style={{ color: color.muted, fontWeight: 500 }}>{approvals.length}</span></div>
           {approvals.map((t) => (
+            isPhone ? (
+              <div key={t.key} className="bt-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6, padding: '10px 14px', minHeight: 0 }}>
+                <button type="button" onClick={() => openTask(t.key)} style={{ padding: 0, border: 0, background: 'transparent', font: 'inherit', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, textAlign: 'left', cursor: 'pointer', color: color.ink }}>{t.title}</button>
+                <span style={{ display: 'flex', gap: 8, fontSize: 12, color: color.muted }}>
+                  <span>{t.key}</span>
+                  <span>{projectName(t.projectKey)}</span>
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button type="primary" loading={move.isPending && move.variables?.key === t.key} onClick={() => approve(t)} style={{ height: 44 }}>Approve</Button>
+                  <Button onClick={() => openTask(t.key)} style={{ height: 44 }}>Reject…</Button>
+                </div>
+              </div>
+            ) : (
             <div key={t.key} className="bt-row" style={{ paddingLeft: 16 }}>
               <span className="bt-key">{t.key}</span>
               <button className="bt-row-title" onClick={() => openTask(t.key)}>{t.title}</button>
               <TypeTag type={t.type} />
-              <span style={{ fontSize: 12.5, color: '#5B6157', width: 150 }}>{projectName(t.projectKey)}</span>
+              <span style={{ fontSize: 12.5, color: color.muted, width: 150 }}>{projectName(t.projectKey)}</span>
               <Button size="small" type="primary" loading={move.isPending && move.variables?.key === t.key} onClick={() => approve(t)}>Approve</Button>
               <Button size="small" onClick={() => openTask(t.key)}>Reject…</Button>
             </div>
+            )
           ))}
         </section>
       )}
@@ -94,20 +111,39 @@ export function MyTasksScreen() {
         if (!list.length) return null;
         return (
           <section key={b.id} className="bt-card">
-            <div className="bt-group-head" style={{ color: b.color, background: '#fff' }}>{b.label} <span style={{ color: '#5B6157', fontWeight: 500 }}>{list.length}</span></div>
+            <div className="bt-group-head" style={{ color: b.color, background: color.surface }}>{b.label} <span style={{ color: color.muted, fontWeight: 500 }}>{list.length}</span></div>
             {list.map((t) => {
               const detail = detailOf(t.projectKey);
               const project = projects.find((p) => p.key === t.projectKey);
+              const status = detail ? statusById(detail.workflow, t.statusId) : undefined;
+              if (isPhone) {
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className="bt-row"
+                    onClick={() => openTask(t.key)}
+                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: '10px 14px', minHeight: 0, cursor: 'pointer' }}
+                  >
+                    <span style={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, textAlign: 'left' }}>{t.title}</span>
+                    <span style={{ display: 'flex', gap: 8, fontSize: 12, color: color.muted }}>
+                      <span>{t.key}</span>
+                      {status && <span>{status.name}</span>}
+                      <span style={{ marginLeft: 'auto', color: dueColor[dueTone(t.dueDate)], fontWeight: dueTone(t.dueDate) === 'normal' ? 400 : 600 }}>{dueLabel(t.dueDate)}</span>
+                    </span>
+                  </button>
+                );
+              }
               return (
                 <div key={t.key} className="bt-row" style={{ paddingLeft: 16 }}>
                   <span className="bt-key">{t.key}</span>
                   <button className="bt-row-title" onClick={() => openTask(t.key)}>{t.title}</button>
                   <TypeTag type={t.type} />
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: 150, fontSize: 12.5, color: '#3A3F38' }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 2, background: project?.color ?? '#AEB4AA' }} />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: 150, fontSize: 12.5, color: color.ink3 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: project?.color ?? color.faint }} />
                     {projectName(t.projectKey)}
                   </span>
-                  <span style={{ width: 150 }}>{detail && <StatusPill status={statusById(detail.workflow, t.statusId)} />}</span>
+                  <span style={{ width: 150 }}>{detail && <StatusPill status={status} />}</span>
                   <span style={{ width: 90, textAlign: 'right', fontSize: 12.5, color: dueColor[dueTone(t.dueDate)], fontWeight: dueTone(t.dueDate) === 'normal' ? 400 : 600 }}>{dueLabel(t.dueDate)}</span>
                 </div>
               );
@@ -116,10 +152,10 @@ export function MyTasksScreen() {
         );
       })}
 
-      {!(assigned.length === 0 && approvals.length === 0 && tab === 'assigned') && (
+      {!isPhone && !(assigned.length === 0 && approvals.length === 0 && tab === 'assigned') && (
       <button
         onClick={() => quickAdd.open()}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px', border: '1px dashed #CDD2C9', borderRadius: 12, background: 'transparent', color: '#5B6157', font: 'inherit', fontSize: 13.5, cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px', border: `1px dashed ${color.dashed}`, borderRadius: 12, background: 'transparent', color: color.muted, font: 'inherit', fontSize: 13.5, cursor: 'pointer' }}
       >
         + Add a task <span style={{ marginLeft: 'auto', fontSize: 12 }}>or press <kbd className="bt-kbd">Q</kbd> anywhere</span>
       </button>

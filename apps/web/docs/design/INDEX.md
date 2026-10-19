@@ -37,7 +37,7 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetStates.dc.html` | Sheet · Empty, loading, error states | To build |
 | `SheetImport.dc.html` | Sheet · Import preview, progress, result | To build |
 | `SheetEmails.dc.html` | Sheet · Emails | To build |
-| `SheetMobile.dc.html` | Sheet · Phone width | To build |
+| `SheetMobile.dc.html` | Sheet · Phone width | Built → `src/components/AppShell.tsx`, `src/components/InstallPrompt.tsx` |
 | `McpConsent.dc.html` | MCP · Allow Claude to connect | To build |
 | `McpConnected.dc.html` | MCP · Connected | To build |
 | `GitHubSettings.dc.html` | Project settings · GitHub | Built → `src/screens/GitHubSettingsScreen.tsx` |

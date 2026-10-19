@@ -29,6 +29,7 @@ import { DescriptionEditor } from './DescriptionEditor';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
+import { useIsPhone } from '../hooks/useIsPhone';
 
 const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature'];
 
@@ -104,6 +105,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const titleRef = useRef<InputRef>(null);
   const create = useCreateTask();
   const move = useMoveTask();
+  const isPhone = useIsPhone();
 
   useEffect(() => {
     if (!projects.length) return;
@@ -310,28 +312,33 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     <>
     <Modal
       open
-      centered
+      centered={!isPhone}
       onCancel={requestClose}
       footer={null}
       title={null}
-      width={660}
+      width={isPhone ? '100%' : 660}
       closable={false}
       keyboard={!discardOpen}
       mask={{ closable: false }}
+      rootClassName={isPhone ? 'bt-quick-add-phone' : undefined}
       styles={{
-        wrapper: { overflow: 'auto', padding: 16 },
+        wrapper: isPhone ? { overflow: 'hidden', padding: 0 } : { overflow: 'auto', padding: 16 },
         container: {
           padding: 0,
-          borderRadius: radius.xl,
-          maxHeight: 'calc(100dvh - 32px)',
+          borderRadius: isPhone ? 0 : radius.xl,
+          width: isPhone ? '100%' : undefined,
+          maxWidth: isPhone ? '100%' : undefined,
+          height: isPhone ? '100dvh' : undefined,
+          maxHeight: isPhone ? '100dvh' : 'calc(100dvh - 32px)',
           display: 'flex',
           flexDirection: 'column',
         },
         body: {
           padding: 0,
           overflow: 'hidden',
-          borderRadius: radius.xl,
-          maxHeight: 'calc(100dvh - 32px)',
+          borderRadius: isPhone ? 0 : radius.xl,
+          height: isPhone ? '100dvh' : undefined,
+          maxHeight: isPhone ? '100dvh' : 'calc(100dvh - 32px)',
           display: 'flex',
           flexDirection: 'column',
         },
@@ -340,7 +347,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       <div
         role="dialog"
         aria-label="New task"
-        style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100dvh - 32px)' }}
+        style={{ display: 'flex', flexDirection: 'column', maxHeight: isPhone ? '100dvh' : 'calc(100dvh - 32px)', height: isPhone ? '100dvh' : undefined }}
         onPaste={(e) => {
           const pasted = filesFromClipboard(e.clipboardData);
           if (pasted.length) {
@@ -568,10 +575,10 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
             Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>
           <Button onClick={() => submit(true)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
-            Create and open <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>
+            Create and open {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>}
           </Button>
           <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
-            Create task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>↵</kbd>
+            Create task {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>↵</kbd>}
           </Button>
         </div>
       </div>

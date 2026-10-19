@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { color } from '../theme/tokens';
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
@@ -44,10 +45,10 @@ export function dueTone(date: string | null): DueTone {
 }
 
 export const dueColor: Record<DueTone, string> = {
-  overdue: '#B42323',
-  today: '#0F6B46',
-  normal: '#3A3F38',
-  none: '#5B6157',
+  overdue: color.danger,
+  today: color.brandStrong,
+  normal: color.ink3,
+  none: color.muted,
 };
 
 export type DueBucket = 'overdue' | 'today' | 'week' | 'later' | 'none';

@@ -36,6 +36,7 @@ import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
 import { useTaskParam } from './useTaskParam';
 import { setLiveDrawerGuard } from '../lib/liveDrawer';
+import { useIsPhone } from '../hooks/useIsPhone';
 
 type CloseGuard = {
   dirty: boolean;
@@ -49,6 +50,7 @@ export function TaskDrawer() {
   const detail = useProject(projectKey);
   const guard = useRef<CloseGuard>({ dirty: false, flush: () => {} });
   const [discardOpen, setDiscardOpen] = useState(false);
+  const isPhone = useIsPhone();
 
   function requestClose() {
     guard.current.flush();
@@ -69,14 +71,16 @@ export function TaskDrawer() {
       <Drawer
         open={!!taskKey}
         onClose={requestClose}
-        maskClosable={false}
-        width={600}
+        maskClosable={!isPhone}
+        width={isPhone ? '100%' : 600}
         closable={false}
         destroyOnHidden
         styles={{
-          wrapper: { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
+          wrapper: isPhone
+            ? { top: 0, bottom: 0, height: '100%', maxHeight: '100dvh' }
+            : { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
           content: { height: '100%' },
-          body: { padding: 0, height: '100%', overflow: 'auto' },
+          body: { padding: 0, height: '100%', overflow: isPhone ? 'hidden' : 'auto' },
         }}
       >
         {task.data && detail.data ? (
@@ -84,7 +88,7 @@ export function TaskDrawer() {
         ) : task.isError ? (
           <div style={{ padding: 32 }}>
             <h2 className="bt-h1" style={{ fontSize: 20 }}>{taskKey} doesn't exist or was deleted</h2>
-            <p style={{ color: '#5B6157' }}>Deleted tasks stay in the project's Trash for 30 days.</p>
+            <p style={{ color: color.muted }}>Deleted tasks stay in the project's Trash for 30 days.</p>
             <Link to="/" onClick={closeTask} style={{ display: 'inline-flex', alignItems: 'center', height: 36, padding: '0 14px', marginTop: 4, border: `1px solid ${color.border}`, borderRadius: 8, color: color.ink3, textDecoration: 'none', fontSize: 13 }}>Back to My tasks</Link>
           </div>
         ) : (
@@ -106,6 +110,7 @@ export function TaskDrawer() {
 }
 
 function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDetail; detail: ProjectDetail; onClose: () => void; closeNow: () => void; guard: RefObject<CloseGuard> }) {
+  const isPhone = useIsPhone();
   const toast = useStatusToast();
   const qc = useQueryClient();
   const me = useMe().data;
@@ -251,14 +256,23 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     });
   }
 
+  const passFail = quick.slice(0, 2);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', height: isPhone ? '100%' : undefined }}>
       {flow.modal}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderBottom: '1px solid #EEF0EC', fontSize: 12.5, color: '#5B6157' }}>
-        <span>{detail.project.name}</span><span>/</span><span>{section?.name}</span><span>/</span>
-        <strong style={{ color: '#121417' }}>{task.key}</strong>
-        <span role="status" style={{ marginLeft: 6, color: saving ? '#5B6157' : '#0F6B46' }}>{saving ? 'Saving…' : '✓ Saved'}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isPhone ? 4 : 8, padding: isPhone ? '12px 8px 8px' : '12px 20px', borderBottom: `1px solid ${color.divider}`, fontSize: 12.5, color: color.muted, flex: 'none' }}>
+        {isPhone && (
+          <button type="button" aria-label="Back" onClick={onClose} style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
+        )}
+        <span>{detail.project.name}</span>{isPhone ? <span>·</span> : <><span>/</span><span>{section?.name}</span><span>/</span></>}
+        <strong style={{ color: color.ink }}>{task.key}</strong>
+        <span role="status" style={{ marginLeft: 6, fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : color.brandStrong }}>{saving ? 'Saving…' : isPhone ? 'Saved' : '✓ Saved'}</span>
         <span style={{ flex: 1 }} />
+        {!isPhone && (
+          <>
         <Button
           type="text"
           size="small"
@@ -275,7 +289,10 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         </Button>
         <Button type="text" size="small" onClick={() => { void navigator.clipboard?.writeText(window.location.href); toast.show('Link copied.'); }}>Copy link</Button>
         <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18 }}>×</button>
+          </>
+        )}
       </div>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
 
       {remoteNotice && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 24px 0', padding: '10px 14px', borderRadius: 10, background: color.infoTint, border: `1px solid ${color.infoBorder}`, color: color.info, fontSize: 13.5 }}>
@@ -322,29 +339,31 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 
         {task.statusId === 'idea' && !inTrash && (
           canDecide ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, background: '#F4F1FD', border: '1px solid #E1D8F8' }}>
-              <span style={{ fontSize: 13.5, color: '#3B2A80' }}><strong>Idea</strong> raised by {detail.users.find((u) => u.id === task.reporterId)?.name}. You can decide.</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, background: color.mergedTint, border: `1px solid ${color.mergedTint}` }}>
+              <span style={{ fontSize: 13.5, color: color.merged }}><strong>Idea</strong> raised by {detail.users.find((u) => u.id === task.reporterId)?.name}. You can decide.</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button type="primary" onClick={() => flow.requestMove(task, 'approved')}>Approve</Button>
                 <Button onClick={() => flow.requestMove(task, 'rejected')}>Reject…</Button>
               </div>
             </div>
           ) : (
-            <div style={{ padding: '12px 14px', borderRadius: 10, background: '#FAFBF9', border: '1px solid #EEF0EC', fontSize: 13.5, color: '#3A3F38' }}>
+            <div style={{ padding: '12px 14px', borderRadius: 10, background: color.subtle, border: `1px solid ${color.divider}`, fontSize: 13.5, color: color.ink3 }}>
               Waiting for approval from <strong>{businessNames || 'Business'}</strong>. Work can start once it's approved.
             </div>
           )
         )}
 
-        {!inTrash && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <StatusMenu name={status?.name ?? task.statusId} dot={null} options={options} onMove={(statusId) => flow.requestMove(task, statusId)} />
-          {task.statusId !== 'idea' && quick.length > 0 && <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>}
-          {task.statusId !== 'idea' && quick.map((o, i) => (
-            <Button key={o.status.id} type={i === 0 && !o.status.side ? 'primary' : 'default'} onClick={() => flow.requestMove(task, o.status.id)}>
-              {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
-            </Button>
-          ))}
-        </div>}
+        {!inTrash && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            <StatusMenu name={status?.name ?? task.statusId} dot={null} options={options} onMove={(statusId) => flow.requestMove(task, statusId)} />
+            {!isPhone && task.statusId !== 'idea' && quick.length > 0 && <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>}
+            {!isPhone && task.statusId !== 'idea' && quick.map((o, i) => (
+              <Button key={o.status.id} type={i === 0 && !o.status.side ? 'primary' : 'default'} onClick={() => flow.requestMove(task, o.status.id)}>
+                {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
+              </Button>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr)', rowGap: 4, alignItems: 'center', fontSize: 13.5 }}>
           <FieldLabel>Type</FieldLabel>
@@ -408,7 +427,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
         <DevelopmentSection task={task} />
-        <Comments task={task} detail={detail} onDraftChange={setCommentDraft} />
+        <Comments task={task} detail={detail} onDraftChange={setCommentDraft} hideComposer={isPhone} />
 
         {!inTrash && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
         <ConfirmDialog
@@ -422,18 +441,22 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           {trashToldCopy(toldNames())}
         </ConfirmDialog>
       </div>
+      </div>
+      {isPhone && !inTrash && (
+        <PhoneMoveBar task={task} options={passFail} onMove={(statusId) => flow.requestMove(task, statusId)} onDraftChange={setCommentDraft} />
+      )}
     </div>
   );
 }
 
 function FieldLabel({ children }: { children: string }) {
-  return <span style={{ color: '#5B6157' }}>{children}</span>;
+  return <span style={{ color: color.muted }}>{children}</span>;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#5B6157', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h3>
+      <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</h3>
       {children}
     </section>
   );
@@ -451,7 +474,7 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
     <Section title={`Subtasks ${task.subtaskCount.done}/${task.subtaskCount.total}`}>
       {task.subtasks.map((s) => (
         <Checkbox key={s.id} checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
-          <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? '#5B6157' : '#121417' }}>{s.title}</span>
+          <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
         </Checkbox>
       ))}
       <Input
@@ -465,7 +488,7 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
   );
 }
 
-function Comments({ task, detail, onDraftChange }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void }) {
+function Comments({ task, detail, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
   const add = useAddComment();
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
@@ -500,17 +523,17 @@ function Comments({ task, detail, onDraftChange }: { task: TaskDetail; detail: P
           <div key={item.id} style={{ display: 'flex', gap: 10 }}>
             <Avatar user={item.who} size={28} />
             <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-              <strong>{item.who?.name}</strong> <span style={{ color: '#5B6157', fontSize: 12.5 }}>{dayjs(item.at).format('D MMM HH:mm')}</span>
+              <strong>{item.who?.name}</strong> <span style={{ color: color.muted, fontSize: 12.5 }}>{dayjs(item.at).format('D MMM HH:mm')}</span>
               <div>{item.text}</div>
             </div>
           </div>
         ) : (
-          <div key={item.id} style={{ fontSize: 12.5, color: '#5B6157', paddingLeft: 38 }}>
+          <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
             {item.who?.name} {item.text}{item.via !== 'app' ? ` · via ${viaLabel(item.via)}` : ''} · {dayjs(item.at).format('D MMM HH:mm')}
           </div>
         ),
       )}
-      {tab === 'comments' && (
+      {tab === 'comments' && !hideComposer && (
         <>
           <Input.TextArea
             value={draft}
@@ -526,6 +549,62 @@ function Comments({ task, detail, onDraftChange }: { task: TaskDetail; detail: P
         </>
       )}
     </section>
+  );
+}
+
+function PhoneMoveBar({
+  task,
+  options,
+  onMove,
+  onDraftChange,
+}: {
+  task: TaskDetail;
+  options: ReturnType<typeof moveOptions>;
+  onMove: (statusId: string) => void;
+  onDraftChange: (value: string) => void;
+}) {
+  const add = useAddComment();
+  const [draft, setDraft] = useState('');
+  const write = (value: string) => {
+    setDraft(value);
+    onDraftChange(value);
+  };
+  const send = () => {
+    if (!draft.trim()) return;
+    add.mutate({ key: task.key, body: draft.trim() }, { onSuccess: () => write('') });
+  };
+  const allowed = options.filter((item) => item.check.kind === 'allowed');
+
+  return (
+    <div style={{ flex: 'none', padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: `1px solid ${color.border}`, display: 'flex', flexDirection: 'column', gap: 10, background: color.surface }}>
+      <Input
+        value={draft}
+        onChange={(e) => write(e.target.value)}
+        onPressEnter={send}
+        placeholder="Comment…"
+        aria-label="Write a comment"
+        style={{ height: 44, borderRadius: 22 }}
+      />
+      {allowed.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(allowed.length, 2)}, minmax(0, 1fr))`, gap: 8 }}>
+          {allowed.slice(0, 2).map((item, index) => {
+            const label = item.check.kind === 'allowed' && item.check.transition.label && !item.status.side
+              ? `${item.check.transition.label} · ${item.status.name}`
+              : item.status.name;
+            return (
+              <Button
+                key={item.status.id}
+                type={index === 0 && !item.status.side ? 'primary' : 'default'}
+                onClick={() => onMove(item.status.id)}
+                style={{ height: 48, borderRadius: 12, fontSize: 15, fontWeight: index === 0 ? 600 : 500 }}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

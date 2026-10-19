@@ -66,7 +66,7 @@ function NotificationRow({
   );
 }
 
-function Panel({ onClose }: { onClose: () => void }) {
+export function NotificationPanel({ onClose, phone = false }: { onClose: () => void; phone?: boolean }) {
   const navigate = useNavigate();
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
@@ -84,7 +84,22 @@ function Panel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div role="dialog" aria-label="Notifications" style={{ width: 420, maxWidth: 'calc(100vw - 24px)', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.xl, boxShadow: '0 16px 32px -12px rgba(18,20,23,0.18)', overflow: 'hidden' }}>
+    <div
+      role="dialog"
+      aria-label="Notifications"
+      style={{
+        width: phone ? '100%' : 420,
+        maxWidth: phone ? '100%' : 'calc(100vw - 24px)',
+        height: phone ? '100%' : undefined,
+        display: phone ? 'flex' : undefined,
+        flexDirection: phone ? 'column' : undefined,
+        background: color.surface,
+        border: phone ? 0 : `1px solid ${color.border}`,
+        borderRadius: phone ? 0 : radius.xl,
+        boxShadow: phone ? 'none' : color.shadow,
+        overflow: 'hidden',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
         <span style={{ fontWeight: 600 }}>Notifications</span>
         <div role="tablist" style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
@@ -150,11 +165,13 @@ function Panel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       {shown.length === 0 ? (
-        <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center' }}>
+        <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center', flex: phone ? 1 : undefined }}>
           {tab === 'unread' ? 'You are up to date.' : 'No notifications yet.'}
         </div>
       ) : (
-        shown.map((note) => <NotificationRow key={note.id} note={note} onOpen={open} />)
+        <div style={{ flex: phone ? 1 : undefined, overflow: phone ? 'auto' : undefined }}>
+          {shown.map((note) => <NotificationRow key={note.id} note={note} onOpen={open} />)}
+        </div>
       )}
       <div style={{ padding: '10px 16px', fontSize: 12.5, color: color.muted }}>
         Choose what you hear about in <Link to="/settings/profile" onClick={onClose} style={{ color: color.brandStrong }}>your profile</Link>.
@@ -177,7 +194,7 @@ export function NotificationBell() {
       arrow={false}
       destroyOnHidden
       styles={{ container: { padding: 0 } }}
-      content={<Panel onClose={() => setOpen(false)} />}
+      content={<NotificationPanel onClose={() => setOpen(false)} />}
     >
       <button
         type="button"
@@ -213,5 +230,16 @@ export function NotificationBell() {
         )}
       </button>
     </Popover>
+  );
+}
+
+export function InboxSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div role="presentation" className="bt-phone-sheet" onClick={onClose}>
+      <div onClick={(event) => event.stopPropagation()} style={{ height: '100%', background: color.surface }}>
+        <NotificationPanel onClose={onClose} phone />
+      </div>
+    </div>
   );
 }

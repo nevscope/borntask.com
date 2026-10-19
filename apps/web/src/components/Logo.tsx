@@ -1,7 +1,9 @@
+import { color } from '../theme/tokens';
+
 // Final BornTask mark (A4 refined: dot, dot, tick). Use LogoMark alone at 16–24 px.
 export function LogoMark({ size = 26, small = false, invert = false }: { size?: number; small?: boolean; invert?: boolean }) {
-  const bg = invert ? '#FFFFFF' : '#178A5C';
-  const fg = invert ? '#178A5C' : '#FFFFFF';
+  const bg = invert ? color.surface : color.brand;
+  const fg = invert ? color.brand : color.surface;
   if (small || size <= 18) {
     return (
       <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">

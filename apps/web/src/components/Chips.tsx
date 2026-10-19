@@ -36,7 +36,7 @@ export function StatusDot({ status }: { status: WorkflowStatus | undefined }) {
 export function PriorityLabel({ priority }: { priority: Priority }) {
   const p = priorityStyle[priority];
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#3A3F38' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: color.ink3 }}>
       <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />
       {p.label}
     </span>
@@ -71,6 +71,15 @@ export function GitHubBadge({ kind, compact = false }: { kind: keyof typeof gith
       <GitForkIcon />
       {label}
     </span>
+  );
+}
+
+export function EditIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
+    </svg>
   );
 }
 
@@ -143,9 +152,9 @@ export function WorkspaceMark({
 
 export function Avatar({ user, size = 24, fontSize }: { user: User | null | undefined; size?: number; fontSize?: number }) {
   if (!user) {
-    return <span title="Unassigned" style={{ width: size, height: size, borderRadius: '50%', border: '1.5px dashed #AEB4AA', boxSizing: 'border-box', flex: 'none', display: 'inline-block' }} />;
+    return <span title="Unassigned" style={{ width: size, height: size, borderRadius: '50%', border: `1.5px dashed ${color.faint}`, boxSizing: 'border-box', flex: 'none', display: 'inline-block' }} />;
   }
-  const tone = user.id === 'u_scope' || user.id === 'u_github' ? { bg: '#121417', fg: '#FFFFFF' } : avatarTones[hash(user.id) % avatarTones.length]!;
+  const tone = user.id === 'u_scope' || user.id === 'u_github' ? { bg: 'var(--bt-me-avatar-bg)', fg: 'var(--bt-me-avatar-fg)' } : avatarTones[hash(user.id) % avatarTones.length]!;
   return (
     <span title={user.name} style={{ width: size, height: size, borderRadius: '50%', display: 'inline-grid', placeItems: 'center', background: tone.bg, color: tone.fg, fontSize: fontSize ?? Math.round(size * 0.42), fontWeight: 600, flex: 'none' }}>
       {user.initials}

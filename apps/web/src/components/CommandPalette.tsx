@@ -75,7 +75,7 @@ export function CommandPalette() {
   return (
     <div
       role="presentation"
-      style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(18, 20, 23, 0.22)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1100, background: color.overlay }}
       onClick={() => setOpen(false)}
     >
       <div
@@ -92,7 +92,7 @@ export function CommandPalette() {
           background: color.surface,
           border: `1px solid ${color.border}`,
           borderRadius: 14,
-          boxShadow: '0 24px 48px -16px rgba(18, 20, 23, 0.25)',
+          boxShadow: color.shadow,
           overflow: 'hidden',
         }}
       >

@@ -52,6 +52,13 @@ docs/design/          43 canvas screens (visual spec) + INDEX.md showing built v
 | Ordering | The mock uses float midpoints. **Use fractional-index strings** (e.g. `fractional-indexing`) in the DB; `reorder` takes `{sectionId, beforeKey}` so the client never computes positions. |
 | Activity `via` | `app`, `mcp`, `github`, `import`. Show it in the feed ("via Claude (MCP)"). |
 
+## Phone, PWA and offline (MVP)
+
+- **Phone chrome** (under 768px): bottom tab bar (Tasks, Projects, Inbox, You), full-screen task sheet, and a FAB for Quick add. Desktop sidebar and the 600px task drawer stay at 768px and above.
+- **PWA:** `public/manifest.webmanifest`, icons, and a shell service worker (`public/sw.js`) registered in production only. The SW caches the app shell and `/assets/`. `/api/` and cookie/session fetches are network-only so offline never serves stale workspace JSON.
+- **Install:** in-app sheet on a supported browser (`beforeinstallprompt`) or iOS share-to-home-screen copy. Chrome install on a real phone often needs HTTPS; `vite preview` on localhost may not show the native prompt.
+- **Offline:** an Offline banner when `navigator.onLine` is false. Reads of a cached shell may still work. Writes are not queued - they fail until the device reconnects. Do not pretend a save succeeded.
+
 ## Interaction contract (keep it)
 
 - **List drag** changes order or section only, never status.

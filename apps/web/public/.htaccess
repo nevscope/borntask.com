@@ -6,8 +6,20 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ index.html [L]
 </IfModule>
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType application/javascript .js
+  AddType image/png .png
+</IfModule>
 <IfModule mod_headers.c>
   <Files "index.html">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </Files>
+  <Files "manifest.webmanifest">
+    Header set Cache-Control "no-cache"
   </Files>
 </IfModule>

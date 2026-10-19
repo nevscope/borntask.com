@@ -3,9 +3,10 @@
 // blocked drop explains who can make the move (with Ask / Override).
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { Skeleton } from 'antd';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMe, useProject, useProjectTasks } from '../api/queries';
+import { useIsPhone } from '../hooks/useIsPhone';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
 import { Avatar, GitHubBadge, LockIcon, TypeTag } from '../components/Chips';
 import { NoAccess } from '../components/NoAccess';
@@ -28,7 +29,10 @@ export function ProjectBoardScreen() {
   const flow = useMoveFlow(detail.data, { board: true });
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [openSides, setOpenSides] = useState<Record<string, boolean>>({});
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
+  const [phoneColumn, setPhoneColumn] = useState(0);
+  const swipeX = useRef<number | null>(null);
+  const isPhone = useIsPhone();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: isPhone ? 8 : 5 } }), useSensor(KeyboardSensor));
 
   const visible = useMemo(() => {
     if (!detail.data || !tasks.data) return [];
@@ -40,6 +44,8 @@ export function ProjectBoardScreen() {
   const d = detail.data;
   const active = activeKey ? visible.find((task) => task.key === activeKey) : undefined;
   const statuses = [...d.workflow.statuses].sort((a, b) => a.position - b.position);
+  const mainStatuses = statuses.filter((status) => !status.side);
+  const sideStatuses = statuses.filter((status) => status.side);
   const myRoles = d.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
   const canShare = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin' || myRoles.includes('lead');
   const labels = [...new Set(tasks.data.flatMap((task) => task.labels))];
@@ -47,6 +53,9 @@ export function ProjectBoardScreen() {
   const grouped: TaskGroup[] = byStatus
     ? []
     : groupTasks(visible, view.columns, d).filter((group) => group.tasks.length > 0 || view.columns === 'section');
+  const phoneStatuses = byStatus ? [...mainStatuses, ...sideStatuses] : grouped.map((group) => ({ id: group.id, name: group.name }));
+  const safePhoneColumn = Math.min(phoneColumn, Math.max(0, phoneStatuses.length - 1));
+  const phoneFocus = phoneStatuses[safePhoneColumn];
 
   return (
     <div className="bt-page">
@@ -73,49 +82,130 @@ export function ProjectBoardScreen() {
           if (task && event.over) flow.requestMove(task, String(event.over.id));
         }}
       >
-        <div className="bt-board">
-          {byStatus ? statuses.filter((status) => !status.side).map((status) => (
-            <Column
-              key={status.id}
-              status={status}
-              detail={d}
-              tasks={visible.filter((task) => task.statusId === status.id).sort((a, b) => a.position - b.position)}
-              dragState={active ? (active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind) : null}
-              blockedReason={active && active.statusId !== status.id ? reasonFor(d, active, status.id, flow.myRoles) : null}
-            />
-          )) : grouped.map((group) => (
-            <StaticColumn key={group.id} name={group.name} tasks={group.tasks} detail={d} />
-          ))}
-          {byStatus && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              {statuses.filter((status) => status.side).map((status) => {
-                const columnTasks = visible.filter((task) => task.statusId === status.id);
-                if (openSides[status.id]) {
-                  return (
-                    <div key={status.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <button type="button" onClick={() => setOpenSides((prev) => ({ ...prev, [status.id]: false }))} style={{ border: 0, background: 'transparent', color: color.muted, font: 'inherit', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>
-                        Collapse
-                      </button>
-                      <Column
-                        status={status}
-                        detail={d}
-                        tasks={columnTasks}
-                        dragState={active ? (active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind) : null}
-                        blockedReason={active && active.statusId !== status.id ? reasonFor(d, active, status.id, flow.myRoles) : null}
-                      />
-                    </div>
-                  );
-                }
+        <div className={`bt-board${isPhone ? ' is-phone' : ''}`}>
+          {isPhone && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+              {phoneStatuses.map((item, index) => {
+                const selected = index === safePhoneColumn;
+                const count = byStatus
+                  ? visible.filter((task) => task.statusId === item.id).length
+                  : grouped.find((group) => group.id === item.id)?.tasks.length ?? 0;
                 return (
-                  <SideRail
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPhoneColumn(index)}
+                    style={{
+                      flex: 'none',
+                      height: 44,
+                      padding: '0 10px',
+                      border: `1px solid ${selected ? color.brand : color.border}`,
+                      borderRadius: 999,
+                      background: selected ? color.brandTint : color.surface,
+                      color: selected ? color.brandStrong : color.ink3,
+                      font: 'inherit',
+                      fontSize: 12.5,
+                      fontWeight: selected ? 600 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {item.name} {count}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {isPhone && byStatus && active && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+              {statuses.map((status) => {
+                const dragState = active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind;
+                return (
+                  <PhoneDrop
                     key={status.id}
                     status={status}
-                    count={columnTasks.length}
-                    onExpand={() => setOpenSides((prev) => ({ ...prev, [status.id]: true }))}
+                    dragState={dragState}
+                    blockedReason={active.statusId !== status.id ? reasonFor(d, active, status.id, flow.myRoles) : null}
                   />
                 );
               })}
             </div>
+          )}
+          {isPhone ? (
+            <div
+              onTouchStart={(event) => { swipeX.current = event.changedTouches[0]?.clientX ?? null; }}
+              onTouchEnd={(event) => {
+                const start = swipeX.current;
+                swipeX.current = null;
+                const end = event.changedTouches[0]?.clientX;
+                if (start == null || end == null) return;
+                const delta = end - start;
+                if (delta < -40) setPhoneColumn((index) => Math.min(index + 1, phoneStatuses.length - 1));
+                if (delta > 40) setPhoneColumn((index) => Math.max(index - 1, 0));
+              }}
+            >
+            {byStatus && phoneFocus ? (
+              <Column
+                status={statuses.find((status) => status.id === phoneFocus.id)!}
+                detail={d}
+                tasks={visible.filter((task) => task.statusId === phoneFocus.id).sort((a, b) => a.position - b.position)}
+                dragState={active ? (active.statusId === phoneFocus.id ? 'origin' : checkMove(d.workflow, active, phoneFocus.id, flow.myRoles).kind) : null}
+                blockedReason={active && active.statusId !== phoneFocus.id ? reasonFor(d, active, phoneFocus.id, flow.myRoles) : null}
+                droppable={!active}
+              />
+            ) : phoneFocus ? (
+              <StaticColumn
+                name={phoneFocus.name}
+                tasks={grouped.find((group) => group.id === phoneFocus.id)?.tasks ?? []}
+                detail={d}
+              />
+            ) : null}
+            </div>
+          ) : (
+            <>
+              {byStatus ? mainStatuses.map((status) => (
+                <Column
+                  key={status.id}
+                  status={status}
+                  detail={d}
+                  tasks={visible.filter((task) => task.statusId === status.id).sort((a, b) => a.position - b.position)}
+                  dragState={active ? (active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind) : null}
+                  blockedReason={active && active.statusId !== status.id ? reasonFor(d, active, status.id, flow.myRoles) : null}
+                />
+              )) : grouped.map((group) => (
+                <StaticColumn key={group.id} name={group.name} tasks={group.tasks} detail={d} />
+              ))}
+              {byStatus && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {sideStatuses.map((status) => {
+                    const columnTasks = visible.filter((task) => task.statusId === status.id);
+                    if (openSides[status.id]) {
+                      return (
+                        <div key={status.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <button type="button" onClick={() => setOpenSides((prev) => ({ ...prev, [status.id]: false }))} style={{ border: 0, background: 'transparent', color: color.muted, font: 'inherit', fontSize: 12, cursor: 'pointer', textAlign: 'left' }}>
+                            Collapse
+                          </button>
+                          <Column
+                            status={status}
+                            detail={d}
+                            tasks={columnTasks}
+                            dragState={active ? (active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind) : null}
+                            blockedReason={active && active.statusId !== status.id ? reasonFor(d, active, status.id, flow.myRoles) : null}
+                          />
+                        </div>
+                      );
+                    }
+                    return (
+                      <SideRail
+                        key={status.id}
+                        status={status}
+                        count={columnTasks.length}
+                        onExpand={() => setOpenSides((prev) => ({ ...prev, [status.id]: true }))}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
         <DragOverlay>{active && <Card task={active} detail={d} overlay />}</DragOverlay>
@@ -130,6 +220,30 @@ function reasonFor(d: ProjectDetail, task: Task, toId: string, roles: Parameters
 }
 
 type DragState = 'origin' | 'allowed' | 'not-allowed' | 'no-path' | null;
+
+function PhoneDrop({ status, dragState, blockedReason }: { status: WorkflowStatus; dragState: DragState; blockedReason: string | null }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status.id });
+  const allowed = dragState === 'allowed' || dragState === 'origin';
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        flex: 'none',
+        minWidth: 88,
+        padding: '8px 10px',
+        borderRadius: 10,
+        border: `1px solid ${isOver && allowed ? color.brand : color.border}`,
+        background: dragState === 'allowed' ? color.brandTint : color.surface,
+        opacity: dragState === 'not-allowed' || dragState === 'no-path' ? 0.5 : 1,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {status.name}
+      {blockedReason && <span style={{ display: 'block', fontWeight: 400, color: color.muted }}>{blockedReason}</span>}
+    </div>
+  );
+}
 
 function SideRail({ status, count, onExpand }: { status: WorkflowStatus; count: number; onExpand: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: status.id });
@@ -162,8 +276,8 @@ function SideRail({ status, count, onExpand }: { status: WorkflowStatus; count: 
   );
 }
 
-function Column({ status, detail, tasks, dragState, blockedReason }: { status: WorkflowStatus; detail: ProjectDetail; tasks: Task[]; dragState: DragState; blockedReason: string | null }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status.id });
+function Column({ status, detail, tasks, dragState, blockedReason, droppable = true }: { status: WorkflowStatus; detail: ProjectDetail; tasks: Task[]; dragState: DragState; blockedReason: string | null; droppable?: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status.id, disabled: !droppable });
   const quickAdd = useQuickAdd();
   const over = status.wipLimit !== null && tasks.length > status.wipLimit;
   const cls = ['bt-column', status.side ? 'side' : '', dragState === 'allowed' ? 'allowed' : '', dragState === 'not-allowed' || dragState === 'no-path' ? 'blocked' : ''].join(' ');

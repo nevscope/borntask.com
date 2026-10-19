@@ -317,7 +317,7 @@ function FilterBuilder({
     onChange(filters.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
   return (
-    <div role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, left: 0, width: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: '0 16px 32px -12px rgba(18,20,23,0.18)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, left: 0, width: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: color.shadow, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span id={titleId} className="bt-sr-only">Filter builder</span>
       {filters.map((row, index) => (
         <ConditionRow

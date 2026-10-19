@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { App as AntApp, ConfigProvider } from 'antd';
-import enGB from 'antd/locale/en_GB';
+import { App as AntApp } from 'antd';
 import dayjs from 'dayjs';
 import 'dayjs/locale/en-gb';
 import { StrictMode } from 'react';
@@ -10,8 +9,9 @@ import { WorkspaceCatalogProvider } from './api/catalog';
 import { App } from './App';
 import { QuickAddProvider } from './components/QuickAdd';
 import { StatusToastHost } from './components/StatusToast';
-import { antdTheme } from './theme/antdTheme';
+import { ThemeProvider } from './theme/ThemeProvider';
 import './theme/global.css';
+import './theme/theme.css';
 
 dayjs.locale('en-gb');
 
@@ -32,6 +32,12 @@ const router = createBrowserRouter([
   },
 ]);
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  });
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('#root missing');
 
@@ -39,11 +45,11 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <WorkspaceCatalogProvider>
-      <ConfigProvider theme={antdTheme} locale={enGB}>
+      <ThemeProvider>
         <AntApp>
           <RouterProvider router={router} />
         </AntApp>
-      </ConfigProvider>
+      </ThemeProvider>
       </WorkspaceCatalogProvider>
     </QueryClientProvider>
   </StrictMode>,

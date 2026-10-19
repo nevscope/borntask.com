@@ -137,7 +137,7 @@ export function CreateProjectScreen() {
           justifyContent: 'center',
           padding: 16,
           overflow: 'auto',
-          background: 'rgba(18, 20, 23, 0.22)',
+          background: color.overlay,
         }}
       >
       <div
@@ -156,7 +156,7 @@ export function CreateProjectScreen() {
           background: color.surface,
           border: `1px solid ${color.border}`,
           borderRadius: radius.xl,
-          boxShadow: '0 24px 48px -16px rgba(18, 20, 23, 0.25)',
+          boxShadow: color.shadow,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', padding: '18px 22px', borderBottom: `1px solid ${color.divider}`, flex: 'none' }}>

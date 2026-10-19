@@ -1,17 +1,5 @@
-/* Layout and the few patterns AntD does not provide. Colours mirror src/theme/tokens.ts. */
+/* Layout and the few patterns AntD does not provide. Colours come from theme.css. */
 :root {
-  --bt-brand: #178A5C;
-  --bt-brand-strong: #0F6B46;
-  --bt-brand-tint: #E9F5EF;
-  --bt-ink: #121417;
-  --bt-ink3: #3A3F38;
-  --bt-muted: #5B6157;
-  --bt-border: #E8EBE6;
-  --bt-divider: #EEF0EC;
-  --bt-canvas: #F7F8F6;
-  --bt-subtle: #FAFBF9;
-  --bt-surface: #FFFFFF;
-  --bt-chip: #F1F2EF;
   --bt-display: 'Sora', 'DM Sans', system-ui, sans-serif;
   --bt-mono: ui-monospace, Menlo, monospace;
 }
@@ -21,7 +9,8 @@ html, body, #root { height: 100%; }
 body { margin: 0; background: var(--bt-canvas); color: var(--bt-ink); font-family: 'DM Sans', system-ui, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
 a { color: var(--bt-brand-strong); }
 
-.bt-shell { height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; display: flex; flex-wrap: nowrap; overflow: hidden; }
+.bt-shell { height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.bt-shell-body { flex: 1 1 auto; min-height: 0; display: flex; flex-wrap: nowrap; overflow: hidden; }
 .bt-sidebar { flex: 0 0 240px; width: 240px; height: 100%; padding: 16px 12px; background: var(--bt-surface); border-right: 1px solid var(--bt-border); display: flex; flex-direction: column; gap: 2px; overflow: hidden; transition: width 160ms ease, flex-basis 160ms ease, padding 160ms ease; }
 .bt-sidebar-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
 .bt-sidebar-dock { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding-top: 8px; }
@@ -58,30 +47,30 @@ a { color: var(--bt-brand-strong); }
 .bt-row.drop-before { box-shadow: inset 0 2px 0 var(--bt-brand); }
 .bt-row-title { flex: 1 1 240px; min-width: 0; margin-left: -4px; color: var(--bt-ink); text-decoration: none; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; border: 0; padding: 0; text-align: left; font: inherit; cursor: pointer; }
 .bt-key { width: 58px; flex: none; font-size: 12.5px; color: var(--bt-muted); font-variant-numeric: tabular-nums; }
-.bt-handle { width: 24px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; color: #AEB4AA; cursor: grab; border-radius: 6px; opacity: 0; }
+.bt-handle { width: 24px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; color: var(--bt-faint); cursor: grab; border-radius: 6px; opacity: 0; }
 .bt-row:hover .bt-handle, .bt-handle:focus-visible { opacity: 1; }
 .bt-check { width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; padding: 0; cursor: pointer; }
-.bt-check span { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #AEB4AA; }
+.bt-check span { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--bt-faint); }
 .bt-check:hover span { border-color: var(--bt-brand); background: var(--bt-brand-tint); }
 
 .bt-board { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
-.bt-column { width: 268px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: #F0F2EE; border: 1px solid var(--bt-border); min-height: 200px; transition: opacity 120ms, border-color 120ms, background 120ms; }
+.bt-column { width: 268px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--bt-column); border: 1px solid var(--bt-border); min-height: 200px; transition: opacity 120ms, border-color 120ms, background 120ms; }
 .bt-column.allowed { background: var(--bt-brand-tint); border: 1.5px solid var(--bt-brand); }
 .bt-column.blocked { opacity: 0.5; }
 .bt-column.side { width: 220px; }
 .bt-card-task { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: var(--bt-surface); border: 1px solid var(--bt-border); cursor: grab; text-align: left; font: inherit; color: var(--bt-ink); }
-.bt-card-task:hover { border-color: #CDD2C9; }
+.bt-card-task:hover { border-color: var(--bt-border-strong); }
 .bt-card-task.dragging { opacity: 0.4; }
 .bt-card-task.overlay { box-shadow: 0 18px 32px -12px rgba(18, 20, 23, 0.35); transform: rotate(-1.5deg); cursor: grabbing; }
 
-.bt-kbd { font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; background: var(--bt-surface); color: var(--bt-muted); }
+.bt-kbd { font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--bt-kbd-border); border-radius: 5px; background: var(--bt-surface); color: var(--bt-muted); }
 .ant-btn-primary { font-weight: 600; }
 .ant-form-item-label > label { font-weight: 500; }
 .ant-segmented-item-selected { font-weight: 500; }
 .bt-domain .ant-input-group-addon,
 .ant-input-group-wrapper:has(.bt-domain) .ant-input-group-addon { height: 42px; font-size: 13.5px; padding: 0 12px; background: var(--bt-subtle); color: var(--bt-ink3); }
 .bt-check-row.ant-checkbox-wrapper { align-items: center; gap: 8px; font-size: 13.5px; }
-.bt-hit { background: #FFE7A3; color: inherit; border-radius: 3px; padding: 0 1px; }
+.bt-hit { background: var(--bt-highlight); color: inherit; border-radius: 3px; padding: 0 1px; }
 .bt-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .bt-desc-surface { outline: none; min-height: 112px; }
@@ -102,16 +91,121 @@ a { color: var(--bt-brand-strong); }
 
 @keyframes bt-toast-bar { from { width: 100%; } to { width: 0%; } }
 
+.bt-desktop-search { display: flex; flex: 1 1 280px; max-width: 520px; min-width: 0; }
+.bt-desktop-actions { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 12px; }
+.bt-phone-title,
+.bt-phone-search,
+.bt-phone-tabs,
+.bt-fab { display: none; }
+
 @media (max-width: 767px) {
   .bt-sidebar,
-  .bt-sidebar.is-collapsed { max-width: none; flex-basis: 100%; width: auto; padding: 16px 12px; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--bt-border); }
-  .bt-sidebar.is-collapsed .bt-sidebar-label,
-  .bt-sidebar.is-collapsed .bt-nav-heading,
-  .bt-sidebar.is-collapsed .bt-sidebar-copy { display: revert; }
-  .bt-sidebar.is-collapsed .bt-nav-link,
-  .bt-sidebar.is-collapsed .bt-sidebar-ws { width: auto; height: 36px; margin: 0; padding: 0 10px; justify-content: flex-start; }
-  .bt-sidebar-toggle,
-  .bt-sidebar .bt-nav-icon { display: none; }
+  .bt-sidebar.is-collapsed { display: none; }
   .bt-page { padding: 16px; }
-  .bt-topbar { padding: 12px 16px; }
+  .bt-topbar { min-height: 56px; padding: 8px 12px; gap: 8px; }
+  .bt-desktop-search,
+  .bt-desktop-actions { display: none; }
+  .bt-phone-title {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bt-display);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .bt-phone-search {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--bt-ink3);
+    cursor: pointer;
+  }
+  .bt-phone-search:hover { background: var(--bt-subtle); }
+  .bt-main { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+  .bt-phone-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--bt-surface);
+    border-top: 1px solid var(--bt-border);
+    font-size: 11.5px;
+    text-align: center;
+  }
+  .bt-phone-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 48px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--bt-muted);
+    text-decoration: none;
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .bt-phone-tab.active { color: var(--bt-brand-strong); font-weight: 600; }
+  .bt-phone-sheet {
+    position: fixed;
+    inset: 0;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    background: color-mix(in srgb, var(--bt-ink) 22%, transparent);
+    display: flex;
+    flex-direction: column;
+  }
+  .bt-board.is-phone {
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+  .bt-board.is-phone .bt-column {
+    width: 100%;
+    min-height: 280px;
+  }
+  .bt-fab {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    right: 18px;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    z-index: 41;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border: 0;
+    border-radius: 18px;
+    background: var(--bt-brand);
+    color: var(--bt-brand-on);
+    cursor: pointer;
+  }
+  .bt-quick-add-phone .ant-modal {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    top: 0;
+    padding: 0;
+  }
+  .bt-quick-add-phone .ant-modal-container {
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: 100%;
+    border-radius: 0;
+  }
 }

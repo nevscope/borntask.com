@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox, Input, Select } from 'antd';
+import { Alert, Button, Checkbox, Input, Segmented, Select } from 'antd';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, BASE_URL } from '../api/http';
@@ -9,6 +9,7 @@ import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
+import { useThemePreference } from '../theme/ThemeProvider';
 import { color } from '../theme/tokens';
 
 const EVENTS = [
@@ -95,6 +96,7 @@ export function ProfileSettingsScreen() {
   const [chatSaved, setChatSaved] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const toast = useStatusToast();
+  const themePref = useThemePreference();
 
   useEffect(() => {
     if (!chat.data || chatReady) return;
@@ -189,6 +191,22 @@ export function ProfileSettingsScreen() {
         <span style={{ flexBasis: '100%', fontSize: 12.5, color: color.muted }}>
           Signed in as {profile.data?.email ?? me?.user.email}. Name and photo come from your Google or Microsoft account unless you change them here.
         </span>
+      </section>
+      <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
+        <span style={{ flex: '1 1 280px' }}>
+          <span style={{ display: 'block', fontWeight: 600 }}>Appearance</span>
+          <span style={{ fontSize: 13, color: color.muted }}>Applies on this device. System follows your operating system.</span>
+        </span>
+        <Segmented
+          aria-label="Appearance"
+          value={themePref.appearance}
+          onChange={(value) => themePref.setAppearance(value as 'system' | 'light' | 'dark')}
+          options={[
+            { label: 'System', value: 'system' },
+            { label: 'Light', value: 'light' },
+            { label: 'Dark', value: 'dark' },
+          ]}
+        />
       </section>
       <section className="bt-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>

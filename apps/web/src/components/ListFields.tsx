@@ -13,12 +13,14 @@ export function ListFields({
   meId,
   roles,
   onMove,
+  compact = false,
 }: {
   task: Task;
   detail: ProjectDetail;
   meId?: string;
   roles: ProjectRole[];
   onMove: (task: Task, statusId: string) => void;
+  compact?: boolean;
 }) {
   const toast = useStatusToast();
   const update = useUpdateTask();
@@ -31,6 +33,24 @@ export function ListFields({
     update.mutate(
       { key: task.key, input },
       { onError: () => toast.show({ kind: 'error', text: 'Could not save this field.' }) },
+    );
+  }
+
+  if (compact) {
+    return (
+      <>
+        <StatusMenu
+          bare
+          name={status?.name ?? task.statusId}
+          dot={null}
+          trigger={<span style={{ fontSize: 12, color: color.muted }}>{status?.name ?? task.statusId}</span>}
+          options={moveOptions(detail.workflow, task, roles)}
+          onMove={(statusId) => onMove(task, statusId)}
+        />
+        <span style={{ marginLeft: 'auto', color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 12 }}>
+          <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
+        </span>
+      </>
     );
   }
 

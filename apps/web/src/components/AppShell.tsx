@@ -2,7 +2,7 @@ import { Button, Dropdown, Tag } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
-import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useProjects } from '../api/queries';
+import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useNotifications, useProjects } from '../api/queries';
 import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
 import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs';
 import { readWelcome } from '../lib/welcome';
@@ -11,10 +11,14 @@ import { Avatar, WorkspaceMark } from './Chips';
 import { Logo, LogoMark } from './Logo';
 import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
-import { NotificationBell } from './NotificationBell';
+import { AccountMenu, YouSheet } from './AccountMenu';
+import { InboxSheet, NotificationBell } from './NotificationBell';
 import { TopSearch } from './TopSearch';
 import { useStatusToast } from './StatusToast';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
+import { OfflineBanner } from './OfflineBanner';
+import { InstallPrompt, usePwaInstall } from './InstallPrompt';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const meQuery = useMe();
@@ -26,7 +30,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const welcome = params.get('welcome');
+  const isPhone = useIsPhone();
   const [shortcuts, setShortcuts] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [youOpen, setYouOpen] = useState(false);
+  const [installReopen, setInstallReopen] = useState(0);
+  const pwaInstall = usePwaInstall();
+  const openInstall = () => setInstallReopen((n) => n + 1);
+  const unread = useNotifications().data?.unreadCount ?? 0;
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
   const joined = useStatusToast();
   const stored = welcome ? readWelcome() : null;
@@ -103,6 +114,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [navigate, pathname]);
 
   useEffect(() => {
+    setInboxOpen(false);
+    setYouOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!workspaceId) {
       setRecentKeys([]);
       return;
@@ -114,9 +130,39 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, [pathname, workspaceId]);
 
+  const phoneTitle = (() => {
+    if (pathname === '/') return 'My tasks';
+    if (pathname.startsWith('/search')) return 'Search';
+    if (pathname.startsWith('/projects')) return 'Projects';
+    const projectKey = pathname.match(/^\/p\/([^/]+)/)?.[1];
+    if (projectKey) return projects.find((p) => p.key === projectKey)?.name ?? projectKey;
+    if (pathname.startsWith('/settings')) return 'Settings';
+    if (pathname.startsWith('/import')) return 'Import';
+    return me?.workspace.name ?? 'BornTask';
+  })();
+
+  const openQuickAdd = () => {
+    const key = pathname.match(/^\/p\/([^/]+)/)?.[1];
+    quickAdd.open(key ? { projectKey: key } : {});
+  };
+
+  const accountMenu = (
+    <div style={{ minWidth: 260, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12 }}>
+      <AccountMenu
+        me={me}
+        onClose={() => undefined}
+        onShortcuts={() => setShortcuts(true)}
+        installAvailable={pwaInstall.available}
+        onInstall={openInstall}
+      />
+    </div>
+  );
+
   return (
-    <div className="bt-shell">
-      <nav aria-label="Main" className={`bt-sidebar${collapsed ? ' is-collapsed' : ''}`}>
+    <div className={`bt-shell${isPhone ? ' is-phone' : ''}`}>
+      <OfflineBanner />
+      <div className="bt-shell-body">
+      <nav aria-label="Main" aria-hidden={isPhone} className={`bt-sidebar${collapsed ? ' is-collapsed' : ''}`}>
         <div className="bt-sidebar-scroll">
         <div className="bt-sidebar-brand">
           {collapsed ? <LogoMark size={26} /> : <Logo />}
@@ -248,51 +294,79 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="bt-main">
         <header className="bt-topbar">
-          <TopSearch />
-          <div style={{ flex: 1 }} />
-          {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && <Tag color="gold">Mocks</Tag>}
-          <Button type="primary" onClick={() => {
-            const key = pathname.match(/^\/p\/([^/]+)/)?.[1];
-            quickAdd.open(key ? { projectKey: key } : {});
-          }} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
-            + New task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>Q</kbd>
-          </Button>
-          <NotificationBell />
-          <Dropdown
-            trigger={['click']}
-            dropdownRender={() => (
-              <div role="menu" aria-label="Account" style={{ minWidth: 260, padding: 6, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 10px' }}>
-                  <Avatar user={me?.user} size={32} />
-                  <span>
-                    <span style={{ display: 'block', fontWeight: 600 }}>{me?.user.name ?? 'Account'}</span>
-                    <span style={{ fontSize: 12.5, color: color.muted }}>{me?.user.email}</span>
-                  </span>
-                </div>
-                <MenuLink onClick={() => navigate('/settings/profile')}>Profile and notifications</MenuLink>
-                <MenuLink onClick={() => navigate('/settings/tokens')}>Connected apps and tokens</MenuLink>
-                <MenuLink onClick={() => navigate('/settings/privacy')}>Privacy</MenuLink>
-                <MenuLink onClick={() => navigate('/settings/terms')}>Terms of use</MenuLink>
-                <MenuLink onClick={() => setShortcuts(true)}>
-                  <span style={{ flex: 1 }}>Keyboard shortcuts</span>
-                  <kbd className="bt-kbd">?</kbd>
-                </MenuLink>
-                <div style={{ height: 1, margin: '4px 6px', background: color.divider }} />
-                <MenuLink danger onClick={() => {
-                  void fetch(`${BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).then(() => {
-                    window.location.href = '/sign-in';
-                  });
-                }}>Sign out</MenuLink>
-              </div>
-            )}
-          >
-            <span style={{ cursor: 'pointer' }}><Avatar user={me?.user} size={34} /></span>
-          </Dropdown>
+          {isPhone && <LogoMark size={24} />}
+          <span className="bt-phone-title">{phoneTitle}</span>
+          <button type="button" className="bt-phone-search" aria-label="Search" onClick={() => navigate('/search')}>
+            <PhoneIcon kind="search" />
+          </button>
+          <div className="bt-desktop-search"><TopSearch /></div>
+          <div className="bt-desktop-actions">
+            {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && <Tag color="gold">Mocks</Tag>}
+            <Button type="primary" onClick={openQuickAdd} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
+              + New task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>Q</kbd>
+            </Button>
+            <NotificationBell />
+            <Dropdown trigger={['click']} dropdownRender={() => accountMenu}>
+              <span style={{ cursor: 'pointer' }}><Avatar user={me?.user} size={34} /></span>
+            </Dropdown>
+          </div>
         </header>
         <main className="bt-main-scroll">{children}</main>
       </div>
+      <nav className="bt-phone-tabs" aria-label="Main" hidden={!isPhone}>
+        <NavLink to="/" end className={({ isActive }) => `bt-phone-tab${isActive ? ' active' : ''}`}>
+          <PhoneIcon kind="tasks" />
+          My tasks
+        </NavLink>
+        <NavLink to="/projects" className={() => `bt-phone-tab${pathname.startsWith('/projects') || pathname.startsWith('/p/') ? ' active' : ''}`}>
+          <PhoneIcon kind="projects" />
+          Projects
+        </NavLink>
+        <button
+          type="button"
+          className={`bt-phone-tab${inboxOpen ? ' active' : ''}`}
+          aria-label={unread > 0 ? `Inbox, ${unread} unread` : 'Inbox'}
+          onClick={() => {
+            setYouOpen(false);
+            setInboxOpen((open) => !open);
+          }}
+        >
+          <span style={{ position: 'relative' }}>
+            <PhoneIcon kind="inbox" />
+            {unread > 0 && (
+              <span aria-hidden="true" style={{ position: 'absolute', top: 0, right: -2, width: 7, height: 7, borderRadius: '50%', background: color.unreadDot }} />
+            )}
+          </span>
+          Inbox
+        </button>
+        <button
+          type="button"
+          className={`bt-phone-tab${youOpen || pathname.startsWith('/settings') ? ' active' : ''}`}
+          onClick={() => {
+            setInboxOpen(false);
+            setYouOpen((open) => !open);
+          }}
+        >
+          <Avatar user={me?.user} size={22} fontSize={9} />
+          You
+        </button>
+      </nav>
+      <InboxSheet open={isPhone && inboxOpen} onClose={() => setInboxOpen(false)} />
+      <YouSheet
+        open={isPhone && youOpen}
+        me={me}
+        onClose={() => setYouOpen(false)}
+        onShortcuts={() => setShortcuts(true)}
+        installAvailable={pwaInstall.available}
+        onInstall={openInstall}
+      />
+      <InstallPrompt reopenNonce={installReopen} install={pwaInstall} />
+      <button type="button" className="bt-fab" aria-label="New task" hidden={!isPhone} onClick={openQuickAdd}>
+        <PhoneIcon kind="plus" />
+      </button>
       <TaskDrawer />
       {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
+      </div>
     </div>
   );
 }
@@ -320,7 +394,7 @@ function ShortcutsSheet({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div role="presentation" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(18, 20, 23, 0.22)' }}>
+    <div role="presentation" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: color.overlay }}>
       <div role="dialog" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()} style={{ position: 'absolute', top: 72, right: 24, width: 320, padding: '14px 16px', background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
         <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted }}>Keyboard shortcuts</span>
         {SHORTCUTS.map(([label, key]) => (
@@ -342,6 +416,21 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function PhoneIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'plus' | 'inbox' }) {
+  const path = {
+    tasks: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.5 12.5l2.5 2.5 4.5-5',
+    search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5',
+    projects: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    plus: 'M12 5v14M5 12h14',
+    inbox: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0',
+  }[kind];
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={kind === 'plus' ? 2.6 : 2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={path} />
+    </svg>
+  );
+}
+
 function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' }) {
   const path = {
     tasks: 'M4 7.5h8M4 11h5.5M4.8 4.4 6.2 5.8 8.8 3.2',
@@ -356,10 +445,3 @@ function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' 
   );
 }
 
-function MenuLink({ children, onClick, danger = false }: { children: ReactNode; onClick: () => void; danger?: boolean }) {
-  return (
-    <button type="button" role="menuitem" onClick={onClick} style={{ display: 'flex', alignItems: 'center', minHeight: 36, padding: '0 10px', border: 0, borderRadius: 8, background: 'transparent', font: 'inherit', fontSize: 13.5, textAlign: 'left', color: danger ? color.danger : color.ink, cursor: 'pointer' }}>
-      {children}
-    </button>
-  );
-}

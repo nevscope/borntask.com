@@ -17,6 +17,7 @@ import { ProjectViewBar, useProjectView } from '../components/ProjectViewBar';
 import { useQuickAdd } from '../components/QuickAdd';
 import { useMoveFlow } from '../components/useMoveFlow';
 import { useTaskParam } from '../components/useTaskParam';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { groupTasks, sortTasks, taskMatches } from '../lib/taskFilters';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
@@ -35,6 +36,7 @@ export function ProjectListScreen() {
   const [sectionName, setSectionName] = useState('');
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const flow = useMoveFlow(detail.data);
+  const isPhone = useIsPhone();
 
   const manual = view.group === 'section' && view.sort === 'manual';
   const visible = useMemo(() => {
@@ -82,8 +84,9 @@ export function ProjectListScreen() {
   }
 
   const list = (
-    <div className="bt-card" style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 980 }}>
+    <div className="bt-card" style={{ overflowX: isPhone ? 'hidden' : 'auto' }}>
+      <div style={{ minWidth: isPhone ? 0 : 980 }}>
+        {!isPhone && (
         <div className="bt-row" style={{ minHeight: 36, fontSize: 12, fontWeight: 600, color: color.muted }}>
           <span style={{ width: 32 }} />
           <span style={{ width: 24 }} />
@@ -95,6 +98,7 @@ export function ProjectListScreen() {
           <span style={{ width: 90 }}>Due</span>
           <span style={{ width: 100 }}>Priority</span>
         </div>
+        )}
         {groups.map((group) => (
           <SectionGroup
             key={group.id}
@@ -109,6 +113,7 @@ export function ProjectListScreen() {
             roles={flow.myRoles}
             onMove={flow.requestMove}
             onToggle={(key) => setSelected((prev) => prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key])}
+            compact={isPhone}
           />
         ))}
         {adding ? (
@@ -145,7 +150,7 @@ export function ProjectListScreen() {
         {list}
         <DragOverlay>
           {active && manual && (
-            <div className="bt-row" style={{ borderRadius: 10, border: `1px solid ${color.border}`, boxShadow: '0 18px 32px -12px rgba(18,20,23,.35)', paddingLeft: 16 }}>
+            <div className="bt-row" style={{ borderRadius: 10, border: `1px solid ${color.border}`, boxShadow: color.shadow, paddingLeft: 16 }}>
               <span className="bt-key">{active.key}</span>
               <span style={{ fontWeight: 500 }}>{active.title}</span>
             </div>
@@ -168,6 +173,7 @@ function SectionGroup({
   roles,
   onMove,
   onToggle,
+  compact,
 }: {
   id: string;
   name: string;
@@ -180,6 +186,7 @@ function SectionGroup({
   roles: ProjectDetail['members'][number]['roles'];
   onMove: (task: Task, statusId: string) => void;
   onToggle: (key: string) => void;
+  compact: boolean;
 }) {
   const quickAdd = useQuickAdd();
   const end = useDroppable({ id: `end:${id}`, disabled: !draggable });
@@ -187,7 +194,7 @@ function SectionGroup({
     <div>
       <div className="bt-group-head">{name} <span style={{ color: color.muted, fontWeight: 500 }}>{tasks.length}</span></div>
       {tasks.map((task) => (
-        <Row key={task.key} task={task} detail={detail} draggable={draggable} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onToggle={() => onToggle(task.key)} />
+        <Row key={task.key} task={task} detail={detail} draggable={draggable && !compact} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onToggle={() => onToggle(task.key)} compact={compact} />
       ))}
       {canAdd && (
         <div ref={end.setNodeRef} className={`bt-row${end.isOver ? ' drop-before' : ''}`} style={{ padding: '0 16px 0 58px', minHeight: 40, height: 40 }}>
@@ -213,6 +220,7 @@ function Row({
   roles,
   onMove,
   onToggle,
+  compact,
 }: {
   task: Task;
   detail: ProjectDetail;
@@ -222,11 +230,40 @@ function Row({
   roles: ProjectDetail['members'][number]['roles'];
   onMove: (task: Task, statusId: string) => void;
   onToggle: () => void;
+  compact: boolean;
 }) {
   const { openTask } = useTaskParam();
   const drag = useDraggable({ id: task.key, disabled: !draggable });
   const drop = useDroppable({ id: `row:${task.key}`, disabled: !draggable });
   const done = statusById(detail.workflow, task.statusId)?.category === 'done';
+
+  if (compact) {
+    return (
+      <div
+        className="bt-row"
+        style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: '10px 14px', minHeight: 0, background: selected ? color.brandTint : undefined }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <input
+            type="checkbox"
+            aria-label={`Select ${task.key}`}
+            checked={selected}
+            onChange={onToggle}
+            style={{ width: 16, height: 16, marginTop: 3, accentColor: color.brand, flex: 'none' }}
+          />
+          <button type="button" className="bt-row-title" style={{ flex: 1, color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3 }} onClick={() => openTask(task.key)}>
+            {task.title}
+            {task.subtaskCount.total > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+            {task.githubBadge && <span style={{ marginLeft: 8 }}><GitHubBadge kind={task.githubBadge} compact /></span>}
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24, fontSize: 12, color: color.muted }}>
+          <span>{task.key}</span>
+          <ListFields compact task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

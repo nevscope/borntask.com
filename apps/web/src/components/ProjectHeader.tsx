@@ -1,11 +1,16 @@
+import { Input } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useSearchParams } from 'react-router-dom';
-import { projectViewSearch } from './ProjectViewBar';
-import { useProjects } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { BASE_URL } from '../api/http';
+import { qk, useMe, useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
-import { color } from '../theme/tokens';
-import { Avatar } from './Chips';
+import { color, font, radius } from '../theme/tokens';
+import { Avatar, EditIcon } from './Chips';
 import { InvitePeopleButton } from './InvitePeople';
 import { ProjectStar } from './ProjectStar';
+import { projectViewSearch } from './ProjectViewBar';
+import { useStatusToast } from './StatusToast';
 
 export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const { project } = detail;
@@ -14,31 +19,156 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
   const [params] = useSearchParams();
   const search = projectViewSearch(params);
+  const me = useMe().data;
+  const qc = useQueryClient();
+  const toast = useStatusToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(project.name);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(project.name);
+  }, [project.name, editing]);
+
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const myRoles = detail.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
+  const canRename = Boolean(canAdmin || myRoles.includes('lead') || project.leadId === me?.user.id);
+
+  async function saveName() {
+    const next = draft.trim();
+    if (!canRename) {
+      setEditing(false);
+      setDraft(project.name);
+      return;
+    }
+    if (savingRef.current) return;
+    if (next.length < 2 || next === project.name) {
+      setEditing(false);
+      setDraft(project.name);
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(project.key)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: next }),
+      });
+      const json = await res.json().catch(() => ({})) as { message?: string; name?: string };
+      if (!res.ok) throw new Error(json.message ?? 'Could not rename this project.');
+      setDraft(json.name ?? next);
+      setEditing(false);
+      void qc.invalidateQueries({ queryKey: qk.projects });
+      void qc.invalidateQueries({ queryKey: qk.project(project.key) });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
+      void qc.invalidateQueries({ queryKey: ['search'] });
+    } catch (err) {
+      setDraft(project.name);
+      setEditing(false);
+      toast.show({
+        kind: 'error',
+        text: err instanceof Error ? err.message : 'Could not rename this project.',
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 320px' }}>
-          <div style={{ fontSize: 12.5, color: '#5B6157' }}>Projects / {project.key}</div>
-          <h1 className="bt-h1" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 4, background: project.color }} />
-            {project.name}
+          <div style={{ fontSize: 12.5, color: color.muted }}>Projects / {project.key}</div>
+          <h1 className="bt-h1" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 4, background: project.color, flex: 'none' }} />
+            {editing ? (
+              <Input
+                autoFocus
+                value={draft}
+                disabled={saving}
+                maxLength={80}
+                aria-label="Project name"
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => void saveName()}
+                onPressEnter={() => void saveName()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setDraft(project.name);
+                    setEditing(false);
+                  }
+                }}
+                style={{
+                  fontFamily: font.display,
+                  fontSize: 24,
+                  fontWeight: 600,
+                  letterSpacing: '-0.03em',
+                  maxWidth: 420,
+                  height: 40,
+                  background: color.subtle,
+                  borderRadius: radius.md,
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canRename) return;
+                  setDraft(project.name);
+                  setEditing(true);
+                }}
+                disabled={!canRename}
+                title={canRename ? 'Rename project' : undefined}
+                style={{
+                  margin: 0,
+                  padding: 0,
+                  border: 0,
+                  background: 'transparent',
+                  color: 'inherit',
+                  font: 'inherit',
+                  letterSpacing: 'inherit',
+                  textAlign: 'left',
+                  cursor: canRename ? 'text' : 'default',
+                  minWidth: 0,
+                }}
+              >
+                {project.name}
+              </button>
+            )}
+            <Link
+              to={`/p/${project.key}/settings/details`}
+              aria-label="Name, colour and workflow"
+              title="Name, colour and workflow"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                borderRadius: radius.sm,
+                color: color.muted,
+                flex: 'none',
+              }}
+            >
+              <EditIcon />
+            </Link>
           </h1>
-          <Link to={`/p/${project.key}/settings/details`} style={{ display: 'inline-block', marginTop: 6, fontSize: 13, fontWeight: 500, color: color.brandStrong, textDecoration: 'none' }}>
-            Edit name, colour and workflow
-          </Link>
         </div>
         <ProjectStar projectKey={project.key} name={project.name} starred={starred} />
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {people.map((u, i) => (
-            <span key={u.id} style={{ marginLeft: i === 0 ? 0 : -8, borderRadius: '50%', border: '2px solid #F7F8F6', display: 'inline-flex' }}>
+            <span key={u.id} style={{ marginLeft: i === 0 ? 0 : -8, borderRadius: '50%', border: `2px solid ${color.canvas}`, display: 'inline-flex' }}>
               <Avatar user={u} size={28} />
             </span>
           ))}
           <InvitePeopleButton projectId={project.id} projectName={project.name} />
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, borderBottom: '1px solid #E8EBE6' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, borderBottom: `1px solid ${color.border}` }}>
         {(['list', 'board', 'trash', 'members', 'structure'] as const).map((view) => (
           <NavLink
             key={view}
@@ -50,9 +180,9 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
               alignItems: 'center',
               fontSize: 13.5,
               textDecoration: 'none',
-              color: isActive ? '#121417' : '#5B6157',
+              color: isActive ? color.ink : color.muted,
               fontWeight: isActive ? 600 : 400,
-              borderBottom: isActive ? '2px solid #178A5C' : '2px solid transparent',
+              borderBottom: isActive ? `2px solid ${color.brand}` : '2px solid transparent',
               marginBottom: -1,
             })}
           >

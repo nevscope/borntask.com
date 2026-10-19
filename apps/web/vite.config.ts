@@ -24,4 +24,18 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 4174,
+    strictPort: true,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3010',
+        changeOrigin: true,
+        timeout: 0,
+        proxyTimeout: 0,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
 });
