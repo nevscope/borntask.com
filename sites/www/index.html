@@ -8,8 +8,8 @@
       name="description"
       content="BornTask is a work tracker for ideas, bugs, improvements and features. Sign in at app.borntask.com."
     />
-    <link rel="icon" type="image/png" href="/borntask-logo-120.png?v=1" />
-    <link rel="apple-touch-icon" href="/borntask-logo-120.png?v=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/borntask-logo-120.png" />
     <link rel="canonical" href="https://borntask.com/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -57,18 +57,18 @@
         font-weight: 600;
         letter-spacing: -0.035em;
       }
-      .brand img {
+      .brand svg {
         display: block;
-        width: 40px;
-        height: 40px;
+        flex-shrink: 0;
         border-radius: 10px;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
       }
       .app-logo {
         display: block;
         width: 120px;
         height: 120px;
         border-radius: 28px;
-        box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.22);
+        box-shadow: 0 12px 28px rgba(15, 107, 70, 0.28);
       }
       .hero {
         flex: 1;
@@ -137,11 +137,21 @@
   <body>
     <div class="page">
       <a class="brand" href="https://borntask.com/">
-        <img src="/borntask-logo-120.png?v=1" width="40" height="40" alt="" />
+        <svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" rx="13.5" fill="#FFFFFF" />
+          <circle cx="8.75" cy="25.6" r="1.9" fill="#178A5C" fill-opacity="0.55" />
+          <circle cx="16.05" cy="25.6" r="2.8" fill="#178A5C" fill-opacity="0.8" />
+          <path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#178A5C" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
         <span class="wordmark">borntask</span>
       </a>
       <main class="hero">
-        <img class="app-logo" src="/borntask-logo-120.png?v=1" width="120" height="120" alt="BornTask logo" />
+        <svg class="app-logo" width="120" height="120" viewBox="0 0 48 48" role="img" aria-label="BornTask">
+          <rect width="48" height="48" rx="13.5" fill="#FFFFFF" />
+          <circle cx="8.75" cy="25.6" r="1.9" fill="#178A5C" fill-opacity="0.55" />
+          <circle cx="16.05" cy="25.6" r="2.8" fill="#178A5C" fill-opacity="0.8" />
+          <path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#178A5C" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
         <h1>From idea to done,<br />without the drag.</h1>
         <p class="lede">
           Ideas, bugs, improvements and features in one fast list and board, moving through the workflow your team agreed.

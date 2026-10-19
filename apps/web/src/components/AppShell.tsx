@@ -4,10 +4,11 @@ import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router
 import { BASE_URL } from '../api/http';
 import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useProjects } from '../api/queries';
 import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
+import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs';
 import { readWelcome } from '../lib/welcome';
 import { color, radius } from '../theme/tokens';
 import { Avatar, WorkspaceMark } from './Chips';
-import { Logo } from './Logo';
+import { Logo, LogoMark } from './Logo';
 import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
 import { NotificationBell } from './NotificationBell';
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [params] = useSearchParams();
   const welcome = params.get('welcome');
   const [shortcuts, setShortcuts] = useState(false);
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
   const joined = useStatusToast();
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
@@ -84,6 +86,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         const match = pathname.match(/^\/p\/([^/]+)\/(list|board)/);
         if (match?.[1] && match[2]) navigate(`/p/${match[1]}/${match[2] === 'list' ? 'board' : 'list'}`);
       }
+      if (event.key === '[') {
+        event.preventDefault();
+        setCollapsed((current) => {
+          const next = !current;
+          writeSidebarCollapsed(next);
+          return next;
+        });
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
@@ -106,9 +116,25 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="bt-shell">
-      <nav aria-label="Main" className="bt-sidebar">
+      <nav aria-label="Main" className={`bt-sidebar${collapsed ? ' is-collapsed' : ''}`}>
         <div className="bt-sidebar-scroll">
-        <div style={{ padding: '4px 10px 14px' }}><Logo /></div>
+        <div className="bt-sidebar-brand">
+          {collapsed ? <LogoMark size={26} /> : <Logo />}
+          <button
+            type="button"
+            className="bt-sidebar-toggle"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+            title={collapsed ? 'Expand menu ( [ )' : 'Collapse menu ( [ )'}
+            onClick={() => {
+              const next = !collapsed;
+              writeSidebarCollapsed(next);
+              setCollapsed(next);
+            }}
+          >
+            <CollapseIcon collapsed={collapsed} />
+          </button>
+        </div>
         <Dropdown
           trigger={['click']}
           menu={{
@@ -141,33 +167,45 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <button
             type="button"
-            style={{ height: 36, width: '100%', margin: '0 0 10px', padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${color.border}`, borderRadius: 8, background: color.subtle, fontSize: 13, color: color.ink3, cursor: 'pointer', font: 'inherit' }}
+            className="bt-sidebar-ws"
+            title={me?.workspace.name ?? 'Workspace'}
+            aria-label={me?.workspace.name ?? 'Workspace'}
           >
             <WorkspaceMark name={me?.workspace.name ?? 'Workspace'} id={me?.workspace.id} logo={me?.workspace.logo} size={20} version={meQuery.dataUpdatedAt} />
-            <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className="bt-sidebar-label" style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {me?.workspace.name ?? 'Workspace'}
             </span>
           </button>
         </Dropdown>
-        <NavLink to="/" end className="bt-nav-link">
-          <span style={{ flex: 1 }}>My tasks</span>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{myCount || ''}</span>
+        <NavLink to="/" end className="bt-nav-link" title="My tasks">
+          <span className="bt-nav-icon"><NavIcon kind="tasks" /></span>
+          <span className="bt-sidebar-label" style={{ flex: 1 }}>My tasks</span>
+          <span className="bt-sidebar-label" style={{ fontSize: 12, fontWeight: 600 }}>{myCount || ''}</span>
         </NavLink>
-        <NavLink to="/search" className="bt-nav-link">Search</NavLink>
-        {!guest && <NavLink to="/projects" className="bt-nav-link">Projects</NavLink>}
+        <NavLink to="/search" className="bt-nav-link" title="Search">
+          <span className="bt-nav-icon"><NavIcon kind="search" /></span>
+          <span className="bt-sidebar-label">Search</span>
+        </NavLink>
+        {!guest && (
+          <NavLink to="/projects" className="bt-nav-link" title="Projects">
+            <span className="bt-nav-icon"><NavIcon kind="projects" /></span>
+            <span className="bt-sidebar-label">Projects</span>
+          </NavLink>
+        )}
         <div className="bt-nav-heading">{guest ? 'Your project' : 'Favourites'}</div>
         {pinned.length === 0 ? (
-          <div style={{ padding: '4px 10px', fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
+          <div className="bt-sidebar-copy" style={{ padding: '4px 10px', fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
             {guest ? 'No project yet.' : 'Star a project to pin it here.'}
           </div>
         ) : pinned.map((p) => (
           <NavLink
             key={p.key}
             to={`/p/${p.key}/list`}
+            title={p.name}
             className={() => `bt-nav-link bt-nav-sub${pathname.startsWith(`/p/${p.key}/`) ? ' active' : ''}`}
           >
             <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
-            <span style={{ flex: 1 }}>{p.name}</span>
+            <span className="bt-sidebar-label" style={{ flex: 1 }}>{p.name}</span>
           </NavLink>
         ))}
         {!guest && recent.length > 0 && (
@@ -177,10 +215,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLink
                 key={p.key}
                 to={`/p/${p.key}/list`}
+                title={p.name}
                 className={() => `bt-nav-link bt-nav-sub${pathname.startsWith(`/p/${p.key}/`) ? ' active' : ''}`}
               >
                 <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
-                <span style={{ flex: 1 }}>{p.name}</span>
+                <span className="bt-sidebar-label" style={{ flex: 1 }}>{p.name}</span>
               </NavLink>
             ))}
           </>
@@ -188,13 +227,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="bt-sidebar-dock">
         {guest && (
-          <div style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.subtle, fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
+          <div className="bt-sidebar-copy" style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.subtle, fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
             <strong style={{ color: color.ink3 }}>Guest access.</strong> You only see the projects you were invited to.
           </div>
         )}
-        {!guest && <NavLink to="/settings/people" className="bt-nav-link">Settings</NavLink>}
+        {!guest && (
+          <NavLink to="/settings/people" className="bt-nav-link" title="Settings">
+            <span className="bt-nav-icon"><NavIcon kind="settings" /></span>
+            <span className="bt-sidebar-label">Settings</span>
+          </NavLink>
+        )}
         {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && (
-          <div style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.warningTint, border: `1px solid ${color.warningBorder}`, fontSize: 12.5, color: color.warning, lineHeight: 1.45 }}>
+          <div className="bt-sidebar-copy" style={{ margin: '0 4px', padding: '10px 12px', borderRadius: 8, background: color.warningTint, border: `1px solid ${color.warningBorder}`, fontSize: 12.5, color: color.warning, lineHeight: 1.45 }}>
             <strong>Mocks on.</strong>{' '}
             Projects {USE_PROJECT_MOCKS ? 'mocked' : 'live'}. Tasks {USE_TASK_MOCKS ? 'mocked' : 'live'}.
           </div>
@@ -259,6 +303,7 @@ const SHORTCUTS = [
   ['Command palette', 'Ctrl K'],
   ['Go to My tasks', 'G M'],
   ['Switch list / board', 'V'],
+  ['Collapse menu', '['],
   ['Assign to me', 'I'],
   ['Set due date', 'D'],
   ['Change status', 'S'],
@@ -286,6 +331,28 @@ function ShortcutsSheet({ onClose }: { onClose: () => void }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function CollapseIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      {collapsed ? <path d="M6 3.5 10.5 8 6 12.5" /> : <path d="M10 3.5 5.5 8 10 12.5" />}
+    </svg>
+  );
+}
+
+function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' }) {
+  const path = {
+    tasks: 'M4 7.5h8M4 11h5.5M4.8 4.4 6.2 5.8 8.8 3.2',
+    search: 'M10.6 10.6 13.2 13.2M7.2 11.2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z',
+    projects: 'M3.5 4.2h4.1v4.1H3.5zM8.4 4.2h4.1v4.1H8.4zM3.5 9.1h4.1v4.1H3.5zM8.4 9.1h4.1v4.1H8.4z',
+    settings: 'M8 10.2A2.2 2.2 0 1 0 8 5.8a2.2 2.2 0 0 0 0 4.4zM8 2.6v1.4M8 12v1.4M3.8 4.4l1 1M11.2 10.6l1 1M2.6 8h1.4M12 8h1.4M3.8 11.6l1-1M11.2 5.4l1-1',
+  }[kind];
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={path} />
+    </svg>
   );
 }
 

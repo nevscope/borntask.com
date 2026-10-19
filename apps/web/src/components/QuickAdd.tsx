@@ -1,5 +1,5 @@
 // Quick add (screen 5). Opens from "New task", "+ Add task" in a section, or Q anywhere.
-// Title line understands @name, !priority and dates; description starts from the type's template (WYSIWYG);
+// Title line understands @name, !priority and dates; description is a blank WYSIWYG field;
 // screenshots can be pasted (Ctrl/Cmd+V) or dropped. Enter creates, Shift+Enter creates and opens.
 import { Button, Input, Modal } from 'antd';
 import type { InputRef } from 'antd';
@@ -22,7 +22,7 @@ import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/wor
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
 import { uploadPendingFile } from '../lib/uploadAttachment';
-import { isUntouchedTemplate, persistDescription } from '../lib/descriptionHtml';
+import { isEmptyDescription, persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DescriptionEditor } from './DescriptionEditor';
@@ -30,18 +30,7 @@ import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
 
-const TEMPLATES: Record<BuiltinTaskType, string> = {
-  idea: 'Problem\n\nWho benefits\n',
-  bug: 'Steps to reproduce\n1. \n\nExpected\n\nActual\n',
-  improvement: 'Today\n\nProposed\n',
-  feature: 'Acceptance criteria\n- \n',
-};
-
 const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature'];
-
-function templateOf(type: string) {
-  return type in TEMPLATES ? TEMPLATES[type as BuiltinTaskType] : '';
-}
 
 function typeLook(type: string) {
   return type in typeStyle ? typeStyle[type as BuiltinTaskType] : { label: type, bg: color.chip, fg: color.ink3 };
@@ -101,8 +90,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [raw, setRaw] = useState('');
   const catalog = useWorkspaceCatalog();
   const typeList = catalog.types.length ? catalog.types.map((item) => item.slug) : TYPES;
-  const [description, setDescription] = useState(templateOf(opts.type ?? 'idea'));
-  const [descTouched, setDescTouched] = useState(false);
+  const [description, setDescription] = useState('');
   const [assigneeOverride, setAssigneeOverride] = useState<string | null | undefined>(undefined);
   const [dueOverride, setDueOverride] = useState<string | null | undefined>(undefined);
   const [priorityOverride, setPriorityOverride] = useState<Priority | undefined>(undefined);
@@ -168,10 +156,6 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     setType(t);
     setStatusPick(undefined);
     setMoveComment('');
-    const nextTemplate = catalog.types.find((item) => item.slug === t)?.template?.trim() || templateOf(t);
-    if (!descTouched && isUntouchedTemplate(description, catalog.types.find((item) => item.slug === type)?.template?.trim() || templateOf(type))) {
-      setDescription(nextTemplate);
-    }
   }
 
   useEffect(() => {
@@ -188,7 +172,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     if (next.length) setFiles((prev) => [...prev, ...next]);
   }
 
-  const hasDraft = raw.trim() !== '' || descTouched || files.length > 0 || moveComment.trim() !== '';
+  const hasDraft = raw.trim() !== '' || !isEmptyDescription(description) || files.length > 0 || moveComment.trim() !== '';
 
   function readCaret() {
     const el = titleRef.current?.input;
@@ -267,7 +251,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       toast.show({ kind: 'error', text: 'Add a comment to move it there.' });
       return;
     }
-    const cleanDescription = isUntouchedTemplate(description, templateOf(type)) ? '' : persistDescription(description);
+    const cleanDescription = persistDescription(description);
     void (async () => {
       let uploaded = files;
       try {
@@ -326,6 +310,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     <>
     <Modal
       open
+      centered
       onCancel={requestClose}
       footer={null}
       title={null}
@@ -333,11 +318,29 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       closable={false}
       keyboard={!discardOpen}
       mask={{ closable: false }}
-      styles={{ body: { padding: 0, overflow: 'hidden', borderRadius: radius.xl }, container: { padding: 0, borderRadius: radius.xl } }}
+      styles={{
+        wrapper: { overflow: 'auto', padding: 16 },
+        container: {
+          padding: 0,
+          borderRadius: radius.xl,
+          maxHeight: 'calc(100dvh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+        },
+        body: {
+          padding: 0,
+          overflow: 'hidden',
+          borderRadius: radius.xl,
+          maxHeight: 'calc(100dvh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+        },
+      }}
     >
       <div
         role="dialog"
         aria-label="New task"
+        style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100dvh - 32px)' }}
         onPaste={(e) => {
           const pasted = filesFromClipboard(e.clipboardData);
           if (pasted.length) {
@@ -351,6 +354,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           addFiles(e.dataTransfer.files);
         }}
       >
+        <div style={{ flex: '1 1 auto', minHeight: 0, overflow: 'auto' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '14px 18px 0' }}>
           <span style={{ fontSize: 12.5, color: color.muted, marginRight: 4 }}>Type</span>
           {typeList.map((t) => {
@@ -468,31 +472,18 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           )}
         </label>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 18px 6px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: color.muted }}>Description</span>
-            <span style={{ fontSize: 12, color: color.muted }}>· {typeLook(type).label} template</span>
-            <span style={{ flex: 1 }} />
-            <button
-              type="button"
-              onClick={() => { setDescription(''); setDescTouched(true); }}
-              style={{ height: 26, padding: '0 8px', border: 0, borderRadius: 6, background: 'transparent', font: 'inherit', fontSize: 12, color: color.muted, cursor: 'pointer' }}
-            >
-              Clear template
-            </button>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 18px 6px', minHeight: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: color.muted }}>Description</span>
           <DescriptionEditor
             value={description}
             people={people}
-            minHeight={180}
-            onChange={(next) => {
-              setDescription(next);
-              if (!isUntouchedTemplate(next, templateOf(type))) setDescTouched(true);
-            }}
+            minHeight={112}
+            placeholder="Add details."
+            onChange={setDescription}
             onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
           />
           <span style={{ fontSize: 12, color: color.muted }}>
-            Use the toolbar to format. Switching type swaps the template if you have not typed in it yet.
+            Use the toolbar to format.
           </span>
         </div>
 
@@ -570,8 +561,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         <div style={{ padding: '0 18px 16px' }}>
           <AttachmentTiles items={files} onAdd={addFiles} onRemove={(id) => setFiles((p) => p.filter((x) => x.id !== id))} />
         </div>
+        </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '12px 18px', background: color.subtle, borderTop: `1px solid ${color.divider}` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '12px 18px', background: color.subtle, borderTop: `1px solid ${color.divider}`, flex: 'none' }}>
           <span style={{ flex: '1 1 260px', fontSize: 12.5, color: color.muted }}>
             Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>

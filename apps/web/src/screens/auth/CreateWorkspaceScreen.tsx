@@ -23,6 +23,7 @@ export function CreateWorkspaceScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  const [hasWorkspace, setHasWorkspace] = useState(false);
   const [slugNote, setSlugNote] = useState<string | null>(null);
   const [values, setValues] = useState<Draft>({
     name: '',
@@ -43,11 +44,22 @@ export function CreateWorkspaceScreen() {
           navigate('/sign-in', { replace: true });
           return;
         }
-        const json = await r.json() as { user?: { email?: string } };
+        const json = await r.json() as { user?: { email?: string }; workspaces?: { id: string }[] };
         setEmail(json.user?.email ?? '');
+        setHasWorkspace((json.workspaces ?? []).length > 0);
       })
       .catch(() => navigate('/sign-in', { replace: true }));
   }, [navigate]);
+
+  const cancel = () => {
+    if (hasWorkspace) {
+      navigate('/');
+      return;
+    }
+    void fetch(`${BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).then(() => {
+      window.location.href = '/sign-in';
+    });
+  };
 
   const next = (patch: Partial<Draft>) => {
     setValues((v) => ({ ...v, ...patch }));
@@ -162,7 +174,8 @@ export function CreateWorkspaceScreen() {
                   <Checkbox className="bt-check-row" style={{ gap: 10 }}>Let anyone with an @{domain} Google or Microsoft account join without an invitation</Checkbox>
                 </Form.Item>
               )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button htmlType="button" onClick={cancel} style={{ height: 42, borderRadius: 10, fontSize: 14 }}>Cancel</Button>
                 <Button type="primary" htmlType="submit" style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Continue</Button>
               </div>
             </Form>

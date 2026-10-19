@@ -23,6 +23,7 @@ export const config = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   microsoftClientId: process.env.MICROSOFT_CLIENT_ID ?? '',
   microsoftClientSecret: process.env.MICROSOFT_CLIENT_SECRET ?? '',
+  microsoftTenantId: process.env.MICROSOFT_TENANT_ID?.trim() || 'common',
   blobRoot: env('BLOB_ROOT', '.data/blobs'),
   githubAppId: process.env.GITHUB_APP_ID ?? '',
   githubPrivateKey: (process.env.GITHUB_APP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),

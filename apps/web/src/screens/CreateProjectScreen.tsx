@@ -128,29 +128,38 @@ export function CreateProjectScreen() {
       <div
         role="presentation"
         onClick={close}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(18, 20, 23, 0.22)', zIndex: 40 }}
-      />
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 40,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+          overflow: 'auto',
+          background: 'rgba(18, 20, 23, 0.22)',
+        }}
+      >
       <div
         role="dialog"
         aria-label="Create project"
         aria-modal="true"
+        onClick={(event) => event.stopPropagation()}
         style={{
-          position: 'fixed',
-          zIndex: 41,
-          top: 56,
-          left: 16,
-          right: 16,
-          margin: '0 auto',
+          width: '100%',
           maxWidth: 680,
-          maxHeight: 'calc(100dvh - 80px)',
-          overflow: 'auto',
+          maxHeight: 'calc(100dvh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          margin: 'auto',
           background: color.surface,
           border: `1px solid ${color.border}`,
           borderRadius: radius.xl,
           boxShadow: '0 24px 48px -16px rgba(18, 20, 23, 0.25)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', padding: '18px 22px', borderBottom: `1px solid ${color.divider}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '18px 22px', borderBottom: `1px solid ${color.divider}`, flex: 'none' }}>
           <h2 style={{ flex: 1, margin: 0, fontFamily: font.display, fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em' }}>New project</h2>
           <button
             type="button"
@@ -161,7 +170,7 @@ export function CreateProjectScreen() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
-        <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 18, flex: '1 1 auto', minHeight: 0, overflow: 'auto' }}>
           {error && <p style={{ margin: 0, color: color.danger }}>{error}</p>}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 120px', gap: 12 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
@@ -309,10 +318,11 @@ export function CreateProjectScreen() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 22px', borderTop: `1px solid ${color.divider}` }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 22px', borderTop: `1px solid ${color.divider}`, flex: 'none' }}>
           <Button onClick={close}>Cancel</Button>
           <Button type="primary" loading={busy} onClick={() => void submit()}>Create project</Button>
         </div>
+      </div>
       </div>
     </>
   );

@@ -12,16 +12,21 @@ export function googleAuthUrl(state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+function microsoftAuthority(): string {
+  return `https://login.microsoftonline.com/${config.microsoftTenantId}`;
+}
+
 export function microsoftAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: config.microsoftClientId,
     redirect_uri: `${config.apiPublicUrl}/auth/microsoft/callback`,
     response_type: 'code',
+    response_mode: 'query',
     scope: 'openid email profile User.Read',
     state,
     prompt: 'select_account',
   });
-  return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+  return `${microsoftAuthority()}/oauth2/v2.0/authorize?${params.toString()}`;
 }
 
 export async function googleProfile(code: string): Promise<{ email: string; name: string; providerId: string }> {
@@ -57,7 +62,7 @@ export async function microsoftProfile(code: string): Promise<{ email: string; n
     redirect_uri: `${config.apiPublicUrl}/auth/microsoft/callback`,
     grant_type: 'authorization_code',
   });
-  const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+  const tokenRes = await fetch(`${microsoftAuthority()}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
