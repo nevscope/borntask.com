@@ -8,22 +8,26 @@ import { Link } from 'react-router-dom';
 import {
   useAddComment,
   useAddSubtask,
+  useDeleteComment,
   useDeleteTask,
   useMe,
   useProject,
   useProjectTasks,
   useRestoreTask,
   useSetSubtaskDone,
+  useSetWatching,
   useTask,
+  useUpdateComment,
   useUpdateTask,
   qk,
 } from '../api/queries';
-import type { ActorVia, ProjectDetail, TaskDetail, UpdateTaskInput } from '../api/types';
+import type { ActorVia, Comment, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
 import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
 import { deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
+import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { persistDescription } from '../lib/descriptionHtml';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
@@ -117,6 +121,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   const update = useUpdateTask();
   const del = useDeleteTask();
   const restore = useRestoreTask();
+  const watch = useSetWatching();
   const flow = useMoveFlow(detail);
   const saving = useIsMutating() > 0;
 
@@ -136,6 +141,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     return readTaskAttachments(task.key);
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmWatch, setConfirmWatch] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [subtaskDraft, setSubtaskDraft] = useState('');
   const [descFocused, setDescFocused] = useState(false);
@@ -175,16 +181,17 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   };
 
   async function addTaskFiles(list: File[] | FileList) {
-    const added = Array.from(list);
-    if (!added.length) return;
+    const { accepted, reason } = partitionAttachmentFiles(Array.from(list));
+    if (reason) toast.show({ kind: 'error', text: reason });
+    if (!accepted.length) return;
     try {
       const next = [...files];
-      for (const file of added) {
+      for (const file of accepted) {
         next.push(await uploadTaskFile(task.key, file));
       }
       setAttachments(next);
-    } catch {
-      toast.show({ kind: 'error', text: 'Could not attach that file.' });
+    } catch (err) {
+      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not attach that file.' });
     }
   }
 
@@ -197,6 +204,8 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     .sort((a, b) => Number(a.status.side) - Number(b.status.side))
     .slice(0, 3);
   const memberUsers = detail.users.filter((u) => detail.members.some((m) => m.userId === u.id));
+  const mentionPeople = detail.users.length ? detail.users : memberUsers;
+  const watching = Boolean(me && task.watcherIds?.includes(me.user.id));
   const labelSuggestions = [...new Set((useProjectTasks(detail.project.key).data ?? []).flatMap((row) => row.labels))];
   const businessNames = detail.members
     .filter((m) => m.roles.includes('business') && m.userId !== me?.user.id)
@@ -212,9 +221,21 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   }
 
   const inTrash = Boolean(task.deletedAt);
+  const descTooLong = isTaskDescriptionTooLong(description);
   const save = (input: UpdateTaskInput) => {
     if (inTrash) return;
-    update.mutate({ key: task.key, input });
+    if (input.description !== undefined && isTaskDescriptionTooLong(input.description)) return;
+    update.mutate(
+      { key: task.key, input },
+      {
+        onSuccess: () => {
+          if (input.description !== undefined) savedDescription.current = input.description;
+        },
+        onError: (err) => {
+          toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save this task.' });
+        },
+      },
+    );
   };
 
   guard.current = {
@@ -229,7 +250,6 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     const html = persistDescription(next);
     setDescription(html);
     if (html === savedDescription.current) return;
-    savedDescription.current = html;
     save({ description: html });
   }
 
@@ -269,23 +289,12 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         )}
         <span>{detail.project.name}</span>{isPhone ? <span>·</span> : <><span>/</span><span>{section?.name}</span><span>/</span></>}
         <strong style={{ color: color.ink }}>{task.key}</strong>
-        <span role="status" style={{ marginLeft: 6, fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : color.brandStrong }}>{saving ? 'Saving…' : isPhone ? 'Saved' : '✓ Saved'}</span>
+        <span role="status" style={{ marginLeft: 6, fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : descTooLong || update.isError ? color.danger : color.brandStrong }}>{saving ? 'Saving…' : descTooLong || update.isError ? 'Not saved' : isPhone ? 'Saved' : '✓ Saved'}</span>
         <span style={{ flex: 1 }} />
         {!isPhone && (
           <>
-        <Button
-          type="text"
-          size="small"
-          onClick={() => {
-            void fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/tasks/${encodeURIComponent(task.key)}/watchers`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ watch: true }),
-            }).then(() => toast.show("You're watching this task."));
-          }}
-        >
-          Watch
+        <Button type="text" size="small" aria-pressed={watching} onClick={() => setConfirmWatch(true)}>
+          {watching ? 'Watching' : 'Watch'}
         </Button>
         <Button type="text" size="small" onClick={() => { void navigator.clipboard?.writeText(window.location.href); toast.show('Link copied.'); }}>Copy link</Button>
         <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18 }}>×</button>
@@ -331,6 +340,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           variant="borderless"
           value={title}
           aria-label="Task title"
+          maxLength={200}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== task.title && save({ title: title.trim() })}
           onPressEnter={(e) => e.currentTarget.blur()}
@@ -386,7 +396,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           <DescriptionEditor
             key={editorKey}
             value={description}
-            people={memberUsers}
+            people={mentionPeople}
             minHeight={160}
             onChange={(next) => {
               setDescription(next);
@@ -395,6 +405,11 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             onFocusChange={setDescFocused}
             onBlur={(next) => persistDesc(next)}
           />
+          {descTooLong && (
+            <p role="alert" style={{ margin: '8px 0 0', fontSize: 12.5, color: color.danger }}>
+              {TASK_DESCRIPTION_TOO_LONG}
+            </p>
+          )}
         </Section>
 
         <Section title="Attachments">
@@ -415,6 +430,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             <AttachmentTiles
               items={files}
               onAdd={(added) => void addTaskFiles(added)}
+              onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
               onOpen={(item) => void downloadTaskFile(task.key, item.id, item.name)}
               onRemove={(id) => {
                 void deleteTaskFile(task.key, id)
@@ -439,6 +455,33 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           onConfirm={doDelete}
         >
           {trashToldCopy(toldNames())}
+        </ConfirmDialog>
+        <ConfirmDialog
+          open={confirmWatch}
+          title={watching ? 'Stop watching this task?' : 'Watch this task?'}
+          confirmLabel={watching ? 'Stop watching' : 'Watch'}
+          tone={watching ? 'danger' : 'primary'}
+          busy={watch.isPending}
+          onCancel={() => setConfirmWatch(false)}
+          onConfirm={() => {
+            watch.mutate(
+              { key: task.key, watch: !watching },
+              {
+                onSuccess: () => {
+                  setConfirmWatch(false);
+                  toast.show(watching ? 'You stopped watching this task.' : "You're watching this task.");
+                },
+                onError: (err) => {
+                  setConfirmWatch(false);
+                  toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not update watching.' });
+                },
+              },
+            );
+          }}
+        >
+          {watching
+            ? 'You will stop getting updates when someone comments or the stage changes.'
+            : 'You will get updates when someone comments or the stage changes.'}
         </ConfirmDialog>
       </div>
       </div>
@@ -489,6 +532,7 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
 }
 
 function Comments({ task, detail, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
+  const me = useMe().data;
   const add = useAddComment();
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
@@ -501,12 +545,9 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
     add.mutate({ key: task.key, body: draft.trim() }, { onSuccess: () => write('') });
   };
   const userOf = (id: string) => detail.users.find((u) => u.id === id);
-  const feed = [
-    ...task.comments.map((c) => ({ id: c.id, at: c.createdAt, who: userOf(c.authorId), text: c.body, kind: 'comment' as const, via: c.via })),
-    ...task.activity.map((a) => ({ id: a.id, at: a.at, who: userOf(a.actorId), text: a.text, kind: 'activity' as const, via: a.via })),
-  ].sort((a, b) => a.at.localeCompare(b.at));
-
-  const shown = feed.filter((item) => (tab === 'comments' ? item.kind === 'comment' : item.kind === 'activity'));
+  const activity = task.activity
+    .map((a) => ({ id: a.id, at: a.at, who: userOf(a.actorId), text: a.text, via: a.via }))
+    .sort((a, b) => a.at.localeCompare(b.at));
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: `1px solid ${color.divider}`, paddingTop: 14 }}>
@@ -518,21 +559,15 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
           Activity
         </button>
       </div>
-      {shown.map((item) =>
-        item.kind === 'comment' ? (
-          <div key={item.id} style={{ display: 'flex', gap: 10 }}>
-            <Avatar user={item.who} size={28} />
-            <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>
-              <strong>{item.who?.name}</strong> <span style={{ color: color.muted, fontSize: 12.5 }}>{dayjs(item.at).format('D MMM HH:mm')}</span>
-              <div>{item.text}</div>
+      {tab === 'comments'
+        ? task.comments.map((comment) => (
+            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
+          ))
+        : activity.map((item) => (
+            <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
+              {item.who?.name} {item.text}{item.via !== 'app' ? ` · via ${viaLabel(item.via)}` : ''} · {dayjs(item.at).format('D MMM HH:mm')}
             </div>
-          </div>
-        ) : (
-          <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
-            {item.who?.name} {item.text}{item.via !== 'app' ? ` · via ${viaLabel(item.via)}` : ''} · {dayjs(item.at).format('D MMM HH:mm')}
-          </div>
-        ),
-      )}
+          ))}
       {tab === 'comments' && !hideComposer && (
         <>
           <Input.TextArea
@@ -551,6 +586,104 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
     </section>
   );
 }
+
+function CommentRow({
+  taskKey,
+  comment,
+  who,
+  meId,
+  workspaceRole,
+}: {
+  taskKey: string;
+  comment: Comment;
+  who: ProjectDetail['users'][number] | undefined;
+  meId: string | undefined;
+  workspaceRole: WorkspaceRole | undefined;
+}) {
+  const update = useUpdateComment();
+  const remove = useDeleteComment();
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(comment.body);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canEdit = meId === comment.authorId;
+  const canDelete = canEdit || workspaceRole === 'owner' || workspaceRole === 'admin';
+
+  const save = () => {
+    if (!editDraft.trim() || editDraft.trim() === comment.body) {
+      setEditing(false);
+      setEditDraft(comment.body);
+      return;
+    }
+    update.mutate(
+      { key: taskKey, commentId: comment.id, body: editDraft.trim() },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 10 }}>
+      <Avatar user={who} size={28} />
+      <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.5 }}>
+        <strong>{who?.name}</strong> <span style={{ color: color.muted, fontSize: 12.5 }}>{dayjs(comment.createdAt).format('D MMM HH:mm')}</span>
+        {editing ? (
+          <>
+            <Input.TextArea
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); } }}
+              autoSize={{ minRows: 2, maxRows: 8 }}
+              aria-label="Edit comment"
+              style={{ marginTop: 6 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <Button onClick={() => { setEditing(false); setEditDraft(comment.body); }}>Cancel</Button>
+              <Button type="primary" onClick={save} loading={update.isPending} disabled={!editDraft.trim()}>Save</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>{comment.body}</div>
+            {(canEdit || canDelete) && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                {canEdit && (
+                  <button type="button" onClick={() => { setEditDraft(comment.body); setEditing(true); }} style={commentAction}>
+                    Edit
+                  </button>
+                )}
+                {canDelete && (
+                  <button type="button" onClick={() => setConfirmDelete(true)} style={commentAction}>
+                    Delete
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this comment?"
+        confirmLabel="Delete comment"
+        busy={remove.isPending}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => remove.mutate({ key: taskKey, commentId: comment.id }, { onSuccess: () => setConfirmDelete(false) })}
+      >
+        This removes the comment from the task. You cannot undo this.
+      </ConfirmDialog>
+    </div>
+  );
+}
+
+const commentAction = {
+  height: 24,
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  font: 'inherit',
+  fontSize: 12.5,
+  color: color.muted,
+  cursor: 'pointer',
+} as const;
 
 function PhoneMoveBar({
   task,

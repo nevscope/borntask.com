@@ -5,6 +5,8 @@ import {
   chatRejectDialog,
   interpretChatEvent,
   chatActorEmail,
+  isTaskDescriptionTooLong,
+  TASK_DESCRIPTION_TOO_LONG,
   type ChatTaskType,
 } from '@borntask/shared';
 import { prisma, createTenantClient } from '../db.js';
@@ -108,13 +110,15 @@ export async function createTaskFromChat(
     where: { sectionId, deletedAt: null },
     orderBy: { position: 'desc' },
   });
+  const description = persistDescription(input.description);
+  if (isTaskDescriptionTooLong(description)) throw new ApiError(400, 'VALIDATION', TASK_DESCRIPTION_TOO_LONG);
   const created = await scoped.db.task.create({
     data: {
       tenantId: scoped.tenantId,
       projectId: project.id,
       number: (last?.number ?? 0) + 1,
       title: input.title.slice(0, 200),
-      description: persistDescription(input.description),
+      description,
       typeId: type.id,
       statusId,
       sectionId,

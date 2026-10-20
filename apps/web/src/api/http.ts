@@ -72,10 +72,13 @@ export const httpApi: Api = {
   moveTask: (key, input) => request('POST', `/tasks/${enc(key)}/move`, TaskSchema, input),
   reorderTask: (key, input) => request('POST', `/tasks/${enc(key)}/reorder`, TaskSchema, input),
   addComment: (key, body) => request('POST', `/tasks/${enc(key)}/comments`, CommentSchema, { body }),
+  updateComment: (key, commentId, body) => request('PATCH', `/tasks/${enc(key)}/comments/${enc(commentId)}`, CommentSchema, { body }),
+  deleteComment: (key, commentId) => request('DELETE', `/tasks/${enc(key)}/comments/${enc(commentId)}`, null),
   addSubtask: (key, title) => request('POST', `/tasks/${enc(key)}/subtasks`, SubtaskSchema, { title }),
   setSubtaskDone: (key, id, done) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, { done }),
   deleteTask: (key) => request('DELETE', `/tasks/${enc(key)}`, null),
   restoreTask: (key) => request('POST', `/tasks/${enc(key)}/restore`, TaskSchema),
+  setWatching: (key, watch) => request('POST', `/tasks/${enc(key)}/watchers`, z.object({ ok: z.boolean() }), { watch }),
   listNotifications: () => request('GET', '/me/notifications', NotificationListSchema),
   markNotificationsRead: (input) => request('POST', '/me/notifications/read', NotificationListSchema, input),
 };

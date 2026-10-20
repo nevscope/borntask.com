@@ -22,6 +22,7 @@ import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/wor
 import { color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
 import { uploadPendingFile } from '../lib/uploadAttachment';
+import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { isEmptyDescription, persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -170,11 +171,14 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   }
 
   function addFiles(list: FileList | File[]) {
-    const next = itemsFromFiles(list);
+    const { accepted, reason } = partitionAttachmentFiles(Array.from(list));
+    if (reason) toast.show({ kind: 'error', text: reason });
+    const next = itemsFromFiles(accepted);
     if (next.length) setFiles((prev) => [...prev, ...next]);
   }
 
   const hasDraft = raw.trim() !== '' || !isEmptyDescription(description) || files.length > 0 || moveComment.trim() !== '';
+  const descTooLong = isTaskDescriptionTooLong(persistDescription(description));
 
   function readCaret() {
     const el = titleRef.current?.input;
@@ -254,6 +258,10 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
       return;
     }
     const cleanDescription = persistDescription(description);
+    if (descTooLong) {
+      toast.show({ kind: 'error', text: TASK_DESCRIPTION_TOO_LONG });
+      return;
+    }
     void (async () => {
       let uploaded = files;
       try {
@@ -489,9 +497,13 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
             onChange={setDescription}
             onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
           />
-          <span style={{ fontSize: 12, color: color.muted }}>
-            Use the toolbar to format.
-          </span>
+          {descTooLong ? (
+            <span role="alert" style={{ fontSize: 12, color: color.danger }}>{TASK_DESCRIPTION_TOO_LONG}</span>
+          ) : (
+            <span style={{ fontSize: 12, color: color.muted }}>
+              Use the toolbar to format.
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 18px 16px' }}>
@@ -566,7 +578,12 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         </div>
 
         <div style={{ padding: '0 18px 16px' }}>
-          <AttachmentTiles items={files} onAdd={addFiles} onRemove={(id) => setFiles((p) => p.filter((x) => x.id !== id))} />
+          <AttachmentTiles
+            items={files}
+            onAdd={addFiles}
+            onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
+            onRemove={(id) => setFiles((prev) => prev.filter((x) => x.id !== id))}
+          />
         </div>
         </div>
 
@@ -574,10 +591,13 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           <span style={{ flex: '1 1 260px', fontSize: 12.5, color: color.muted }}>
             Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>
-          <Button onClick={() => submit(true)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
+          <Button onClick={requestClose} disabled={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
+            Cancel
+          </Button>
+          <Button onClick={() => submit(true)} disabled={!parsed.title || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
             Create and open {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>}
           </Button>
-          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
+          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
             Create task {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>↵</kbd>}
           </Button>
         </div>

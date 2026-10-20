@@ -57,7 +57,7 @@ function CopyBranch({ task }: { task: TaskDetail }) {
         <div role="dialog" aria-label="Start work on GitHub" style={{ width: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <code style={{ flex: 1, display: 'flex', alignItems: 'center', height: 36, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.subtle, fontFamily: font.mono, fontSize: 12, overflow: 'hidden', whiteSpace: 'nowrap' }}>{dev.suggestedBranch}</code>
-            <Button type="primary" style={{ background: color.ink }} onClick={() => { copy(dev.suggestedBranch); void afterCopy(); }}>Copy</Button>
+            <Button type="primary" onClick={() => { copy(dev.suggestedBranch); void afterCopy(); }}>Copy</Button>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <code style={{ flex: 1, display: 'flex', alignItems: 'center', height: 36, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.subtle, fontFamily: font.mono, fontSize: 12, overflow: 'hidden', whiteSpace: 'nowrap' }}>{dev.gitCheckout}</code>

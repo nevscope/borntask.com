@@ -1,6 +1,7 @@
 import { digestSubject, mailJobSchema, type MailJob } from '@borntask/shared';
 
 const FROM = { email: 'notify@borntask.com', name: 'BornTask' };
+const LOGO_URL = process.env.MAIL_LOGO_URL ?? 'https://app.borntask.com/borntask-logo-120.png';
 
 function esc(value: string): string {
   return value
@@ -16,24 +17,93 @@ function expiryLabel(iso: string): string {
   return date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function shell(body: string, footer: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#EEF0EC;font-family:'DM Sans',Arial,sans-serif;color:#121417;">
-  <div style="max-width:600px;margin:24px auto;background:#FFFFFF;border:1px solid #DDE1DA;border-radius:12px;overflow:hidden;">
-    <div style="padding:28px 36px 0;font-family:Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-0.03em;">borntask</div>
-    <div style="padding:28px 36px;">${body}</div>
-    <div style="padding:16px 36px;background:#F7F8F6;font-size:12px;line-height:1.5;color:#5B6157;">${footer}</div>
-  </div>
-</body></html>`;
+function logoMark(): string {
+  return `<img src="${esc(LOGO_URL)}" width="26" height="26" alt="BornTask" style="display:block;border:0;width:26px;height:26px;border-radius:7px;" />`;
+}
+
+function headerRow(right = ''): string {
+  return `<tr>
+    <td style="padding:28px 36px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td valign="middle" width="26" style="width:26px;">
+            ${logoMark()}
+          </td>
+          <td valign="middle" style="padding-left:10px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:18px;font-weight:600;letter-spacing:-0.035em;color:#121417;line-height:26px;">borntask</td>
+          ${right ? `<td valign="middle" align="right" width="99%" style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#5B6157;white-space:nowrap;">${right}</td>` : ''}
+        </tr>
+      </table>
+    </td>
+  </tr>`;
+}
+
+function shell(body: string, footer: string, headerRight = ''): string {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BornTask</title>
+</head>
+<body style="margin:0;padding:0;background:#EEF0EC;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EEF0EC;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:#FFFFFF;border:1px solid #DDE1DA;border-radius:12px;overflow:hidden;">
+          ${headerRow(headerRight)}
+          <tr>
+            <td style="padding:28px 36px;font-family:'DM Sans',Arial,sans-serif;color:#121417;">${body}</td>
+          </tr>
+          <tr>
+            <td style="padding:16px 36px;background:#F7F8F6;font-family:'DM Sans',Arial,sans-serif;font-size:12px;line-height:1.5;color:#5B6157;">${footer}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 function button(href: string, label: string, ink = false): string {
   const bg = ink ? '#121417' : '#178A5C';
-  return `<a href="${esc(href)}" style="display:inline-block;height:46px;line-height:46px;padding:0 22px;border-radius:10px;background:${bg};color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;">${esc(label)}</a>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="border-radius:10px;background:${bg};">
+        <a href="${esc(href)}" style="display:inline-block;padding:13px 22px;border-radius:10px;background:${bg};color:#FFFFFF;text-decoration:none;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;">${esc(label)}</a>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function digestLine(item: { key: string; title: string; statusName?: string; extra?: string }): string {
   const extra = item.statusName || item.extra;
   return extra ? `${item.key}  ${item.title}  (${extra})` : `${item.key}  ${item.title}`;
+}
+
+function htmlSection(
+  title: string,
+  colour: string,
+  rows: { key: string; title: string; url: string; statusName?: string; extra?: string }[],
+): string {
+  if (!rows.length) return '';
+  const items = rows
+    .map(
+      (row) => `<tr>
+        <td valign="top" width="72" style="padding:10px 10px 10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:#5B6157;white-space:nowrap;">${esc(row.key)}</td>
+        <td valign="top" style="padding:10px 10px 10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:14.5px;color:#121417;">
+          <a href="${esc(row.url)}" style="color:#121417;text-decoration:none;">${esc(row.title)}${row.extra ? ` - ${esc(row.extra)}` : ''}</a>
+        </td>
+        <td valign="top" align="right" style="padding:10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#A04A0C;white-space:nowrap;">${row.statusName ? esc(row.statusName) : ''}</td>
+      </tr>`,
+    )
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;">
+    <tr>
+      <td colspan="3" style="padding:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:${colour};">${esc(title)}</td>
+    </tr>
+    ${items}
+  </table>`;
 }
 
 export function renderMail(job: MailJob): { subject: string; text: string; html: string } {
@@ -62,28 +132,15 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
       job.footerNote,
       job.profileUrl,
     ].join('\n');
-    const htmlSection = (
-      title: string,
-      colour: string,
-      rows: { key: string; title: string; url: string; statusName?: string; extra?: string }[],
-    ) => {
-      if (!rows.length) return '';
-      const items = rows
-        .map(
-          (row) =>
-            `<a href="${esc(row.url)}" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #EEF0EC;color:#121417;text-decoration:none;font-size:14.5px;"><span style="color:#5B6157;width:64px;">${esc(row.key)}</span><span style="flex:1;">${esc(row.title)}${row.extra ? ` - ${esc(row.extra)}` : ''}</span>${row.statusName ? `<span style="color:#A04A0C;font-size:13px;">${esc(row.statusName)}</span>` : ''}</a>`,
-        )
-        .join('');
-      return `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:${colour};">${esc(title)}</span>${items}</div>`;
-    };
     const html = shell(
-      `<div style="display:flex;align-items:baseline;gap:12px;margin:0 0 16px;"><p style="margin:0;font-size:20px;font-weight:600;line-height:1.3;">Good morning, ${esc(job.greetingName)}</p><span style="margin-left:auto;font-size:13px;color:#5B6157;">${esc(job.dateLabel)}</span></div>
+      `<p style="margin:0 0 18px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;color:#121417;">Good morning, ${esc(job.greetingName)}</p>
        ${htmlSection('Due today', '#B42323', job.due)}
        ${htmlSection('Overdue', '#B42323', job.overdue)}
        ${htmlSection('Mentions', '#5B6157', job.mentions.map((m) => ({ ...m, title: m.extra ?? m.title })))}
        ${htmlSection('Ideas waiting more than 5 working days', '#5B6157', job.staleIdeas)}
-       <p style="margin:18px 0 0;">${button(job.myTasksUrl, 'Open My tasks', true)}</p>`,
+       ${button(job.myTasksUrl, 'Open My tasks', true)}`,
       `${esc(job.footerNote)} <a href="${esc(job.profileUrl)}" style="color:#0F6B46;">Change email settings</a>`,
+      esc(job.dateLabel),
     );
     return { subject, text, html };
   }
@@ -102,7 +159,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
       `You received this because you invited someone to ${job.workspaceName}.`,
     ].join('\n');
     const html = shell(
-      `<p style="margin:0 0 16px;font-size:22px;font-weight:600;line-height:1.3;">${esc(subject)}</p>
+      `<p style="margin:0 0 16px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;">${esc(subject)}</p>
        <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#262A24;">${esc(job.requesterName)} (${esc(job.requesterEmail)}) opened an invitation for ${esc(job.invitedEmail)}. Nothing has been joined.</p>
        <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#262A24;">If they should be in ${esc(job.workspaceName)}, send a new invitation to ${esc(job.requesterEmail)}.</p>
        ${button(job.peopleUrl, 'Open people')}`,
@@ -127,7 +184,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
     `You received this because ${job.inviterName} invited this address. If you weren't expecting it, you can ignore this email.`,
   ].filter((line) => line !== '').join('\n');
   const html = shell(
-    `<p style="margin:0 0 16px;font-size:22px;font-weight:600;line-height:1.3;">${esc(subject)}</p>
+    `<p style="margin:0 0 16px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;">${esc(subject)}</p>
      <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#262A24;">You've been invited as <strong>${esc(job.roleLabel)}</strong> to ${esc(job.workspaceName)}.</p>
      ${quote ? `<div style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #CFE7DA;background:#F7F8F6;font-size:14.5px;line-height:1.5;color:#3A3F38;">${esc(quote)}</div>` : ''}
      <p style="margin:0 0 16px;">${button(job.inviteUrl, 'Accept invitation')}</p>

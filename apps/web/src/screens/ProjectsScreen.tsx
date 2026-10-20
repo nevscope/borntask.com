@@ -36,7 +36,7 @@ export function ProjectsScreen() {
         />
         <Link to="/import"><Button>Import from Asana</Button></Link>
         <Link to="/projects/new">
-          <Button type="primary" style={{ background: color.ink, borderColor: color.ink }}>New project</Button>
+          <Button type="primary">New project</Button>
         </Link>
       </div>
       {rows.length === 0 ? (

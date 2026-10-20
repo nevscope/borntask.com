@@ -2,7 +2,7 @@ import { Alert, Button, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { useMe } from '../api/queries';
+import { qk, useMe } from '../api/queries';
 import type { User, WorkspaceRole } from '../api/types';
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -10,6 +10,13 @@ import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { color } from '../theme/tokens';
+
+const NON_OWNER_ROLES: { value: WorkspaceRole; label: string }[] = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: 'Member' },
+  { value: 'guest', label: 'Guest' },
+  { value: 'viewer', label: 'Viewer' },
+];
 
 type Person = User & { workspaceRole: WorkspaceRole; signsInWith?: string; projects?: string };
 type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
@@ -22,10 +29,13 @@ function storedDomains(raw: unknown): string[] {
 export function AdminPeopleScreen() {
   const sent = useStatusToast();
   const me = useMe().data;
-  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const isOwner = me?.workspaceRole === 'owner';
+  const canAdmin = isOwner || me?.workspaceRole === 'admin';
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<Person | null>(null);
+  const [transferConfirm, setTransferConfirm] = useState('');
   const [pendingDomain, setPendingDomain] = useState<string | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
   const people = useQuery({
@@ -65,9 +75,18 @@ export function AdminPeopleScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenantRole }),
       });
-      if (!res.ok) throw new Error('Could not change role');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
+        throw new Error(json.error?.message ?? json.message ?? 'Could not change role');
+      }
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['people'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['people'] });
+      void qc.invalidateQueries({ queryKey: qk.me });
+      setPendingTransfer(null);
+      setTransferConfirm('');
+    },
+    onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not change role.' }),
   });
 
   const actInvite = async (id: string, email: string, action: 'resend' | 'revoke') => {
@@ -103,7 +122,7 @@ export function AdminPeopleScreen() {
   const guests = (people.data ?? []).filter((p) => p.workspaceRole === 'guest').length;
 
   return (
-    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
+    <SettingsFrame canAdmin={canAdmin} isOwner={isOwner}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <h1 className="bt-h1">People and invitations</h1>
@@ -115,6 +134,7 @@ export function AdminPeopleScreen() {
         <InvitePeopleButton variant="primary" />
       </div>
       {!canAdmin && <Alert type="warning" message="You can view people. Only an owner or admin can change workspace roles." />}
+      {canAdmin && !isOwner && <Alert type="info" message="Admins can change member, guest, viewer and admin roles. Only the workspace owner can transfer ownership." />}
       <section className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <span style={{ flex: '1 1 260px' }}>
           <span style={{ display: 'block', fontWeight: 600 }}>Sign-in</span>
@@ -175,14 +195,21 @@ export function AdminPeopleScreen() {
                 disabled={!canAdmin || p.workspaceRole === 'owner'}
                 value={p.workspaceRole}
                 style={{ width: 130 }}
-                options={[
-                  { value: 'owner', label: 'Owner' },
-                  { value: 'admin', label: 'Admin' },
-                  { value: 'member', label: 'Member' },
-                  { value: 'guest', label: 'Guest' },
-                  { value: 'viewer', label: 'Viewer' },
-                ]}
-                onChange={(tenantRole) => setRole.mutate({ userId: p.id, tenantRole })}
+                options={
+                  p.workspaceRole === 'owner'
+                    ? [{ value: 'owner', label: 'Owner' }]
+                    : isOwner && p.id !== me?.user.id && p.workspaceRole !== 'guest'
+                      ? [{ value: 'owner', label: 'Owner' }, ...NON_OWNER_ROLES]
+                      : NON_OWNER_ROLES
+                }
+                onChange={(tenantRole) => {
+                  if (tenantRole === 'owner') {
+                    setTransferConfirm('');
+                    setPendingTransfer(p);
+                    return;
+                  }
+                  setRole.mutate({ userId: p.id, tenantRole });
+                }}
               />
               <span style={{ fontSize: 13, color: color.ink3 }}>{p.signsInWith ?? '-'}</span>
               <span style={{ fontSize: 13, color: color.ink3 }}>{p.projects ?? '-'}</span>
@@ -223,6 +250,35 @@ export function AdminPeopleScreen() {
         }}
       >
         The link stops working. You can invite them again later.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingTransfer !== null}
+        title={pendingTransfer ? `Make ${pendingTransfer.name} the owner?` : 'Transfer ownership?'}
+        confirmLabel="Transfer ownership"
+        confirmDisabled={!pendingTransfer || transferConfirm.trim() !== pendingTransfer.name}
+        busy={setRole.isPending}
+        onCancel={() => {
+          setPendingTransfer(null);
+          setTransferConfirm('');
+        }}
+        onConfirm={() => {
+          if (!pendingTransfer) return;
+          setRole.mutate({ userId: pendingTransfer.id, tenantRole: 'owner' });
+        }}
+      >
+        <p style={{ margin: '0 0 8px' }}>
+          A workspace has one owner. After this, <strong>{pendingTransfer?.name}</strong> will own {me?.workspace.name}. You will become an admin.
+        </p>
+        <p style={{ margin: '0 0 8px' }}>
+          The new owner can change billing, delete the workspace, manage people, and transfer ownership again. You cannot take ownership back yourself.
+        </p>
+        <p style={{ margin: '0 0 8px' }}>Type <strong>{pendingTransfer?.name}</strong> to confirm.</p>
+        <Input
+          value={transferConfirm}
+          onChange={(e) => setTransferConfirm(e.target.value)}
+          aria-label="New owner name"
+          autoComplete="off"
+        />
       </ConfirmDialog>
       <ConfirmDialog
         open={pendingDomain !== null}

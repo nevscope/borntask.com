@@ -72,6 +72,7 @@ export function InvitePeopleButton({
   const count = emails.length;
   const sendLabel = count === 0 ? 'Send invitations' : count === 1 ? 'Send 1 invitation' : `Send ${count} invitations`;
 
+  const canInvite = !!me && me.workspaceRole !== 'guest' && me.workspaceRole !== 'viewer';
   const guestBanner = guests.length > 0;
 
   function commitDraft() {
@@ -117,6 +118,8 @@ export function InvitePeopleButton({
       setBusy(false);
     }
   }
+
+  if (!canInvite) return null;
 
   return (
     <>

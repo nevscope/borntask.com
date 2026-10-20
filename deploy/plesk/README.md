@@ -1,6 +1,6 @@
 # Plesk deploy (BornTask)
 
-Target: `app.borntask.com` on the existing Plesk + Docker host. **Do not deploy unless asked.**
+Target: `app.borntask.com` (SPA) and `borntask.com` / `httpdocs` (Astro marketing site) on the existing Plesk + Docker host. **Do not deploy unless asked.** The marketing build is `sites/www` and does not change the app image.
 
 Compose project name is `borntask`. Host bind ports (3308 / 6381 / 3010) are chosen so kerd can keep 3307 / 6380 / 3000.
 

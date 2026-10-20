@@ -90,10 +90,13 @@ export const api: Api = {
   moveTask: (key, input) => tasksApi().moveTask(key, input),
   reorderTask: (key, input) => tasksApi().reorderTask(key, input),
   addComment: (key, body) => tasksApi().addComment(key, body),
+  updateComment: (key, commentId, body) => tasksApi().updateComment(key, commentId, body),
+  deleteComment: (key, commentId) => tasksApi().deleteComment(key, commentId),
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
   deleteTask: (key) => tasksApi().deleteTask(key),
   restoreTask: (key) => tasksApi().restoreTask(key),
+  setWatching: (key, watch) => tasksApi().setWatching(key, watch),
   listNotifications: async () => {
     if (!USE_MOCKS || !USE_TASK_MOCKS) {
       try {
@@ -246,6 +249,23 @@ export function useAddComment() {
   });
 }
 
+export function useUpdateComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, commentId, body }: { key: string; commentId: string; body: string }) =>
+      api.updateComment(key, commentId, body),
+    onSuccess: (_c, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+  });
+}
+
+export function useDeleteComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, commentId }: { key: string; commentId: string }) => api.deleteComment(key, commentId),
+    onSuccess: (_d, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+  });
+}
+
 export function useAddSubtask() {
   const qc = useQueryClient();
   return useMutation({
@@ -278,6 +298,14 @@ export function useRestoreTask() {
       invalidateTaskViews(qc, task);
       void qc.invalidateQueries({ queryKey: ['trash', task.projectKey] });
     },
+  });
+}
+
+export function useSetWatching() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, watch }: { key: string; watch: boolean }) => api.setWatching(key, watch),
+    onSuccess: (_d, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
   });
 }
 

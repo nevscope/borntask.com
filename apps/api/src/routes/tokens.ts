@@ -53,7 +53,7 @@ export const tokenRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const body = z.object({
-        name: z.string().trim().min(1).max(80),
+        name: z.string().trim().min(1, 'Give the token a name.').max(80, 'Name must be 80 characters or fewer.'),
         scope: z.enum(['read', 'read_write']),
       }).parse(req.body);
       const minted = newPat();

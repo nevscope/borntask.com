@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useProject } from '../api/queries';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { color } from '../theme/tokens';
 
 const projectLinks = (key: string) => [
@@ -79,15 +80,40 @@ export function SettingsFrame({
   children: ReactNode;
 }) {
   const project = useProject(projectKey ?? '');
+  const isPhone = useIsPhone();
   const backTo = projectKey ? `/p/${projectKey}/list` : '/';
   const backLabel = projectKey ? (project.data?.project.name ?? 'the project') : 'My tasks';
   return (
-    <div className="bt-page" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
-      <div style={{ flex: '0 1 220px', display: 'flex', flexDirection: 'column', gap: 8, position: 'sticky', top: 0, alignSelf: 'flex-start', maxHeight: '100%', overflow: 'auto' }}>
+    <div
+      className="bt-page"
+      style={{
+        flexDirection: isPhone ? 'column' : 'row',
+        alignItems: 'flex-start',
+        gap: isPhone ? 16 : 28,
+        flexWrap: isPhone ? 'nowrap' : 'wrap',
+        background: color.canvas,
+      }}
+    >
+      <div
+        style={{
+          flex: isPhone ? 'none' : '0 1 220px',
+          width: isPhone ? '100%' : undefined,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          position: isPhone ? 'relative' : 'sticky',
+          top: 0,
+          alignSelf: 'stretch',
+          maxHeight: isPhone ? 'none' : '100%',
+          overflow: 'auto',
+          background: color.canvas,
+          zIndex: isPhone ? 0 : 1,
+        }}
+      >
         <Link to={backTo} style={{ fontSize: 13, color: color.muted, textDecoration: 'none' }}>← Back to {backLabel}</Link>
         <SettingsNav projectKey={projectKey} canAdmin={canAdmin} isOwner={isOwner} />
       </div>
-      <div style={{ flex: '999 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>{children}</div>
+      <div style={{ flex: isPhone ? '1 1 auto' : '999 1 560px', minWidth: 0, width: isPhone ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 16 }}>{children}</div>
     </div>
   );
 }

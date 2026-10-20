@@ -79,75 +79,82 @@ export function BulkBar({
   }
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 12px', background: color.ink, color: color.surface, borderRadius: radius.lg }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 8px', fontSize: 13.5, fontWeight: 600 }}>
-        <span style={{ width: 18, height: 18, borderRadius: 5, background: color.brand, display: 'grid', placeItems: 'center' }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={color.surface} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+    <div className="bt-bulk-bar">
+      <div className="bt-bulk-bar-row">
+        <span className="bt-bulk-bar-count">
+          <span style={{ width: 18, height: 18, borderRadius: 5, background: color.brand, display: 'grid', placeItems: 'center' }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={color.surface} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+          </span>
+          {tasks.length} selected
         </span>
-        {tasks.length} selected
-      </span>
-      <span style={{ width: 1, height: 22, background: color.ink3 }} />
-      <Select
-        aria-label="Move to"
-        placeholder="Move to"
-        value={undefined}
-        popupMatchSelectWidth={false}
-        options={allowed.map((status) => ({ value: status.id, label: status.name }))}
-        onChange={(statusId: string) => void moveAll(statusId)}
-        style={{ minWidth: 120 }}
-        disabled={allowed.length === 0}
-      />
-      <Select
-        aria-label="Assign"
-        placeholder="Assign"
-        value={undefined}
-        popupMatchSelectWidth={false}
-        options={[{ value: '__none', label: 'Unassigned' }, ...members.map((user) => ({ value: user.id, label: user.name }))]}
-        onChange={(value: string) => void patchAll({ assigneeId: value === '__none' ? null : value })}
-        style={{ minWidth: 120 }}
-      />
-      <DatePicker
-        aria-label="Due date"
-        placeholder="Due date"
-        onChange={(value) => void patchAll({ dueDate: value ? value.format('YYYY-MM-DD') : null })}
-      />
-      <Select
-        aria-label="Section"
-        placeholder="Section"
-        value={undefined}
-        popupMatchSelectWidth={false}
-        options={detail.sections.map((section) => ({ value: section.id, label: section.name }))}
-        onChange={(sectionId: string) => void patchAll({ sectionId })}
-        style={{ minWidth: 120 }}
-      />
-      <Select
-        aria-label="Labels"
-        mode="tags"
-        placeholder="Labels"
-        value={labels}
-        onChange={setLabels}
-        onOpenChange={(open) => {
-          if (open || labels.length === 0) return;
-          void (async () => {
-            for (const task of tasks) {
-              await update.mutateAsync({ key: task.key, input: { labels: [...new Set([...task.labels, ...labels])] } });
-            }
-            setLabels([]);
-            onClear();
-          })();
-        }}
-        style={{ minWidth: 140 }}
-      />
-      <button
-        type="button"
-        onClick={() => setConfirmDelete(true)}
-        style={{ height: 34, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
-      >
-        Delete
-      </button>
-      <span style={{ flex: 1 }} />
-      <span style={{ fontSize: 12, color: color.faint }}>Move to only offers stages allowed for every selected task</span>
-      <button type="button" onClick={onClear} aria-label="Clear selection" style={{ height: 28, padding: '0 8px', border: `1px solid ${color.ink3}`, borderRadius: 5, background: 'transparent', color: color.faint, font: 'inherit', fontSize: 12, cursor: 'pointer' }}>Esc</button>
+        <span className="bt-bulk-bar-rule" aria-hidden="true" />
+        <Select
+          aria-label="Move to"
+          placeholder="Move to"
+          value={undefined}
+          variant="filled"
+          popupMatchSelectWidth={false}
+          options={allowed.map((status) => ({ value: status.id, label: status.name }))}
+          onChange={(statusId: string) => void moveAll(statusId)}
+          style={{ minWidth: 120 }}
+          disabled={allowed.length === 0}
+        />
+        <Select
+          aria-label="Assign"
+          placeholder="Assign"
+          value={undefined}
+          variant="filled"
+          popupMatchSelectWidth={false}
+          options={[{ value: '__none', label: 'Unassigned' }, ...members.map((user) => ({ value: user.id, label: user.name }))]}
+          onChange={(value: string) => void patchAll({ assigneeId: value === '__none' ? null : value })}
+          style={{ minWidth: 120 }}
+        />
+        <DatePicker
+          aria-label="Due date"
+          placeholder="Due date"
+          variant="filled"
+          onChange={(value) => void patchAll({ dueDate: value ? value.format('YYYY-MM-DD') : null })}
+        />
+        <Select
+          aria-label="Section"
+          placeholder="Section"
+          value={undefined}
+          variant="filled"
+          popupMatchSelectWidth={false}
+          options={detail.sections.map((section) => ({ value: section.id, label: section.name }))}
+          onChange={(sectionId: string) => void patchAll({ sectionId })}
+          style={{ minWidth: 120 }}
+        />
+        <Select
+          aria-label="Labels"
+          mode="tags"
+          placeholder="Labels"
+          variant="filled"
+          value={labels}
+          onChange={setLabels}
+          onOpenChange={(open) => {
+            if (open || labels.length === 0) return;
+            void (async () => {
+              for (const task of tasks) {
+                await update.mutateAsync({ key: task.key, input: { labels: [...new Set([...task.labels, ...labels])] } });
+              }
+              setLabels([]);
+              onClear();
+            })();
+          }}
+          style={{ minWidth: 140 }}
+        />
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+        >
+          Delete
+        </button>
+        <span style={{ flex: 1 }} />
+        <button type="button" onClick={onClear} aria-label="Clear selection" style={{ height: 28, padding: '0 8px', border: `1px solid ${color.ink3}`, borderRadius: 5, background: 'transparent', color: color.faint, font: 'inherit', fontSize: 12, cursor: 'pointer' }}>Esc</button>
+      </div>
+      <p className="bt-bulk-bar-hint">Move to only offers stages allowed for every selected task</p>
       {commentFor && (
         <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center' }}>
           <input

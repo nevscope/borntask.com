@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { suggestedBranchName } from '@borntask/shared';
+import { isTaskDescriptionTooLong, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
@@ -25,7 +25,7 @@ const createTaskSchema = z.object({
   sectionId: z.string(),
   type: z.string().min(1),
   title: z.string().trim().min(1).max(200),
-  description: z.string(),
+  description: taskDescriptionSchema,
   assigneeId: z.string().nullable(),
   priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
   dueDate: z.string().nullable(),
@@ -36,7 +36,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
-    description: z.string(),
+    description: taskDescriptionSchema,
     type: z.string().min(1),
     assigneeId: z.string().nullable(),
     priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
@@ -266,7 +266,11 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           projectId: project.id,
           number: (last?.number ?? 0) + 1,
           title: input.title,
-          description: persistDescription(input.description),
+          description: (() => {
+            const description = persistDescription(input.description);
+            if (isTaskDescriptionTooLong(description)) throw validation(TASK_DESCRIPTION_TOO_LONG);
+            return description;
+          })(),
           typeId: type.id,
           statusId,
           sectionId: input.sectionId,
@@ -342,7 +346,11 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         where: { id: row.id },
         data: {
           title: input.title,
-          description: input.description === undefined ? undefined : persistDescription(input.description),
+          description: input.description === undefined ? undefined : (() => {
+            const description = persistDescription(input.description);
+            if (isTaskDescriptionTooLong(description)) throw validation(TASK_DESCRIPTION_TOO_LONG);
+            return description;
+          })(),
           typeId,
           assigneeId: input.assigneeId === undefined ? undefined : input.assigneeId,
           priority: input.priority,
@@ -519,6 +527,42 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       }
       publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');
       return { id: c.id, authorId: c.authorId, body: c.body, via: auth.via, createdAt: c.createdAt.toISOString() };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.patch('/tasks/:key/comments/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const body = z.object({ body: z.string().trim().min(1) }).parse(req.body);
+      const row = await findTaskByKey(auth.db, key);
+      if (!row) throw notFound();
+      const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
+      if (!c) throw notFound('Comment not found.');
+      if (c.authorId !== auth.userId) throw forbidden('You can only edit your own comments.');
+      const next = await auth.db.comment.update({ where: { id: c.id }, data: { body: body.body } });
+      publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
+      return { id: next.id, authorId: next.authorId, body: next.body, via: auth.via, createdAt: next.createdAt.toISOString() };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/tasks/:key/comments/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const row = await findTaskByKey(auth.db, key);
+      if (!row) throw notFound();
+      const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
+      if (!c) throw notFound('Comment not found.');
+      const canDelete = c.authorId === auth.userId || auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin';
+      if (!canDelete) throw forbidden('You cannot delete this comment.');
+      await auth.db.comment.update({ where: { id: c.id }, data: { deletedAt: new Date() } });
+      publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
+      return reply.status(204).send();
     } catch (err) {
       return sendError(reply, err);
     }

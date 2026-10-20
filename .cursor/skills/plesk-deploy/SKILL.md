@@ -5,7 +5,7 @@ description: Deploy BornTask to Plesk app.borntask.com. Use when the user asks t
 
 # Plesk deploy
 
-Target: `https://app.borntask.com`. Compose project `borntask`. Host binds **127.0.0.1:3308** (MySQL), **6381** (Redis), **3010** (API). Do not touch kerd ports **3000 / 3307 / 6380**. DNS/TLS is `app.borntask.com` only, not `*.borntask.com`. Secrets stay in `/var/www/vhosts/borntask.com/docker/borntask/.env`, never git.
+Target: `https://app.borntask.com` (SPA) and `https://borntask.com` (Astro static from `sites/www` into `httpdocs`). Compose project `borntask`. Host binds **127.0.0.1:3308** (MySQL), **6381** (Redis), **3010** (API). Do not touch kerd ports **3000 / 3307 / 6380**. DNS/TLS is `app.borntask.com` plus the apex site; not `*.borntask.com`. Secrets stay in `/var/www/vhosts/borntask.com/docker/borntask/.env`, never git.
 
 The panel client times out at about 30s. The deploy keeps running. That timeout is not a failure.
 
@@ -26,7 +26,7 @@ command: ["bash", "-lc", "setsid nohup bash /var/www/vhosts/borntask.com/repo/de
    - `DEPLOY_EXIT:0` is success. The script prints `--- health ---` just before that.
    - `Cannot talk to Docker`: stop. They run this once as root: `bash /var/www/vhosts/borntask.com/repo/deploy/plesk/install-agent-access.sh`
    - Compose already finished and only the web step failed: do not rebuild images. Build `@borntask/shared`, then `@borntask/web`, then rsync `apps/web/dist/` the way `deploy.sh` does. A missing `@borntask/shared` module means shared was not built first.
-5. After `DEPLOY_EXIT:0`, curl `https://app.borntask.com/api/health` and open `/sign-in`. The first screenshot is often blank. Read the page text and wait until **Sign in** is there. Do not claim done without both checks.
+5. After `DEPLOY_EXIT:0`, curl `https://app.borntask.com/api/health` and open `/sign-in`. The first screenshot is often blank. Read the page text and wait until **Sign in** is there. Also open `https://borntask.com/` and confirm the inverted mark and **Open BornTask**. Do not claim done without those checks.
 
 `npm ci` runs only when `package-lock.json` differs from `node_modules/.package-lock.stamp`. The web image `borntask-web-builder:node22` caches apt.
 

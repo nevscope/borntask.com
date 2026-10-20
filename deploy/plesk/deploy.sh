@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Pull, rebuild Compose (api + worker), publish the web SPA to app.borntask.com.
+# Pull, rebuild Compose (api + worker), publish the web SPA to app.borntask.com
+# and the Astro marketing site to borntask.com (httpdocs).
 # Run on the Plesk host. Needs docker (root, or user in group docker).
 # Does not bind kerd ports 3000 / 3307 / 6380.
 set -euo pipefail
@@ -18,6 +19,7 @@ REPO=/var/www/vhosts/borntask.com/repo
 ENV_FILE=/var/www/vhosts/borntask.com/docker/borntask/.env
 INTEGRATIONS_FILE=/var/www/vhosts/borntask.com/repo/deploy/plesk/.env.integrations
 DOCROOT=/var/www/vhosts/borntask.com/app.borntask.com
+WWW_DOCROOT=/var/www/vhosts/borntask.com/httpdocs
 COMPOSE_DIR="$REPO/deploy/plesk"
 compose_env=(--env-file "$ENV_FILE")
 if [[ -f "$INTEGRATIONS_FILE" ]]; then
@@ -75,6 +77,12 @@ docker_cmd run --rm \
   borntask-web-builder:node22 \
   bash -lc 'if [[ ! -f node_modules/.package-lock.stamp ]] || ! cmp -s package-lock.json node_modules/.package-lock.stamp; then npm ci && cp package-lock.json node_modules/.package-lock.stamp; fi && npm run build -w @borntask/shared && npm run build -w @borntask/web'
 
+docker_cmd run --rm \
+  -v "$REPO:/app" \
+  -w /app/sites/www \
+  borntask-web-builder:node22 \
+  bash -lc 'if [[ ! -f node_modules/.package-lock.stamp ]] || ! cmp -s package-lock.json node_modules/.package-lock.stamp; then npm ci && cp package-lock.json node_modules/.package-lock.stamp; fi && npm run build'
+
 OWNER=$(stat -c '%U:%G' "$DOCROOT")
 rsync -a --delete "$REPO/apps/web/dist/" "$DOCROOT/"
 # Apache 403s empty directories (no Indexes). Copy the SPA so /create-workspace/ and /projects/ load.
@@ -86,6 +94,18 @@ done
 cp -f "$DOCROOT/index.html" /var/www/vhosts/borntask.com/error_docs/not_found.html
 chown -R "$OWNER" "$DOCROOT" || true
 
+if [[ -d "$WWW_DOCROOT" ]]; then
+  WWW_OWNER=$(stat -c '%U:%G' "$WWW_DOCROOT")
+  rsync -a --delete \
+    --exclude '.htaccess' \
+    --exclude 'cgi-bin' \
+    --exclude '.user.ini' \
+    --exclude 'plesk-stat' \
+    --exclude '.well-known' \
+    "$REPO/sites/www/dist/" "$WWW_DOCROOT/"
+  chown -R "$WWW_OWNER" "$WWW_DOCROOT" || true
+fi
+
 echo "--- health ---"
 curl -sS --max-time 10 http://127.0.0.1:3010/health
 echo
@@ -94,4 +114,6 @@ echo
 curl -sS --max-time 10 -H 'Host: app.borntask.com' http://127.0.0.1/api/health || true
 echo
 curl -sS --max-time 10 https://app.borntask.com/api/health || true
+echo
+curl -sS --max-time 10 -H 'Host: borntask.com' http://127.0.0.1/ || true
 echo

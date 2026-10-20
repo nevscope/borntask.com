@@ -28,8 +28,20 @@ a { color: var(--bt-brand-strong); }
 .bt-sidebar.is-collapsed .bt-sidebar-label,
 .bt-sidebar.is-collapsed .bt-nav-heading,
 .bt-sidebar.is-collapsed .bt-sidebar-copy { display: none; }
-.bt-main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.bt-main-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.bt-main { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bt-canvas); }
+.bt-main-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--bt-canvas); }
+.bt-phone-sheet {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  z-index: 200;
+  isolation: isolate;
+  background: var(--bt-surface);
+  display: flex;
+  flex-direction: column;
+}
 .bt-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 28px; background: var(--bt-surface); border-bottom: 1px solid var(--bt-border); }
 .bt-page { padding: 24px 28px 56px; display: flex; flex-direction: column; gap: 16px; }
 
@@ -91,6 +103,55 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-legal-body li { margin: 0; }
 
 @keyframes bt-toast-bar { from { width: 100%; } to { width: 0%; } }
+
+.bt-bulk-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bt-ink);
+  color: var(--bt-surface);
+  border-radius: 12px;
+}
+.bt-bulk-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.bt-bulk-bar-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bt-surface);
+}
+.bt-bulk-bar-rule { width: 1px; height: 22px; background: var(--bt-ink3); flex: none; }
+.bt-bulk-bar-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--bt-faint);
+}
+.bt-bulk-bar .ant-select,
+.bt-bulk-bar .ant-picker {
+  background: var(--bt-surface);
+  border-radius: 8px;
+}
+.bt-bulk-bar .ant-select .ant-select-selector,
+.bt-bulk-bar .ant-picker {
+  min-height: 32px !important;
+  background: var(--bt-surface) !important;
+  border: 0 !important;
+  color: var(--bt-ink);
+  box-shadow: none !important;
+}
+.bt-bulk-bar .ant-select-selection-placeholder,
+.bt-bulk-bar .ant-picker-input > input::placeholder {
+  color: var(--bt-muted);
+}
 
 .bt-desktop-search { display: flex; flex: 1 1 280px; max-width: 520px; min-width: 0; }
 .bt-desktop-actions { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 12px; }
@@ -162,16 +223,6 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
     cursor: pointer;
   }
   .bt-phone-tab.active { color: var(--bt-brand-strong); font-weight: 600; }
-  .bt-phone-sheet {
-    position: fixed;
-    inset: 0;
-    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-    z-index: 45;
-    isolation: isolate;
-    background: var(--bt-canvas);
-    display: flex;
-    flex-direction: column;
-  }
   .bt-board.is-phone {
     flex-direction: column;
     overflow: hidden;

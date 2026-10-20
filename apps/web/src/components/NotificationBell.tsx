@@ -1,5 +1,6 @@
 import { Popover } from 'antd';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMarkNotificationsRead, useNotifications } from '../api/queries';
 import type { Notification } from '../api/types';
@@ -235,11 +236,27 @@ export function NotificationBell() {
 
 export function InboxSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
-  return (
-    <div role="presentation" className="bt-phone-sheet" onClick={onClose}>
-      <div onClick={(event) => event.stopPropagation()} style={{ flex: 1, minHeight: 0, height: '100%', background: color.surface, display: 'flex', flexDirection: 'column' }}>
+  return createPortal(
+    <div
+      role="presentation"
+      className="bt-phone-sheet"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 200,
+        background: color.surface,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div onClick={(event) => event.stopPropagation()} style={{ flex: 1, minHeight: 0, background: color.surface, display: 'flex', flexDirection: 'column' }}>
         <NotificationPanel onClose={onClose} phone />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

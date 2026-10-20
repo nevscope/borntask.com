@@ -11,6 +11,9 @@ apps/*/node_modules/
 apps/*/dist/
 packages/*/dist/
 packages/*/node_modules/
+sites/www/node_modules/
+sites/www/dist/
+sites/www/.astro/
 *.log
 .vite/
 .design-review/

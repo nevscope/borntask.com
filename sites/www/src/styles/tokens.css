@@ -1,0 +1,28 @@
+:root {
+  --brand: #178a5c;
+  --brand-strong: #0f6b46;
+  --brand-on: #e4f3eb;
+  --brand-on-muted: #d2ebdd;
+  --ink: #121417;
+  --muted: #5b6157;
+  --faint: #8a9086;
+  --border: #e8ebe6;
+  --canvas: #f7f8f6;
+  --surface: #ffffff;
+  --ui: "DM Sans", system-ui, sans-serif;
+  --display: "Sora", "DM Sans", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--ui);
+}

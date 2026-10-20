@@ -1,6 +1,7 @@
 // API contract for BornTask (proposed). These Zod schemas are the single source of truth for
 // the web app today; move them to @borntask/shared when the monorepo is ready so the
 // Fastify API validates against exactly the same shapes.
+import { taskDescriptionSchema } from '@borntask/shared';
 import { z } from 'zod';
 
 // ---------- enums ----------
@@ -298,7 +299,7 @@ export const CreateTaskInputSchema = z.object({
   sectionId: z.string(),
   type: TaskTypeSchema,
   title: z.string().trim().min(1).max(200),
-  description: z.string(),
+  description: taskDescriptionSchema,
   assigneeId: z.string().nullable(),
   priority: PrioritySchema,
   dueDate: z.string().nullable(),
@@ -311,7 +312,7 @@ export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
 export const UpdateTaskInputSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
-    description: z.string(),
+    description: taskDescriptionSchema,
     type: TaskTypeSchema,
     assigneeId: z.string().nullable(),
     priority: PrioritySchema,
@@ -373,10 +374,13 @@ export interface Api {
   moveTask(key: string, input: MoveTaskInput): Promise<Task>; // POST /tasks/:key/move  (403 TRANSITION_NOT_ALLOWED)
   reorderTask(key: string, input: ReorderTaskInput): Promise<Task>; // POST /tasks/:key/reorder
   addComment(key: string, body: string): Promise<Comment>; // POST /tasks/:key/comments
+  updateComment(key: string, commentId: string, body: string): Promise<Comment>; // PATCH /tasks/:key/comments/:id
+  deleteComment(key: string, commentId: string): Promise<void>; // DELETE /tasks/:key/comments/:id
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
   restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
+  setWatching(key: string, watch: boolean): Promise<{ ok: boolean }>; // POST /tasks/:key/watchers
   listNotifications(): Promise<NotificationList>; // GET /me/notifications
   markNotificationsRead(input: { id?: string; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
 }

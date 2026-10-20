@@ -13,6 +13,8 @@
     "dev:api": "npm run dev -w @borntask/api",
     "dev:worker": "npm run dev -w @borntask/worker",
     "dev:mcp": "npm run dev -w @borntask/mcp",
+    "dev:www": "npm run dev --prefix sites/www",
+    "build:www": "npm run build --prefix sites/www",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run build -w @borntask/shared && npm run typecheck --workspaces --if-present",
     "test": "vitest run",

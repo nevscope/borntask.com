@@ -29,8 +29,8 @@ export function MemberEmpty() {
         <p style={{ margin: 0, maxWidth: 460, fontSize: 14, lineHeight: 1.5, color: color.ink3 }}>
           When someone assigns you a task, it lands here, sorted by what is due first. Meanwhile, have a look around the projects you can open.
         </p>
-        <Button type="primary" onClick={() => quickAdd.open()} style={{ marginTop: 6, background: color.ink, borderColor: color.ink }}>
-          Create your first task <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Q</kbd>
+        <Button type="primary" onClick={() => quickAdd.open()} style={{ marginTop: 6 }}>
+          Create your first task <kbd className="bt-kbd" style={{ marginLeft: 6, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>Q</kbd>
         </Button>
       </section>
       {projects.length > 0 && (
@@ -134,7 +134,7 @@ export function GuestWelcome() {
             <span className="bt-key">{t.key}</span>
             <button type="button" className="bt-row-title" onClick={() => openTask(t.key)}>{t.title}</button>
             <TypeTag type="idea" />
-            <Button size="small" type="primary" style={{ background: color.ink, borderColor: color.ink }} loading={move.isPending && move.variables?.key === t.key} onClick={() => approve(t)}>Approve</Button>
+            <Button size="small" type="primary" loading={move.isPending && move.variables?.key === t.key} onClick={() => approve(t)}>Approve</Button>
             <Button size="small" onClick={() => openTask(t.key)}>Reject</Button>
           </div>
         ))}

@@ -48,6 +48,31 @@ function chatMessageOf(err: unknown): string {
 }
 
 const ZONES = ['Europe/Malta', 'Europe/London', 'UTC'] as const;
+const NAME_MAX = 80;
+
+function nameFieldError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Enter a display name.';
+  if (trimmed.length > NAME_MAX) return 'Display name must be 80 characters or fewer.';
+  return null;
+}
+
+function saveErrorMessage(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw.trim()) return 'Could not save your profile.';
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('[')) return trimmed;
+  try {
+    const issues = JSON.parse(trimmed) as { code?: string; path?: unknown[]; message?: string }[];
+    const issue = issues[0];
+    if (issue?.path?.[0] === 'name' && issue.code === 'too_big') {
+      return 'Display name must be 80 characters or fewer.';
+    }
+    if (typeof issue?.message === 'string' && !issue.message.startsWith('[')) return issue.message;
+  } catch {
+    /* fall through */
+  }
+  return 'Could not save your profile.';
+}
 
 type DigestMode = 'workdays' | 'daily' | 'off';
 type Pref = { event: string; inApp: boolean; email: boolean };
@@ -82,6 +107,7 @@ export function ProfileSettingsScreen() {
   const [prefs, setPrefs] = useState<Pref[]>(emptyPrefs);
   const [baseline, setBaseline] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const chat = useMyChat();
@@ -141,8 +167,11 @@ export function ProfileSettingsScreen() {
   };
 
   const save = async () => {
+    const fieldError = nameFieldError(name);
+    setNameError(fieldError);
     setError(null);
     setSaved(false);
+    if (fieldError) return;
     setBusy(true);
     const res = await fetch(`${BASE_URL}/me/profile`, {
       method: 'PATCH',
@@ -153,7 +182,12 @@ export function ProfileSettingsScreen() {
     const json = await res.json().catch(() => ({})) as Profile & { message?: string };
     setBusy(false);
     if (!res.ok) {
-      setError(json.message ?? 'Could not save your profile.');
+      const message = saveErrorMessage(json.message);
+      if (message.toLowerCase().includes('display name') || message.toLowerCase().includes('name must')) {
+        setNameError(message);
+      } else {
+        setError(message);
+      }
       return;
     }
     setName(json.name);
@@ -176,7 +210,19 @@ export function ProfileSettingsScreen() {
         <div style={{ flex: '1 1 300px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
             Display name
-            <Input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} styles={{ root: { height: 38, padding: '0 12px' } }} />
+            <Input
+              value={name}
+              status={nameError ? 'error' : undefined}
+              onChange={(event) => {
+                setName(event.target.value);
+                setNameError(null);
+                setSaved(false);
+              }}
+              styles={{ root: { height: 38, padding: '0 12px' } }}
+            />
+            {nameError && (
+              <span role="alert" style={{ fontWeight: 400, fontSize: 12.5, color: color.danger }}>{nameError}</span>
+            )}
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
             Time zone

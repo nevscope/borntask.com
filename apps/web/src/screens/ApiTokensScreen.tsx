@@ -133,6 +133,10 @@ export function ApiTokensScreen() {
             setError('Give the token a name.');
             return;
           }
+          if (trimmed.length > 80) {
+            setError('Name must be 80 characters or fewer.');
+            return;
+          }
           create.mutate({ name: trimmed, scope }, {
             onSuccess: (row) => {
               setMinted(row);

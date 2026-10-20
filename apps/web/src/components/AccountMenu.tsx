@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import type { Me } from '../api/types';
@@ -86,18 +87,28 @@ export function YouSheet({
   onInstall?: () => void;
 }) {
   if (!open) return null;
-  return (
-    <div role="presentation" className="bt-phone-sheet" onClick={onClose}>
+  return createPortal(
+    <div
+      role="presentation"
+      className="bt-phone-sheet"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 200,
+        background: color.surface,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <div
         role="dialog"
         aria-label="You"
         onClick={(event) => event.stopPropagation()}
-        style={{
-          marginTop: 'auto',
-          background: color.surface,
-          borderTop: `1px solid ${color.border}`,
-          borderRadius: '16px 16px 0 0',
-        }}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', background: color.surface }}
       >
         <AccountMenu
           phone
@@ -108,7 +119,8 @@ export function YouSheet({
           onInstall={onInstall}
         />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

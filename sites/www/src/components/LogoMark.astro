@@ -1,0 +1,33 @@
+---
+interface Props {
+  size?: number;
+  invert?: boolean;
+  class?: string;
+  labelled?: boolean;
+}
+
+const { size = 22, invert = false, class: className, labelled = false } = Astro.props;
+const bg = invert ? '#FFFFFF' : '#178A5C';
+const fg = invert ? '#178A5C' : '#FFFFFF';
+---
+
+<svg
+  class={className}
+  width={size}
+  height={size}
+  viewBox="0 0 48 48"
+  aria-hidden={labelled ? undefined : 'true'}
+  role={labelled ? 'img' : undefined}
+  aria-label={labelled ? 'BornTask' : undefined}
+>
+  <rect width="48" height="48" rx="13.5" fill={bg}></rect>
+  <circle cx="8.75" cy="25.6" r="1.9" fill={fg} fill-opacity={invert ? '0.55' : '0.6'}></circle>
+  <circle cx="16.05" cy="25.6" r="2.8" fill={fg} fill-opacity={invert ? '0.8' : '0.85'}></circle>
+  <path
+    d="M23.85 25.6 L28.25 30 L38.75 18"
+    fill="none"
+    stroke={fg}
+    stroke-width="4.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"></path>
+</svg>

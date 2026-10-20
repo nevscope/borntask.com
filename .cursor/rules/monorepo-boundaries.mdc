@@ -6,6 +6,7 @@ alwaysApply: true
 # Monorepo boundaries
 
 - Packages: `@borntask/web`, `@borntask/api`, `@borntask/worker`, `@borntask/mcp`, `@borntask/shared`.
+- Public marketing site is `sites/www` (`@borntask/www`, Astro static). It is **not** an npm workspace. Root `dev` / `build` / `typecheck` do not run it. Use `dev:www` / `build:www`.
 - Apps import from `packages/shared`, never from each other.
 - Request and response types belong in `@borntask/shared` Zod schemas (web `api/types.ts` moves there as the API lands).
 - Pins from kerd: Node 22, Vite **6.4.4** exact, React 19, Ant Design 6, Fastify 5, Prisma 6, TypeScript 5.9. Do not bump to "latest" without asking.

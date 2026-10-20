@@ -37,6 +37,7 @@ export function DescriptionEditor({
   focusCb.current = onFocusChange;
   const applying = useRef(false);
   const [focused, setFocused] = useState(false);
+  const [mentionOpen, setMentionOpen] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -94,9 +95,36 @@ export function DescriptionEditor({
     applying.current = false;
   }, [editor, value, focused]);
 
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && !document.getElementById('bt-mention-picker')?.contains(target) && !(target as HTMLElement).closest?.('[aria-label="Mention someone"]')) {
+        setMentionOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [mentionOpen]);
+
   return (
-    <div>
-      <Toolbar editor={editor} focused={focused} />
+    <div style={{ position: 'relative' }}>
+      <Toolbar
+        editor={editor}
+        focused={focused}
+        mentionOpen={mentionOpen}
+        people={people}
+        onMention={() => {
+          if (!editor) return;
+          editor.chain().focus().run();
+          setMentionOpen((open) => !open);
+        }}
+        onPickMention={(person) => {
+          if (!editor) return;
+          editor.chain().focus().insertContent({ type: 'mention', attrs: { id: person.id, label: person.name } }).insertContent('\u00a0').run();
+          setMentionOpen(false);
+        }}
+      />
       <div
         onKeyDown={onEditorKeyDown}
         style={{
@@ -118,7 +146,21 @@ export function DescriptionEditor({
   );
 }
 
-function Toolbar({ editor, focused }: { editor: Editor | null; focused: boolean }) {
+function Toolbar({
+  editor,
+  focused,
+  mentionOpen,
+  people,
+  onMention,
+  onPickMention,
+}: {
+  editor: Editor | null;
+  focused: boolean;
+  mentionOpen: boolean;
+  people: User[];
+  onMention: () => void;
+  onPickMention: (person: User) => void;
+}) {
   const tool = (label: string, active: boolean, run: () => void, style?: CSSProperties) => (
     <button
       type="button"
@@ -153,11 +195,6 @@ function Toolbar({ editor, focused }: { editor: Editor | null; focused: boolean 
       return;
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
-  }
-
-  function mention() {
-    if (!editor) return;
-    editor.chain().focus().insertContent('@').run();
   }
 
   function code() {
@@ -195,16 +232,66 @@ function Toolbar({ editor, focused }: { editor: Editor | null; focused: boolean 
       {tool('Bulleted list', !!editor?.isActive('bulletList'), () => editor?.chain().focus().toggleBulletList().run())}
       {tool('Code', !!(editor?.isActive('code') || editor?.isActive('codeBlock')), code, { fontFamily: font.mono, fontSize: 12 })}
       {tool('Link', !!editor?.isActive('link'), setLink, { fontSize: 12 })}
-      {tool('Mention someone', false, mention)}
+      {tool('Mention someone', mentionOpen, onMention)}
       <span style={{ flex: 1 }} />
       <span style={{ padding: '0 6px', fontSize: 12, color: color.muted }}>Paste images straight in</span>
+      {mentionOpen && (
+        <div
+          id="bt-mention-picker"
+          role="listbox"
+          aria-label="People"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 8,
+            zIndex: 20,
+            minWidth: 220,
+            maxHeight: 220,
+            overflow: 'auto',
+            marginTop: 4,
+            padding: 4,
+            border: `1px solid ${color.border}`,
+            borderRadius: radius.md,
+            background: color.surface,
+            boxShadow: `0 8px 24px ${color.shadow}`,
+          }}
+        >
+          {people.length === 0 ? (
+            <div style={{ padding: '8px 10px', fontSize: 13, color: color.muted }}>No people on this project yet.</div>
+          ) : (
+            people.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                role="option"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onPickMention(person)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  border: 0,
+                  borderRadius: radius.sm,
+                  padding: '6px 8px',
+                  font: 'inherit',
+                  fontSize: 13,
+                  background: 'transparent',
+                  color: color.ink,
+                  cursor: 'pointer',
+                }}
+              >
+                {person.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function mentionSuggestion(peopleRef: { current: User[] }) {
   return {
-    allow: () => peopleRef.current.length > 0,
     items: ({ query }: { query: string }) => {
       const q = query.toLowerCase();
       return peopleRef.current
@@ -260,6 +347,7 @@ function mentionSuggestion(peopleRef: { current: User[] }) {
           root = document.createElement('div');
           root.setAttribute('role', 'listbox');
           root.style.cssText = [
+            `z-index:2000`,
             `min-width:180px`,
             `padding:4px`,
             `border:1px solid ${color.border}`,

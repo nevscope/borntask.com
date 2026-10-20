@@ -82,8 +82,20 @@ export function WorkspaceGeneralScreen() {
 
   return (
     <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
-      <h1 className="bt-h1">Workspace</h1>
-      <p style={{ color: color.muted, margin: '6px 0 0' }}>Owners and admins only.</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: '1 1 280px' }}>
+          <h1 className="bt-h1">Workspace</h1>
+          <p style={{ color: color.muted, margin: '6px 0 0' }}>Owners and admins only.</p>
+        </div>
+        {canAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {dirty && !saved && !busy && <span style={{ fontSize: 13, color: color.warning }}>Unsaved changes</span>}
+            <Button type="primary" loading={busy} disabled={!dirty} onClick={() => form.submit()}>
+              {saved && !dirty ? 'Saved' : 'Save changes'}
+            </Button>
+          </div>
+        )}
+      </div>
       {!canAdmin && <Alert type="warning" message="You can view this page, but only an owner or admin can save changes." />}
       {ws.error && <Alert type="error" showIcon message={ws.error.message} />}
       {saveError && <Alert type="error" showIcon message={saveError} />}
@@ -205,10 +217,6 @@ export function WorkspaceGeneralScreen() {
             <Checkbox className="bt-check-row">Members can invite guests <span style={{ fontSize: 12.5, color: color.muted }}>(otherwise only admins and project leads)</span></Checkbox>
           </Form.Item>
         </section>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button type="primary" htmlType="submit" loading={busy}>{saved ? 'Saved' : 'Save changes'}</Button>
-          {dirty && !saved && !busy && <span style={{ fontSize: 13, color: color.warning }}>Unsaved changes</span>}
-        </div>
       </Form>
       {isOwner && (
         <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>

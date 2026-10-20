@@ -51,7 +51,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-https://app.borntask.com}
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://app.borntask.com/api}
       SESSION_SECRET: ${SESSION_SECRET}
-      ALLOW_DEV_LOGIN: ${ALLOW_DEV_LOGIN:-true}
+      ALLOW_DEV_LOGIN: ${ALLOW_DEV_LOGIN:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}

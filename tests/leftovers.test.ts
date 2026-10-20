@@ -48,6 +48,10 @@ describe('daily digest', () => {
     expect(rendered.subject).toBe('Today: 1 due, 1 mention');
     expect(rendered.text).toContain('Good morning, Maria');
     expect(rendered.html).toContain('Open My tasks');
+    expect(rendered.html).toContain('borntask-logo-120.png');
+    expect(rendered.html).toContain('<table role="presentation"');
+    expect(rendered.html).toContain('Due today');
+    expect(rendered.html).toContain('WEB-142');
   });
 });
 

@@ -3,9 +3,10 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma, createTenantClient } from '../db.js';
 import { requireAuth, setSession } from '../context.js';
-import { sendError, forbidden, validation } from '../errors.js';
+import { sendError, forbidden } from '../errors.js';
 import { getRedis } from '../lib/queue.js';
 import { hashToken } from '../lib/tokens.js';
+import { safeRedirect } from '../lib/oauthRedirect.js';
 
 type PendingCode = {
   userId: string;
@@ -15,18 +16,6 @@ type PendingCode = {
   scope: 'read' | 'read_write';
   codeChallenge: string | null;
 };
-
-function safeRedirect(uri: string): URL {
-  let parsed: URL;
-  try {
-    parsed = new URL(uri);
-  } catch {
-    throw validation('The return address is not a valid URL.');
-  }
-  const local = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-  if (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && local)) return parsed;
-  throw validation('The return address must be https, or localhost for development.');
-}
 
 function s256(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');

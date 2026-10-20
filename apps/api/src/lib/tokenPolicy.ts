@@ -15,9 +15,11 @@ const WRITE_PATHS: { method: string; pattern: RegExp }[] = [
   { method: 'PATCH', pattern: /^\/tasks\/[^/]+$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/move$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/comments$/ },
+  { method: 'PATCH', pattern: /^\/tasks\/[^/]+\/comments\/[^/]+$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/reorder$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/subtasks$/ },
   { method: 'PATCH', pattern: /^\/tasks\/[^/]+\/subtasks\/[^/]+$/ },
+  { method: 'POST', pattern: /^\/tasks\/[^/]+\/watchers$/ },
 ];
 
 export function tokenAllows(

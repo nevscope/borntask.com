@@ -4,6 +4,7 @@
 import dayjs from 'dayjs';
 import { ApiError } from './http';
 import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
+import { isTaskDescriptionTooLong, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
@@ -171,10 +172,15 @@ const subtasks: Record<string, Subtask[]> = {
   ],
 };
 
+const watchers: Record<string, string[]> = {
+  'WEB-139': ['u_karl'],
+};
+
 const comments: Record<string, Comment[]> = {
   'WEB-142': [
     { id: 'c_1', authorId: 'u_karl', body: 'Fixed the polyfill and deployed to staging. Moved to Testing.', via: 'app', createdAt: ago(2) },
     { id: 'c_2', authorId: 'u_maria', body: '@Karl still failing when the card needs 3-D Secure.', via: 'app', createdAt: ago(0.6) },
+    { id: 'c_5', authorId: 'u_scope', body: 'I will look at the 3-D Secure failure next.', via: 'app', createdAt: ago(0.2) },
   ],
   'WEB-133': [
     { id: 'c_3', authorId: 'u_karl', body: 'This also covers the checkout thumbnails, not only the hero.', via: 'app', createdAt: ago(8) },
@@ -406,7 +412,7 @@ export const mockApi: Api = {
       subtasks: subtasks[key] ?? [],
       comments: comments[key] ?? [],
       activity: activity[key] ?? [],
-      watcherIds: key === 'WEB-139' ? ['u_karl'] : [],
+      watcherIds: watchers[key] ?? [],
       attachments: [],
       development: key.startsWith('WEB-')
         ? {
@@ -436,6 +442,8 @@ export const mockApi: Api = {
   async createTask(input) {
     await wait();
     projectOf(input.projectKey);
+    const description = persistDescription(input.description);
+    if (isTaskDescriptionTooLong(description)) throw new ApiError(400, 'VALIDATION', TASK_DESCRIPTION_TOO_LONG);
     const max = Math.max(0, ...tasks.filter((t) => t.projectKey === input.projectKey).map((t) => Number(t.key.split('-')[1])));
     const inSection = tasks.filter((t) => t.sectionId === input.sectionId);
     const now = new Date().toISOString();
@@ -444,7 +452,7 @@ export const mockApi: Api = {
       key: `${input.projectKey}-${max + 1}`,
       projectKey: input.projectKey,
       title: input.title.trim(),
-      description: persistDescription(input.description),
+      description,
       type: input.type,
       statusId: initialStatusFor(input.type),
       previousStatusId: null,
@@ -467,7 +475,11 @@ export const mockApi: Api = {
   async updateTask(key, input) {
     await wait();
     const t = findTask(key);
-    Object.assign(t, input.description !== undefined ? { ...input, description: persistDescription(input.description) } : input);
+    const description = input.description === undefined ? undefined : persistDescription(input.description);
+    if (description !== undefined && isTaskDescriptionTooLong(description)) {
+      throw new ApiError(400, 'VALIDATION', TASK_DESCRIPTION_TOO_LONG);
+    }
+    Object.assign(t, description !== undefined ? { ...input, description } : input);
     touch(t);
     return clone(t);
   },
@@ -531,6 +543,27 @@ export const mockApi: Api = {
     return clone(c);
   },
 
+  async updateComment(key, commentId, body) {
+    await wait();
+    findTask(key);
+    const c = (comments[key] ?? []).find((x) => x.id === commentId);
+    if (!c) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
+    if (c.authorId !== me.user.id) throw new ApiError(403, 'FORBIDDEN', 'You can only edit your own comments.');
+    c.body = body;
+    return clone(c);
+  },
+
+  async deleteComment(key, commentId) {
+    await wait();
+    findTask(key);
+    const list = comments[key] ?? [];
+    const c = list.find((x) => x.id === commentId);
+    if (!c) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
+    const canDelete = c.authorId === me.user.id || me.workspaceRole === 'owner' || me.workspaceRole === 'admin';
+    if (!canDelete) throw new ApiError(403, 'FORBIDDEN', 'You cannot delete this comment.');
+    comments[key] = list.filter((x) => x.id !== commentId);
+  },
+
   async addSubtask(key, title) {
     await wait();
     const t = findTask(key);
@@ -556,6 +589,16 @@ export const mockApi: Api = {
     const t = findTask(key);
     tasks = tasks.filter((x) => x.key !== key);
     deleted.set(key, t);
+  },
+
+  async setWatching(key, watch) {
+    await wait();
+    findTask(key);
+    const list = watchers[key] ?? [];
+    watchers[key] = watch
+      ? [...new Set([...list, me.user.id])]
+      : list.filter((id) => id !== me.user.id);
+    return { ok: true };
   },
 
   async restoreTask(key) {

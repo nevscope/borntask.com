@@ -299,10 +299,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       requireOwnerAdmin(auth.workspaceRole);
       const userId = (req.params as { userId: string }).userId;
-      const body = z.object({ tenantRole: z.enum(['admin', 'member', 'guest', 'viewer']) }).parse(req.body);
+      const body = z.object({ tenantRole: z.enum(['owner', 'admin', 'member', 'guest', 'viewer']) }).parse(req.body);
       const member = await auth.db.tenantMember.findFirst({ where: { userId } });
       if (!member) throw notFound();
-      if (member.tenantRole === 'owner') throw forbidden('The owner role cannot be changed here.');
+      if (body.tenantRole === 'owner') {
+        if (auth.workspaceRole !== 'owner') throw forbidden('Only the owner can transfer ownership.');
+        if (userId === auth.userId) throw validation('You already own this workspace.');
+        if (member.tenantRole === 'guest') throw validation('Make this person a member before making them owner.');
+        const currentOwner = await auth.db.tenantMember.findFirst({ where: { userId: auth.userId } });
+        if (!currentOwner) throw notFound();
+        await auth.db.$transaction([
+          auth.db.tenantMember.update({ where: { id: currentOwner.id }, data: { tenantRole: 'admin' } }),
+          auth.db.tenantMember.update({ where: { id: member.id }, data: { tenantRole: 'owner' } }),
+        ]);
+        return { ok: true };
+      }
+      if (member.tenantRole === 'owner') throw forbidden('The owner role cannot be changed here. Transfer ownership to someone else first.');
       await auth.db.tenantMember.update({ where: { id: member.id }, data: { tenantRole: body.tenantRole } });
       return { ok: true };
     } catch (err) {

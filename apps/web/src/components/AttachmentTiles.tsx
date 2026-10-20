@@ -1,7 +1,8 @@
+import { MAX_ATTACHMENT_BYTES, partitionAttachmentFiles } from '@borntask/shared';
 import { useRef } from 'react';
 import { color, radius } from '../theme/tokens';
 
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+export { MAX_ATTACHMENT_BYTES };
 
 export interface AttachmentItem {
   id: string;
@@ -66,18 +67,21 @@ export function AttachmentTiles({
   onAdd,
   onRemove,
   onOpen,
+  onRejected,
   hint = true,
 }: {
   items: AttachmentItem[];
   onAdd: (files: File[]) => void;
   onRemove: (id: string) => void;
   onOpen?: (item: AttachmentItem) => void;
+  onRejected?: (reason: string) => void;
   hint?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function take(list: FileList | File[]) {
-    const accepted = Array.from(list).filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+    const { accepted, reason } = partitionAttachmentFiles(Array.from(list));
+    if (reason) onRejected?.(reason);
     if (accepted.length) onAdd(accepted);
   }
 
@@ -183,7 +187,7 @@ export function AttachmentTiles({
       </button>
       {hint && (
         <span style={{ flex: '1 1 180px', marginBottom: 21, fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
-          Paste a screenshot with <kbd className="bt-kbd">Ctrl V</kbd> or drop files anywhere on this box. Up to 25 MB each.
+          Paste a screenshot with <kbd className="bt-kbd">Ctrl V</kbd> or drop files anywhere on this box. Up to 25 MB each. Executable files cannot be attached.
         </span>
       )}
     </div>

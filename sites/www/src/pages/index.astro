@@ -1,0 +1,32 @@
+---
+import HomeLayout from '../layouts/HomeLayout.astro';
+import LogoMark from '../components/LogoMark.astro';
+---
+
+<HomeLayout
+  title="BornTask - From idea to done, without the drag"
+  description="BornTask is a work tracker for ideas, bugs, improvements and features. Sign in at app.borntask.com."
+  canonical="https://borntask.com/"
+>
+  <div class="page">
+    <a class="brand" href="/">
+      <LogoMark size={32} invert />
+      <span class="wordmark">borntask</span>
+    </a>
+    <main class="hero">
+      <LogoMark class="app-logo" size={120} invert labelled />
+      <h1>From idea to done,<br />without the drag.</h1>
+      <p class="lede">
+        Ideas, bugs, improvements and features in one fast list and board, moving through the workflow your team agreed.
+      </p>
+      <div class="actions">
+        <a class="btn" href="https://app.borntask.com/">Open BornTask</a>
+      </div>
+      <nav class="links" aria-label="Legal">
+        <a href="/privacy/">Privacy notice</a>
+        <a href="/terms/">Terms of use</a>
+      </nav>
+    </main>
+    <footer>BornTask</footer>
+  </div>
+</HomeLayout>

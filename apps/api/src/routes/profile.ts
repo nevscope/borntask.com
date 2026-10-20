@@ -24,7 +24,7 @@ const prefSchema = z.object({
 });
 
 const saveSchema = z.object({
-  name: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1, 'Enter a display name.').max(80, 'Display name must be 80 characters or fewer.'),
   timeZone: z.enum(TIME_ZONES),
   digestMode: z.enum(['workdays', 'daily', 'off']),
   prefs: z.array(prefSchema).length(PROFILE_EVENTS.length),

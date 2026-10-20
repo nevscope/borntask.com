@@ -56,7 +56,11 @@ function authorizationServer() {
   };
 }
 
-function handleRpc(message: Rpc, token: string | undefined) {
+function unauthorised(id: Rpc['id']) {
+  return rpcError(id, -32001, 'Sign in with a personal token (bt_pat_) or complete the OAuth consent.');
+}
+
+function handleRpc(message: Rpc, token: string) {
   const method = message.method ?? '';
   if (method === 'notifications/initialized' || method.startsWith('notifications/')) return null;
   if (method === 'initialize') {
@@ -71,7 +75,6 @@ function handleRpc(message: Rpc, token: string | undefined) {
     };
   }
   if (method === 'ping') return { jsonrpc: '2.0', id: message.id ?? null, result: {} };
-  if (!token) return rpcError(message.id, -32001, 'Sign in with a personal token (bt_pat_) or complete the OAuth consent.');
   return { method, token, id: message.id, params: message.params };
 }
 
@@ -156,20 +159,22 @@ async function main() {
     return reply.code(res.status).type('application/json').send(text);
   });
 
-  app.post('/mcp', async (req, reply) => {
+  function challenge(reply: { header: (name: string, value: string) => unknown }) {
     reply.header('WWW-Authenticate', `Bearer realm="BornTask", resource_metadata="${resourceMetadata}"`);
+  }
+
+  app.post('/mcp', async (req, reply) => {
     const token = bearer(req.headers.authorization);
+    if (!token) {
+      challenge(reply);
+      return reply.code(401).send(unauthorised(((req.body ?? {}) as Rpc).id ?? null));
+    }
     const body = req.body;
     const items = Array.isArray(body) ? (body as Rpc[]) : [(body ?? {}) as Rpc];
     const out = [];
     for (const item of items) {
       const handled = handleRpc(item, token);
       if (handled === null) continue;
-      if ('error' in handled && handled.error && !token && (item.method === 'tools/list' || item.method === 'tools/call')) {
-        out.push(handled);
-        if (!Array.isArray(body)) return reply.code(401).send(handled);
-        continue;
-      }
       if ('method' in handled && handled.method === 'tools/list') {
         out.push({ jsonrpc: '2.0', id: handled.id ?? null, result: { tools: TOOLS } });
         continue;
@@ -191,8 +196,8 @@ async function main() {
   });
 
   app.get('/mcp', async (_req, reply) => {
-    reply.header('WWW-Authenticate', `Bearer realm="BornTask", resource_metadata="${resourceMetadata}"`);
-    return reply.code(405).send({ error: 'method_not_allowed', message: 'Send JSON-RPC POST requests to this URL.' });
+    challenge(reply);
+    return reply.code(401).send(unauthorised(null));
   });
 
   await app.listen({ host, port });

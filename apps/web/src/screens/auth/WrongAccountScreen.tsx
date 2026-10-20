@@ -66,7 +66,7 @@ export function WrongAccountScreen() {
         <Alert type="success" message={`${info?.invitedBy ?? 'They'} will get a request in BornTask. You'll get a new invitation as soon as it's approved.`} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Button href="/sign-in" type="primary" style={{ height: 46, fontWeight: 600, background: color.ink }}>Switch account</Button>
+          <Button href="/sign-in" type="primary" style={{ height: 46, fontWeight: 600 }}>Switch account</Button>
           <Button onClick={() => void ask()} disabled={missing} style={{ height: 46, fontWeight: 600 }}>
             Ask for an invitation to {signedIn}
           </Button>

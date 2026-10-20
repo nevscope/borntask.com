@@ -2,11 +2,17 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { attachmentRejectReason, MAX_ATTACHMENT_BYTES } from '@borntask/shared';
 import { config } from '../env.js';
 import { notFound, validation } from '../errors.js';
 import type { Authed } from '../context.js';
 
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+export { MAX_ATTACHMENT_BYTES };
+
+function assertAllowedFile(file: { filename: string; mimetype: string; buffer: Buffer }) {
+  const reason = attachmentRejectReason(file.filename || 'Attachment', file.buffer.length, file.mimetype);
+  if (reason) throw validation(reason);
+}
 
 function safeSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
@@ -33,7 +39,7 @@ export async function storePendingUpload(
   tenantId: string,
   file: { filename: string; mimetype: string; buffer: Buffer },
 ): Promise<{ id: string; name: string; size: number; mime: string }> {
-  if (file.buffer.length > MAX_ATTACHMENT_BYTES) throw validation('Files must be 25 MB or smaller.');
+  assertAllowedFile(file);
   const id = randomUUID();
   const dir = join(config.blobRoot, tenantId, 'pending');
   await mkdir(dir, { recursive: true });
@@ -80,7 +86,7 @@ export async function storeTaskUpload(
   taskId: string,
   file: { filename: string; mimetype: string; buffer: Buffer },
 ) {
-  if (file.buffer.length > MAX_ATTACHMENT_BYTES) throw validation('Files must be 25 MB or smaller.');
+  assertAllowedFile(file);
   const id = randomUUID();
   const destKey = `${auth.tenantId}/${taskId}/${id}-${safeSegment(file.filename || 'file')}`;
   await mkdir(join(config.blobRoot, auth.tenantId, taskId), { recursive: true });
