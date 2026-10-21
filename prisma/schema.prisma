@@ -476,7 +476,7 @@ model Task {
   type           TaskType        @relation(fields: [typeId], references: [id])
   status         WorkflowStatus  @relation("TaskStatus", fields: [statusId], references: [id])
   previousStatus WorkflowStatus? @relation("TaskPreviousStatus", fields: [previousStatusId], references: [id])
-  section        Section         @relation(fields: [sectionId], references: [id])
+  section        Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   assignee       User?           @relation("TaskAssignee", fields: [assigneeId], references: [id])
   reporter       User            @relation("TaskReporter", fields: [reporterId], references: [id])
   parent         Task?           @relation("Subtasks", fields: [parentId], references: [id])
