@@ -47,19 +47,16 @@ type ImportState = {
 
 export function ImportScreen() {
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
-  const [projectKey, setProjectKey] = useState(projects[0]?.key ?? '');
+  const [projectKey, setProjectKey] = useState('');
   const [job, setJob] = useState<ImportState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('statuses');
   const [showPreview, setShowPreview] = useState(false);
 
-  useEffect(() => {
-    if (!projectKey && projects[0]?.key) setProjectKey(projects[0].key);
-  }, [projectKey, projects]);
-
   const step = !job ? 0 : job.status === 'running' ? 3 : showPreview ? 2 : 1;
-  const project = projects.find((p) => p.key === projectKey);
+  const destKey = job?.projectKey || projectKey;
+  const project = projects.find((p) => p.key === destKey);
   const detail = useProject(job?.projectKey ?? projectKey).data;
   const stages = detail?.workflow.statuses ?? [];
   const progress = useImportProgress(job?.id, job?.status === 'running');
@@ -72,6 +69,10 @@ export function ImportScreen() {
   }, [progress.data, job]);
 
   const pickFile = (file: File) => {
+    if (!projectKey) {
+      setError('Choose a project first.');
+      return false;
+    }
     if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet')) {
       setError(XLSX_MESSAGE);
       return false;
@@ -93,11 +94,16 @@ export function ImportScreen() {
     const json = await res.json() as ImportState & { message?: string };
     if (!res.ok) throw new Error(json.message ?? 'Upload failed');
     setJob(json);
+    setProjectKey(json.projectKey);
     setShowPreview(false);
   };
 
   const saveAndRun = async () => {
     if (!job) return;
+    if (!destKey) {
+      setError('Choose a project first.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -105,7 +111,7 @@ export function ImportScreen() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping: job.mapping, sectionsAs }),
+        body: JSON.stringify({ mapping: job.mapping, sectionsAs, projectKey: destKey }),
       });
       const res = await fetch(`${BASE_URL}/imports/${job.id}/run`, { method: 'POST', credentials: 'include' });
       if (!res.ok) throw new Error('Could not start import');
@@ -157,13 +163,14 @@ export function ImportScreen() {
       {!job && (
         <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
           <Select
-            style={{ minWidth: 240 }}
-            placeholder="Import into project"
-            value={projectKey || undefined}
-            onChange={setProjectKey}
+            style={{ minWidth: 280 }}
+            placeholder="Choose a project"
+            value={projectKey || null}
+            allowClear
+            onChange={(key) => setProjectKey(key ?? '')}
             options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
           />
-          <Upload accept=".csv,.tsv,.txt" showUploadList={false} beforeUpload={pickFile}>
+          <Upload accept=".csv,.tsv,.txt" showUploadList={false} disabled={!projectKey} beforeUpload={pickFile}>
             <Button type="primary" disabled={!projectKey}>Choose CSV</Button>
           </Upload>
           <span style={{ fontSize: 13, color: color.muted }}>Asana exports as CSV. Save an XLSX export as CSV first.</span>
@@ -175,8 +182,20 @@ export function ImportScreen() {
             <span style={{ width: 36, height: 36, borderRadius: 8, display: 'grid', placeItems: 'center', background: color.brandTint, color: color.brandStrong, fontSize: 11, fontWeight: 600 }}>{job.fileName.toLowerCase().endsWith('.xlsx') ? 'XLSX' : 'CSV'}</span>
             <span style={{ flex: '1 1 260px' }}>
               <span style={{ display: 'block', fontWeight: 600 }}>{job.fileName}</span>
-              <span style={{ fontSize: 12.5, color: color.muted }}>{job.rowsTotal} rows · {job.headers.length} columns · into project <strong style={{ color: color.ink3 }}>{project?.name ?? job.projectKey} ({job.projectKey})</strong></span>
+              <span style={{ fontSize: 12.5, color: color.muted }}>{job.rowsTotal} rows · {job.headers.length} columns</span>
             </span>
+            <Select
+              style={{ minWidth: 280 }}
+              placeholder="Choose a project"
+              value={destKey || null}
+              disabled={job.status === 'running' || job.status === 'done'}
+              onChange={(key) => {
+                const next = key ?? '';
+                setProjectKey(next);
+                setJob({ ...job, projectKey: next });
+              }}
+              options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+            />
             <Upload accept=".csv,.tsv,.txt" showUploadList={false} beforeUpload={pickFile}>
               <Button>Replace file</Button>
             </Upload>
@@ -286,7 +305,7 @@ export function ImportScreen() {
             </section>
           )}
           <div className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-            <span style={{ flex: '1 1 300px', fontSize: 13.5 }}><strong>{job.rowsTotal} tasks</strong> into {project?.name ?? job.projectKey}</span>
+            <span style={{ flex: '1 1 300px', fontSize: 13.5 }}><strong>{job.rowsTotal} tasks</strong> into {project?.name ?? destKey}</span>
             <Link to="/projects"><Button>Back</Button></Link>
             {job.projectKey && (
               <Link to={`/p/${job.projectKey}/list`}>

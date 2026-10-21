@@ -19,6 +19,7 @@ interface Palette {
     border: string; borderStrong: string; dashed: string; divider: string;
     canvas: string; surface: string; subtle: string; chip: string; raised: string;
     danger: string; dangerTint: string;
+    inverse: string; inverseFg: string; inverseMuted: string; inverseControl: string; inverseDanger: string;
     warning: string; warningTint: string; warningBorder: string;
     info: string; infoTint: string; infoBorder: string;
     highlight: string;
@@ -42,6 +43,7 @@ export const light: Palette = {
     border: '#E8EBE6', borderStrong: '#CDD2C9', dashed: '#CDD2C9', divider: '#EEF0EC',
     canvas: '#F7F8F6', surface: '#FFFFFF', subtle: '#FAFBF9', chip: '#F1F2EF', raised: '#FFFFFF',
     danger: '#B42323', dangerTint: '#FDECEC',
+    inverse: '#121417', inverseFg: '#F7F8F6', inverseMuted: '#8A9086', inverseControl: '#2A2E2B', inverseDanger: '#F27C7C',
     warning: '#8A5A0B', warningTint: '#FFFBF2', warningBorder: '#F1D6A6',
     info: '#1A3F82', infoTint: '#EAF1FD', infoBorder: '#C9DAF7',
     highlight: '#FFE7A3',
@@ -93,6 +95,7 @@ export const dark: Palette = {
     border: '#2C312D', borderStrong: '#3A403B', dashed: '#3A403B', divider: '#232724',
     canvas: '#0E100F', surface: '#161917', subtle: '#1B1F1C', chip: '#252926', raised: '#1E221F',
     danger: '#F27C7C', dangerTint: '#381C1C',
+    inverse: '#121417', inverseFg: '#F7F8F6', inverseMuted: '#8A9086', inverseControl: '#2A2E2B', inverseDanger: '#F27C7C',
     warning: '#E8B75F', warningTint: '#2B2213', warningBorder: '#5A4318',
     info: '#8FB5F6', infoTint: '#182846', infoBorder: '#2A3F68',
     highlight: '#5A4318',

@@ -24,6 +24,11 @@
   --bt-raised: #FFFFFF;
   --bt-danger: #B42323;
   --bt-danger-tint: #FDECEC;
+  --bt-inverse: #121417;
+  --bt-inverse-fg: #F7F8F6;
+  --bt-inverse-muted: #8A9086;
+  --bt-inverse-control: #2A2E2B;
+  --bt-inverse-danger: #F27C7C;
   --bt-warning: #8A5A0B;
   --bt-warning-tint: #FFFBF2;
   --bt-warning-border: #F1D6A6;
@@ -139,6 +144,11 @@
   --bt-raised: #1E221F;
   --bt-danger: #F27C7C;
   --bt-danger-tint: #381C1C;
+  --bt-inverse: #121417;
+  --bt-inverse-fg: #F7F8F6;
+  --bt-inverse-muted: #8A9086;
+  --bt-inverse-control: #2A2E2B;
+  --bt-inverse-danger: #F27C7C;
   --bt-warning: #E8B75F;
   --bt-warning-tint: #2B2213;
   --bt-warning-border: #5A4318;
@@ -255,6 +265,11 @@
     --bt-raised: #1E221F;
     --bt-danger: #F27C7C;
     --bt-danger-tint: #381C1C;
+    --bt-inverse: #121417;
+    --bt-inverse-fg: #F7F8F6;
+    --bt-inverse-muted: #8A9086;
+    --bt-inverse-control: #2A2E2B;
+    --bt-inverse-danger: #F27C7C;
     --bt-warning: #E8B75F;
     --bt-warning-tint: #2B2213;
     --bt-warning-border: #5A4318;

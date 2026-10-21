@@ -21,7 +21,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const qKey = String((req.query as { projectKey?: string }).projectKey ?? '');
       const field = file.fields.projectKey;
       const fieldKey = field && !Array.isArray(field) && 'value' in field ? String(field.value) : '';
-      const projectKey = qKey || fieldKey;
+      const projectKey = (qKey || fieldKey).trim();
+      if (!projectKey) throw validation('Choose a project to import into.');
       const project = await auth.db.project.findFirst({ where: { key: projectKey } });
       if (!project) throw notFound('Choose a project to import into.');
       const buf = await file.toBuffer();
@@ -98,12 +99,25 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({
         mapping: z.record(z.string()),
         sectionsAs: z.enum(['sections', 'statuses']).optional(),
+        projectKey: z.string().min(1).optional(),
       }).parse(req.body);
       const job = await auth.db.importJob.findFirst({ where: { id } });
       if (!job) throw notFound();
+      if (job.status === 'running' || job.status === 'done') {
+        throw validation('This import has already started.');
+      }
+      let projectId = job.projectId;
+      if (body.projectKey) {
+        const project = await auth.db.project.findFirst({ where: { key: body.projectKey } });
+        if (!project) throw notFound('Choose a project to import into.');
+        projectId = project.id;
+      }
       await auth.db.importJob.update({
         where: { id: job.id },
-        data: { mapping: { columns: body.mapping, sectionsAs: body.sectionsAs ?? 'sections' } },
+        data: {
+          projectId,
+          mapping: { columns: body.mapping, sectionsAs: body.sectionsAs ?? 'sections' },
+        },
       });
       return { ok: true };
     } catch (err) {

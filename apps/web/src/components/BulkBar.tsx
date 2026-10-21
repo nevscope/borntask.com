@@ -147,12 +147,12 @@ export function BulkBar({
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.danger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.inverseDanger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
         >
           Delete
         </button>
         <span style={{ flex: 1 }} />
-        <button type="button" onClick={onClear} aria-label="Clear selection" style={{ height: 28, padding: '0 8px', border: `1px solid ${color.ink3}`, borderRadius: 5, background: 'transparent', color: color.faint, font: 'inherit', fontSize: 12, cursor: 'pointer' }}>Esc</button>
+        <button type="button" onClick={onClear} aria-label="Clear selection" style={{ height: 28, padding: '0 8px', border: `1px solid ${color.inverseControl}`, borderRadius: 5, background: 'transparent', color: color.inverseMuted, font: 'inherit', fontSize: 12, cursor: 'pointer' }}>Esc</button>
       </div>
       <p className="bt-bulk-bar-hint">Move to only offers stages allowed for every selected task</p>
       {commentFor && (
