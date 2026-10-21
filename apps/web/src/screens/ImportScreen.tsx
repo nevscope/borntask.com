@@ -282,7 +282,7 @@ export function ImportScreen() {
                 )}
               </section>
               <section style={{ background: color.subtle, border: `1px dashed ${color.dashed}`, borderRadius: 12, padding: '14px 16px', fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>
-                Comments and attachments are not in Asana's spreadsheet export, so they are not imported. Re-importing this file updates tasks matched on Asana task ID instead of duplicating them.
+                Type comes from Tags (Bug, Feature, Improve). Status comes from Section/Column when you choose Statuses. Assignee comes from Assignee Email. Comments and attachments are not in Asana's spreadsheet export. Re-importing updates tasks matched on Asana task ID.
               </section>
             </div>
           </div>

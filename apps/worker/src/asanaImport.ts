@@ -43,9 +43,9 @@ async function executeAsanaImport(
 
   const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
   const parsed = parseDelimited(text);
-  const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string } | Record<string, string>;
-  const columns = 'columns' in stored && stored.columns ? stored.columns : (stored as Record<string, string>);
-  const sectionsAs = 'sectionsAs' in stored && stored.sectionsAs === 'statuses' ? 'statuses' : 'sections';
+  const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string };
+  const columns: Record<string, string> = stored.columns ?? {};
+  const sectionsAs = stored.sectionsAs === 'statuses' ? 'statuses' : 'sections';
 
   const col = (field: string) => Object.entries(columns).find(([, f]) => f === field)?.[0];
   const titleCol = col('title');
