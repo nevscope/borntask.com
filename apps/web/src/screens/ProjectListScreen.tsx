@@ -18,7 +18,8 @@ import { useQuickAdd } from '../components/QuickAdd';
 import { useMoveFlow } from '../components/useMoveFlow';
 import { useTaskParam } from '../components/useTaskParam';
 import { useIsPhone } from '../hooks/useIsPhone';
-import { groupTasks, sortTasks, taskMatches } from '../lib/taskFilters';
+import { useVisibleWindow } from '../hooks/useVisibleWindow';
+import { groupTasks, sortTasks, takeGroupedTasks, taskMatches } from '../lib/taskFilters';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
 
@@ -43,11 +44,17 @@ export function ProjectListScreen() {
     if (!detail.data || !tasks.data) return [];
     return sortTasks(tasks.data.filter((task) => taskMatches(task, view.filters, detail.data, me?.user.id)), view.sort);
   }, [detail.data, tasks.data, view.filters, view.sort, me?.user.id]);
+  const groups = useMemo(() => {
+    if (!detail.data) return [];
+    return groupTasks(visible, view.group, detail.data).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
+  }, [detail.data, visible, view.group, view.sort]);
+  const windowReset = `${projectKey}|${view.group}|${view.sort}|${JSON.stringify(view.filters)}`;
+  const { shown, sentinelRef, remaining } = useVisibleWindow(visible.length, windowReset);
+  const windowed = takeGroupedTasks(groups, shown);
 
   if (detail.isError || tasks.isError) return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error} />;
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
   const d = detail.data;
-  const groups = groupTasks(visible, view.group, d).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
   const active = activeKey ? tasks.data.find((task) => task.key === activeKey) : undefined;
   const myRoles = d.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
   const canShare = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin' || myRoles.includes('lead');
@@ -99,11 +106,12 @@ export function ProjectListScreen() {
           <span style={{ width: 100 }}>Priority</span>
         </div>
         )}
-        {groups.map((group) => (
+        {windowed.map((group) => (
           <SectionGroup
             key={group.id}
             id={group.id}
             name={group.name}
+            total={group.total}
             detail={d}
             tasks={group.tasks}
             canAdd={view.group === 'section' && group.id !== 'other'}
@@ -124,6 +132,11 @@ export function ProjectListScreen() {
           </div>
         ) : (
           <Button type="text" onClick={() => setAdding(true)} style={{ height: 44, color: color.brandStrong, fontWeight: 600 }}>+ Add section</Button>
+        )}
+        {remaining > 0 && (
+          <div ref={sentinelRef} style={{ padding: '10px 16px 14px', fontSize: 12.5, color: color.muted }}>
+            Showing {shown} of {visible.length} tasks
+          </div>
         )}
       </div>
     </div>
@@ -164,6 +177,7 @@ export function ProjectListScreen() {
 function SectionGroup({
   id,
   name,
+  total,
   detail,
   tasks,
   canAdd,
@@ -177,6 +191,7 @@ function SectionGroup({
 }: {
   id: string;
   name: string;
+  total: number;
   detail: ProjectDetail;
   tasks: Task[];
   canAdd: boolean;
@@ -192,7 +207,7 @@ function SectionGroup({
   const end = useDroppable({ id: `end:${id}`, disabled: !draggable });
   return (
     <div>
-      <div className="bt-group-head">{name} <span style={{ color: color.muted, fontWeight: 500 }}>{tasks.length}</span></div>
+      <div className="bt-group-head">{name} <span style={{ color: color.muted, fontWeight: 500 }}>{total}</span></div>
       {tasks.map((task) => (
         <Row key={task.key} task={task} detail={detail} draggable={draggable && !compact} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onToggle={() => onToggle(task.key)} compact={compact} />
       ))}

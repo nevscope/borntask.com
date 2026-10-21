@@ -2,7 +2,7 @@
 import { Button, Segmented, Skeleton } from 'antd';
 import { useQueries } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
@@ -12,6 +12,7 @@ import { useStatusToast } from '../components/StatusToast';
 import { useTaskParam } from '../components/useTaskParam';
 import { GuestWelcome, MemberEmpty } from '../components/WelcomeInShell';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useVisibleWindow } from '../hooks/useVisibleWindow';
 import { dueBucket, dueColor, dueLabel, dueTone, type DueBucket } from '../lib/dates';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
@@ -41,10 +42,27 @@ export function MyTasksScreen() {
   const projectName = (key: string) => projects.find((p) => p.key === key)?.name ?? key;
 
   const [tab, setTab] = useState<'assigned' | 'created' | 'watching'>('assigned');
-  if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
-  if (params.get('welcome') === 'guest') return <GuestWelcome />;
   const assigned = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
   const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
+  const buckets = useMemo(
+    () =>
+      BUCKETS.map((b) => ({
+        ...b,
+        list: assigned.filter((t) => dueBucket(t.dueDate) === b.id).sort((x, y) => (x.dueDate ?? '').localeCompare(y.dueDate ?? '')),
+      })).filter((b) => b.list.length),
+    [assigned],
+  );
+  const { shown, sentinelRef, remaining } = useVisibleWindow(assigned.length, tab);
+
+  if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
+  if (params.get('welcome') === 'guest') return <GuestWelcome />;
+
+  let left = shown;
+  const windowed = buckets.map((b) => {
+    const list = b.list.slice(0, Math.max(0, left));
+    left -= list.length;
+    return { ...b, list, total: b.list.length };
+  }).filter((b) => b.list.length);
 
   const approve = (t: Task) =>
     move.mutate(
@@ -106,12 +124,11 @@ export function MyTasksScreen() {
 
       {assigned.length === 0 && approvals.length === 0 && tab === 'assigned' && <MemberEmpty />}
 
-      {BUCKETS.map((b) => {
-        const list = assigned.filter((t) => dueBucket(t.dueDate) === b.id).sort((x, y) => (x.dueDate ?? '').localeCompare(y.dueDate ?? ''));
-        if (!list.length) return null;
+      {windowed.map((b) => {
+        const list = b.list;
         return (
           <section key={b.id} className="bt-card">
-            <div className="bt-group-head" style={{ color: b.color, background: color.surface }}>{b.label} <span style={{ color: color.muted, fontWeight: 500 }}>{list.length}</span></div>
+            <div className="bt-group-head" style={{ color: b.color, background: color.surface }}>{b.label} <span style={{ color: color.muted, fontWeight: 500 }}>{b.total}</span></div>
             {list.map((t) => {
               const detail = detailOf(t.projectKey);
               const project = projects.find((p) => p.key === t.projectKey);
@@ -151,6 +168,12 @@ export function MyTasksScreen() {
           </section>
         );
       })}
+
+      {remaining > 0 && (
+        <div ref={sentinelRef} style={{ padding: '4px 4px 0', fontSize: 12.5, color: color.muted }}>
+          Showing {shown} of {assigned.length} tasks
+        </div>
+      )}
 
       {!isPhone && !(assigned.length === 0 && approvals.length === 0 && tab === 'assigned') && (
       <button

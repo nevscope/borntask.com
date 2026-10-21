@@ -306,6 +306,19 @@ export function sortTasks(tasks: Task[], sort: SortBy): Task[] {
   return list.sort((a, b) => a.title.localeCompare(b.title, 'en-GB'));
 }
 
+/** Keep group headers, but only the first `limit` tasks in display order. */
+export function takeGroupedTasks(groups: TaskGroup[], limit: number): Array<TaskGroup & { total: number }> {
+  let left = limit;
+  const out: Array<TaskGroup & { total: number }> = [];
+  for (const group of groups) {
+    if (left <= 0) break;
+    const tasks = group.tasks.slice(0, left);
+    out.push({ ...group, tasks, total: group.tasks.length });
+    left -= tasks.length;
+  }
+  return out;
+}
+
 export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail): TaskGroup[] {
   if (group === 'none') return [{ id: 'all', name: 'All tasks', tasks }];
   if (group === 'section') {

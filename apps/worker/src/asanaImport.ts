@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient, type ImportJob } from '@prisma/client';
-import { parseDelimited } from '@borntask/shared';
+import { emailFromMappedRow, formatImportError, guessImportStatusSlug, guessImportTypeSlug, parseDelimited } from '@borntask/shared';
 import { deliverMail } from './mail.js';
 
 const prisma = new PrismaClient();
@@ -45,6 +45,7 @@ async function executeAsanaImport(
   const parsed = parseDelimited(text);
   const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string } | Record<string, string>;
   const columns = 'columns' in stored && stored.columns ? stored.columns : (stored as Record<string, string>);
+  const sectionsAs = 'sectionsAs' in stored && stored.sectionsAs === 'statuses' ? 'statuses' : 'sections';
 
   const col = (field: string) => Object.entries(columns).find(([, f]) => f === field)?.[0];
   const titleCol = col('title');
@@ -79,6 +80,8 @@ async function executeAsanaImport(
     orderBy: { position: 'asc' },
   });
   const startStatus = statuses.find((s) => s.slug === 'idea' || s.slug === 'todo') ?? statuses[0];
+  const doneStatus = statuses.find((s) => s.slug === 'deployed') ?? statuses.find((s) => s.category === 'done' && s.slug !== 'rejected');
+  const holdStatus = statuses.find((s) => s.slug === 'on_hold');
   if (!startStatus) throw new Error('No statuses');
   let sections = await prisma.section.findMany({ where: { projectId }, orderBy: { position: 'asc' } });
   if (sections.length === 0) {
@@ -122,10 +125,11 @@ async function executeAsanaImport(
 
   for (const [index, row] of parsed.rows.entries()) {
     try {
-      const title = clip((titleCol ? row[titleCol] : '')?.trim() || 'Untitled', 200);
+      const title = clip((titleCol ? row[titleCol] : '')?.trim() || 'Untitled', 191);
       const asanaId = idCol ? (row[idCol] ?? '').trim() : '';
-      const email = emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '';
-      if (email && email.includes('@') && !userByEmail.has(email)) unknownEmails.add(email);
+      const email = emailFromMappedRow(row, columns) || (emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '');
+      const assigneeEmail = email.includes('@') ? email : '';
+      if (assigneeEmail && !userByEmail.has(assigneeEmail)) unknownEmails.add(assigneeEmail);
 
       const existing = asanaId
         ? await prisma.task.findFirst({
@@ -136,7 +140,7 @@ async function executeAsanaImport(
 
       const sectionName = clip(sectionCol ? (row[sectionCol] ?? '').trim() : '', 120);
       let section = sections[0]!;
-      if (sectionName) {
+      if (sectionsAs === 'sections' && sectionName) {
         const found = sections.find((s) => s.name.toLowerCase() === sectionName.toLowerCase());
         if (found) section = found;
         else {
@@ -153,17 +157,21 @@ async function executeAsanaImport(
         }
       }
 
-      const statusName = statusCol ? (row[statusCol] ?? '').trim().toLowerCase() : '';
-      const status = statuses.find((s) => s.slug === statusName || s.name.toLowerCase() === statusName) ?? startStatus;
-      const typeName = typeCol ? (row[typeCol] ?? '').trim().toLowerCase() : '';
-      const type = types.find((t) => t.slug === typeName || t.name.toLowerCase() === typeName) ?? defaultType;
       const dueDate = dueCol ? parseWhen((row[dueCol] ?? '').trim()) : null;
       const startDate = startCol ? parseWhen((row[startCol] ?? '').trim()) : null;
       const createdAt = createdCol ? parseWhen((row[createdCol] ?? '').trim()) : null;
       const completedAt = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
       const updatedAt = updatedCol ? parseWhen((row[updatedCol] ?? '').trim()) : null;
       const tagNames = labelsCol ? parseTags(row[labelsCol] ?? '') : [];
-      const assignee = email ? userByEmail.get(email) : undefined;
+      const typeName = typeCol ? (row[typeCol] ?? '').trim() : '';
+      const typeSlug = guessImportTypeSlug(tagNames, typeName, types) ?? defaultType.slug;
+      const type = types.find((t) => t.slug === typeSlug) ?? defaultType;
+      const statusSource = sectionsAs === 'statuses' ? sectionName : (statusCol ? (row[statusCol] ?? '').trim() : '');
+      let statusSlug = guessImportStatusSlug(statusSource, statuses)
+        ?? (!statusSource && completedAt && doneStatus ? doneStatus.slug : startStatus.slug);
+      if (tagNames.some((tag) => tag.toLowerCase() === 'on hold') && holdStatus) statusSlug = holdStatus.slug;
+      const status = statuses.find((s) => s.slug === statusSlug) ?? startStatus;
+      const assignee = assigneeEmail ? userByEmail.get(assigneeEmail) : undefined;
 
       const payload = {
         title,
@@ -229,8 +237,8 @@ async function executeAsanaImport(
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'unknown error';
-      errors.push(`Row ${index + 2}: ${message.slice(0, 180)}`);
+      const message = err instanceof Error ? err.message : 'This row could not be saved.';
+      errors.push(formatImportError(`Row ${index + 2}: ${message}`));
     }
     done += 1;
     if (done === 1 || done % 10 === 0) await persistProgress();

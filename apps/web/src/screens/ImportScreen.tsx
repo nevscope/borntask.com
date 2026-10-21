@@ -1,6 +1,7 @@
 import { Alert, Button, Progress, Select, Upload } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { formatImportError, guessImportStatusSlug } from '@borntask/shared';
 import { BASE_URL } from '../api/http';
 import { useImportProgress, useProject, useProjects } from '../api/queries';
 import type { WorkflowStatus } from '../api/types';
@@ -277,7 +278,7 @@ export function ImportScreen() {
                     ))}
                   </>
                 ) : (
-                  <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>Assignees in this file match people already in the workspace.</p>
+                  <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>Assignees match on email. Display names in Asana are ignored.</p>
                 )}
               </section>
               <section style={{ background: color.subtle, border: `1px dashed ${color.dashed}`, borderRadius: 12, padding: '14px 16px', fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>
@@ -337,6 +338,12 @@ export function ImportScreen() {
   );
 }
 
+function doneCopy(rowsDone: number, skipped: number, projectName: string) {
+  const imported = Math.max(0, rowsDone - skipped);
+  if (skipped === 0) return `${imported.toLocaleString('en-GB')} tasks are in ${projectName}.`;
+  return `${imported.toLocaleString('en-GB')} tasks are in ${projectName}. ${skipped} ${skipped === 1 ? 'row was' : 'rows were'} skipped.`;
+}
+
 function errorList(errors: unknown): string[] {
   if (!Array.isArray(errors)) return [];
   return errors.filter((item): item is string => typeof item === 'string');
@@ -370,11 +377,22 @@ function ImportProgressCard({
       <Progress percent={pct} showInfo={false} strokeColor={status === 'failed' ? color.warning : color.brand} />
       <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>
         {status === 'running' && `Tasks appear in ${projectName} as they are written. You can open the project while this runs.`}
-        {status === 'done' && `${rowsDone.toLocaleString('en-GB')} tasks are in ${projectName}.`}
+        {status === 'done' && doneCopy(rowsDone, failed.length, projectName)}
         {status === 'failed' && 'The worker stopped. Tasks already written stay in the project. Retry to continue from Asana IDs that already exist.'}
       </p>
       {failed.length > 0 && (
-        <Alert type={status === 'failed' ? 'error' : 'warning'} message={failed.slice(0, 4).join(' · ')} />
+        <Alert
+          type={status === 'failed' ? 'error' : 'warning'}
+          message={`${failed.length} ${failed.length === 1 ? 'row was' : 'rows were'} skipped`}
+          description={
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {failed.slice(0, 8).map((item) => (
+                <li key={item}>{formatImportError(item)}</li>
+              ))}
+              {failed.length > 8 && <li>and {failed.length - 8} more</li>}
+            </ul>
+          }
+        />
       )}
       {projectKey && (
         <Link to={`/p/${projectKey}/list`} style={{ fontSize: 13, color: color.brandStrong, fontWeight: 600 }}>View {projectName}</Link>
@@ -402,10 +420,8 @@ function valuesFor(job: ImportState, field: 'section' | 'status') {
 }
 
 function guessStage(name: string, stages: WorkflowStatus[]) {
-  const lower = name.toLowerCase();
-  return stages.find((s) => s.name.toLowerCase() === lower)
-    ?? stages.find((s) => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()))
-    ?? stages[0];
+  const slug = guessImportStatusSlug(name, stages.map((stage) => ({ slug: stage.id, name: stage.name })));
+  return stages.find((s) => s.id === slug) ?? stages[0];
 }
 
 function StatusMap({ values, stages }: { values: { name: string; n: number }[]; stages: WorkflowStatus[] }) {
