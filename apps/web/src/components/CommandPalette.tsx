@@ -11,7 +11,7 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const [projectKey, setProjectKey] = useState<string | null>(null);
   const { pathname } = useLocation();
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const search = useSearch(q.trim().length >= 2 ? q.trim() : '');
   const navigate = useNavigate();
   const quickAdd = useQuickAdd();

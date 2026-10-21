@@ -30,44 +30,59 @@ export function guessField(header: string): string {
 }
 
 export function parseDelimited(text: string): ParsedSheet {
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.length > 0);
-  if (lines.length === 0) return { headers: [], rows: [] };
-  const first = lines[0] ?? '';
-  const delim = first.includes('\t') && first.split('\t').length > first.split(',').length ? '\t' : ',';
-  const headers = splitLine(first, delim);
-  const rows = lines.slice(1).map((line) => {
-    const cells = splitLine(line, delim);
+  const src = text.replace(/^\uFEFF/, '');
+  if (!src.trim()) return { headers: [], rows: [] };
+  const firstLine = src.split(/\r?\n/, 1)[0] ?? '';
+  const delim = firstLine.includes('\t') && firstLine.split('\t').length > firstLine.split(',').length ? '\t' : ',';
+  const table = parseRecords(src, delim);
+  const headers = (table[0] ?? []).map((h) => h.trim());
+  const rows = table.slice(1).map((cells) => {
     const rec: Record<string, string> = {};
     headers.forEach((h, i) => {
-      rec[h] = cells[i] ?? '';
+      rec[h] = (cells[i] ?? '').trim();
     });
     return rec;
-  });
+  }).filter((rec) => Object.values(rec).some((value) => value.length > 0));
   return { headers, rows };
 }
 
-function splitLine(line: string, delim: string): string[] {
-  const out: string[] = [];
+/** RFC 4180: commas, quotes and newlines inside "..." stay in the same cell. */
+function parseRecords(src: string, delim: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let cur = '';
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]!;
     if (ch === '"') {
-      if (quoted && line[i + 1] === '"') {
+      if (quoted && src[i + 1] === '"') {
         cur += '"';
         i += 1;
       } else {
         quoted = !quoted;
       }
-    } else if (ch === delim && !quoted) {
-      out.push(cur.trim());
-      cur = '';
-    } else {
-      cur += ch;
+      continue;
     }
+    if (!quoted && ch === delim) {
+      row.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    if (!quoted && (ch === '\n' || ch === '\r')) {
+      if (ch === '\r' && src[i + 1] === '\n') i += 1;
+      row.push(cur.trim());
+      cur = '';
+      if (row.some((cell) => cell.length > 0)) rows.push(row);
+      row = [];
+      continue;
+    }
+    cur += ch;
   }
-  out.push(cur.trim());
-  return out;
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur.trim());
+    if (row.some((cell) => cell.length > 0)) rows.push(row);
+  }
+  return rows;
 }
 
 export function defaultMapping(headers: string[]): Record<string, string> {

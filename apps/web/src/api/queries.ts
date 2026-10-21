@@ -144,6 +144,24 @@ export const useMe = () =>
     retry: (count, err) => (err instanceof ApiError && err.status === 401 ? false : count < 2),
   });
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
+
+export function useRequestProjectAccess() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectKey: string) => {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/access-requests`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => null) as { message?: string; leadName?: string | null } | null;
+      if (!res.ok) throw new Error(json?.message ?? 'Could not send the request.');
+      return { leadName: json?.leadName ?? null };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.projects });
+    },
+  });
+}
 export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key), enabled: key.length > 0 });
 export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key), enabled: key.length > 0 });
 export const useMyTasks = () => useQuery({ queryKey: qk.myTasks, queryFn: () => api.listMyTasks() });
@@ -155,6 +173,30 @@ export const useSearch = (q: string) =>
   });
 export const useTask = (key: string | null) =>
   useQuery({ queryKey: qk.task(key ?? ''), queryFn: () => api.getTask(key!), enabled: !!key });
+
+export type ImportProgress = {
+  id: string;
+  fileName: string;
+  projectKey: string;
+  rowsTotal: number;
+  rowsDone: number;
+  status: string;
+  errors?: unknown;
+};
+
+export function useImportProgress(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['import', id] as const,
+    enabled: Boolean(id) && enabled,
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+    queryFn: async (): Promise<ImportProgress> => {
+      const res = await fetch(`${BASE_URL}/imports/${id}`, { credentials: 'include' });
+      const body = await res.json() as ImportProgress & { message?: string };
+      if (!res.ok) throw new Error(body.message ?? 'Could not load import progress.');
+      return body;
+    },
+  });
+}
 
 export const useProjectTrash = (projectKey: string) =>
   useQuery({

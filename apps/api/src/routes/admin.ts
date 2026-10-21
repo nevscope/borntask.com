@@ -322,6 +322,36 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/people/:userId/revoke', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const userId = (req.params as { userId: string }).userId;
+      if (userId === auth.userId) throw forbidden('You cannot revoke your own access.');
+      const member = await auth.db.tenantMember.findFirst({ where: { userId, isActive: true } });
+      if (!member) throw notFound('That person is not in this workspace.');
+      if (member.tenantRole === 'owner') throw forbidden('Transfer ownership before revoking the owner.');
+      if (auth.workspaceRole !== 'owner' && member.tenantRole === 'admin') {
+        throw forbidden('Only the owner can revoke an admin.');
+      }
+      const person = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      await auth.db.$transaction([
+        auth.db.tenantMember.update({ where: { id: member.id }, data: { isActive: false } }),
+        auth.db.projectMember.deleteMany({ where: { userId } }),
+        auth.db.project.updateMany({ where: { leadId: userId }, data: { leadId: null } }),
+        ...(person
+          ? [auth.db.invitation.updateMany({
+            where: { email: person.email, acceptedAt: null, revokedAt: null },
+            data: { revokedAt: new Date() },
+          })]
+          : []),
+      ]);
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.get('/invites', async (req, reply) => {
     try {
       const auth = await requireAuth(req);

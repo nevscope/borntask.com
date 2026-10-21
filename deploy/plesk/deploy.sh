@@ -94,6 +94,10 @@ done
 cp -f "$DOCROOT/index.html" /var/www/vhosts/borntask.com/error_docs/not_found.html
 chown -R "$OWNER" "$DOCROOT" || true
 
+if [[ ! -f "$REPO/sites/www/dist/index.html" ]]; then
+  echo "Marketing build missing $REPO/sites/www/dist/index.html" >&2
+  exit 1
+fi
 if [[ -d "$WWW_DOCROOT" ]]; then
   WWW_OWNER=$(stat -c '%U:%G' "$WWW_DOCROOT")
   rsync -a --delete \

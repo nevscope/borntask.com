@@ -1,8 +1,8 @@
-import { Alert, Button, Select, Upload } from 'antd';
+import { Alert, Button, Progress, Select, Upload } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
-import { useProject, useProjects } from '../api/queries';
+import { useImportProgress, useProject, useProjects } from '../api/queries';
 import type { WorkflowStatus } from '../api/types';
 import { color } from '../theme/tokens';
 
@@ -41,10 +41,12 @@ type ImportState = {
   sectionValues?: { name: string; n: number }[];
   statusValues?: { name: string; n: number }[];
   status?: string;
+  rowsDone?: number;
+  errors?: unknown;
 };
 
 export function ImportScreen() {
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const [projectKey, setProjectKey] = useState(projects[0]?.key ?? '');
   const [job, setJob] = useState<ImportState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,14 @@ export function ImportScreen() {
   const project = projects.find((p) => p.key === projectKey);
   const detail = useProject(job?.projectKey ?? projectKey).data;
   const stages = detail?.workflow.statuses ?? [];
+  const progress = useImportProgress(job?.id, job?.status === 'running');
+
+  useEffect(() => {
+    const next = progress.data;
+    if (!next || !job) return;
+    if (next.status === job.status && next.rowsDone === job.rowsDone) return;
+    setJob({ ...job, status: next.status, rowsDone: next.rowsDone, errors: next.errors });
+  }, [progress.data, job]);
 
   const pickFile = (file: File) => {
     if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet')) {
@@ -278,17 +288,79 @@ export function ImportScreen() {
           <div className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
             <span style={{ flex: '1 1 300px', fontSize: 13.5 }}><strong>{job.rowsTotal} tasks</strong> into {project?.name ?? job.projectKey}</span>
             <Link to="/projects"><Button>Back</Button></Link>
-            {!showPreview && <Button type="primary" onClick={() => setShowPreview(true)}>Preview 20 rows</Button>}
-            {showPreview && (
+            {job.projectKey && (
+              <Link to={`/p/${job.projectKey}/list`}>
+                <Button>Open project</Button>
+              </Link>
+            )}
+            {!showPreview && job.status !== 'running' && job.status !== 'done' && job.status !== 'failed' && (
+              <Button type="primary" onClick={() => setShowPreview(true)}>Preview 20 rows</Button>
+            )}
+            {showPreview && job.status !== 'running' && job.status !== 'done' && (
               <Button type="primary" loading={busy} onClick={() => void saveAndRun()}>
-                {job.status === 'running' ? 'Import queued' : 'Start import'}
+                {job.status === 'failed' ? 'Retry import' : 'Start import'}
               </Button>
             )}
-            {job.status === 'running' && <span style={{ color: color.muted }}>Worker is processing the job.</span>}
           </div>
+          {(job.status === 'running' || job.status === 'done' || job.status === 'failed') && (
+            <ImportProgressCard
+              status={job.status}
+              rowsDone={job.rowsDone ?? 0}
+              rowsTotal={job.rowsTotal}
+              errors={job.errors}
+              projectKey={job.projectKey}
+              projectName={project?.name ?? job.projectKey}
+            />
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function errorList(errors: unknown): string[] {
+  if (!Array.isArray(errors)) return [];
+  return errors.filter((item): item is string => typeof item === 'string');
+}
+
+function ImportProgressCard({
+  status,
+  rowsDone,
+  rowsTotal,
+  errors,
+  projectKey,
+  projectName,
+}: {
+  status: string;
+  rowsDone: number;
+  rowsTotal: number;
+  errors: unknown;
+  projectKey: string;
+  projectName: string;
+}) {
+  const pct = rowsTotal > 0 ? Math.min(100, Math.round((rowsDone / rowsTotal) * 100)) : 0;
+  const failed = errorList(errors);
+  return (
+    <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 14 }}>
+          {status === 'done' ? 'Import finished' : status === 'failed' ? 'Import stopped' : 'Importing into the project'}
+        </strong>
+        <span style={{ fontSize: 13, color: color.muted }}>{rowsDone.toLocaleString('en-GB')} of {rowsTotal.toLocaleString('en-GB')}</span>
+      </div>
+      <Progress percent={pct} showInfo={false} strokeColor={status === 'failed' ? color.warning : color.brand} />
+      <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>
+        {status === 'running' && `Tasks appear in ${projectName} as they are written. You can open the project while this runs.`}
+        {status === 'done' && `${rowsDone.toLocaleString('en-GB')} tasks are in ${projectName}.`}
+        {status === 'failed' && 'The worker stopped. Tasks already written stay in the project. Retry to continue from Asana IDs that already exist.'}
+      </p>
+      {failed.length > 0 && (
+        <Alert type={status === 'failed' ? 'error' : 'warning'} message={failed.slice(0, 4).join(' · ')} />
+      )}
+      {projectKey && (
+        <Link to={`/p/${projectKey}/list`} style={{ fontSize: 13, color: color.brandStrong, fontWeight: 600 }}>View {projectName}</Link>
+      )}
+    </section>
   );
 }
 

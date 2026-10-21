@@ -23,7 +23,7 @@ import { InstallPrompt, usePwaInstall } from './InstallPrompt';
 export function AppShell({ children }: { children: ReactNode }) {
   const meQuery = useMe();
   const me = meQuery.data;
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const myTasks = useMyTasks().data;
   const quickAdd = useQuickAdd();
   const { pathname } = useLocation();

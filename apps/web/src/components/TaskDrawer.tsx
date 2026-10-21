@@ -28,13 +28,13 @@ import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
 import { deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
 import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
-import { persistDescription } from '../lib/descriptionHtml';
+import { isEmptyDescription, persistDescription, sanitizeDescriptionHtml, toEditorHtml } from '../lib/descriptionHtml';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
 import { AttachmentTiles, filesFromClipboard } from './AttachmentTiles';
 import { DescriptionEditor } from './DescriptionEditor';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Avatar } from './Chips';
+import { Avatar, StatusPill, TypeTag } from './Chips';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
@@ -239,7 +239,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   };
 
   guard.current = {
-    dirty: commentDraft.trim() !== '' || subtaskDraft.trim() !== '',
+    dirty: !isEmptyDescription(commentDraft) || subtaskDraft.trim() !== '',
     flush: () => {
       const next = title.trim();
       if (next && next !== task.title) save({ title: next });
@@ -335,16 +335,23 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         </div>
       )}
 
-      <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <Input
+      <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Input.TextArea
+          className="bt-task-title"
           variant="borderless"
           value={title}
           aria-label="Task title"
           maxLength={200}
+          autoSize={{ minRows: 1, maxRows: 6 }}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== task.title && save({ title: title.trim() })}
-          onPressEnter={(e) => e.currentTarget.blur()}
-          style={{ fontFamily: font.display, fontSize: 22, fontWeight: 600, letterSpacing: '-0.025em', background: color.subtle, borderRadius: radius.md, padding: '4px 8px' }}
+          onPressEnter={(e) => {
+            if (!e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          style={{ fontFamily: font.display, fontSize: 22, fontWeight: 600, letterSpacing: '-0.025em', background: color.subtle, borderRadius: radius.md, padding: '6px 8px', lineHeight: 1.25 }}
         />
 
         {task.statusId === 'idea' && !inTrash && (
@@ -364,20 +371,37 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         )}
 
         {!inTrash && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-            <StatusMenu name={status?.name ?? task.statusId} dot={null} options={options} onMove={(statusId) => flow.requestMove(task, statusId)} />
-            {!isPhone && task.statusId !== 'idea' && quick.length > 0 && <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>}
-            {!isPhone && task.statusId !== 'idea' && quick.map((o, i) => (
-              <Button key={o.status.id} type={i === 0 && !o.status.side ? 'primary' : 'default'} onClick={() => flow.requestMove(task, o.status.id)}>
-                {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
-              </Button>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
+            <StatusMenu
+              name={status?.name ?? task.statusId}
+              dot={null}
+              bare
+              trigger={<StatusPill status={status} />}
+              options={options}
+              onMove={(statusId) => flow.requestMove(task, statusId)}
+            />
+            <TypePicker value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+            {!isPhone && task.statusId !== 'idea' && quick.length > 0 && (
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>
+                {quick.map((o, i) => (
+                  <Button key={o.status.id} type={i === 0 && !o.status.side ? 'primary' : 'default'} onClick={() => flow.requestMove(task, o.status.id)}>
+                    {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
+                  </Button>
+                ))}
+              </span>
+            )}
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr)', rowGap: 4, alignItems: 'center', fontSize: 13.5 }}>
-          <FieldLabel>Type</FieldLabel>
-          <TypePicker value={task.type} onChange={(type) => save({ type })} />
+        {inTrash && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
+            <StatusPill status={status} />
+            <TypeTag type={task.type} />
+          </div>
+        )}
+
+        <div className={isPhone ? 'bt-task-fields bt-task-fields-phone' : 'bt-task-fields'}>
           <FieldLabel>Assignee</FieldLabel>
           <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} onChange={(assigneeId) => save({ assigneeId })} />
           <FieldLabel>Due</FieldLabel>
@@ -385,11 +409,13 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           <FieldLabel>Priority</FieldLabel>
           <PriorityPicker value={task.priority} onChange={(priority) => save({ priority })} />
           <FieldLabel>Section</FieldLabel>
-          <Select value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} style={{ height: 36 }} />
+          <Select value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} />
           <FieldLabel>Labels</FieldLabel>
-          <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
+          <div className={isPhone ? undefined : 'bt-field-wide'}>
+            <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
+          </div>
           <FieldLabel>Reporter</FieldLabel>
-          <span style={{ color: color.ink3 }}>{detail.users.find((u) => u.id === task.reporterId)?.name ?? 'Unknown'} · {dayjs(task.createdAt).format('D MMM')}</span>
+          <span className={isPhone ? undefined : 'bt-field-wide'} style={{ color: color.ink3, lineHeight: '32px' }}>{detail.users.find((u) => u.id === task.reporterId)?.name ?? 'Unknown'} · {dayjs(task.createdAt).format('D MMM')}</span>
         </div>
 
         <Section title="Description">
@@ -397,7 +423,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             key={editorKey}
             value={description}
             people={mentionPeople}
-            minHeight={160}
+            minHeight={88}
             onChange={(next) => {
               setDescription(next);
               persistDesc(next);
@@ -443,7 +469,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
         <DevelopmentSection task={task} />
-        <Comments task={task} detail={detail} onDraftChange={setCommentDraft} hideComposer={isPhone} />
+        <Comments task={task} detail={detail} people={mentionPeople} onDraftChange={setCommentDraft} hideComposer={isPhone} />
 
         {!inTrash && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
         <ConfirmDialog
@@ -493,7 +519,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 }
 
 function FieldLabel({ children }: { children: string }) {
-  return <span style={{ color: color.muted }}>{children}</span>;
+  return <span className="bt-field-label">{children}</span>;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -531,7 +557,7 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
   );
 }
 
-function Comments({ task, detail, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
+function Comments({ task, detail, people, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
   const me = useMe().data;
   const add = useAddComment();
   const [draft, setDraft] = useState('');
@@ -541,8 +567,9 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
     onDraftChange(value);
   };
   const send = () => {
-    if (!draft.trim()) return;
-    add.mutate({ key: task.key, body: draft.trim() }, { onSuccess: () => write('') });
+    const body = persistDescription(draft);
+    if (isEmptyDescription(body)) return;
+    add.mutate({ key: task.key, body }, { onSuccess: () => write('') });
   };
   const userOf = (id: string) => detail.users.find((u) => u.id === id);
   const activity = task.activity
@@ -561,7 +588,7 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
       </div>
       {tab === 'comments'
         ? task.comments.map((comment) => (
-            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
+            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} people={people} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
           ))
         : activity.map((item) => (
             <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
@@ -570,16 +597,20 @@ function Comments({ task, detail, onDraftChange, hideComposer = false }: { task:
           ))}
       {tab === 'comments' && !hideComposer && (
         <>
-          <Input.TextArea
+          <DescriptionEditor
             value={draft}
-            onChange={(e) => write(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); }}
-            autoSize={{ minRows: 2, maxRows: 8 }}
+            people={people}
+            compact
+            showPasteHint={false}
+            minHeight={64}
             placeholder="Write a comment. Type @ to mention someone."
+            ariaLabel="Comment"
+            onChange={write}
+            onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Ctrl</kbd> + <kbd className="bt-kbd">Enter</kbd> to send</span>
-            <Button type="primary" onClick={send} loading={add.isPending} disabled={!draft.trim()}>Comment</Button>
+            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Ctrl</kbd> + <kbd className="bt-kbd">Enter</kbd> to send. Type @ to tag someone.</span>
+            <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
           </div>
         </>
       )}
@@ -591,12 +622,14 @@ function CommentRow({
   taskKey,
   comment,
   who,
+  people,
   meId,
   workspaceRole,
 }: {
   taskKey: string;
   comment: Comment;
   who: ProjectDetail['users'][number] | undefined;
+  people: ProjectDetail['users'];
   meId: string | undefined;
   workspaceRole: WorkspaceRole | undefined;
 }) {
@@ -609,13 +642,14 @@ function CommentRow({
   const canDelete = canEdit || workspaceRole === 'owner' || workspaceRole === 'admin';
 
   const save = () => {
-    if (!editDraft.trim() || editDraft.trim() === comment.body) {
+    const body = persistDescription(editDraft);
+    if (isEmptyDescription(body) || body === persistDescription(comment.body)) {
       setEditing(false);
       setEditDraft(comment.body);
       return;
     }
     update.mutate(
-      { key: taskKey, commentId: comment.id, body: editDraft.trim() },
+      { key: taskKey, commentId: comment.id, body },
       { onSuccess: () => setEditing(false) },
     );
   };
@@ -627,22 +661,30 @@ function CommentRow({
         <strong>{who?.name}</strong> <span style={{ color: color.muted, fontSize: 12.5 }}>{dayjs(comment.createdAt).format('D MMM HH:mm')}</span>
         {editing ? (
           <>
-            <Input.TextArea
-              value={editDraft}
-              onChange={(e) => setEditDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); } }}
-              autoSize={{ minRows: 2, maxRows: 8 }}
-              aria-label="Edit comment"
-              style={{ marginTop: 6 }}
-            />
+            <div style={{ marginTop: 6 }}>
+              <DescriptionEditor
+                value={editDraft}
+                people={people}
+                compact
+                showPasteHint={false}
+                minHeight={64}
+                placeholder="Edit comment. Type @ to mention someone."
+                ariaLabel="Edit comment"
+                onChange={setEditDraft}
+                onEditorKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+                  if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); }
+                }}
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
               <Button onClick={() => { setEditing(false); setEditDraft(comment.body); }}>Cancel</Button>
-              <Button type="primary" onClick={save} loading={update.isPending} disabled={!editDraft.trim()}>Save</Button>
+              <Button type="primary" onClick={save} loading={update.isPending} disabled={isEmptyDescription(editDraft)}>Save</Button>
             </div>
           </>
         ) : (
           <>
-            <div>{comment.body}</div>
+            <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: sanitizeDescriptionHtml(toEditorHtml(comment.body)) }} />
             {(canEdit || canDelete) && (
               <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                 {canEdit && (

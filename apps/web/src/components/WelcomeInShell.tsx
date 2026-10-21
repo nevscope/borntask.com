@@ -15,7 +15,7 @@ function firstName(name: string | undefined) {
 }
 
 export function MemberEmpty() {
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const quickAdd = useQuickAdd();
   return (
     <>
@@ -61,7 +61,7 @@ export function MemberEmpty() {
 export function GuestWelcome() {
   const me = useMe().data;
   const stored = readWelcome();
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const projectKey = stored?.projectKey || projects[0]?.key || '';
   const detail = useProject(projectKey).data;
   const taskQuery = useProjectTasks(projectKey);

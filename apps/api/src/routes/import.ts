@@ -64,6 +64,17 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const job = await auth.db.importJob.findFirst({ where: { id } });
       if (!job) throw notFound();
       const project = await auth.db.project.findFirst({ where: { id: job.projectId } });
+      if (job.status === 'running' || job.status === 'done' || job.status === 'failed') {
+        return {
+          id: job.id,
+          fileName: job.fileName,
+          projectKey: project?.key ?? '',
+          rowsTotal: job.rowsTotal,
+          rowsDone: job.rowsDone,
+          status: job.status,
+          errors: job.errors,
+        };
+      }
       const { readFile } = await import('node:fs/promises');
       const text = await readFile(join(config.blobRoot, job.storageKey), 'utf8');
       const parsed = parseDelimited(text);

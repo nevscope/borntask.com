@@ -84,7 +84,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const me = useMe().data;
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const [projectKey, setProjectKey] = useState(opts.projectKey ?? projectKeyFromPath(pathname) ?? '');
   const detail = useProject(projectKey).data;
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);

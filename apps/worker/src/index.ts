@@ -35,7 +35,7 @@ async function main() {
       const data = job.data as { tenantId: string; importJobId: string; actorId: string };
       return runAsanaImport(data);
     },
-    { connection },
+    { connection, lockDuration: 2 * 60 * 60 * 1000, stalledInterval: 5 * 60 * 1000, maxStalledCount: 1 },
   );
 
   const notifyWorker = new Worker(

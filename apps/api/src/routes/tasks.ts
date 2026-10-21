@@ -19,6 +19,7 @@ import {
   storePendingUpload,
   storeTaskUpload,
 } from '../lib/attachments.js';
+import { requireOpenProject } from '../lib/projectAccess.js';
 
 const createTaskSchema = z.object({
   projectKey: z.string(),
@@ -57,8 +58,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProject(auth, key);
       const rows = await auth.db.task.findMany({
         where: { projectId: project.id, deletedAt: null, parentId: null },
         include: {
@@ -83,8 +83,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProject(auth, key);
       const rows = await auth.db.task.findMany({
         where: { projectId: project.id, deletedAt: { gte: trashCutoff() } },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },

@@ -6,7 +6,7 @@ import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectDetail, Task
 import { dueLabel, parseDuePhrase } from '../lib/dates';
 import { rolesLabel, type MoveCheck } from '../lib/workflow';
 import { color, priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
-import { Avatar, LockIcon, StatusDot } from './Chips';
+import { Avatar, LockIcon, StatusDot, TypeTag } from './Chips';
 
 type StatusOption = {
   status: WorkflowStatus;
@@ -27,9 +27,8 @@ export function TypePicker({ value, onChange, bare, trigger }: { value: TaskType
   const types = catalog.types.length
     ? catalog.types.map((item) => ({ id: item.slug, name: item.name, hint: item.slug in TYPE_HINT ? TYPE_HINT[item.slug as BuiltinTaskType] : '' }))
     : (Object.keys(typeStyle) as BuiltinTaskType[]).map((type) => ({ id: type, name: typeStyle[type].label, hint: TYPE_HINT[type] }));
-  const current = types.find((item) => item.id === value)?.name ?? (value in typeStyle ? typeStyle[value as BuiltinTaskType].label : value);
   return (
-    <Picker bare={bare} label={trigger ?? current} ariaLabel="Change type">
+    <Picker bare={bare} label={trigger ?? <TypeTag type={value} />} ariaLabel="Change type">
       {(close) => (
         <FilterList
           label="Find a type"
@@ -38,7 +37,7 @@ export function TypePicker({ value, onChange, bare, trigger }: { value: TaskType
             text: `${type.name} ${type.hint}`,
             node: (
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{type.name}</span>
+                <TypeTag type={type.id} />
                 <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{type.hint}</span>
               </span>
             ),
@@ -409,7 +408,7 @@ function Picker({
     </div>
   ) : null;
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 0, maxWidth: '100%' }}>
+    <div ref={ref} style={{ position: 'relative', minWidth: 0, maxWidth: '100%', width: bare ? undefined : '100%' }}>
       <button
         ref={btnRef}
         type="button"
@@ -435,7 +434,10 @@ function Picker({
           textAlign: 'left',
           cursor: 'pointer',
         } : {
-          minHeight: pill ? 32 : 36,
+          display: 'inline-flex',
+          alignItems: 'center',
+          width: '100%',
+          minHeight: 32,
           maxWidth: '100%',
           padding: pill ? '0 12px' : '0 10px',
           border: `1px solid ${color.border}`,
@@ -443,7 +445,7 @@ function Picker({
           background: color.surface,
           color: color.ink,
           font: 'inherit',
-          fontSize: 13.5,
+          fontSize: 13,
           textAlign: 'left',
           cursor: 'pointer',
         }}

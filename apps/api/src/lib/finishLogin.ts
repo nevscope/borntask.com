@@ -51,10 +51,15 @@ export async function finishLogin(
     });
     const match = open.find((w) => Array.isArray(w.allowedDomains) && w.allowedDomains.some((d) => typeof d === 'string' && normaliseDomain(d) === domain));
     if (match && domain) {
-      await prisma.tenantMember.create({
-        data: { tenantId: match.id, userId: user.id, tenantRole: 'member' },
+      const existing = await prisma.tenantMember.findUnique({
+        where: { tenantId_userId: { tenantId: match.id, userId: user.id } },
       });
-      tenantId = match.id;
+      if (!existing) {
+        await prisma.tenantMember.create({
+          data: { tenantId: match.id, userId: user.id, tenantRole: 'member' },
+        });
+        tenantId = match.id;
+      }
     }
   }
 

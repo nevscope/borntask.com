@@ -7,6 +7,7 @@ import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
+import { canDiscoverWorkspaceProjects, canOpenListed, openProjectIds, requireOpenProject } from '../lib/projectAccess.js';
 
 const colourSchema = z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C');
 
@@ -31,13 +32,7 @@ const createProjectSchema = z.object({
 });
 
 async function visibleProject(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key } });
-  if (!project) throw notFound('Project not found.');
-  if (auth.workspaceRole === 'guest') {
-    const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
-    if (!on) throw forbidden("You're not on this project.");
-  }
-  return project;
+  return requireOpenProject(auth, key);
 }
 
 async function assertCanEditProject(auth: Authed, project: { id: string; leadId: string | null }) {
@@ -54,22 +49,27 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.get('/projects', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const membership = await auth.db.tenantMember.findFirst({
-        where: { userId: auth.userId },
-      });
       const archived = String((req.query as { archived?: string }).archived ?? '') === 'true';
-      const guest = membership?.tenantRole === 'guest';
-      const mine = guest
-        ? await auth.db.projectMember.findMany({ where: { userId: auth.userId }, select: { projectId: true } })
-        : null;
+      const openIds = await openProjectIds(auth);
+      const discover = canDiscoverWorkspaceProjects(auth.workspaceRole);
       const projects = await auth.db.project.findMany({
         where: {
           archivedAt: archived ? { not: null } : null,
-          ...(mine ? { id: { in: mine.map((m) => m.projectId) } } : {}),
+          ...(!discover && openIds ? { id: { in: [...openIds] } } : {}),
         },
         orderBy: { name: 'asc' },
       });
-      return mapProjectCards(auth.db, auth.userId, projects);
+      const pending = await auth.db.accessRequest.findMany({
+        where: { requesterId: auth.userId, resolvedAt: null, projectId: { in: projects.map((p) => p.id) } },
+        select: { projectId: true },
+      });
+      const requested = new Set(pending.map((r) => r.projectId));
+      const cards = await mapProjectCards(auth.db, auth.userId, projects);
+      return cards.map((card) => ({
+        ...card,
+        canOpen: canOpenListed(openIds, card.id),
+        accessRequested: requested.has(card.id),
+      }));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -79,12 +79,9 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
+      await requireOpenProject(auth, key);
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
-      if (auth.workspaceRole === 'guest') {
-        const on = detail.members.some((m) => m.userId === auth.userId);
-        if (!on) throw forbidden("You're not on this project.");
-      }
       return detail;
     } catch (err) {
       return sendError(reply, err);

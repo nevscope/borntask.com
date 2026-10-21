@@ -16,6 +16,8 @@ interface Props {
   people?: User[];
   placeholder?: string;
   minHeight?: number;
+  compact?: boolean;
+  showPasteHint?: boolean;
   ariaLabel?: string;
   onEditorKeyDown?: (event: KeyboardEvent) => void;
 }
@@ -28,6 +30,8 @@ export function DescriptionEditor({
   people = [],
   placeholder = 'Add details.',
   minHeight = 140,
+  compact = false,
+  showPasteHint = true,
   ariaLabel = 'Description',
   onEditorKeyDown,
 }: Props) {
@@ -65,7 +69,7 @@ export function DescriptionEditor({
     editorProps: {
       attributes: {
         'aria-label': ariaLabel,
-        class: 'bt-desc-surface',
+        class: compact ? 'bt-desc-surface bt-desc-compact' : 'bt-desc-surface',
       },
     },
     onUpdate: ({ editor: next }) => {
@@ -99,13 +103,14 @@ export function DescriptionEditor({
     if (!mentionOpen) return;
     const close = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (target && !document.getElementById('bt-mention-picker')?.contains(target) && !(target as HTMLElement).closest?.('[aria-label="Mention someone"]')) {
+      const pickerId = `bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`;
+      if (target && !document.getElementById(pickerId)?.contains(target) && !(target as HTMLElement).closest?.('[aria-label="Mention someone"]')) {
         setMentionOpen(false);
       }
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
-  }, [mentionOpen]);
+  }, [mentionOpen, ariaLabel]);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -114,6 +119,8 @@ export function DescriptionEditor({
         focused={focused}
         mentionOpen={mentionOpen}
         people={people}
+        showPasteHint={showPasteHint}
+        pickerId={`bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`}
         onMention={() => {
           if (!editor) return;
           editor.chain().focus().run();
@@ -130,7 +137,7 @@ export function DescriptionEditor({
         style={{
           marginTop: -1,
           minHeight,
-          padding: '10px 14px',
+          padding: compact ? '8px 12px' : '10px 14px',
           border: `1px solid ${focused ? color.brand : color.border}`,
           borderRadius: '0 0 10px 10px',
           boxShadow: focused ? `0 0 0 3px ${color.brandTint}` : 'none',
@@ -151,6 +158,8 @@ function Toolbar({
   focused,
   mentionOpen,
   people,
+  showPasteHint,
+  pickerId,
   onMention,
   onPickMention,
 }: {
@@ -158,6 +167,8 @@ function Toolbar({
   focused: boolean;
   mentionOpen: boolean;
   people: User[];
+  showPasteHint: boolean;
+  pickerId: string;
   onMention: () => void;
   onPickMention: (person: User) => void;
 }) {
@@ -234,10 +245,10 @@ function Toolbar({
       {tool('Link', !!editor?.isActive('link'), setLink, { fontSize: 12 })}
       {tool('Mention someone', mentionOpen, onMention)}
       <span style={{ flex: 1 }} />
-      <span style={{ padding: '0 6px', fontSize: 12, color: color.muted }}>Paste images straight in</span>
+      {showPasteHint && <span style={{ padding: '0 6px', fontSize: 12, color: color.muted }}>Paste images straight in</span>}
       {mentionOpen && (
         <div
-          id="bt-mention-picker"
+          id={pickerId}
           role="listbox"
           aria-label="People"
           style={{

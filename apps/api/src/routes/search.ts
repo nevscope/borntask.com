@@ -4,6 +4,7 @@ import { sendError } from '../errors.js';
 import { parseTaskKey, taskKey } from '../lib/loadProject.js';
 import { stripTags } from '../lib/descriptionHtml.js';
 import { remapTypeSlug, statusTone } from '../lib/mappers.js';
+import { canOpenListed, openProjectIds } from '../lib/projectAccess.js';
 
 function snippetAround(text: string, q: string, radius = 42): string {
   const hay = stripTags(text).replace(/\s+/g, ' ').trim();
@@ -89,10 +90,11 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         return { matchField: 'title', matchSnippet: row.title, commentAuthor: null };
       };
 
+      const openIds = await openProjectIds(auth);
       const key = parseTaskKey(q.toUpperCase());
       if (key) {
         const project = await auth.db.project.findFirst({ where: { key: key.projectKey } });
-        if (project) {
+        if (project && canOpenListed(openIds, project.id)) {
           const row = await auth.db.task.findFirst({
             where: { projectId: project.id, number: key.number, deletedAt: null },
             include: taskInclude,
@@ -105,6 +107,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         where: {
           deletedAt: null,
           parentId: null,
+          ...(openIds ? { projectId: { in: [...openIds] } } : {}),
           OR: [
             { title: { contains: q } },
             { description: { contains: q } },

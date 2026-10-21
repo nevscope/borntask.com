@@ -1,12 +1,12 @@
 import { Button, Empty, Segmented } from 'antd';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { USE_PROJECT_MOCKS, useProjects } from '../api/queries';
+import { USE_PROJECT_MOCKS, useProjects, useRequestProjectAccess } from '../api/queries';
 import type { Project, StatusCounts } from '../api/types';
 import { ProjectStar } from '../components/ProjectStar';
-import { categoryBar, color, font, projectTint } from '../theme/tokens';
+import { categoryBar, color, font, projectTint, radius } from '../theme/tokens';
 
 export function ProjectsScreen() {
   const [tab, setTab] = useState<'active' | 'archived'>('active');
@@ -20,6 +20,7 @@ export function ProjectsScreen() {
       return (await res.json()) as Project[];
     },
   });
+  const requestAccess = useRequestProjectAccess();
   const rows = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
 
   return (
@@ -44,24 +45,7 @@ export function ProjectsScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {rows.map((p) => (
-            <Link key={p.id} to={`/p/${p.key}/list`} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 18, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12, color: color.ink, textDecoration: 'none' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: projectTint(p.color).tint, color: projectTint(p.color).ink, fontSize: 11, fontWeight: 600, fontFamily: font.ui }}>{p.key}</span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
-                </span>
-                {(p.guestCount ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted }}>{p.guestCount} {p.guestCount === 1 ? 'guest' : 'guests'}</span>}
-                <ProjectStar projectKey={p.key} name={p.name} starred={p.starred} />
-              </span>
-              <CategoryBar counts={p.counts} />
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5, color: color.ink3 }}>
-                <span><strong>{p.counts.backlog + p.counts.active + p.counts.review}</strong> open</span>
-                <span><strong>{p.counts.review}</strong> in review</span>
-                <span><strong>{p.counts.done}</strong> deployed</span>
-                {p.updatedAt && <span style={{ marginLeft: 'auto', color: color.muted }}>{relTime(p.updatedAt)}</span>}
-              </span>
-            </Link>
+            <ProjectCard key={p.id} project={p} onRequest={() => requestAccess.mutate(p.key)} requesting={requestAccess.isPending && requestAccess.variables === p.key} />
           ))}
         </div>
       )}
@@ -73,6 +57,63 @@ export function ProjectsScreen() {
       </div>
     </div>
   );
+}
+
+function ProjectCard({ project: p, onRequest, requesting }: { project: Project; onRequest: () => void; requesting: boolean }) {
+  const locked = p.canOpen === false;
+  const body = (
+    <>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: projectTint(p.color).tint, color: projectTint(p.color).ink, fontSize: 11, fontWeight: 600, fontFamily: font.ui }}>{p.key}</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
+          <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
+        </span>
+        {!locked && (p.guestCount ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted }}>{p.guestCount} {p.guestCount === 1 ? 'guest' : 'guests'}</span>}
+        {!locked && <ProjectStar projectKey={p.key} name={p.name} starred={p.starred} />}
+      </span>
+      {locked ? (
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 12.5, color: color.ink3 }}>You need access to open this project.</span>
+          {p.accessRequested ? (
+            <span style={{ fontSize: 12.5, color: color.brandStrong, fontWeight: 600 }}>Request sent</span>
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => { event.preventDefault(); onRequest(); }}
+              disabled={requesting}
+              style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: requesting ? 'wait' : 'pointer' }}
+            >
+              Request access
+            </button>
+          )}
+        </span>
+      ) : (
+        <>
+          <CategoryBar counts={p.counts} />
+          <span style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5, color: color.ink3 }}>
+            <span><strong>{p.counts.backlog + p.counts.active + p.counts.review}</strong> open</span>
+            <span><strong>{p.counts.review}</strong> in review</span>
+            <span><strong>{p.counts.done}</strong> deployed</span>
+            {p.updatedAt && <span style={{ marginLeft: 'auto', color: color.muted }}>{relTime(p.updatedAt)}</span>}
+          </span>
+        </>
+      )}
+    </>
+  );
+  const box: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+    padding: 18,
+    background: color.surface,
+    border: `1px solid ${color.border}`,
+    borderRadius: 12,
+    color: color.ink,
+    textDecoration: 'none',
+  };
+  if (locked) return <div style={box}>{body}</div>;
+  return <Link to={`/p/${p.key}/list`} style={box}>{body}</Link>;
 }
 
 function CategoryBar({ counts }: { counts: StatusCounts }) {

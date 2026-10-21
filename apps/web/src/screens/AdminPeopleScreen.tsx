@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
+import { WorkspaceRolesAside } from '../components/WorkspaceRolesAside';
 import { color } from '../theme/tokens';
 
 const NON_OWNER_ROLES: { value: WorkspaceRole; label: string }[] = [
@@ -33,7 +34,8 @@ export function AdminPeopleScreen() {
   const canAdmin = isOwner || me?.workspaceRole === 'admin';
   const qc = useQueryClient();
   const [q, setQ] = useState('');
-  const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null);
+  const [pendingInviteRevoke, setPendingInviteRevoke] = useState<{ id: string; email: string } | null>(null);
+  const [pendingPersonRevoke, setPendingPersonRevoke] = useState<Person | null>(null);
   const [pendingTransfer, setPendingTransfer] = useState<Person | null>(null);
   const [transferConfirm, setTransferConfirm] = useState('');
   const [pendingDomain, setPendingDomain] = useState<string | null>(null);
@@ -89,6 +91,27 @@ export function AdminPeopleScreen() {
     onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not change role.' }),
   });
 
+  const revokePerson = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`${BASE_URL}/people/${encodeURIComponent(userId)}/revoke`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
+        throw new Error(json.error?.message ?? json.message ?? 'Could not revoke access');
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['people'] });
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      void qc.invalidateQueries({ queryKey: qk.projects });
+      setPendingPersonRevoke(null);
+      sent.show('Access revoked.');
+    },
+    onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not revoke access.' }),
+  });
+
   const actInvite = async (id: string, email: string, action: 'resend' | 'revoke') => {
     try {
       const res = await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}/${action}`, { method: 'POST', credentials: 'include' });
@@ -96,7 +119,7 @@ export function AdminPeopleScreen() {
       if (!res.ok) throw new Error(json.message ?? (action === 'resend' ? 'Could not resend the invitation' : 'Could not revoke the invitation'));
       void qc.invalidateQueries({ queryKey: ['invites'] });
       if (action === 'resend') sent.show(`Invitation sent to ${email}`);
-      if (action === 'revoke') setPendingRevoke(null);
+      if (action === 'revoke') setPendingInviteRevoke(null);
     } catch (err) {
       sent.show({ kind: 'error', text: 'Could not resend the invitation.' });
     }
@@ -133,6 +156,8 @@ export function AdminPeopleScreen() {
         </div>
         <InvitePeopleButton variant="primary" />
       </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 20 }}>
+      <div style={{ flex: '999 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {!canAdmin && <Alert type="warning" message="You can view people. Only an owner or admin can change workspace roles." />}
       {canAdmin && !isOwner && <Alert type="info" message="Admins can change member, guest, viewer and admin roles. Only the workspace owner can transfer ownership." />}
       <section className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
@@ -179,11 +204,11 @@ export function AdminPeopleScreen() {
           />
         </div>
         <div style={{ minWidth: 720 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr)', gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
-            <span>Person</span><span>Workspace role</span><span>Signs in with</span><span>Projects</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr) 88px', gap: 12, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
+            <span>Person</span><span>Workspace role</span><span>Signs in with</span><span>Projects</span><span />
           </div>
           {rows.map((p) => (
-            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr)', gap: 12, alignItems: 'center', minHeight: 54, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
+            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr) 88px', gap: 12, alignItems: 'center', minHeight: 54, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <Avatar user={p} size={30} />
                 <span style={{ minWidth: 0 }}>
@@ -213,6 +238,11 @@ export function AdminPeopleScreen() {
               />
               <span style={{ fontSize: 13, color: color.ink3 }}>{p.signsInWith ?? '-'}</span>
               <span style={{ fontSize: 13, color: color.ink3 }}>{p.projects ?? '-'}</span>
+              {canAdmin && p.workspaceRole !== 'owner' && p.id !== me?.user.id && (isOwner || p.workspaceRole !== 'admin') ? (
+                <Button type="link" danger onClick={() => setPendingPersonRevoke(p)}>Revoke</Button>
+              ) : (
+                <span />
+              )}
             </div>
           ))}
         </div>
@@ -233,23 +263,41 @@ export function AdminPeopleScreen() {
                 {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
               </span>
               <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
-              <Button type="link" danger onClick={() => setPendingRevoke({ id: i.id, email: i.email })}>Revoke</Button>
+              <Button type="link" danger onClick={() => setPendingInviteRevoke({ id: i.id, email: i.email })}>Revoke</Button>
             </div>
           );
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
       </section>
+      </div>
+      <div style={{ flex: '1 1 240px', maxWidth: 300, width: '100%' }}>
+        <WorkspaceRolesAside />
+      </div>
+      </div>
       <ConfirmDialog
-        open={pendingRevoke !== null}
-        title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}
+        open={pendingInviteRevoke !== null}
+        title={pendingInviteRevoke ? `Revoke the invitation for ${pendingInviteRevoke.email}?` : 'Revoke this invitation?'}
         confirmLabel="Revoke"
-        onCancel={() => setPendingRevoke(null)}
+        onCancel={() => setPendingInviteRevoke(null)}
         onConfirm={() => {
-          if (!pendingRevoke) return;
-          void actInvite(pendingRevoke.id, pendingRevoke.email, 'revoke');
+          if (!pendingInviteRevoke) return;
+          void actInvite(pendingInviteRevoke.id, pendingInviteRevoke.email, 'revoke');
         }}
       >
         The link stops working. You can invite them again later.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingPersonRevoke !== null}
+        title={pendingPersonRevoke ? `Revoke access for ${pendingPersonRevoke.name}?` : 'Revoke access?'}
+        confirmLabel="Revoke access"
+        busy={revokePerson.isPending}
+        onCancel={() => setPendingPersonRevoke(null)}
+        onConfirm={() => {
+          if (!pendingPersonRevoke) return;
+          revokePerson.mutate(pendingPersonRevoke.id);
+        }}
+      >
+        They lose this workspace and every project in it. You can invite them again later.
       </ConfirmDialog>
       <ConfirmDialog
         open={pendingTransfer !== null}

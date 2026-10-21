@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type ImportJob } from '@prisma/client';
 import { parseDelimited } from '@borntask/shared';
 import { deliverMail } from './mail.js';
 
@@ -13,9 +13,29 @@ function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
 
+function clip(value: string, max: number) {
+  return value.length <= max ? value : value.slice(0, max);
+}
+
 export async function runAsanaImport(data: { tenantId: string; importJobId: string; actorId: string }) {
   const job = await prisma.importJob.findUnique({ where: { id: data.importJobId } });
   if (!job) throw new Error('Import job not found');
+  try {
+    return await executeAsanaImport(job, data);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Import failed';
+    await prisma.importJob.update({
+      where: { id: job.id },
+      data: { status: 'failed', errors: [message] },
+    });
+    throw err;
+  }
+}
+
+async function executeAsanaImport(
+  job: ImportJob,
+  data: { tenantId: string; importJobId: string; actorId: string },
+) {
   const project = await prisma.project.findUnique({ where: { id: job.projectId } });
   if (!project) throw new Error('Project not found');
   const projectId = project.id;
@@ -93,103 +113,113 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
 
   const unknownEmails = new Set<string>();
 
-  for (const row of parsed.rows) {
-    const title = (titleCol ? row[titleCol] : '')?.trim() || 'Untitled';
-    const asanaId = idCol ? (row[idCol] ?? '').trim() : '';
-    const email = emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '';
-    if (email && email.includes('@') && !userByEmail.has(email)) unknownEmails.add(email);
+  const persistProgress = async () => {
+    await prisma.importJob.update({
+      where: { id: job.id },
+      data: { rowsDone: done, errors: errors.slice(0, 50) },
+    });
+  };
 
-    const existing = asanaId
-      ? await prisma.task.findFirst({ where: { tenantId: data.tenantId, asanaTaskId: asanaId } })
-      : null;
+  for (const [index, row] of parsed.rows.entries()) {
+    try {
+      const title = clip((titleCol ? row[titleCol] : '')?.trim() || 'Untitled', 200);
+      const asanaId = idCol ? (row[idCol] ?? '').trim() : '';
+      const email = emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '';
+      if (email && email.includes('@') && !userByEmail.has(email)) unknownEmails.add(email);
 
-    const sectionName = sectionCol ? (row[sectionCol] ?? '').trim() : '';
-    let section = sections[0]!;
-    if (sectionName) {
-      const found = sections.find((s) => s.name.toLowerCase() === sectionName.toLowerCase());
-      if (found) section = found;
-      else {
-        const created = await prisma.section.create({
+      const existing = asanaId
+        ? await prisma.task.findFirst({ where: { tenantId: data.tenantId, asanaTaskId: asanaId } })
+        : null;
+
+      const sectionName = clip(sectionCol ? (row[sectionCol] ?? '').trim() : '', 120);
+      let section = sections[0]!;
+      if (sectionName) {
+        const found = sections.find((s) => s.name.toLowerCase() === sectionName.toLowerCase());
+        if (found) section = found;
+        else {
+          const created = await prisma.section.create({
+            data: {
+              tenantId: data.tenantId,
+              projectId,
+              name: sectionName,
+              position: `a${sections.length}`,
+            },
+          });
+          sections.push(created);
+          section = created;
+        }
+      }
+
+      const statusName = statusCol ? (row[statusCol] ?? '').trim().toLowerCase() : '';
+      const status = statuses.find((s) => s.slug === statusName || s.name.toLowerCase() === statusName) ?? startStatus;
+      const typeName = typeCol ? (row[typeCol] ?? '').trim().toLowerCase() : '';
+      const type = types.find((t) => t.slug === typeName || t.name.toLowerCase() === typeName) ?? defaultType;
+      const dueDate = dueCol ? parseWhen((row[dueCol] ?? '').trim()) : null;
+      const startDate = startCol ? parseWhen((row[startCol] ?? '').trim()) : null;
+      const createdAt = createdCol ? parseWhen((row[createdCol] ?? '').trim()) : null;
+      const completedAt = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
+      const updatedAt = updatedCol ? parseWhen((row[updatedCol] ?? '').trim()) : null;
+      const tagNames = labelsCol ? parseTags(row[labelsCol] ?? '') : [];
+      const assignee = email ? userByEmail.get(email) : undefined;
+
+      const payload = {
+        title,
+        description: descCol ? row[descCol] ?? '' : '',
+        typeId: type.id,
+        statusId: status.id,
+        sectionId: section.id,
+        assigneeId: assignee?.id ?? null,
+        dueDate,
+        startDate,
+        completedAt,
+        asanaTaskId: asanaId || null,
+        ...(createdAt ? { createdAt } : {}),
+      };
+
+      let taskId = existing?.id;
+      if (existing) {
+        await prisma.task.update({ where: { id: existing.id }, data: payload });
+      } else {
+        number += 1;
+        const created = await prisma.task.create({
           data: {
             tenantId: data.tenantId,
             projectId,
-            name: sectionName,
-            position: `a${sections.length}`,
+            number,
+            reporterId: data.actorId,
+            position: `a${number}`,
+            ...payload,
+            ...(updatedAt ? { updatedAt } : {}),
           },
         });
-        sections.push(created);
-        section = created;
-      }
-    }
-
-    const statusName = statusCol ? (row[statusCol] ?? '').trim().toLowerCase() : '';
-    const status = statuses.find((s) => s.slug === statusName || s.name.toLowerCase() === statusName) ?? startStatus;
-    const typeName = typeCol ? (row[typeCol] ?? '').trim().toLowerCase() : '';
-    const type = types.find((t) => t.slug === typeName || t.name.toLowerCase() === typeName) ?? defaultType;
-    const dueDate = dueCol ? parseWhen((row[dueCol] ?? '').trim()) : null;
-    const startDate = startCol ? parseWhen((row[startCol] ?? '').trim()) : null;
-    const createdAt = createdCol ? parseWhen((row[createdCol] ?? '').trim()) : null;
-    const completedAt = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
-    const updatedAt = updatedCol ? parseWhen((row[updatedCol] ?? '').trim()) : null;
-    const tagNames = labelsCol ? parseTags(row[labelsCol] ?? '') : [];
-    const assignee = email ? userByEmail.get(email) : undefined;
-
-    const payload = {
-      title,
-      description: descCol ? row[descCol] ?? '' : '',
-      typeId: type.id,
-      statusId: status.id,
-      sectionId: section.id,
-      assigneeId: assignee?.id ?? null,
-      dueDate,
-      startDate,
-      completedAt,
-      asanaTaskId: asanaId || null,
-      ...(createdAt ? { createdAt } : {}),
-    };
-
-    let taskId = existing?.id;
-    if (existing) {
-      await prisma.task.update({ where: { id: existing.id }, data: payload });
-    } else {
-      number += 1;
-      const created = await prisma.task.create({
-        data: {
-          tenantId: data.tenantId,
-          projectId,
-          number,
-          reporterId: data.actorId,
-          position: `a${number}`,
-          ...payload,
-          ...(updatedAt ? { updatedAt } : {}),
-        },
-      });
-      taskId = created.id;
-      await prisma.activityLog.create({
-        data: {
-          tenantId: data.tenantId,
-          taskId: created.id,
-          actorId: data.actorId,
-          via: 'import',
-          action: 'imported from Asana',
-        },
-      });
-    }
-    if (taskId && asanaId) asanaToTaskId.set(asanaId, taskId);
-    if (taskId && tagNames.length > 0) {
-      for (const name of tagNames) {
-        const label = await labelFor(name);
-        await prisma.taskLabel.upsert({
-          where: { taskId_labelId: { taskId, labelId: label.id } },
-          create: { tenantId: data.tenantId, taskId, labelId: label.id },
-          update: {},
+        taskId = created.id;
+        await prisma.activityLog.create({
+          data: {
+            tenantId: data.tenantId,
+            taskId: created.id,
+            actorId: data.actorId,
+            via: 'import',
+            action: 'imported from Asana',
+          },
         });
       }
+      if (taskId && asanaId) asanaToTaskId.set(asanaId, taskId);
+      if (taskId && tagNames.length > 0) {
+        for (const name of tagNames) {
+          const label = await labelFor(clip(name, 80));
+          await prisma.taskLabel.upsert({
+            where: { taskId_labelId: { taskId, labelId: label.id } },
+            create: { tenantId: data.tenantId, taskId, labelId: label.id },
+            update: {},
+          });
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'unknown error';
+      errors.push(`Row ${index + 2}: ${message.slice(0, 180)}`);
     }
     done += 1;
-    if (done % 25 === 0) {
-      await prisma.importJob.update({ where: { id: job.id }, data: { rowsDone: done } });
-    }
+    if (done === 1 || done % 10 === 0) await persistProgress();
   }
 
   for (const row of parsed.rows) {

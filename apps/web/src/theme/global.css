@@ -87,14 +87,48 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .bt-desc-surface { outline: none; min-height: 112px; }
+.bt-desc-surface.bt-desc-compact { min-height: 52px; }
 .bt-desc-surface p { margin: 0 0 8px; }
 .bt-desc-surface p:last-child { margin-bottom: 0; }
 .bt-desc-surface ul, .bt-desc-surface ol { margin: 0 0 10px; padding-left: 20px; }
 .bt-desc-surface code { font-family: var(--bt-mono); font-size: 12.5px; background: var(--bt-chip); padding: 1px 4px; border-radius: 4px; }
 .bt-desc-surface pre { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--bt-chip); overflow: auto; }
 .bt-desc-surface pre code { background: none; padding: 0; }
-.bt-desc-surface .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
+.bt-desc-surface .bt-mention,
+.bt-comment-body .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
 .bt-desc-surface p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--bt-muted); pointer-events: none; }
+.bt-task-title.ant-input,
+.bt-task-title textarea.ant-input {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+  resize: none;
+}
+.bt-comment-body { font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.bt-comment-body p { margin: 0 0 6px; }
+.bt-comment-body p:last-child { margin-bottom: 0; }
+.bt-comment-body ul, .bt-comment-body ol { margin: 0 0 6px; padding-left: 20px; }
+
+.bt-task-fields {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+.bt-task-fields-phone {
+  grid-template-columns: 80px minmax(0, 1fr);
+}
+.bt-task-fields .bt-field-label {
+  color: var(--bt-muted);
+  line-height: 32px;
+  white-space: nowrap;
+}
+.bt-task-fields .bt-field-wide { grid-column: 2 / -1; min-width: 0; }
+.bt-task-fields .ant-select { width: 100%; }
+.bt-task-fields .ant-select-selector { min-height: 32px !important; }
 
 .bt-legal-body { font-size: 14px; line-height: 1.55; color: var(--bt-ink3); }
 .bt-legal-body p { margin: 0 0 10px; }

@@ -44,7 +44,7 @@ export function InvitePeopleButton({
   const PROJECT_ROLES = (catalog.roles.filter((r) => r.slug !== 'lead').map((r) => r.slug)).length
     ? catalog.roles.filter((r) => r.slug !== 'lead').map((r) => r.slug)
     : FALLBACK_ROLES;
-  const projects = useProjects().data ?? [];
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [emails, setEmails] = useState<string[]>([]);

@@ -83,6 +83,8 @@ export async function mapProjectCards(
       guestCount,
       updatedAt: p.updatedAt.toISOString(),
       archived: Boolean(p.archivedAt),
+      canOpen: true,
+      accessRequested: false,
     };
   });
 }
