@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient, type ImportJob } from '@prisma/client';
-import { emailFromMappedRow, formatImportError, guessImportStatusSlug, guessImportTypeSlug, parseDelimited } from '@borntask/shared';
+import { ASANA_API_COLUMNS, emailFromMappedRow, formatImportError, guessImportStatusSlug, guessImportTypeSlug, isAsanaApiMapping, parseDelimited, type AsanaImportMapping } from '@borntask/shared';
+import { fetchAsanaSheet, type AsanaStoryExtra } from './asanaClient.js';
 import { deliverMail } from './mail.js';
 
 const prisma = new PrismaClient();
@@ -17,7 +18,7 @@ function clip(value: string, max: number) {
   return value.length <= max ? value : value.slice(0, max);
 }
 
-export async function runAsanaImport(data: { tenantId: string; importJobId: string; actorId: string }) {
+export async function runAsanaImport(data: { tenantId: string; importJobId: string; actorId: string; asanaToken?: string }) {
   const job = await prisma.importJob.findUnique({ where: { id: data.importJobId } });
   if (!job) throw new Error('Import job not found');
   try {
@@ -34,17 +35,28 @@ export async function runAsanaImport(data: { tenantId: string; importJobId: stri
 
 async function executeAsanaImport(
   job: ImportJob,
-  data: { tenantId: string; importJobId: string; actorId: string },
+  data: { tenantId: string; importJobId: string; actorId: string; asanaToken?: string },
 ) {
   const project = await prisma.project.findUnique({ where: { id: job.projectId } });
   if (!project) throw new Error('Project not found');
   const projectId = project.id;
   const workflowId = project.workflowId;
 
-  const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
-  const parsed = parseDelimited(text);
   const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string };
-  const columns: Record<string, string> = stored.columns ?? {};
+  const apiMapping = isAsanaApiMapping(job.mapping as unknown) ? job.mapping as AsanaImportMapping : null;
+  let extras = new Map<string, AsanaStoryExtra>();
+  let parsed = { headers: [] as string[], rows: [] as Record<string, string>[] };
+  if (apiMapping) {
+    if (!data.asanaToken) throw new Error('Asana token missing from the job.');
+    const sheet = await fetchAsanaSheet(data.asanaToken, apiMapping.asanaProjectGid);
+    parsed = sheet;
+    extras = sheet.extras;
+    await prisma.importJob.update({ where: { id: job.id }, data: { rowsTotal: sheet.rows.length } });
+  } else {
+    const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
+    parsed = parseDelimited(text);
+  }
+  const columns: Record<string, string> = stored.columns ?? (apiMapping ? ASANA_API_COLUMNS : {});
   const sectionsAs = stored.sectionsAs === 'statuses' ? 'statuses' : 'sections';
 
   const col = (field: string) => Object.entries(columns).find(([, f]) => f === field)?.[0];
@@ -236,6 +248,15 @@ async function executeAsanaImport(
           });
         }
       }
+      if (taskId && asanaId) {
+        await writeAsanaStories({
+          tenantId: data.tenantId,
+          taskId,
+          actorId: data.actorId,
+          extra: extras.get(asanaId),
+          usersByEmail: userByEmail,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'This row could not be saved.';
       errors.push(formatImportError(`Row ${index + 2}: ${message}`));
@@ -293,4 +314,50 @@ async function executeAsanaImport(
     data: { status: 'done', rowsDone: done, errors },
   });
   return { rowsDone: done, invited: unknownEmails.size };
+}
+
+async function writeAsanaStories(input: {
+  tenantId: string;
+  taskId: string;
+  actorId: string;
+  extra?: AsanaStoryExtra;
+  usersByEmail: Map<string, { id: string }>;
+}) {
+  if (!input.extra) return;
+  const existing = await prisma.comment.findMany({
+    where: { taskId: input.taskId, deletedAt: null },
+    select: { body: true },
+  });
+  const have = new Set(existing.map((row) => row.body));
+  for (const comment of input.extra.comments) {
+    const body = comment.name && comment.name !== 'Asana'
+      ? `${comment.name}: ${comment.body}`
+      : comment.body;
+    if (have.has(body)) continue;
+    have.add(body);
+    const authorId = (comment.email && input.usersByEmail.get(comment.email)?.id) || input.actorId;
+    await prisma.comment.create({
+      data: {
+        tenantId: input.tenantId,
+        taskId: input.taskId,
+        authorId,
+        body,
+        createdAt: comment.at ? new Date(comment.at) : undefined,
+      },
+    });
+  }
+  const existingActs = await prisma.activityLog.count({ where: { taskId: input.taskId, via: 'import' } });
+  if (existingActs > 1) return;
+  for (const event of input.extra.events) {
+    await prisma.activityLog.create({
+      data: {
+        tenantId: input.tenantId,
+        taskId: input.taskId,
+        actorId: input.actorId,
+        via: 'import',
+        action: event.text.slice(0, 180),
+        at: event.at ? new Date(event.at) : undefined,
+      },
+    });
+  }
 }

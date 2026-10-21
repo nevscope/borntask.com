@@ -1,4 +1,4 @@
-import { Alert, Button, Progress, Select, Upload } from 'antd';
+import { Alert, Button, Input, Progress, Select, Upload } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatImportError, guessImportStatusSlug } from '@borntask/shared';
@@ -54,6 +54,8 @@ export function ImportScreen() {
   const [busy, setBusy] = useState(false);
   const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('statuses');
   const [showPreview, setShowPreview] = useState(false);
+  const [asanaProject, setAsanaProject] = useState('');
+  const [asanaToken, setAsanaToken] = useState('');
 
   const step = !job ? 0 : job.status === 'running' ? 3 : showPreview ? 2 : 1;
   const destKey = job?.projectKey || projectKey;
@@ -124,6 +126,39 @@ export function ImportScreen() {
     }
   };
 
+  const startAsana = async () => {
+    if (!projectKey) {
+      setError('Choose a project first.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/imports/asana`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectKey,
+          asanaProject,
+          token: asanaToken,
+          sectionsAs,
+        }),
+      });
+      const json = await res.json() as ImportState & { message?: string };
+      if (!res.ok) throw new Error(json.message ?? 'Could not start the Asana migration.');
+      setAsanaToken('');
+      setJob(json);
+      setProjectKey(json.projectKey);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the Asana migration.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const apiJob = Boolean(job && (job.headers.length === 0 || job.fileName.startsWith('Asana')));
+
   return (
     <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
@@ -162,22 +197,57 @@ export function ImportScreen() {
       </ol>
       {error && <Alert type="error" message={error} />}
       {!job && (
-        <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-          <Select
-            style={{ minWidth: 280 }}
-            placeholder="Choose a project"
-            value={projectKey || null}
-            allowClear
-            onChange={(key) => setProjectKey(key ?? '')}
-            options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
-          />
-          <Upload accept=".csv,.tsv,.txt" showUploadList={false} disabled={!projectKey} beforeUpload={pickFile}>
-            <Button type="primary" disabled={!projectKey}>Choose CSV</Button>
-          </Upload>
-          <span style={{ fontSize: 13, color: color.muted }}>Asana exports as CSV. Save an XLSX export as CSV first.</span>
-        </section>
+        <>
+          <section className="bt-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <h2 style={{ margin: 0, fontSize: 15 }}>Asana account</h2>
+            <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
+              Pulls tasks, descriptions, subtasks, comments and Asana activity. Create a personal access token in Asana under Settings, Apps, then Developer tools. The token is used for this job only and is not stored.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+              <Select
+                style={{ minWidth: 280 }}
+                placeholder="Choose a BornTask project"
+                value={projectKey || null}
+                allowClear
+                onChange={(key) => setProjectKey(key ?? '')}
+                options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+              />
+              <Input
+                style={{ minWidth: 320, flex: 1 }}
+                placeholder="Asana project URL or ID"
+                value={asanaProject}
+                onChange={(e) => setAsanaProject(e.target.value)}
+              />
+            </div>
+            <Input.Password
+              placeholder="Asana personal access token"
+              value={asanaToken}
+              onChange={(e) => setAsanaToken(e.target.value)}
+              autoComplete="off"
+            />
+            <div>
+              <Button type="primary" loading={busy} disabled={!projectKey || !asanaProject.trim() || asanaToken.trim().length < 8} onClick={() => void startAsana()}>
+                Start Asana migration
+              </Button>
+            </div>
+          </section>
+          <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: color.muted, width: '100%' }}>Or upload an Asana CSV. Comments and activity are not in that file.</span>
+            <Select
+              style={{ minWidth: 280 }}
+              placeholder="Choose a project"
+              value={projectKey || null}
+              allowClear
+              onChange={(key) => setProjectKey(key ?? '')}
+              options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+            />
+            <Upload accept=".csv,.tsv,.txt" showUploadList={false} disabled={!projectKey} beforeUpload={pickFile}>
+              <Button disabled={!projectKey}>Choose CSV</Button>
+            </Upload>
+          </section>
+        </>
       )}
-      {job && (
+      {job && !apiJob && (
         <>
           <section className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
             <span style={{ width: 36, height: 36, borderRadius: 8, display: 'grid', placeItems: 'center', background: color.brandTint, color: color.brandStrong, fontSize: 11, fontWeight: 600 }}>{job.fileName.toLowerCase().endsWith('.xlsx') ? 'XLSX' : 'CSV'}</span>
@@ -334,6 +404,16 @@ export function ImportScreen() {
           )}
         </>
       )}
+      {job && apiJob && (
+        <ImportProgressCard
+          status={job.status ?? 'running'}
+          rowsDone={job.rowsDone ?? 0}
+          rowsTotal={job.rowsTotal}
+          errors={job.errors}
+          projectKey={job.projectKey}
+          projectName={project?.name ?? job.projectKey}
+        />
+      )}
     </div>
   );
 }
@@ -376,7 +456,9 @@ function ImportProgressCard({
       </div>
       <Progress percent={pct} showInfo={false} strokeColor={status === 'failed' ? color.warning : color.brand} />
       <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>
-        {status === 'running' && `Tasks appear in ${projectName} as they are written. You can open the project while this runs.`}
+        {status === 'running' && (rowsTotal === 0
+          ? `Reading the Asana project. Comments and activity are fetched per task, so this can take a while.`
+          : `Tasks appear in ${projectName} as they are written. You can open the project while this runs.`)}
         {status === 'done' && doneCopy(rowsDone, failed.length, projectName)}
         {status === 'failed' && 'The worker stopped. Tasks already written stay in the project. Retry to continue from Asana IDs that already exist.'}
       </p>

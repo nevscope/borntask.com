@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { defaultMapping, parseDelimited } from '@borntask/shared';
+import { ASANA_API_COLUMNS, defaultMapping, isAsanaApiMapping, parseAsanaProjectGid, parseDelimited } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth, type Authed } from '../context.js';
 import { config } from '../env.js';
@@ -65,7 +65,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const job = await auth.db.importJob.findFirst({ where: { id } });
       if (!job) throw notFound();
       const project = await auth.db.project.findFirst({ where: { id: job.projectId } });
-      if (job.status === 'running' || job.status === 'done' || job.status === 'failed') {
+      if (isAsanaApiMapping(job.mapping as unknown) || job.status === 'running' || job.status === 'done' || job.status === 'failed') {
         return {
           id: job.id,
           fileName: job.fileName,
@@ -142,7 +142,78 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, err);
     }
   });
+
+  app.post('/imports/asana', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      if (auth.workspaceRole === 'guest' || auth.workspaceRole === 'viewer') {
+        throw forbidden('Guests and viewers cannot import.');
+      }
+      const body = z.object({
+        projectKey: z.string().min(1),
+        asanaProject: z.string().min(1),
+        token: z.string().min(8),
+        sectionsAs: z.enum(['sections', 'statuses']).optional(),
+      }).parse(req.body);
+      const dest = await auth.db.project.findFirst({ where: { key: body.projectKey } });
+      if (!dest) throw notFound('Choose a project to import into.');
+      const gid = parseAsanaProjectGid(body.asanaProject);
+      if (!gid) throw validation('Paste an Asana project URL or project ID.');
+      const peeked = await peekAsanaProject(body.token.trim(), gid);
+      const job = await auth.db.importJob.create({
+        data: {
+          tenantId: auth.tenantId,
+          projectId: dest.id,
+          fileName: `Asana · ${peeked.name}`,
+          storageKey: '',
+          status: 'running',
+          rowsDone: 0,
+          rowsTotal: 0,
+          mapping: {
+            source: 'asana_api',
+            asanaProjectGid: gid,
+            sectionsAs: body.sectionsAs ?? 'statuses',
+            columns: ASANA_API_COLUMNS,
+          },
+          createdById: auth.userId,
+        },
+      });
+      await getImportQueue().add(JOB.asanaImport, {
+        tenantId: auth.tenantId,
+        importJobId: job.id,
+        actorId: auth.userId,
+        asanaToken: body.token.trim(),
+      });
+      return {
+        id: job.id,
+        fileName: job.fileName,
+        projectKey: dest.key,
+        rowsTotal: 0,
+        rowsDone: 0,
+        status: 'running',
+        headers: [],
+        mapping: ASANA_API_COLUMNS,
+        preview: [],
+        unknownEmails: [],
+      };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
 };
+
+async function peekAsanaProject(token: string, gid: string): Promise<{ name: string }> {
+  const res = await fetch(`https://app.asana.com/api/1.0/projects/${gid}?opt_fields=name`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+  });
+  if (res.status === 401 || res.status === 403) {
+    throw validation('Asana rejected that token. Create a personal access token and try again.');
+  }
+  if (res.status === 404) throw validation('That Asana project was not found for this token.');
+  if (!res.ok) throw validation(`Asana returned ${res.status}. Check the project URL and token.`);
+  const json = await res.json() as { data?: { name?: string } };
+  return { name: json.data?.name ?? `Project ${gid}` };
+}
 
 function flattenMapping(raw: unknown, headers: string[]): Record<string, string> {
   if (raw && typeof raw === 'object' && 'columns' in raw) {

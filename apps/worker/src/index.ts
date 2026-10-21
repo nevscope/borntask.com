@@ -32,7 +32,7 @@ async function main() {
     QUEUE.import,
     async (job) => {
       if (job.name !== JOB.asanaImport) return { ok: true, stub: true };
-      const data = job.data as { tenantId: string; importJobId: string; actorId: string };
+      const data = job.data as { tenantId: string; importJobId: string; actorId: string; asanaToken?: string };
       return runAsanaImport(data);
     },
     { connection, lockDuration: 2 * 60 * 60 * 1000, stalledInterval: 5 * 60 * 1000, maxStalledCount: 1 },
