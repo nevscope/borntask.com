@@ -63,7 +63,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
             workflowId: workflow.id,
           },
         });
-        await db.section.create({ data: { tenantId: workspace.id, projectId: project.id, name: 'Inbox', position: 'a0' } });
+        await db.section.create({ data: { tenantId: workspace.id, projectId: project.id, name: 'Inbox', position: 'a0000' } });
         const member = await db.projectMember.create({ data: { tenantId: workspace.id, projectId: project.id, userId: user.id } });
         if (defaults.roleIds.lead) {
           await db.projectMemberRole.create({

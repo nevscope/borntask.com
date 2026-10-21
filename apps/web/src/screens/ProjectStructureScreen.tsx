@@ -66,24 +66,26 @@ export function ProjectStructureScreen() {
     refresh();
   };
 
+  const saveOrder = async (ids: string[]) => {
+    await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/reorder`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    refresh();
+  };
+
   const moveSection = async (id: string, dir: -1 | 1) => {
     const list = [...(detail.data?.sections ?? [])].sort((a, b) => a.position - b.position);
     const i = list.findIndex((s) => s.id === id);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= list.length) return;
-    const a = list[i]!;
-    const b = list[j]!;
-    await Promise.all([
-      fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/${encodeURIComponent(a.id)}`, {
-        method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: `a${j}` }),
-      }),
-      fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/${encodeURIComponent(b.id)}`, {
-        method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: `a${i}` }),
-      }),
-    ]);
-    refresh();
+    const next = [...list];
+    const [item] = next.splice(i, 1);
+    if (!item) return;
+    next.splice(j, 0, item);
+    await saveOrder(next.map((s) => s.id));
   };
 
   const confirmDelete = async () => {
@@ -113,12 +115,7 @@ export function ProjectStructureScreen() {
     const [item] = next.splice(fromIndex, 1);
     if (!item) return;
     next.splice(toIndex, 0, item);
-    void Promise.all(next.map((section, index) => fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/${encodeURIComponent(section.id)}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ position: `a${index}` }),
-    }))).then(refresh);
+    void saveOrder(next.map((section) => section.id));
   };
   for (const t of tasks.data ?? []) counts.set(t.sectionId, (counts.get(t.sectionId) ?? 0) + 1);
 

@@ -1,6 +1,6 @@
 import { prisma } from '../db.js';
 import type { TenantClient } from '../tenantPrisma.js';
-import { mapStatus, mapUser, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
+import { comparePosition, mapStatus, mapUser, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
 
 const EMPTY_COUNTS = { backlog: 0, active: 0, review: 0, done: 0 };
 
@@ -193,7 +193,7 @@ export function mapTask(row: {
 export async function loadProjectDetail(db: TenantClient, key: string, userId: string) {
   const project = await db.project.findFirst({
     where: { key },
-    include: { sections: { orderBy: { position: 'asc' } }, members: { include: { roles: { include: { role: true } } } } },
+    include: { sections: true, members: { include: { roles: { include: { role: true } } } } },
   });
   if (!project) return null;
   const workflow = await loadWorkflow(db, project.workflowId);
@@ -206,7 +206,9 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
   const wsRole = new Map(tenantMembers.map((m) => [m.userId, m.tenantRole]));
   return {
     project: card!,
-    sections: project.sections.map((s, i) => ({
+    sections: [...project.sections]
+      .sort((a, b) => comparePosition(a.position, b.position))
+      .map((s, i) => ({
       id: s.id,
       projectKey: project.key,
       name: s.name,

@@ -86,7 +86,7 @@ async function executeAsanaImport(
   let sections = await prisma.section.findMany({ where: { projectId }, orderBy: { position: 'asc' } });
   if (sections.length === 0) {
     const inbox = await prisma.section.create({
-      data: { tenantId: data.tenantId, projectId, name: 'Inbox', position: 'a0' },
+      data: { tenantId: data.tenantId, projectId, name: 'Inbox', position: 'a0000' },
     });
     sections = [inbox];
   }
@@ -149,7 +149,7 @@ async function executeAsanaImport(
               tenantId: data.tenantId,
               projectId,
               name: sectionName,
-              position: `a${sections.length}`,
+              position: `a${String(sections.length).padStart(4, '0')}`,
             },
           });
           sections.push(created);

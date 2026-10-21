@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { requireAuth, type Authed } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.js';
+import { rankKey } from '../lib/mappers.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
@@ -150,7 +151,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const names = input.sections?.length ? input.sections : ['Inbox'];
       for (let i = 0; i < names.length; i++) {
         await auth.db.section.create({
-          data: { tenantId: auth.tenantId, projectId: project.id, name: names[i]!, position: `a${i}` },
+          data: { tenantId: auth.tenantId, projectId: project.id, name: names[i]!, position: rankKey(i) },
         });
       }
       const member = await auth.db.projectMember.create({
@@ -198,7 +199,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       if (!project) throw notFound();
       const count = await auth.db.section.count({ where: { projectId: project.id } });
       const section = await auth.db.section.create({
-        data: { tenantId: auth.tenantId, projectId: project.id, name: body.name, position: `a${count}` },
+        data: { tenantId: auth.tenantId, projectId: project.id, name: body.name, position: rankKey(count) },
       });
       return { id: section.id, projectKey: key, name: section.name, position: count };
     } catch (err) {
@@ -222,6 +223,27 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         },
       });
       return { id: section.id, name: section.name };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/sections/reorder', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const body = z.object({ ids: z.array(z.string()).min(1) }).parse(req.body);
+      const project = await auth.db.project.findFirst({ where: { key } });
+      if (!project) throw notFound();
+      const existing = await auth.db.section.findMany({ where: { projectId: project.id } });
+      const known = new Set(existing.map((s) => s.id));
+      if (body.ids.length !== existing.length || body.ids.some((id) => !known.has(id))) {
+        throw validation('Section list is out of date. Refresh and try again.');
+      }
+      await auth.db.$transaction(
+        body.ids.map((id, index) => auth.db.section.update({ where: { id }, data: { position: rankKey(index) } })),
+      );
+      return { ok: true };
     } catch (err) {
       return sendError(reply, err);
     }

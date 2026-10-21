@@ -47,6 +47,15 @@ export function nextPosition(after: string | null): string {
   return `${after}z`;
 }
 
+/** Zero-padded rank so MySQL string order matches display order (`a0002` before `a0010`). */
+export function rankKey(index: number): string {
+  return `a${String(index).padStart(4, '0')}`;
+}
+
+export function comparePosition(a: string, b: string): number {
+  return a.localeCompare(b, 'en', { numeric: true });
+}
+
 export function remapRoleSlug(slug: string): string {
   if (slug === 'lead' || slug === 'business' || slug === 'developer' || slug === 'tester' || slug === 'observer') {
     return slug;
