@@ -128,7 +128,10 @@ async function executeAsanaImport(
       if (email && email.includes('@') && !userByEmail.has(email)) unknownEmails.add(email);
 
       const existing = asanaId
-        ? await prisma.task.findFirst({ where: { tenantId: data.tenantId, asanaTaskId: asanaId } })
+        ? await prisma.task.findFirst({
+          where: { tenantId: data.tenantId, asanaTaskId: asanaId },
+          orderBy: { deletedAt: 'asc' },
+        })
         : null;
 
       const sectionName = clip(sectionCol ? (row[sectionCol] ?? '').trim() : '', 120);
@@ -178,7 +181,18 @@ async function executeAsanaImport(
 
       let taskId = existing?.id;
       if (existing) {
-        await prisma.task.update({ where: { id: existing.id }, data: payload });
+        const move = existing.projectId !== projectId || existing.deletedAt;
+        if (move) number += 1;
+        await prisma.task.update({
+          where: { id: existing.id },
+          data: {
+            ...payload,
+            projectId,
+            deletedAt: null,
+            deletedById: null,
+            ...(move ? { number, position: `a${number}` } : {}),
+          },
+        });
       } else {
         number += 1;
         const created = await prisma.task.create({
