@@ -1,34 +1,37 @@
+import { suggestProjectKey, normaliseProjectKey } from '@borntask/shared';
 import { Button, Input, Select } from 'antd';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe } from '../api/queries';
+import { qk, useMe, useProjects } from '../api/queries';
 import type { ProjectRole, User, WorkspaceRole } from '../api/types';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { RoleTag } from '../components/Chips';
+import { EmailSuggestField } from '../components/InvitePeople';
 import { ProjectColourField } from '../components/ProjectColourField';
 import { color, font, parseProjectHex, projectSwatches, radius } from '../theme/tokens';
 import { ProjectsScreen } from './ProjectsScreen';
 
 type Person = User & { workspaceRole: WorkspaceRole };
 
-function keyFromName(name: string) {
-  const letters = name.replace(/[^A-Za-z]/g, '').toUpperCase();
-  return letters.slice(0, 3);
+function randomProjectColour(): string {
+  const pick = projectSwatches[Math.floor(Math.random() * projectSwatches.length)];
+  return pick?.hex ?? projectSwatches[0]!.hex;
 }
 
 export function CreateProjectScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const me = useMe().data;
+  const takenKeys = (useProjects().data ?? []).map((project) => project.key);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [key, setKey] = useState('');
   const [keyTouched, setKeyTouched] = useState(false);
-  const [colour, setColour] = useState<string>(projectSwatches[1]!.hex);
-  const [hexDraft, setHexDraft] = useState<string>(projectSwatches[1]!.hex);
+  const [colour, setColour] = useState<string>(() => randomProjectColour());
+  const [hexDraft, setHexDraft] = useState(colour);
   const [workflow, setWorkflow] = useState<'delivery' | 'simple'>('delivery');
   const [sections, setSections] = useState<string[]>(['Inbox']);
   const [sectionDraft, setSectionDraft] = useState('');
@@ -56,7 +59,10 @@ export function CreateProjectScreen() {
     },
   });
 
-  const derivedKey = keyTouched ? key : keyFromName(name);
+  const typedKey = normaliseProjectKey(key);
+  const derivedKey = keyTouched && typedKey.length === 3
+    ? typedKey
+    : suggestProjectKey(name || typedKey, takenKeys);
   const others = useMemo(
     () => (people.data ?? []).filter((p) => p.id !== me?.user.id),
     [people.data, me?.user.id],
@@ -75,6 +81,10 @@ export function CreateProjectScreen() {
   const submit = async () => {
     if (!name.trim()) {
       setError('Give the project a name.');
+      return;
+    }
+    if (derivedKey.length !== 3) {
+      setError('The key must be exactly 3 letters.');
       return;
     }
     setBusy(true);
@@ -186,11 +196,12 @@ export function CreateProjectScreen() {
               Key
               <Input
                 value={derivedKey}
-                maxLength={6}
-                onChange={(e) => { setKeyTouched(true); setKey(e.target.value.toUpperCase()); }}
+                maxLength={3}
+                onChange={(e) => { setKeyTouched(true); setKey(normaliseProjectKey(e.target.value)); }}
                 placeholder="HLP"
                 style={{ height: 40, letterSpacing: '0.04em' }}
               />
+              <span style={{ fontWeight: 400, color: color.muted }}>3 letters</span>
             </label>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
@@ -282,29 +293,25 @@ export function CreateProjectScreen() {
                   options={others.filter((p) => !picked.some((m) => m.userId === p.id)).map((p) => ({ value: p.id, label: `${p.name} (${p.email})` }))}
                   onChange={(userId) => setPicked([...picked, { userId, roles: ['developer'] }])}
                 />
-                <Input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Or invite by email"
-                  style={{ flex: '1 1 200px', height: 36 }}
-                />
+                <div style={{ flex: '1 1 260px', minWidth: 220 }}>
+                  <EmailSuggestField
+                    emails={pendingInvites.map((row) => row.email)}
+                    draft={inviteEmail}
+                    people={others}
+                    placeholder="Invite by email"
+                    ownDomain={me?.user.email ? me.user.email.slice(me.user.email.lastIndexOf('@') + 1).toLowerCase() : undefined}
+                    onDraft={setInviteEmail}
+                    onEmails={(next) => {
+                      setPendingInvites(next.map((email) => pendingInvites.find((row) => row.email === email) ?? { email, role: inviteRole }));
+                    }}
+                  />
+                </div>
                 <Select
                   value={inviteRole}
                   onChange={setInviteRole}
                   style={{ width: 130 }}
                   options={roleChoices.map((r) => ({ value: r.slug as ProjectRole, label: r.name }))}
                 />
-                <Button
-                  onClick={() => {
-                    const email = inviteEmail.trim();
-                    if (!email || pendingInvites.some((row) => row.email.toLowerCase() === email.toLowerCase())) return;
-                    setPendingInvites([...pendingInvites, { email, role: inviteRole }]);
-                    setInviteEmail('');
-                  }}
-                >
-                  Invite
-                </Button>
                 {pendingInvites.map((row) => (
                   <span key={row.email} style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     {row.email}
@@ -320,7 +327,7 @@ export function CreateProjectScreen() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 22px', borderTop: `1px solid ${color.divider}`, flex: 'none' }}>
           <Button onClick={close}>Cancel</Button>
-          <Button type="primary" loading={busy} onClick={() => void submit()}>Create project</Button>
+          <Button type="primary" loading={busy} disabled={name.trim().length < 2 || derivedKey.length !== 3} onClick={() => void submit()}>Create project</Button>
         </div>
       </div>
       </div>

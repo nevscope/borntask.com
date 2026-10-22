@@ -75,6 +75,7 @@ function ProjectCard({ project: p, onRequest, requesting }: { project: Project; 
           <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
           <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
         </span>
+        {p.pendingInvite && <span style={{ fontSize: 12, fontWeight: 600, color: color.brandStrong }}>Invitation</span>}
         {!locked && (p.guestCount ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted }}>{p.guestCount} {p.guestCount === 1 ? 'guest' : 'guests'}</span>}
         {!locked && <ProjectStar projectKey={p.key} name={p.name} starred={p.starred} />}
       </span>
@@ -90,7 +91,7 @@ function ProjectCard({ project: p, onRequest, requesting }: { project: Project; 
               disabled={requesting}
               style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: requesting ? 'wait' : 'pointer' }}
             >
-              Request access
+              Request
             </button>
           )}
         </span>

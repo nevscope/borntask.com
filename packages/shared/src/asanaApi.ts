@@ -21,10 +21,10 @@ export const ASANA_API_COLUMNS: Record<string, string> = {
 export function parseAsanaProjectGid(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
-  const fromApi = value.match(/\/projects\/(\d+)/);
-  if (fromApi?.[1]) return fromApi[1];
-  const fromApp = value.match(/asana\.com\/(?:0|1)\/(\d+)/);
-  if (fromApp?.[1] && fromApp[1] !== '0') return fromApp[1];
+  const fromPath = value.match(/\/projects?\/(\d+)/i);
+  if (fromPath?.[1]) return fromPath[1];
+  const fromQuery = value.match(/[?&]project(?:_id)?=(\d+)/i);
+  if (fromQuery?.[1]) return fromQuery[1];
   if (/^\d{6,}$/.test(value)) return value;
   return null;
 }

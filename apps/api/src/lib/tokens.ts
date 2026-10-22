@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { suggestProjectKey } from '@borntask/shared';
 
 export function newInviteToken(): { token: string; hash: string } {
   const token = randomBytes(24).toString('hex');
@@ -19,8 +20,6 @@ export function slugify(input: string): string {
   return slug || 'workspace';
 }
 
-export function projectKeyFromName(name: string): string {
-  const letters = name.toUpperCase().replace(/[^A-Z]/g, '');
-  if (letters.length >= 3) return letters.slice(0, 4);
-  return (letters + 'PROJ').slice(0, 4);
+export function projectKeyFromName(name: string, taken: Iterable<string> = []): string {
+  return suggestProjectKey(name, taken);
 }

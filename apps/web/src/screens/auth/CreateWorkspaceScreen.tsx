@@ -3,6 +3,7 @@ import { Button, Checkbox, Form, Input } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '../../api/http';
+import { EmailSuggestField } from '../../components/InvitePeople';
 import { Logo } from '../../components/Logo';
 import { categoryBar, chipFromHex, color } from '../../theme/tokens';
 
@@ -25,6 +26,7 @@ export function CreateWorkspaceScreen() {
   const [email, setEmail] = useState('');
   const [hasWorkspace, setHasWorkspace] = useState(false);
   const [slugNote, setSlugNote] = useState<string | null>(null);
+  const [inviteDraft, setInviteDraft] = useState('');
   const [values, setValues] = useState<Draft>({
     name: '',
     slug: '',
@@ -225,11 +227,23 @@ export function CreateWorkspaceScreen() {
             </div>
           )}
           {step === 2 && (
-            <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} initialValues={{ inviteEmails: values.inviteEmails }} onFinish={(v: { inviteEmails?: string }) => next({ inviteEmails: v.inviteEmails ?? '' })}>
+            <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onFinish={() => {
+              const extra = inviteDraft.includes('@') ? inviteDraft.trim().toLowerCase() : '';
+              const list = [...values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean), extra].filter(Boolean);
+              next({ inviteEmails: [...new Set(list)].join(', ') });
+            }}>
               <h1 className="bt-h1">Invite your team</h1>
               <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>Optional. An email outside your domain is invited as a guest.</p>
-              <Form.Item name="inviteEmails" label="Teammate emails (comma-separated)" style={{ marginBottom: 0 }}>
-                <Input.TextArea rows={3} />
+              <Form.Item label="Add people by email" style={{ marginBottom: 0 }}>
+                <EmailSuggestField
+                  emails={values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)}
+                  draft={inviteDraft}
+                  people={[]}
+                  placeholder="name@company.com"
+                  ownDomain={domain || undefined}
+                  onDraft={setInviteDraft}
+                  onEmails={(next) => setValues((prev) => ({ ...prev, inviteEmails: next.join(', ') }))}
+                />
               </Form.Item>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <Button onClick={() => setStep(1)}>Back</Button>

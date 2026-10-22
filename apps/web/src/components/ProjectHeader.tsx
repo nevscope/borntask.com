@@ -78,8 +78,46 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
     }
   }
 
+  const [joining, setJoining] = useState(false);
+  const pendingInvite = Boolean(project.pendingInvite || listed?.pendingInvite);
+
+  async function acceptInvite() {
+    if (joining) return;
+    setJoining(true);
+    try {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(project.key)}/accept-invite`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(json.message ?? 'Could not join this project.');
+      }
+      void qc.invalidateQueries({ queryKey: qk.projects });
+      void qc.invalidateQueries({ queryKey: qk.project(project.key) });
+      void qc.invalidateQueries({ queryKey: qk.notifications });
+    } catch (err) {
+      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
+    } finally {
+      setJoining(false);
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {pendingInvite && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: radius.md, background: color.brandTint, color: color.ink }}>
+          <span style={{ flex: 1, fontSize: 13.5 }}>You have been invited to this project. Join to add and change tasks.</span>
+          <button
+            type="button"
+            onClick={() => void acceptInvite()}
+            disabled={joining}
+            style={{ height: 34, padding: '0 14px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: joining ? 'wait' : 'pointer' }}
+          >
+            {joining ? 'Joining…' : 'Join project'}
+          </button>
+        </div>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 320px' }}>
           <div style={{ fontSize: 12.5, color: color.muted }}>Projects / {project.key}</div>

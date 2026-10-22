@@ -24,6 +24,22 @@ export type FilterCondition = {
 export type GroupBy = 'section' | 'status' | 'assignee' | 'priority' | 'none';
 export type SortBy = 'manual' | 'due' | 'priority' | 'updated' | 'created' | 'title';
 export type ColumnBy = 'status' | 'section' | 'assignee' | 'priority';
+export const LIST_FIELDS = ['type', 'status', 'assignee', 'due', 'priority'] as const;
+export type ListField = (typeof LIST_FIELDS)[number];
+export const LIST_FIELD_LABEL: Record<ListField, string> = {
+  type: 'Type',
+  status: 'Status',
+  assignee: 'Assignee',
+  due: 'Due',
+  priority: 'Priority',
+};
+export const LIST_FIELD_WIDTH: Record<ListField, number> = {
+  type: 110,
+  status: 160,
+  assignee: 160,
+  due: 90,
+  priority: 100,
+};
 
 export type SavedView = {
   id: string;
@@ -143,6 +159,20 @@ export function readSort(raw: string | null): SortBy {
 
 export function readColumns(raw: string | null): ColumnBy {
   return raw && isColumns(raw) ? raw : 'status';
+}
+
+export function readHiddenCols(raw: string | null): ListField[] {
+  if (!raw) return [];
+  return raw.split(',').filter((value): value is ListField => (LIST_FIELDS as readonly string[]).includes(value));
+}
+
+export function encodeHiddenCols(cols: ListField[]): string {
+  return cols.join(',');
+}
+
+export function allowedTypeSlugs(detail: ProjectDetail, slugs: string[]): string[] {
+  const disabled = new Set(detail.disabledTypes ?? []);
+  return slugs.filter((slug) => !disabled.has(slug));
 }
 
 export function encodeFilters(filters: FilterCondition[]): string {

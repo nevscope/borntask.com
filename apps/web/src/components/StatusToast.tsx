@@ -93,7 +93,7 @@ function StatusToastView({ payload, onDismiss }: { payload: StatusToastPayload; 
         position: 'fixed',
         top: 72,
         right: 24,
-        zIndex: 40,
+        zIndex: 2100,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',

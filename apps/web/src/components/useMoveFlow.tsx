@@ -117,6 +117,24 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     run(task, toStatusId, {});
   }
 
+  function requestComplete(task: Task) {
+    if (!detail) return;
+    const done = statusById(detail.workflow, task.statusId)?.category === 'done'
+      ? null
+      : detail.workflow.statuses.find((status) => status.category === 'done' && !status.side);
+    if (!done) return;
+    const check = checkMove(detail.workflow, task, done.id, myRoles);
+    if (check.kind === 'allowed' && !check.transition.requireComment) {
+      run(task, done.id, {});
+      return;
+    }
+    if (mayOverride) {
+      run(task, done.id, { overrideReason: 'Marked as completed from the list' });
+      return;
+    }
+    requestMove(task, done.id);
+  }
+
   const modal: ReactNode = (
     <>
     {options?.board && blocked && (
@@ -159,5 +177,5 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     </>
   );
 
-  return { requestMove, myRoles, mayOverride, modal, moving: move.isPending };
+  return { requestMove, requestComplete, myRoles, mayOverride, modal, moving: move.isPending };
 }

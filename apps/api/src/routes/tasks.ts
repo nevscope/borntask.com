@@ -11,6 +11,7 @@ import { nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { moveTask } from '../lib/moveTask.js';
 import { publishTaskChange } from '../lib/live.js';
+import { notifyInApp } from '../lib/notifyInApp.js';
 import {
   attachPendingToTask,
   mapAttachment,
@@ -256,6 +257,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const project = await requireOpenProjectWrite(auth, input.projectKey);
       const type = await auth.db.taskType.findFirst({ where: { slug: input.type } });
       if (!type) throw validation('Unknown type.');
+      if (project.disabledTypes.split(',').map((slug) => slug.trim()).includes(input.type)) {
+        throw validation('This project does not use that task type.');
+      }
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       const wf = await loadWorkflow(auth.db, project.workflowId);
       const startSlug = input.type === 'bug' ? (ws?.bugsStartIn === 'idea' ? 'idea' : 'approved') : 'idea';
@@ -333,6 +337,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           url,
         };
         await enqueueChat(auth, assignedJob);
+        await notifyInApp(auth, created.assigneeId, 'assigned', { kind: 'assigned', taskId: created.id });
         await enqueuePersonalChat(auth, created.assigneeId, assignedJob);
       }
       return mappedCreated;
@@ -353,6 +358,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       if (input.type) {
         const type = await auth.db.taskType.findFirst({ where: { slug: input.type } });
         if (!type) throw validation('Unknown type.');
+        if (row.project.disabledTypes.split(',').map((slug) => slug.trim()).includes(input.type)) {
+          throw validation('This project does not use that task type.');
+        }
         typeId = type.id;
       }
       const updated = await auth.db.task.update({
@@ -400,6 +408,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           url: taskUrl(updated.project.key, updatedKey),
         };
         await enqueueChat(auth, assignedJob);
+        await notifyInApp(auth, input.assigneeId, 'assigned', { kind: 'assigned', taskId: updated.id });
         await enqueuePersonalChat(auth, input.assigneeId, assignedJob);
       }
       return mappedUpdated;
@@ -525,6 +534,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         await enqueueChat(auth, mentionJob);
         const people = await workspacePeople(auth);
         for (const userId of mentionUserIds(body.body, people)) {
+          await notifyInApp(auth, userId, 'mention', { kind: 'mention', taskId: row.id });
           await enqueuePersonalChat(auth, userId, mentionJob);
         }
       }
@@ -539,6 +549,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         url: commentUrl,
       };
       for (const watcher of watchers) {
+        await notifyInApp(auth, watcher.userId, 'watched_comment', { kind: 'watched_comment', taskId: row.id });
         await enqueuePersonalChat(auth, watcher.userId, commentJob);
       }
       publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');

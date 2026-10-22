@@ -1,7 +1,7 @@
 // Dark bar shown when list rows are selected. Moves still go through moveTask.
 import { DatePicker, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { useDeleteTask, useMe, useMoveTask, useRestoreTask, useUpdateTask } from '../api/queries';
+import { useDeleteTask, useMe, useMoveTask, useReorderTask, useRestoreTask, useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { moveOptions } from '../lib/workflow';
 import { color, radius } from '../theme/tokens';
@@ -24,6 +24,7 @@ export function BulkBar({
   const me = useMe().data;
   const move = useMoveTask();
   const update = useUpdateTask();
+  const reorder = useReorderTask();
   const del = useDeleteTask();
   const restore = useRestoreTask();
   const [commentFor, setCommentFor] = useState<string | null>(null);
@@ -116,14 +117,21 @@ export function BulkBar({
           onChange={(value) => void patchAll({ dueDate: value ? value.format('YYYY-MM-DD') : null })}
         />
         <Select
-          aria-label="Section"
-          placeholder="Section"
+          aria-label="Move to section"
+          placeholder="Move to section"
           value={undefined}
           variant="filled"
           popupMatchSelectWidth={false}
           options={detail.sections.map((section) => ({ value: section.id, label: section.name }))}
-          onChange={(sectionId: string) => void patchAll({ sectionId })}
-          style={{ minWidth: 120 }}
+          onChange={(sectionId: string) => {
+            void (async () => {
+              for (const task of tasks) {
+                await reorder.mutateAsync({ key: task.key, input: { sectionId, beforeKey: null } });
+              }
+              onClear();
+            })();
+          }}
+          style={{ minWidth: 160 }}
         />
         <Select
           aria-label="Labels"

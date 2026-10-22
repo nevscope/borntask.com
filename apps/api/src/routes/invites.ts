@@ -56,6 +56,26 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         });
         const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
         created.push({ email, url, tenantRole });
+        if (input.projectId) {
+          const existing = await prisma.user.findFirst({ where: { email } });
+          const seat = existing
+            ? await prisma.tenantMember.findUnique({
+              where: { tenantId_userId: { tenantId: auth.tenantId, userId: existing.id } },
+            })
+            : null;
+          if (existing && seat?.isActive) {
+            const project = await auth.db.project.findFirst({ where: { id: input.projectId }, select: { key: true, name: true } });
+            if (project) {
+              await auth.db.notification.create({
+                data: {
+                  tenantId: auth.tenantId,
+                  userId: existing.id,
+                  kind: `project_invite:${project.key}`,
+                },
+              });
+            }
+          }
+        }
         await enqueueMail({
           kind: 'invite',
           to: email,

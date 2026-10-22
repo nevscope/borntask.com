@@ -52,7 +52,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       });
 
       if (input.firstProjectName) {
-        const key = projectKeyFromName(input.firstProjectName);
+        const key = projectKeyFromName(input.firstProjectName, []);
         const project = await db.project.create({
           data: {
             tenantId: workspace.id,

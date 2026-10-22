@@ -44,9 +44,14 @@ export function DescriptionEditor({
   focusCb.current = onFocusChange;
   const pasteFiles = useRef(onPasteFiles);
   pasteFiles.current = onPasteFiles;
+  const keyDown = useRef(onEditorKeyDown);
+  keyDown.current = onEditorKeyDown;
   const applying = useRef(false);
+  const suggestionOpen = useRef(false);
+  const mentionUiOpen = useRef(false);
   const [focused, setFocused] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
+  mentionUiOpen.current = mentionOpen;
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -67,7 +72,7 @@ export function DescriptionEditor({
       Placeholder.configure({ placeholder }),
       Mention.configure({
         HTMLAttributes: { class: 'bt-mention' },
-        suggestion: mentionSuggestion(peopleRef),
+        suggestion: mentionSuggestion(peopleRef, suggestionOpen),
       }),
     ],
     content: toEditorHtml(value),
@@ -75,6 +80,14 @@ export function DescriptionEditor({
       attributes: {
         'aria-label': ariaLabel,
         class: compact ? 'bt-desc-surface bt-desc-compact' : 'bt-desc-surface',
+      },
+      handleKeyDown(_view, event) {
+        const mentionBusy = suggestionOpen.current || mentionUiOpen.current;
+        if (event.key === 'Enter' && !event.shiftKey && mentionBusy) {
+          return mentionUiOpen.current;
+        }
+        keyDown.current?.(event as unknown as KeyboardEvent);
+        return event.defaultPrevented;
       },
       handlePaste(_view, event) {
         const files = filesFromClipboard(event.clipboardData);
@@ -103,10 +116,12 @@ export function DescriptionEditor({
   });
 
   useEffect(() => {
-    if (!editor || focused) return;
+    if (!editor) return;
     const next = toEditorHtml(value);
     const current = persistDescription(editor.isEmpty ? '' : editor.getHTML());
     if (current === persistDescription(next)) return;
+    // Empty the editor even while focused so a sent comment cannot linger and block close.
+    if (focused && persistDescription(next)) return;
     applying.current = true;
     editor.commands.setContent(next || '', { emitUpdate: false });
     applying.current = false;
@@ -114,16 +129,33 @@ export function DescriptionEditor({
 
   useEffect(() => {
     if (!mentionOpen) return;
+    const pickerId = `bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`;
     const close = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      const pickerId = `bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`;
       if (target && !document.getElementById(pickerId)?.contains(target) && !(target as HTMLElement).closest?.('[aria-label="Mention someone"]')) {
         setMentionOpen(false);
       }
     };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMentionOpen(false);
+        return;
+      }
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      const person = peopleRef.current[0];
+      if (!person || !editor) return;
+      event.preventDefault();
+      event.stopPropagation();
+      editor.chain().focus().insertContent({ type: 'mention', attrs: { id: person.id, label: person.name } }).insertContent('\u00a0').run();
+      setMentionOpen(false);
+    };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [mentionOpen, ariaLabel]);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [mentionOpen, ariaLabel, editor]);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -146,7 +178,6 @@ export function DescriptionEditor({
         }}
       />
       <div
-        onKeyDown={onEditorKeyDown}
         style={{
           marginTop: -1,
           minHeight,
@@ -314,7 +345,7 @@ function Toolbar({
   );
 }
 
-function mentionSuggestion(peopleRef: { current: User[] }) {
+function mentionSuggestion(peopleRef: { current: User[] }, openRef: { current: boolean }) {
   return {
     items: ({ query }: { query: string }) => {
       const q = query.toLowerCase();
@@ -368,6 +399,7 @@ function mentionSuggestion(peopleRef: { current: User[] }) {
       return {
         onStart(props: SuggestionProps<User>) {
           selected = 0;
+          openRef.current = true;
           root = document.createElement('div');
           root.setAttribute('role', 'listbox');
           root.style.cssText = [
@@ -406,6 +438,7 @@ function mentionSuggestion(peopleRef: { current: User[] }) {
           return false;
         },
         onExit() {
+          openRef.current = false;
           unmount?.();
           root = null;
           current = null;

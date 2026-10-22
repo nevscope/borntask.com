@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMe } from '../api/queries';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { useWorkspaceCatalog } from '../api/catalog';
@@ -22,11 +23,12 @@ const TYPE_HINT: Record<BuiltinTaskType, string> = {
 
 const PRIORITIES: Priority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
-export function TypePicker({ value, onChange, bare, trigger }: { value: TaskType; onChange: (type: TaskType) => void; bare?: boolean; trigger?: ReactNode }) {
+export function TypePicker({ value, onChange, bare, trigger, allowed }: { value: TaskType; onChange: (type: TaskType) => void; bare?: boolean; trigger?: ReactNode; allowed?: string[] }) {
   const catalog = useWorkspaceCatalog();
-  const types = catalog.types.length
+  const types = (catalog.types.length
     ? catalog.types.map((item) => ({ id: item.slug, name: item.name, hint: item.slug in TYPE_HINT ? TYPE_HINT[item.slug as BuiltinTaskType] : '' }))
-    : (Object.keys(typeStyle) as BuiltinTaskType[]).map((type) => ({ id: type, name: typeStyle[type].label, hint: TYPE_HINT[type] }));
+    : (Object.keys(typeStyle) as BuiltinTaskType[]).map((type) => ({ id: type, name: typeStyle[type].label, hint: TYPE_HINT[type] }))
+  ).filter((type) => !allowed || allowed.includes(type.id) || type.id === value);
   return (
     <Picker bare={bare} label={trigger ?? <TypeTag type={value} />} ariaLabel="Change type">
       {(close) => (
@@ -72,6 +74,12 @@ export function AssigneePicker({
       bare={bare}
       label={trigger ?? (current ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar user={current} size={20} />{current.name}</span> : 'Unassigned')}
       ariaLabel="Change assignee"
+      onKey={(key, close) => {
+        if (key.toLowerCase() !== 'i' || !meId) return false;
+        onChange(meId);
+        close();
+        return true;
+      }}
     >
       {(close) => (
         <AssigneeList users={users} detail={detail} meId={meId} selected={value} onChange={(id) => { onChange(id); close(); }} />
@@ -93,12 +101,25 @@ function AssigneeList({
   selected: string | null;
   onChange: (id: string | null) => void;
 }) {
+  const me = useMe().data;
+  const selfId = meId ?? me?.user.id;
   const [q, setQ] = useState('');
   const needle = q.trim().toLowerCase();
-  const rows = users.filter((user) => !needle || user.name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle));
+  const matches = (user: User) => {
+    if (!needle) return true;
+    const hay = `${user.name} ${user.email}`.toLowerCase();
+    return needle.split(/\s+/).every((part) => hay.includes(part));
+  };
+  const rows = users.filter(matches);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} onMouseDown={(event) => event.stopPropagation()}>
       <FilterBox label="Find a person" value={q} onChange={setQ} />
+      {selfId && (
+        <RowButton onClick={() => onChange(selfId)}>
+          <span style={{ flex: 1 }}>Assign to me</span>
+          <kbd className="bt-kbd">I</kbd>
+        </RowButton>
+      )}
       {rows.map((user) => {
         const roles = detail.members.find((member) => member.userId === user.id)?.roles ?? [];
         return (
@@ -111,12 +132,6 @@ function AssigneeList({
       })}
       {rows.length === 0 && <span style={{ padding: '6px 10px', fontSize: 12.5, color: color.muted }}>No one matches.</span>}
       <div style={{ height: 1, margin: '4px 6px', background: color.divider }} />
-      {meId && (
-        <RowButton onClick={() => onChange(meId)}>
-          <span style={{ flex: 1 }}>Assign to me</span>
-          <kbd className="bt-kbd">I</kbd>
-        </RowButton>
-      )}
       <RowButton onClick={() => onChange(null)}>Unassigned</RowButton>
     </div>
   );
@@ -490,6 +505,7 @@ function FilterBox({ label, value, onChange, hint, onEnter }: { label: string; v
         aria-label={label}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
+          event.stopPropagation();
           if (event.key === 'Enter') onEnter?.();
         }}
         style={{ flex: 1, minWidth: 0, border: 0, font: 'inherit', fontSize: 13.5, outline: 'none', background: 'transparent' }}

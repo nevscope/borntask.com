@@ -93,7 +93,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [projectKey, setProjectKey] = useState(opts.projectKey ?? projectKeyFromPath(pathname) ?? '');
   const detail = useProject(projectKey).data;
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);
-  const [type, setType] = useState<TaskType>(opts.type ?? 'idea');
+  const [type, setType] = useState<TaskType | undefined>(opts.type);
   const [raw, setRaw] = useState('');
   const catalog = useWorkspaceCatalog();
   const typeList = catalog.types.length ? catalog.types.map((item) => item.slug) : TYPES;
@@ -146,7 +146,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const priority = priorityOverride ?? parsed.priority ?? 'none';
   const assignee = people.find((p) => p.id === assigneeId);
   const myRoles: ProjectRole[] = detail?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
-  const startStatus = detail ? statusById(detail.workflow, initialStatusFor(type, detail.workflow)) : undefined;
+  const startStatus = detail && type ? statusById(detail.workflow, initialStatusFor(type, detail.workflow)) : undefined;
   const chosenStatusId = statusPick ?? startStatus?.id;
   const chosenStatus = detail && chosenStatusId ? statusById(detail.workflow, chosenStatusId) : startStatus;
   const moveCheck = detail && startStatus && chosenStatusId && chosenStatusId !== startStatus.id
@@ -254,6 +254,10 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
 
   function submit(openAfter: boolean) {
     if (!parsed.title) return;
+    if (!type) {
+      toast.show({ kind: 'error', text: 'Choose a type, or add a tag such as #bug in the title.' });
+      return;
+    }
     if (!projectKey || !sectionId) {
       toast.show({ kind: 'error', text: 'Pick a project and section.' });
       return;
@@ -597,13 +601,13 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           <span style={{ flex: '1 1 260px', fontSize: 12.5, color: color.muted }}>
             Type <strong style={{ color: color.ink3 }}>@</strong> for people, <strong style={{ color: color.ink3 }}>#</strong> for type, <strong style={{ color: color.ink3 }}>!</strong> for priority, dates like <strong style={{ color: color.ink3 }}>fri</strong> or <strong style={{ color: color.ink3 }}>next week</strong>
           </span>
-          <Button onClick={requestClose} disabled={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
-            Cancel
-          </Button>
-          <Button onClick={() => submit(true)} disabled={!parsed.title || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
+          <Button onClick={() => submit(true)} disabled={!parsed.title || !type || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
             Create and open {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Shift ↵</kbd>}
           </Button>
-          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
+          <Button onClick={requestClose} disabled={create.isPending || move.isPending} style={{ height: 36, fontSize: 13 }}>
+            Cancel {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Esc</kbd>}
+          </Button>
+          <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title || !type || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
             Create task {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>↵</kbd>}
           </Button>
         </div>

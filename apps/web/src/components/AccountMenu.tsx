@@ -38,8 +38,6 @@ export function AccountMenu({
       </div>
       <MenuLink phone={phone} onClick={() => go('/settings/profile')}>Profile and notifications</MenuLink>
       <MenuLink phone={phone} onClick={() => go('/settings/tokens')}>Connected apps and tokens</MenuLink>
-      <MenuLink phone={phone} onClick={() => go('/settings/privacy')}>Privacy</MenuLink>
-      <MenuLink phone={phone} onClick={() => go('/settings/terms')}>Terms of use</MenuLink>
       <MenuLink phone={phone} onClick={() => { onClose(); onShortcuts(); }}>
         <span style={{ flex: 1 }}>Keyboard shortcuts</span>
         <kbd className="bt-kbd">?</kbd>

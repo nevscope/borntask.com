@@ -8,6 +8,7 @@ import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs
 import { readWelcome } from '../lib/welcome';
 import { color, radius } from '../theme/tokens';
 import { Avatar, WorkspaceMark } from './Chips';
+import { ProjectStar } from './ProjectStar';
 import { Logo, LogoMark } from './Logo';
 import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
@@ -254,6 +255,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
             <span className="bt-sidebar-label" style={{ flex: 1 }}>{p.name}</span>
+            {!guest && <ProjectStar compact projectKey={p.key} name={p.name} starred={p.starred} />}
           </NavLink>
         ))}
         {!guest && recent.length > 0 && (
@@ -268,6 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
                 <span className="bt-sidebar-label" style={{ flex: 1 }}>{p.name}</span>
+                <ProjectStar compact projectKey={p.key} name={p.name} starred={p.starred} />
               </NavLink>
             ))}
           </>

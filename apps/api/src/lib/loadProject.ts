@@ -253,6 +253,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
       workspaceRole: wsRole.get(m.userId) ?? 'member',
     })),
     users: users.map(mapUser),
+    disabledTypes: project.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
     workflow: {
       id: workflow.id,
       name: workflow.name,

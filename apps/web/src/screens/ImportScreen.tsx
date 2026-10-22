@@ -1,13 +1,12 @@
-import { Alert, Button, Input, Progress, Select, Upload } from 'antd';
+import { Alert, Button, Input, Progress, Select } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatImportError, guessImportStatusSlug } from '@borntask/shared';
+import { formatImportError, guessImportStatusSlug, normaliseProjectKey, parseAsanaProjectGid, suggestProjectKey } from '@borntask/shared';
 import { BASE_URL } from '../api/http';
-import { useImportProgress, useProject, useProjects } from '../api/queries';
+import { qk, useImportProgress, useProject, useProjects } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import type { WorkflowStatus } from '../api/types';
 import { color } from '../theme/tokens';
-
-const XLSX_MESSAGE = 'Save the Asana export as CSV for now. XLSX parsing is not bundled yet.';
 
 const FIELDS = [
   { value: 'skip', label: 'Skip' },
@@ -27,7 +26,7 @@ const FIELDS = [
   { value: 'parentAsanaId', label: 'Parent task (subtask)' },
 ];
 
-const STEPS = ['Upload', 'Map columns', 'Preview', 'Import'] as const;
+const STEPS = ['Connect', 'Map columns', 'Preview', 'Import'] as const;
 
 type ImportState = {
   id: string;
@@ -47,9 +46,21 @@ type ImportState = {
   phase?: string;
 };
 
+const NEW_PROJECT = '__new__';
+
 export function ImportScreen() {
-  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
-  const [projectKey, setProjectKey] = useState('');
+  const qc = useQueryClient();
+  const allProjects = useProjects().data ?? [];
+  const projects = allProjects.filter((p) => p.canOpen !== false);
+  const takenKeys = allProjects.map((p) => p.key);
+  const [dest, setDest] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newKey, setNewKey] = useState('');
+  const [keyTouched, setKeyTouched] = useState(false);
+  const creatingNew = dest === NEW_PROJECT;
+  const suggestedKey = suggestProjectKey(newName || 'Imported', takenKeys);
+  const typedCreateKey = normaliseProjectKey(newKey);
+  const createKey = keyTouched && typedCreateKey.length === 3 ? typedCreateKey : suggestedKey;
   const [job, setJob] = useState<ImportState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +69,7 @@ export function ImportScreen() {
   const [asanaProject, setAsanaProject] = useState('');
   const [asanaToken, setAsanaToken] = useState('');
 
+  const projectKey = creatingNew ? '' : dest;
   const step = !job ? 0 : job.status === 'running' ? 3 : showPreview ? 2 : 1;
   const destKey = job?.projectKey || projectKey;
   const project = projects.find((p) => p.key === destKey);
@@ -72,34 +84,26 @@ export function ImportScreen() {
     setJob({ ...job, status: next.status, rowsDone: next.rowsDone, rowsTotal: next.rowsTotal, errors: next.errors, phase: next.phase });
   }, [progress.data, job]);
 
-  const pickFile = (file: File) => {
-    if (!projectKey) {
-      setError('Choose a project first.');
-      return false;
-    }
-    if (file.name.toLowerCase().endsWith('.xlsx') || file.type.includes('spreadsheet')) {
-      setError(XLSX_MESSAGE);
-      return false;
-    }
-    void upload(file).catch((e: Error) => setError(e.message));
-    return false;
-  };
-
-  const upload = async (file: File) => {
-    setError(null);
-    const body = new FormData();
-    body.append('file', file);
-    body.append('projectKey', projectKey);
-    const res = await fetch(`${BASE_URL}/imports?projectKey=${encodeURIComponent(projectKey)}`, {
+  const createBornTaskProject = async () => {
+    const name = newName.trim() || 'Imported from Asana';
+    const res = await fetch(`${BASE_URL}/projects`, {
       method: 'POST',
       credentials: 'include',
-      body,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, key: createKey || undefined, workflow: 'delivery' }),
     });
-    const json = await res.json() as ImportState & { message?: string };
-    if (!res.ok) throw new Error(json.message ?? 'Upload failed');
-    setJob(json);
-    setProjectKey(json.projectKey);
-    setShowPreview(false);
+    const json = await res.json() as { message?: string; project?: { key: string } };
+    if (!res.ok) throw new Error(json.message ?? 'Could not create project');
+    const key = json.project?.key ?? createKey;
+    void qc.invalidateQueries({ queryKey: qk.projects });
+    setDest(key);
+    return key;
+  };
+
+  const resolveDest = async () => {
+    if (creatingNew) return createBornTaskProject();
+    if (!dest) throw new Error('Choose a project first.');
+    return dest;
   };
 
   const saveAndRun = async () => {
@@ -128,20 +132,19 @@ export function ImportScreen() {
   };
 
   const startAsana = async () => {
-    if (!projectKey) {
-      setError('Choose a project first.');
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
+      const key = await resolveDest();
+      const gid = parseAsanaProjectGid(asanaProject);
+      if (!gid) throw new Error('Paste an Asana project URL or the project ID.');
       const res = await fetch(`${BASE_URL}/imports/asana`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectKey,
-          asanaProject,
+          projectKey: key,
+          asanaProject: gid,
           token: asanaToken,
           sectionsAs,
         }),
@@ -150,7 +153,7 @@ export function ImportScreen() {
       if (!res.ok) throw new Error(json.message ?? 'Could not start the Asana migration.');
       setAsanaToken('');
       setJob(json);
-      setProjectKey(json.projectKey);
+      setDest(json.projectKey);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the Asana migration.');
     } finally {
@@ -207,11 +210,14 @@ export function ImportScreen() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               <Select
                 style={{ minWidth: 280 }}
-                placeholder="Choose a BornTask project"
-                value={projectKey || null}
+                placeholder="BornTask project"
+                value={dest || null}
                 allowClear
-                onChange={(key) => setProjectKey(key ?? '')}
-                options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+                onChange={(key) => setDest(key ?? '')}
+                options={[
+                  { value: NEW_PROJECT, label: 'Create a new project' },
+                  ...projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` })),
+                ]}
               />
               <Input
                 style={{ minWidth: 320, flex: 1 }}
@@ -220,6 +226,23 @@ export function ImportScreen() {
                 onChange={(e) => setAsanaProject(e.target.value)}
               />
             </div>
+            {creatingNew && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <Input
+                  style={{ minWidth: 240, flex: 1 }}
+                  placeholder="New project name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <Input
+                  style={{ width: 100, letterSpacing: '0.04em' }}
+                  maxLength={3}
+                  placeholder="Key"
+                  value={createKey}
+                  onChange={(e) => { setKeyTouched(true); setNewKey(normaliseProjectKey(e.target.value)); }}
+                />
+              </div>
+            )}
             <Input.Password
               placeholder="Asana personal access token"
               value={asanaToken}
@@ -230,24 +253,10 @@ export function ImportScreen() {
               Imports sections, descriptions, subtasks, comments, activity, priority, custom-field labels, followers who already have accounts, and completed tasks as Deployed. Attachments stay in Asana.
             </p>
             <div>
-              <Button type="primary" loading={busy} disabled={!projectKey || !asanaProject.trim() || asanaToken.trim().length < 8} onClick={() => void startAsana()}>
+              <Button type="primary" loading={busy} disabled={(!creatingNew && !dest) || (creatingNew && !newName.trim()) || !asanaProject.trim() || asanaToken.trim().length < 8} onClick={() => void startAsana()}>
                 Start Asana migration
               </Button>
             </div>
-          </section>
-          <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: color.muted, width: '100%' }}>Or upload an Asana CSV. Comments and activity are not in that file.</span>
-            <Select
-              style={{ minWidth: 280 }}
-              placeholder="Choose a project"
-              value={projectKey || null}
-              allowClear
-              onChange={(key) => setProjectKey(key ?? '')}
-              options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
-            />
-            <Upload accept=".csv,.tsv,.txt" showUploadList={false} disabled={!projectKey} beforeUpload={pickFile}>
-              <Button disabled={!projectKey}>Choose CSV</Button>
-            </Upload>
           </section>
         </>
       )}
@@ -266,14 +275,11 @@ export function ImportScreen() {
               disabled={job.status === 'running' || job.status === 'done'}
               onChange={(key) => {
                 const next = key ?? '';
-                setProjectKey(next);
+                setDest(next);
                 setJob({ ...job, projectKey: next });
               }}
               options={projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
             />
-            <Upload accept=".csv,.tsv,.txt" showUploadList={false} beforeUpload={pickFile}>
-              <Button>Replace file</Button>
-            </Upload>
           </section>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
             <section className="bt-card" style={{ flex: '999 1 560px', minWidth: 0 }}>

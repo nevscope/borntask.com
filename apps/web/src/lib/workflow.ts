@@ -18,11 +18,17 @@ export function primaryDoneStatus(wf: Workflow): WorkflowStatus | undefined {
   return wf.statuses.find((status) => status.category === 'done' && !status.side);
 }
 
-/** Status to send a list-row complete click to, or null if that move is not allowed. */
-export function completeTarget(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, myRoles: ProjectRole[]): WorkflowStatus | null {
+/** Anyone may move on this workflow: no role gates on any step. */
+export function isOpenWorkflow(wf: Workflow): boolean {
+  return wf.transitions.length > 0 && wf.transitions.every((row) => row.roles.length === 0);
+}
+
+/** Status to send a list-row complete click to, or null if the task is already finished. */
+export function completeTarget(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>): WorkflowStatus | null {
   const done = primaryDoneStatus(wf);
-  if (!done || task.statusId === done.id) return null;
-  return checkMove(wf, task, done.id, myRoles).kind === 'allowed' ? done : null;
+  const from = statusById(wf, task.statusId);
+  if (!done || !from || from.id === done.id || from.category === 'done' || from.side) return null;
+  return done;
 }
 
 export function findTransition(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string): Transition | null {
@@ -34,11 +40,24 @@ export function findTransition(wf: Workflow, task: Pick<Task, 'statusId' | 'prev
       : null;
   }
   const fromStatus = statusById(wf, task.statusId);
-  return (
+  const listed =
     wf.transitions.find((t) => t.to === toId && t.from === task.statusId) ??
     wf.transitions.find((t) => t.to === toId && t.from === '*' && fromStatus?.category !== 'done') ??
-    null
-  );
+    null;
+  if (listed) return listed;
+  const done = primaryDoneStatus(wf);
+  if (
+    done &&
+    toId === done.id &&
+    fromStatus &&
+    !fromStatus.side &&
+    fromStatus.category !== 'done' &&
+    task.statusId !== 'on_hold' &&
+    isOpenWorkflow(wf)
+  ) {
+    return { from: task.statusId, to: toId, roles: [], requireComment: false, label: 'Complete' };
+  }
+  return null;
 }
 
 export function rolesLabel(roles: ProjectRole[]): string {

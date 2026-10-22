@@ -16,8 +16,12 @@ import {
   opLabel,
   opsFor,
   personChoices,
+  encodeHiddenCols,
+  LIST_FIELD_LABEL,
+  LIST_FIELDS,
   readColumns,
   readGroup,
+  readHiddenCols,
   readSavedViews,
   readSort,
   writeSavedViews,
@@ -26,6 +30,7 @@ import {
   type FilterField,
   type FilterOp,
   type GroupBy,
+  type ListField,
   type SavedView,
   type SortBy,
 } from '../lib/taskFilters';
@@ -37,10 +42,11 @@ export type ProjectView = {
   group: GroupBy;
   sort: SortBy;
   columns: ColumnBy;
+  hiddenCols: ListField[];
   viewId: string | null;
 };
 
-const KEEP = ['task', 'f', 'group', 'sort', 'columns', 'view'] as const;
+const KEEP = ['task', 'f', 'group', 'sort', 'columns', 'hide', 'view'] as const;
 
 export function useProjectView(): ProjectView & { setView: (patch: Partial<ProjectView>) => void } {
   const [params, setParams] = useSearchParams();
@@ -49,21 +55,25 @@ export function useProjectView(): ProjectView & { setView: (patch: Partial<Proje
   const group = readGroup(params.get('group'));
   const sort = readSort(params.get('sort'));
   const columns = readColumns(params.get('columns'));
+  const hiddenCols = readHiddenCols(params.get('hide'));
   const viewId = params.get('view');
 
   const setView = (patch: Partial<ProjectView>) => {
-    const merged: ProjectView = { filters, group, sort, columns, viewId, ...patch };
+    const merged: ProjectView = { filters, group, sort, columns, hiddenCols, viewId, ...patch };
     const next = new URLSearchParams(params);
     next.set('f', encodeFilters(merged.filters));
     next.set('group', merged.group);
     next.set('sort', merged.sort);
     next.set('columns', merged.columns);
+    const hide = encodeHiddenCols(merged.hiddenCols);
+    if (hide) next.set('hide', hide);
+    else next.delete('hide');
     if (merged.viewId) next.set('view', merged.viewId);
     else next.delete('view');
     setParams(next, { replace: true });
   };
 
-  return { filters, group, sort, columns, viewId, setView };
+  return { filters, group, sort, columns, hiddenCols, viewId, setView };
 }
 
 export function projectViewSearch(params: URLSearchParams): string {
@@ -248,6 +258,7 @@ export function ProjectViewBar({
               <option value="created">Created</option>
               <option value="title">Title</option>
             </select>
+            <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
           </>
         )}
         {mode === 'board' && (
@@ -284,6 +295,36 @@ export function ProjectViewBar({
       >
         This removes the saved view from this browser. You cannot undo it.
       </ConfirmDialog>
+    </div>
+  );
+}
+
+function ColumnPicker({ hidden, onChange }: { hidden: ListField[]; onChange: (hidden: ListField[]) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={controlStyle}>
+        Columns
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: 36, zIndex: 20, width: 200, padding: 8, background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.md, boxShadow: color.shadow }}>
+          {LIST_FIELDS.map((field) => {
+            const shown = !hidden.includes(field);
+            return (
+              <label key={field} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32, padding: '0 6px', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={shown}
+                  onChange={() => {
+                    onChange(shown ? [...hidden, field] : hidden.filter((item) => item !== field));
+                  }}
+                />
+                {LIST_FIELD_LABEL[field]}
+              </label>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

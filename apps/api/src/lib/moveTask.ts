@@ -5,6 +5,7 @@ import { actorName, enqueueChat, enqueuePersonalChat, eventsForStatus, taskUrl }
 import { runProjectAutomations } from './runAutomations.js';
 import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
 import { publishTaskChange } from './live.js';
+import { notifyInApp } from './notifyInApp.js';
 import { requireOpenProject, requireProjectWrite } from './projectAccess.js';
 
 function jsonStatus(value: unknown): string {
@@ -57,6 +58,22 @@ export async function moveTask(
       requireComment = match.requireComment;
       transitionLabel = match.label;
       allowed = match.roles.length === 0 || match.roles.some((r) => myRoles.includes(r));
+    } else {
+      const toStatus = wf.statuses.find((status) => status.id === toSlug);
+      const fromStatus = wf.statuses.find((status) => status.id === fromSlug);
+      const open = wf.transitions.length > 0 && wf.transitions.every((row) => row.roles.length === 0);
+      if (
+        open &&
+        toStatus?.category === 'done' &&
+        !toStatus.side &&
+        fromStatus &&
+        fromStatus.category !== 'done' &&
+        !fromStatus.side &&
+        fromSlug !== 'on_hold'
+      ) {
+        allowed = true;
+        transitionLabel = 'Complete';
+      }
     }
   }
 
@@ -163,9 +180,11 @@ export async function moveTask(
     url,
   };
   for (const watcher of watchers) {
+    await notifyInApp(auth, watcher.userId, 'watched_stage', { kind: 'moved', taskId: row.id });
     await enqueuePersonalChat(auth, watcher.userId, stageJob);
   }
   if (toSlug === 'deployed') {
+    await notifyInApp(auth, row.reporterId, 'reported_deployed', { kind: 'moved', taskId: row.id });
     await enqueuePersonalChat(auth, row.reporterId, {
       projectId: row.projectId,
       event: 'reporter_deployed',

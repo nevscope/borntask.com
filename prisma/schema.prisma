@@ -273,6 +273,8 @@ model Project {
   leadId      String?
   workflowId  String
   archivedAt  DateTime?
+  /** Comma-separated task type slugs this project does not use. Empty means all workspace types. */
+  disabledTypes String  @default("")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

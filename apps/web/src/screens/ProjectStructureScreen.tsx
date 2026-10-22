@@ -22,8 +22,10 @@ export function ProjectStructureScreen() {
   const { projectKey = '' } = useParams();
   const me = useMe().data;
   const catalog = useWorkspaceCatalog();
-  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const myRoles = detail.data?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
+  const canToggleTypes = canAdmin || myRoles.includes('lead') || detail.data?.project.leadId === me?.user.id;
   const tasks = useProjectTasks(projectKey);
   const qc = useQueryClient();
   const [newName, setNewName] = useState('');
@@ -32,6 +34,9 @@ export function ProjectStructureScreen() {
   const [rename, setRename] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [moveTo, setMoveTo] = useState<string>('');
+  const [typeDraft, setTypeDraft] = useState('');
+  const [addingType, setAddingType] = useState(false);
+  const [typeError, setTypeError] = useState<string | null>(null);
 
   const trash = useProjectTrash(projectKey);
   const restore = useRestoreTask();
@@ -39,6 +44,44 @@ export function ProjectStructureScreen() {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
     void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKey) });
+    void qc.invalidateQueries({ queryKey: ['workspace-catalog'] });
+  };
+
+  const toggleType = async (slug: string, on: boolean) => {
+    const current = detail.data?.disabledTypes ?? [];
+    const next = on ? current.filter((item) => item !== slug) : [...new Set([...current, slug])];
+    setTypeError(null);
+    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabledTypes: next }),
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    if (!res.ok) {
+      setTypeError(json.message ?? 'Could not update types for this project.');
+      return;
+    }
+    refresh();
+  };
+
+  const addType = async () => {
+    if (!typeDraft.trim()) return;
+    setTypeError(null);
+    const res = await fetch(`${BASE_URL}/admin/types`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: typeDraft.trim() }),
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    if (!res.ok) {
+      setTypeError(json.message ?? 'Could not add that type. Owners and admins can add workspace types.');
+      return;
+    }
+    setTypeDraft('');
+    setAddingType(false);
+    refresh();
   };
 
   const add = async () => {
@@ -74,18 +117,6 @@ export function ProjectStructureScreen() {
       body: JSON.stringify({ ids }),
     });
     refresh();
-  };
-
-  const moveSection = async (id: string, dir: -1 | 1) => {
-    const list = [...(detail.data?.sections ?? [])].sort((a, b) => a.position - b.position);
-    const i = list.findIndex((s) => s.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    const next = [...list];
-    const [item] = next.splice(i, 1);
-    if (!item) return;
-    next.splice(j, 0, item);
-    await saveOrder(next.map((s) => s.id));
   };
 
   const confirmDelete = async () => {
@@ -129,12 +160,8 @@ export function ProjectStructureScreen() {
             <span style={{ fontSize: 12.5, color: color.muted }}>Drag to reorder</span>
           </div>
           <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          {sections.map((s, i) => (
+          {sections.map((s) => (
             <SectionRow key={s.id} id={s.id} name={s.name}>
-              <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <button type="button" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => void moveSection(s.id, -1)} style={{ border: 0, background: 'transparent', color: color.muted, cursor: i === 0 ? 'default' : 'pointer' }}>^</button>
-                <button type="button" aria-label={`Move ${s.name} down`} disabled={i === sections.length - 1} onClick={() => void moveSection(s.id, 1)} style={{ border: 0, background: 'transparent', color: color.muted, cursor: i === sections.length - 1 ? 'default' : 'pointer' }}>v</button>
-              </span>
               <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
               <span style={{ fontSize: 12.5, color: color.muted }}>{counts.get(s.id) ?? 0} tasks</span>
               <Button type="link" onClick={() => { setRenameId(s.id); setRename(s.name); }}>Rename</Button>
@@ -155,17 +182,38 @@ export function ProjectStructureScreen() {
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Task types used here</h2>
           </div>
-          {(catalog.types.length ? catalog.types.map((t) => t.slug) : (Object.keys(TYPE_TPL) as BuiltinTaskType[])).map((slug) => (
+          {typeError && <p style={{ margin: 0, padding: '10px 16px', color: color.danger, fontSize: 12.5 }}>{typeError}</p>}
+          {(catalog.types.length ? catalog.types : (Object.keys(TYPE_TPL) as BuiltinTaskType[]).map((slug) => ({ slug, template: TYPE_TPL[slug] }))).map((row) => {
+            const slug = row.slug;
+            const disabled = (detail.data?.disabledTypes ?? []).includes(slug);
+            const used = (tasks.data ?? []).filter((task) => task.type === slug).length;
+            return (
             <label key={slug} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 52, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
               <TypeTag type={slug} />
-              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>{slug in TYPE_TPL ? TYPE_TPL[slug as BuiltinTaskType] : 'No template'}</span>
+              <span style={{ flex: 1, fontSize: 12.5, color: color.muted }}>
+                {'template' in row && row.template ? (slug in TYPE_TPL ? TYPE_TPL[slug as BuiltinTaskType] : 'Custom type') : (slug in TYPE_TPL ? TYPE_TPL[slug as BuiltinTaskType] : 'No template')}
+                {used > 0 ? ` · ${used} here` : ''}
+              </span>
               <Switch
-                checked
-                disabled
+                checked={!disabled}
+                disabled={!canToggleTypes}
                 aria-label={`Use ${slug} in this project`}
+                onChange={(on) => void toggleType(slug, on)}
               />
             </label>
-          ))}
+            );
+          })}
+          {canAdmin && (
+            addingType ? (
+              <div className="bt-row">
+                <Input value={typeDraft} onChange={(e) => setTypeDraft(e.target.value)} placeholder="New type name" onPressEnter={() => void addType()} style={{ flex: 1 }} />
+                <Button type="link" onClick={() => void addType()}>Add</Button>
+                <Button type="link" onClick={() => { setAddingType(false); setTypeDraft(''); }}>Cancel</Button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setAddingType(true)} style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Add a task type</button>
+            )
+          )}
         </section>
       </div>
       <section className="bt-card">

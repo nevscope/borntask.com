@@ -8,7 +8,9 @@ import { rankKey } from '../lib/mappers.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
-import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
+import { normaliseProjectKey } from '@borntask/shared';
+import { inAppAllowed } from '../lib/notifyInApp.js';
+import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 const colourSchema = z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C');
 
@@ -18,9 +20,31 @@ function normaliseColour(value: string): string {
   return `#${full}`;
 }
 
+async function notifyAccessRequest(auth: Authed, project: { id: string; key: string; leadId: string | null }) {
+  const recipients = new Set<string>();
+  if (project.leadId) recipients.add(project.leadId);
+  const leads = await auth.db.projectMemberRole.findMany({
+    where: { member: { projectId: project.id }, role: { slug: 'lead' } },
+    select: { member: { select: { userId: true } } },
+  });
+  for (const row of leads) recipients.add(row.member.userId);
+  const admins = await prisma.tenantMember.findMany({
+    where: { tenantId: auth.tenantId, tenantRole: { in: ['owner', 'admin'] } },
+    select: { userId: true },
+  });
+  for (const row of admins) recipients.add(row.userId);
+  recipients.delete(auth.userId);
+  for (const userId of recipients) {
+    if (!(await inAppAllowed(auth, userId, 'access_request'))) continue;
+    await auth.db.notification.create({
+      data: { tenantId: auth.tenantId, userId, kind: `access_request:${project.key}` },
+    });
+  }
+}
+
 const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  key: z.string().trim().min(2).max(6).optional(),
+  key: z.string().trim().min(3).max(3).optional(),
   colour: colourSchema.optional(),
   workflowId: z.string().optional(),
   workflow: z.enum(['delivery', 'simple']).optional(),
@@ -53,10 +77,12 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const archived = String((req.query as { archived?: string }).archived ?? '') === 'true';
       const openIds = await openProjectIds(auth);
       const discover = canDiscoverWorkspaceProjects(auth.workspaceRole);
+      const inviteIds = await pendingInviteProjectIds(auth);
+      const allowedIds = openIds ? [...openIds, ...inviteIds] : null;
       const projects = await auth.db.project.findMany({
         where: {
           archivedAt: archived ? { not: null } : null,
-          ...(!discover && openIds ? { id: { in: [...openIds] } } : {}),
+          ...(!discover && allowedIds ? { id: { in: allowedIds } } : {}),
         },
         orderBy: { name: 'asc' },
       });
@@ -65,10 +91,12 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         select: { projectId: true },
       });
       const requested = new Set(pending.map((r) => r.projectId));
+      const invited = new Set(inviteIds);
       const cards = await mapProjectCards(auth.db, auth.userId, projects);
       return cards.map((card) => ({
         ...card,
-        canOpen: canOpenListed(openIds, card.id),
+        canOpen: canOpenListed(openIds, card.id) || invited.has(card.id),
+        pendingInvite: invited.has(card.id) && !canOpenListed(openIds, card.id),
         accessRequested: requested.has(card.id),
       }));
     } catch (err) {
@@ -80,10 +108,47 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      await requireOpenProject(auth, key);
+      const project = await requireOpenProject(auth, key);
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
-      return detail;
+      const pendingInvite = Boolean(await findPendingProjectInvite(auth, project.id))
+        && !(await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } }))
+        && project.leadId !== auth.userId
+        && auth.workspaceRole !== 'owner';
+      return { ...detail, project: { ...detail.project, pendingInvite } };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/accept-invite', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const project = await auth.db.project.findFirst({ where: { key } });
+      if (!project) throw notFound('Project not found.');
+      const invite = await findPendingProjectInvite(auth, project.id);
+      if (!invite) throw validation('There is no invitation for you on this project.');
+      const member = await auth.db.projectMember.upsert({
+        where: { projectId_userId: { projectId: project.id, userId: auth.userId } },
+        update: {},
+        create: { tenantId: auth.tenantId, projectId: project.id, userId: auth.userId },
+      });
+      const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
+      for (const roleId of roleIds) {
+        await auth.db.projectMemberRole.upsert({
+          where: { memberId_roleId: { memberId: member.id, roleId } },
+          update: {},
+          create: { tenantId: auth.tenantId, memberId: member.id, roleId },
+        });
+      }
+      await prisma.invitation.update({
+        where: { id: invite.id },
+        data: { acceptedAt: new Date() },
+      });
+      const detail = await loadProjectDetail(auth.db, key, auth.userId);
+      if (!detail) throw notFound('Project not found.');
+      return { ...detail, project: { ...detail.project, pendingInvite: false } };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -97,8 +162,9 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         name: z.string().trim().min(2).max(80).optional(),
         colour: colourSchema.optional(),
         workflowId: z.string().min(1).optional(),
-      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined, {
-        message: 'Send a name, a colour or a workflow to update.',
+        disabledTypes: z.array(z.string().trim().min(1)).optional(),
+      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined || value.disabledTypes !== undefined, {
+        message: 'Send a name, a colour, a workflow or the types to update.',
       }).safeParse(req.body);
       if (!parsed.success) throw validation(parsed.error.issues[0]?.message ?? 'Check the name, colour and workflow.');
       const project = await visibleProject(auth, key);
@@ -108,14 +174,32 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         const switched = await switchProjectWorkflow(auth, project.id, parsed.data.workflowId);
         workflowId = switched.workflowId;
       }
+      if (parsed.data.disabledTypes !== undefined) {
+        const types = await auth.db.taskType.findMany({ select: { slug: true } });
+        const known = new Set(types.map((row) => row.slug));
+        const disabled = [...new Set(parsed.data.disabledTypes.filter((slug) => known.has(slug)))];
+        if (disabled.length >= types.length) throw validation('Keep at least one task type on this project.');
+        for (const slug of disabled) {
+          const used = await auth.db.task.count({
+            where: { projectId: project.id, deletedAt: null, type: { slug } },
+          });
+          if (used > 0) throw validation(`Cannot switch off ${slug}: ${used} open task${used === 1 ? '' : 's'} still use it.`);
+        }
+      }
       const data = {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
         ...(parsed.data.colour !== undefined ? { colour: normaliseColour(parsed.data.colour) } : {}),
+        ...(parsed.data.disabledTypes !== undefined ? { disabledTypes: parsed.data.disabledTypes.join(',') } : {}),
       };
       const updated = Object.keys(data).length
         ? await auth.db.project.update({ where: { id: project.id }, data })
         : project;
-      return { name: updated.name, colour: updated.colour, workflowId };
+      return {
+        name: updated.name,
+        colour: updated.colour,
+        workflowId,
+        disabledTypes: updated.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
+      };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -128,7 +212,18 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         throw forbidden('Guests and viewers cannot create projects.');
       }
       const input = createProjectSchema.parse(req.body);
-      const key = (input.key ?? projectKeyFromName(input.name)).toUpperCase();
+      const existing = await auth.db.project.findMany({ select: { key: true } });
+      const taken = existing.map((row) => row.key);
+      const requested = input.key ? normaliseProjectKey(input.key) : '';
+      if (input.key && requested.length !== 3) {
+        throw validation('The key must be exactly 3 letters.');
+      }
+      const key = requested.length === 3 && !taken.includes(requested)
+        ? requested
+        : projectKeyFromName(input.name, taken);
+      if (requested.length === 3 && taken.includes(requested) && requested !== key) {
+        throw validation(`Project key ${requested} is already used. Try ${key}.`);
+      }
       const clash = await auth.db.project.findFirst({ where: { key } });
       if (clash) throw validation(`Project key ${key} is already used.`);
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
@@ -398,6 +493,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         await auth.db.accessRequest.create({
           data: { tenantId: auth.tenantId, projectId: project.id, requesterId: auth.userId },
         });
+        await notifyAccessRequest(auth, project);
       }
       const lead = project.leadId
         ? await prisma.user.findUnique({ where: { id: project.leadId }, select: { name: true } })

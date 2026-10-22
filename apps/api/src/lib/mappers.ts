@@ -17,6 +17,18 @@ const TONE_BY_SLUG: Record<string, StatusTone> = {
   done: 'green',
 };
 
+export function parseDisabledTypes(raw: string | null | undefined): string[] {
+  return (raw ?? '').split(',').map((slug) => slug.trim()).filter(Boolean);
+}
+
+export function serializeDisabledTypes(slugs: string[]): string {
+  return [...new Set(slugs.map((slug) => slug.trim()).filter(Boolean))].join(',');
+}
+
+export function typeIsDisabled(raw: string | null | undefined, slug: string): boolean {
+  return parseDisabledTypes(raw).includes(slug);
+}
+
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0]?.[0] ?? '?';

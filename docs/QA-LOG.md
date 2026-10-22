@@ -153,3 +153,18 @@ App: http://localhost:5174 at 1440x900, live API, signed in as `owner@borntask.c
 | SSE | Y (already shipped) | Not listed as open. |
 
 Still N: XLSX, Stripe, Chat DMs, 14-day trial, deploy.
+
+# QA smoke - 22 Oct 2026
+
+Token-light pass. Gates: `npm test` 45 passed after isolation re-run; `npm run design:lint` 0 errors / 0 warnings. Did not run typecheck. API 3010 and web 5174 were already up. Signed in as `owner@borntask.com`. Reusable playbook: `.cursor/commands/qa-smoke.md`.
+
+| ID | Flow | Result | Finding |
+|---|---|---|---|
+| QA-22-01 | Isolation tests | Y | First `npm test` failed: `Project.disabledTypes` missing. Re-run of `tests/isolation` then passed (column present). |
+| QA-22-02 | Prisma migrate history | N (logged) | `prisma migrate deploy` returns P3005 (schema not empty / not baselined). Bigger than a smoke fix. Apply new SQL by hand or baseline `_prisma_migrations`. |
+| QA-22-03 | API reads | Y | Dev-login + GET `/me`, `/projects`, `/projects/WEB`, `/projects/WEB/tasks`, `/me/tasks`, `/tasks/WEB-1`, `/search?q=checkout`, `/people`, `/workflows`, `/me/notifications`, `/me/profile`, `/me/tokens`, `/projects/WEB/github`, `/projects/WEB/chat`, `/projects/WEB/automations` all 200. |
+| QA-22-04 | `GET /tasks?project=WEB` | n/a | 404. Correct path is `/projects/WEB/tasks`. Not a product bug. |
+| QA-22-05 | My tasks / List / Board / People | Y | `/` shows empty assigned + Website card. `/p/WEB/list` and `/p/WEB/board` list live tasks. `/settings/people` loads. Inbox shows 1 unread. |
+| QA-22-06 | Status category filter | leftover | List and board show "Remove Status category filter". Deployed WEB-1 is hidden. Stored view, not a crash. |
+
+Still N (unchanged): XLSX, Stripe, Chat DMs, 14-day trial, deploy, Prisma baseline.

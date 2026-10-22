@@ -42,7 +42,7 @@ export function SettingsNav({
 
   return (
     <nav aria-label="Settings" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {projectKey && (
+      {projectKey ? (
         <>
           <div className="bt-nav-heading" style={{ paddingTop: 0 }}>{heading}</div>
           {projectLinks(projectKey).map((l) => (
@@ -51,19 +51,22 @@ export function SettingsNav({
             </NavLink>
           ))}
         </>
+      ) : (
+        <>
+          <div className="bt-nav-heading">Workspace</div>
+          {workspaceLinks(canAdmin, !!isOwner).filter((l) => l.show).map((l) => (
+            <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
+              {l.label}
+            </NavLink>
+          ))}
+          <div className="bt-nav-heading">You</div>
+          {youLinks.map((l) => (
+            <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
+              {l.label}
+            </NavLink>
+          ))}
+        </>
       )}
-      <div className="bt-nav-heading">Workspace</div>
-      {workspaceLinks(canAdmin, !!isOwner).filter((l) => l.show).map((l) => (
-        <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
-          {l.label}
-        </NavLink>
-      ))}
-      <div className="bt-nav-heading">You</div>
-      {youLinks.map((l) => (
-        <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
-          {l.label}
-        </NavLink>
-      ))}
     </nav>
   );
 }

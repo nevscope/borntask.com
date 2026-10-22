@@ -28,7 +28,9 @@ import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
 import { deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
 import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
+import { useWorkspaceCatalog } from '../api/catalog';
 import { isEmptyDescription, persistDescription, sanitizeDescriptionHtml, toEditorHtml } from '../lib/descriptionHtml';
+import { allowedTypeSlugs } from '../lib/taskFilters';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
 import { AttachmentTiles, filesFromClipboard } from './AttachmentTiles';
@@ -118,6 +120,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   const toast = useStatusToast();
   const qc = useQueryClient();
   const me = useMe().data;
+  const catalog = useWorkspaceCatalog();
   const update = useUpdateTask();
   const del = useDeleteTask();
   const restore = useRestoreTask();
@@ -142,6 +145,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmWatch, setConfirmWatch] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [subtaskDraft, setSubtaskDraft] = useState('');
   const [descFocused, setDescFocused] = useState(false);
@@ -292,14 +296,32 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         <strong style={{ color: color.ink }}>{task.key}</strong>
         <span role="status" style={{ marginLeft: 6, fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : descTooLong || update.isError ? color.danger : color.brandStrong }}>{saving ? 'Saving…' : descTooLong || update.isError ? 'Not saved' : isPhone ? 'Saved' : '✓ Saved'}</span>
         <span style={{ flex: 1 }} />
-        {!isPhone && (
-          <>
         <Button type="text" size="small" aria-pressed={watching} onClick={() => setConfirmWatch(true)}>
           {watching ? 'Watching' : 'Watch'}
         </Button>
-        <Button type="text" size="small" onClick={() => { void navigator.clipboard?.writeText(window.location.href); toast.show('Link copied.'); }}>Copy link</Button>
+        <Button
+          type="text"
+          size="small"
+          onClick={() => {
+            const href = window.location.href;
+            const done = () => {
+              setLinkCopied(true);
+              window.setTimeout(() => setLinkCopied(false), 2000);
+              toast.show('Link copied.');
+            };
+            if (!navigator.clipboard?.writeText) {
+              toast.show({ text: 'Could not copy the link.', kind: 'error' });
+              return;
+            }
+            void navigator.clipboard.writeText(href).then(done).catch(() => {
+              toast.show({ text: 'Could not copy the link.', kind: 'error' });
+            });
+          }}
+        >
+          {linkCopied ? 'Copied' : 'Copy link'}
+        </Button>
+        {!isPhone && (
         <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18 }}>×</button>
-          </>
         )}
       </div>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -381,7 +403,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
               options={options}
               onMove={(statusId) => flow.requestMove(task, statusId)}
             />
-            <TypePicker value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
             {!isPhone && task.statusId !== 'idea' && quick.length > 0 && (
               <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
                 <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>
@@ -568,10 +590,16 @@ function Comments({ task, detail, people, onDraftChange, hideComposer = false }:
     setDraft(value);
     onDraftChange(value);
   };
+  const sending = useRef(false);
   const send = () => {
+    if (sending.current || add.isPending) return;
     const body = persistDescription(draft);
     if (isEmptyDescription(body)) return;
-    add.mutate({ key: task.key, body }, { onSuccess: () => write('') });
+    sending.current = true;
+    add.mutate({ key: task.key, body }, {
+      onSuccess: () => write(''),
+      onSettled: () => { sending.current = false; },
+    });
   };
   const userOf = (id: string) => detail.users.find((u) => u.id === id);
   const activity = task.activity
@@ -608,10 +636,15 @@ function Comments({ task, detail, people, onDraftChange, hideComposer = false }:
             placeholder="Write a comment. Type @ to mention someone."
             ariaLabel="Comment"
             onChange={write}
-            onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
+            onEditorKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              if (e.shiftKey) return;
+              e.preventDefault();
+              send();
+            }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Ctrl</kbd> + <kbd className="bt-kbd">Enter</kbd> to send. Type @ to tag someone.</span>
+            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line. Type @ to tag someone.</span>
             <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
           </div>
         </>
@@ -674,8 +707,10 @@ function CommentRow({
                 ariaLabel="Edit comment"
                 onChange={setEditDraft}
                 onEditorKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
-                  if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); }
+                  if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); return; }
+                  if (e.key !== 'Enter' || e.shiftKey) return;
+                  e.preventDefault();
+                  save();
                 }}
               />
             </div>

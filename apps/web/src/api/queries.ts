@@ -257,6 +257,7 @@ export type LiveTaskEvent = {
 export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?: { skipTask?: boolean }) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(event.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
+  void qc.invalidateQueries({ queryKey: qk.notifications });
   if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
 }
 

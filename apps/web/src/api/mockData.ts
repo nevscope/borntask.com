@@ -348,6 +348,7 @@ export const mockApi: Api = {
       members: members[key] ?? [],
       users,
       workflow: deliveryWorkflow,
+      disabledTypes: [],
     });
   },
 

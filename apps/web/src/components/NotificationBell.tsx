@@ -79,8 +79,16 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
   const open = (note: Notification) => {
     if (!note.readAt) mark.mutate({ id: note.id });
     onClose();
+    if (note.kind === 'access_request' && note.projectKey) {
+      navigate(`/p/${note.projectKey}/settings/members`);
+      return;
+    }
     if (note.taskKey && note.projectKey) {
       navigate(`/p/${note.projectKey}/list?task=${note.taskKey}`);
+      return;
+    }
+    if (note.projectKey) {
+      navigate(`/p/${note.projectKey}/list`);
     }
   };
 

@@ -120,6 +120,7 @@ export const ProjectSchema = z.object({
   /** False when an admin can see the project but has not been given a seat. */
   canOpen: z.boolean().optional(),
   accessRequested: z.boolean().optional(),
+  pendingInvite: z.boolean().optional(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -144,6 +145,7 @@ export const ProjectDetailSchema = z.object({
   members: z.array(ProjectMemberSchema),
   users: z.array(UserSchema),
   workflow: WorkflowSchema,
+  disabledTypes: z.array(z.string()).optional(),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 
@@ -269,7 +271,7 @@ export const SearchResponseSchema = z.object({
 export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;
 
-export const NotificationKindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github']);
+export const NotificationKindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request']);
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 
 export const NotificationSchema = z.object({

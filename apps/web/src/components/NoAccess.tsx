@@ -49,7 +49,7 @@ export function NoAccess({ projectKey, error }: { projectKey: string; error: unk
           <span style={{ fontSize: 13.5, color: color.brandStrong }}>Request sent.</span>
         ) : (
           <button type="button" onClick={() => void ask()} style={{ height: 36, padding: '0 14px', marginTop: 4, border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            Request access
+            Request
           </button>
         )}
         {note && <span style={{ fontSize: 13, color: color.danger }}>{note}</span>}

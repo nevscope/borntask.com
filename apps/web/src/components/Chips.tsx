@@ -127,14 +127,6 @@ export function EditIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function CheckIcon({ size = 10 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 6.2 4.6 9 10 3" />
-    </svg>
-  );
-}
-
 export function LockIcon({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" style={{ verticalAlign: '-1px' }}>
