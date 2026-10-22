@@ -280,6 +280,7 @@ export const NotificationSchema = z.object({
   text: z.string(),
   taskKey: z.string().nullable(),
   projectKey: z.string().nullable(),
+  needsAccept: z.boolean().optional(),
   actor: UserSchema.nullable(),
   createdAt: z.string(),
   readAt: z.string().nullable(),

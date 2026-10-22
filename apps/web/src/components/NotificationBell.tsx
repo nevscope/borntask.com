@@ -2,10 +2,11 @@ import { Popover } from 'antd';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { useMarkNotificationsRead, useNotifications } from '../api/queries';
+import { useAcceptProjectInvite, useMarkNotificationsRead, useNotifications } from '../api/queries';
 import type { Notification } from '../api/types';
 import { formatWhen } from '../lib/relativeTime';
 import { color, radius } from '../theme/tokens';
+import { useStatusToast } from './StatusToast';
 import { Avatar } from './Chips';
 
 function BellIcon() {
@@ -24,34 +25,73 @@ function refLabel(n: Notification) {
 function NotificationRow({
   note,
   onOpen,
+  onAccept,
+  accepting,
 }: {
   note: Notification;
   onOpen: (note: Notification) => void;
+  onAccept: (note: Notification) => void;
+  accepting: boolean;
 }) {
   const unread = !note.readAt;
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(note)}
+    <div
       style={{
         display: 'flex',
         gap: 12,
         width: '100%',
         padding: '12px 16px',
-        border: 0,
         borderBottom: `1px solid ${color.divider}`,
         background: unread ? color.unreadRow : color.surface,
         color: color.ink,
-        textAlign: 'left',
-        cursor: 'pointer',
-        font: 'inherit',
+        boxSizing: 'border-box',
       }}
     >
-      <Avatar user={note.actor} size={30} />
-      <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13.5, lineHeight: 1.4 }}>
-        <span>{note.text}</span>
-        <span style={{ fontSize: 12, color: color.muted }}>{refLabel(note)} · {formatWhen(note.createdAt)}</span>
-      </span>
+      <button
+        type="button"
+        onClick={() => onOpen(note)}
+        style={{
+          display: 'flex',
+          gap: 12,
+          flex: 1,
+          minWidth: 0,
+          padding: 0,
+          border: 0,
+          background: 'transparent',
+          color: 'inherit',
+          textAlign: 'left',
+          cursor: 'pointer',
+          font: 'inherit',
+        }}
+      >
+        <Avatar user={note.actor} size={30} />
+        <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13.5, lineHeight: 1.4 }}>
+          <span>{note.text}</span>
+          <span style={{ fontSize: 12, color: color.muted }}>{refLabel(note)} · {formatWhen(note.createdAt)}</span>
+        </span>
+      </button>
+      {note.needsAccept && note.projectKey && (
+        <button
+          type="button"
+          onClick={() => onAccept(note)}
+          disabled={accepting}
+          style={{
+            alignSelf: 'center',
+            height: 32,
+            padding: '0 12px',
+            border: 0,
+            borderRadius: radius.md,
+            background: color.brandFill,
+            color: color.brandOn,
+            font: 'inherit',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: accepting ? 'wait' : 'pointer',
+          }}
+        >
+          {accepting ? 'Joining…' : 'Join project'}
+        </button>
+      )}
       <span
         aria-hidden="true"
         style={{
@@ -63,22 +103,22 @@ function NotificationRow({
           background: unread ? color.brand : 'transparent',
         }}
       />
-    </button>
+    </div>
   );
 }
 
 export function NotificationPanel({ onClose, phone = false }: { onClose: () => void; phone?: boolean }) {
   const navigate = useNavigate();
+  const toast = useStatusToast();
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
+  const accept = useAcceptProjectInvite();
   const [tab, setTab] = useState<'unread' | 'all'>('unread');
   const items = list?.items ?? [];
   const unreadCount = list?.unreadCount ?? 0;
   const shown = tab === 'unread' ? items.filter((n) => !n.readAt) : items;
 
-  const open = (note: Notification) => {
-    if (!note.readAt) mark.mutate({ id: note.id });
-    onClose();
+  const go = (note: Notification) => {
     if (note.kind === 'access_request' && note.projectKey) {
       navigate(`/p/${note.projectKey}/settings/members`);
       return;
@@ -90,6 +130,29 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
     if (note.projectKey) {
       navigate(`/p/${note.projectKey}/list`);
     }
+  };
+
+  const open = (note: Notification) => {
+    if (!note.readAt) mark.mutate({ id: note.id });
+    onClose();
+    if (note.needsAccept && note.projectKey) {
+      void accept.mutateAsync(note.projectKey).then(() => go(note)).catch((err: unknown) => {
+        toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
+      });
+      return;
+    }
+    go(note);
+  };
+
+  const join = (note: Notification) => {
+    if (!note.projectKey) return;
+    void accept.mutateAsync(note.projectKey).then(() => {
+      if (!note.readAt) mark.mutate({ id: note.id });
+      onClose();
+      go(note);
+    }).catch((err: unknown) => {
+      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
+    });
   };
 
   return (
@@ -179,7 +242,15 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
         </div>
       ) : (
         <div style={{ flex: phone ? 1 : undefined, overflow: phone ? 'auto' : undefined }}>
-          {shown.map((note) => <NotificationRow key={note.id} note={note} onOpen={open} />)}
+          {shown.map((note) => (
+            <NotificationRow
+              key={note.id}
+              note={note}
+              onOpen={open}
+              onAccept={join}
+              accepting={accept.isPending && accept.variables === note.projectKey}
+            />
+          ))}
         </div>
       )}
       <div style={{ padding: '10px 16px', fontSize: 12.5, color: color.muted }}>

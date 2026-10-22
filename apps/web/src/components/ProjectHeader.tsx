@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe, useProjects } from '../api/queries';
+import { qk, useAcceptProjectInvite, useMe, useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
 import { color, font, radius } from '../theme/tokens';
 import { Avatar, EditIcon } from './Chips';
@@ -78,30 +78,8 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
     }
   }
 
-  const [joining, setJoining] = useState(false);
+  const accept = useAcceptProjectInvite();
   const pendingInvite = Boolean(project.pendingInvite || listed?.pendingInvite);
-
-  async function acceptInvite() {
-    if (joining) return;
-    setJoining(true);
-    try {
-      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(project.key)}/accept-invite`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { message?: string };
-        throw new Error(json.message ?? 'Could not join this project.');
-      }
-      void qc.invalidateQueries({ queryKey: qk.projects });
-      void qc.invalidateQueries({ queryKey: qk.project(project.key) });
-      void qc.invalidateQueries({ queryKey: qk.notifications });
-    } catch (err) {
-      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
-    } finally {
-      setJoining(false);
-    }
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -110,11 +88,15 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
           <span style={{ flex: 1, fontSize: 13.5 }}>You have been invited to this project. Join to add and change tasks.</span>
           <button
             type="button"
-            onClick={() => void acceptInvite()}
-            disabled={joining}
-            style={{ height: 34, padding: '0 14px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: joining ? 'wait' : 'pointer' }}
+            onClick={() => {
+              void accept.mutateAsync(project.key).catch((err: unknown) => {
+                toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
+              });
+            }}
+            disabled={accept.isPending}
+            style={{ height: 34, padding: '0 14px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: accept.isPending ? 'wait' : 'pointer' }}
           >
-            {joining ? 'Joining…' : 'Join project'}
+            {accept.isPending ? 'Joining…' : 'Join project'}
           </button>
         </div>
       )}

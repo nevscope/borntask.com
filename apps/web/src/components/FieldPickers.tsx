@@ -68,21 +68,27 @@ export function AssigneePicker({
   bare?: boolean;
   trigger?: ReactNode;
 }) {
-  const current = users.find((user) => user.id === value);
+  const me = useMe().data;
+  const selfId = meId ?? me?.user.id;
+  const people = useMemo(() => {
+    if (!me?.user || users.some((user) => user.id === me.user.id)) return users;
+    return [me.user, ...users];
+  }, [users, me]);
+  const current = people.find((user) => user.id === value);
   return (
     <Picker
       bare={bare}
       label={trigger ?? (current ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar user={current} size={20} />{current.name}</span> : 'Unassigned')}
       ariaLabel="Change assignee"
       onKey={(key, close) => {
-        if (key.toLowerCase() !== 'i' || !meId) return false;
-        onChange(meId);
+        if (key.toLowerCase() !== 'i' || !selfId) return false;
+        onChange(selfId);
         close();
         return true;
       }}
     >
       {(close) => (
-        <AssigneeList users={users} detail={detail} meId={meId} selected={value} onChange={(id) => { onChange(id); close(); }} />
+        <AssigneeList users={people} detail={detail} meId={selfId} selected={value} onChange={(id) => { onChange(id); close(); }} />
       )}
     </Picker>
   );
@@ -113,7 +119,7 @@ function AssigneeList({
   const rows = users.filter(matches);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} onMouseDown={(event) => event.stopPropagation()}>
-      <FilterBox label="Find a person" value={q} onChange={setQ} />
+      <FilterBox label="Find a person" value={q} onChange={setQ} passthroughKeys={q ? [] : ['i']} autoFocus={false} />
       {selfId && (
         <RowButton onClick={() => onChange(selfId)}>
           <span style={{ flex: 1 }}>Assign to me</span>
@@ -495,16 +501,17 @@ function FilterList({
   );
 }
 
-function FilterBox({ label, value, onChange, hint, onEnter }: { label: string; value: string; onChange: (value: string) => void; hint?: string; onEnter?: () => void }) {
+function FilterBox({ label, value, onChange, hint, onEnter, passthroughKeys = [], autoFocus = true }: { label: string; value: string; onChange: (value: string) => void; hint?: string; onEnter?: () => void; passthroughKeys?: string[]; autoFocus?: boolean }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36, marginBottom: 4, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: 8 }}>
       <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{label}</span>
       <input
-        autoFocus
+        autoFocus={autoFocus}
         value={value}
         aria-label={label}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
+          if (passthroughKeys.includes(event.key.toLowerCase()) && !value) return;
           event.stopPropagation();
           if (event.key === 'Enter') onEnter?.();
         }}

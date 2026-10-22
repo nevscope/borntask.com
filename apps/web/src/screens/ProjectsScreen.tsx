@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { USE_PROJECT_MOCKS, useMe, useProjects, useRequestProjectAccess } from '../api/queries';
+import { USE_PROJECT_MOCKS, useAcceptProjectInvite, useMe, useProjects, useRequestProjectAccess } from '../api/queries';
 import type { Project, StatusCounts } from '../api/types';
 import { ProjectStar } from '../components/ProjectStar';
 import { categoryBar, color, font, projectTint, radius } from '../theme/tokens';
@@ -21,6 +21,7 @@ export function ProjectsScreen() {
     },
   });
   const requestAccess = useRequestProjectAccess();
+  const acceptInvite = useAcceptProjectInvite();
   const role = useMe().data?.workspaceRole;
   const canCreate = role !== 'viewer' && role !== 'guest';
   const rows = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
@@ -51,7 +52,14 @@ export function ProjectsScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {rows.map((p) => (
-            <ProjectCard key={p.id} project={p} onRequest={() => requestAccess.mutate(p.key)} requesting={requestAccess.isPending && requestAccess.variables === p.key} />
+            <ProjectCard
+              key={p.id}
+              project={p}
+              onRequest={() => requestAccess.mutate(p.key)}
+              requesting={requestAccess.isPending && requestAccess.variables === p.key}
+              onJoin={() => acceptInvite.mutate(p.key)}
+              joining={acceptInvite.isPending && acceptInvite.variables === p.key}
+            />
           ))}
         </div>
       )}
@@ -65,7 +73,7 @@ export function ProjectsScreen() {
   );
 }
 
-function ProjectCard({ project: p, onRequest, requesting }: { project: Project; onRequest: () => void; requesting: boolean }) {
+function ProjectCard({ project: p, onRequest, requesting, onJoin, joining }: { project: Project; onRequest: () => void; requesting: boolean; onJoin: () => void; joining: boolean }) {
   const locked = p.canOpen === false;
   const body = (
     <>
@@ -75,7 +83,16 @@ function ProjectCard({ project: p, onRequest, requesting }: { project: Project; 
           <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
           <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
         </span>
-        {p.pendingInvite && <span style={{ fontSize: 12, fontWeight: 600, color: color.brandStrong }}>Invitation</span>}
+        {p.pendingInvite && (
+          <button
+            type="button"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); onJoin(); }}
+            disabled={joining}
+            style={{ height: 28, padding: '0 10px', border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: joining ? 'wait' : 'pointer' }}
+          >
+            {joining ? 'Joining…' : 'Join'}
+          </button>
+        )}
         {!locked && (p.guestCount ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted }}>{p.guestCount} {p.guestCount === 1 ? 'guest' : 'guests'}</span>}
         {!locked && <ProjectStar projectKey={p.key} name={p.name} starred={p.starred} />}
       </span>

@@ -177,6 +177,27 @@ export function useResolveAccessRequest(projectKey: string) {
   });
 }
 
+export function useAcceptProjectInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectKey: string) => {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/accept-invite`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => null) as { message?: string } | null;
+      if (!res.ok) throw new Error(json?.message ?? 'Could not join this project.');
+    },
+    onSuccess: (_d, projectKey) => {
+      void qc.invalidateQueries({ queryKey: qk.projects });
+      void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.notifications });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
+    },
+  });
+}
+
 export function useRequestProjectAccess() {
   const qc = useQueryClient();
   return useMutation({

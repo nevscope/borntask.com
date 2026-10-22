@@ -207,7 +207,11 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     .filter((o) => o.check.kind === 'allowed')
     .sort((a, b) => Number(a.status.side) - Number(b.status.side))
     .slice(0, 3);
-  const memberUsers = detail.users.filter((u) => detail.members.some((m) => m.userId === u.id));
+  const memberUsers = (() => {
+    const seated = detail.users.filter((u) => detail.members.some((m) => m.userId === u.id));
+    if (me?.user && !seated.some((u) => u.id === me.user.id)) return [me.user, ...seated];
+    return seated;
+  })();
   const mentionPeople = detail.users.length ? detail.users : memberUsers;
   const watching = Boolean(me && task.watcherIds?.includes(me.user.id));
   const labelSuggestions = [...new Set((useProjectTasks(detail.project.key).data ?? []).flatMap((row) => row.labels))];
@@ -242,6 +246,20 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
       },
     );
   };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (inTrash || readOnly || !me?.user.id) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== 'i') return;
+      event.preventDefault();
+      save({ assigneeId: me.user.id });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [inTrash, readOnly, me?.user.id, save]);
 
   guard.current = {
     dirty: !isEmptyDescription(commentDraft) || subtaskDraft.trim() !== '',

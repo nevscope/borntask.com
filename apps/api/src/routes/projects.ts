@@ -96,7 +96,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       return cards.map((card) => ({
         ...card,
         canOpen: canOpenListed(openIds, card.id) || invited.has(card.id),
-        pendingInvite: invited.has(card.id) && !canOpenListed(openIds, card.id),
+        pendingInvite: invited.has(card.id),
         accessRequested: requested.has(card.id),
       }));
     } catch (err) {
@@ -112,9 +112,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
       const pendingInvite = Boolean(await findPendingProjectInvite(auth, project.id))
-        && !(await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } }))
-        && project.leadId !== auth.userId
-        && auth.workspaceRole !== 'owner';
+        && !(await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } }));
       return { ...detail, project: { ...detail.project, pendingInvite } };
     } catch (err) {
       return sendError(reply, err);

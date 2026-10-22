@@ -62,6 +62,7 @@ function present(
     text: textFor(row.kind, row.task?.title ?? null, key),
     taskKey: key,
     projectKey: invited ?? requested ?? row.task?.project.key ?? null,
+    needsAccept: Boolean(invited),
     actor: null,
     createdAt: row.createdAt.toISOString(),
     readAt: row.readAt?.toISOString() ?? null,
