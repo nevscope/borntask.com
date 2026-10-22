@@ -292,7 +292,10 @@ function simpleWorkflow(isDefault: boolean): WorkspacePack['workflows'][number] 
     name: 'Simple',
     isDefault,
     stages,
-    moves: openMoves(stages.map((s) => s.slug)),
+    moves: [
+      ...openMoves(stages.map((s) => s.slug)),
+      { from: 'todo', to: 'done', roles: [], label: 'Complete' },
+    ],
   };
 }
 

@@ -34,7 +34,7 @@ export function guessImportStatusSlug(
   const rules: { test: (value: string) => boolean; slug: string }[] = [
     { test: (v) => v.includes('on hold'), slug: 'on_hold' },
     { test: (v) => v.includes('reject') || v.includes('wont do') || v.includes("won't do"), slug: 'rejected' },
-    { test: (v) => v.includes('deployed on live') || v === 'done' || v === 'complete' || v === 'completed', slug: 'deployed' },
+    { test: (v) => v.includes('deployed on live') || v === 'done' || v === 'complete' || v === 'completed' || v === 'closed' || v === 'resolved', slug: 'deployed' },
     { test: (v) => v.includes('deployed on test') || v.includes('ready for testing'), slug: 'ready_for_testing' },
     { test: (v) => v.includes('issues on test') || (v.includes('testing') && !v.includes('ready')), slug: 'testing' },
     { test: (v) => v.includes('issues on live') || v.includes('in progress') || v === 'wip', slug: 'wip' },
@@ -48,6 +48,16 @@ export function guessImportStatusSlug(
   if (exact) return exact.slug;
   const fuzzy = stages.find((s) => lower.includes(foldLabel(s.name)) || foldLabel(s.name).includes(lower));
   return fuzzy?.slug;
+}
+
+export function guessImportPriority(raw: string): 'urgent' | 'high' | 'medium' | 'low' | 'none' {
+  const value = foldLabel(raw);
+  if (!value) return 'none';
+  if (value.includes('urgent') || value === 'p0' || value === 'p1') return 'urgent';
+  if (value.includes('high') || value === 'p2') return 'high';
+  if (value.includes('medium') || value === 'normal' || value === 'p3') return 'medium';
+  if (value.includes('low') || value === 'p4' || value === 'p5') return 'low';
+  return 'none';
 }
 
 export function guessImportTypeSlug(

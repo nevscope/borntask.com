@@ -53,7 +53,7 @@ export function ImportScreen() {
   const [job, setJob] = useState<ImportState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('statuses');
+  const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('sections');
   const [showPreview, setShowPreview] = useState(false);
   const [asanaProject, setAsanaProject] = useState('');
   const [asanaToken, setAsanaToken] = useState('');
@@ -226,6 +226,9 @@ export function ImportScreen() {
               onChange={(e) => setAsanaToken(e.target.value)}
               autoComplete="off"
             />
+            <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
+              Imports sections, descriptions, subtasks, comments, activity, priority, custom-field labels, followers who already have accounts, and completed tasks as Deployed. Attachments stay in Asana.
+            </p>
             <div>
               <Button type="primary" loading={busy} disabled={!projectKey || !asanaProject.trim() || asanaToken.trim().length < 8} onClick={() => void startAsana()}>
                 Start Asana migration
@@ -421,6 +424,16 @@ export function ImportScreen() {
   );
 }
 
+function importPercent(phase: string | undefined, rowsDone: number, rowsTotal: number) {
+  if (phase === 'listing') {
+    if (rowsTotal <= 0) return 6;
+    return Math.min(24, 8 + Math.round(Math.log10(rowsTotal + 1) * 6));
+  }
+  if (rowsTotal <= 0) return 10;
+  const start = phase === 'reading' ? 24 : 20;
+  return Math.min(100, Math.round(start + (rowsDone / rowsTotal) * (100 - start)));
+}
+
 function doneCopy(rowsDone: number, skipped: number, projectName: string) {
   const imported = Math.max(0, rowsDone - skipped);
   if (skipped === 0) return `${imported.toLocaleString('en-GB')} tasks are in ${projectName}.`;
@@ -449,15 +462,15 @@ function ImportProgressCard({
   projectName: string;
   phase?: string;
 }) {
-  const pct = rowsTotal > 0 ? Math.min(100, Math.round((rowsDone / rowsTotal) * 100)) : 0;
+  const pct = importPercent(phase, rowsDone, rowsTotal);
   const failed = errorList(errors);
   const runningCopy = phase === 'listing'
     ? `Listing Asana tasks (${rowsTotal.toLocaleString('en-GB')} so far).`
     : phase === 'reading'
       ? `Reading comments and activity: ${rowsDone.toLocaleString('en-GB')} of ${rowsTotal.toLocaleString('en-GB')}.`
-      : rowsTotal === 0
-        ? 'Reading the Asana project. Comments and activity are fetched per task, so this can take a while.'
-        : `Writing tasks into ${projectName}. You can open the project while this runs.`;
+      : phase === 'importing' || rowsTotal > 0
+        ? `Importing tasks into ${projectName}: ${rowsDone.toLocaleString('en-GB')} of ${rowsTotal.toLocaleString('en-GB')}. You can open the project while this runs.`
+        : 'Reading the Asana project. Comments and activity are fetched per task, so this can take a while.';
   return (
     <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -466,7 +479,7 @@ function ImportProgressCard({
         </strong>
         <span style={{ fontSize: 13, color: color.muted }}>{rowsDone.toLocaleString('en-GB')} of {rowsTotal.toLocaleString('en-GB')}</span>
       </div>
-      <Progress percent={pct} showInfo={false} status={status === 'running' && pct === 0 ? 'active' : undefined} strokeColor={status === 'failed' ? color.warning : color.brand} />
+      <Progress percent={pct} showInfo={false} status={status === 'running' ? 'active' : undefined} strokeColor={status === 'failed' ? color.warning : color.brand} />
       <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>
         {status === 'running' && runningCopy}
         {status === 'done' && doneCopy(rowsDone, failed.length, projectName)}

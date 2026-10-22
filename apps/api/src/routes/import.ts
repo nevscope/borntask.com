@@ -175,7 +175,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           mapping: {
             source: 'asana_api',
             asanaProjectGid: gid,
-            sectionsAs: body.sectionsAs ?? 'statuses',
+            sectionsAs: body.sectionsAs ?? 'sections',
             columns: ASANA_API_COLUMNS,
           },
           createdById: auth.userId,

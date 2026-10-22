@@ -2,10 +2,42 @@ import { useStatusToast } from './StatusToast';
 import { useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task, UpdateTaskInput } from '../api/types';
 import { dueColor, dueLabel, dueTone } from '../lib/dates';
-import { moveOptions, statusById } from '../lib/workflow';
+import { completeTarget, moveOptions, statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
-import { Avatar, PriorityLabel, StatusPill, TypeTag } from './Chips';
+import { Avatar, CheckIcon, PriorityLabel, StatusPill, TypeTag } from './Chips';
 import { AssigneePicker, DuePicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
+
+export function CompleteTick({
+  task,
+  detail,
+  roles,
+  onMove,
+}: {
+  task: Task;
+  detail: ProjectDetail;
+  roles: ProjectRole[];
+  onMove: (task: Task, statusId: string) => void;
+}) {
+  const done = statusById(detail.workflow, task.statusId)?.category === 'done';
+  const target = completeTarget(detail.workflow, task, roles);
+  if (!done && !target) return <span style={{ width: 32, flex: 'none' }} />;
+  const label = done ? `${task.key} is complete` : `Mark ${task.key} complete`;
+  return (
+    <button
+      type="button"
+      className={`bt-check${done ? ' done' : ''}`}
+      aria-label={label}
+      title={label}
+      disabled={done || !target}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (target) onMove(task, target.id);
+      }}
+    >
+      <span>{done ? <CheckIcon /> : null}</span>
+    </button>
+  );
+}
 
 export function ListFields({
   task,

@@ -316,9 +316,36 @@ export function WorkflowEditorScreen() {
           </div>
           {rows.map((r, i) => (
             <div key={`${r.from}-${r.to}-${r.label ?? ''}-${i}`} style={{ display: 'grid', gridTemplateColumns: moveColumns, gap: 12, alignItems: 'center', minHeight: 46, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.from), flex: 'none' }} />{nameOf(r.from)}</span>
+              {canEdit ? (
+                <StageSelect
+                  aria-label={`From stage for move ${i + 1}`}
+                  value={r.from}
+                  stages={stages}
+                  allowAny
+                  onChange={(from) => {
+                    const next = [...rows];
+                    next[i] = { ...r, from };
+                    setRows(next);
+                  }}
+                />
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.from), flex: 'none' }} />{nameOf(r.from)}</span>
+              )}
               <MoveArrow />
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.to), flex: 'none' }} />{nameOf(r.to)}</span>
+              {canEdit ? (
+                <StageSelect
+                  aria-label={`To stage for move ${i + 1}`}
+                  value={r.to}
+                  stages={stages}
+                  onChange={(to) => {
+                    const next = [...rows];
+                    next[i] = { ...r, to };
+                    setRows(next);
+                  }}
+                />
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.to), flex: 'none' }} />{nameOf(r.to)}</span>
+              )}
               <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                 {canEdit ? (
                   <Select
@@ -367,10 +394,9 @@ export function WorkflowEditorScreen() {
             type="button"
             disabled={!canEdit || stages.length < 2}
             onClick={() => {
-              const from = stages[0]?.id;
-              const to = stages[1]?.id;
-              if (!from || !to) return;
-              setRows([...rows, { from, to, roles: [], requireComment: false, label: null }]);
+              const next = unusedMove(stages, rows);
+              if (!next) return;
+              setRows([...rows, { ...next, roles: [], requireComment: false, label: null }]);
             }}
             style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed' }}
           >
@@ -459,6 +485,46 @@ function usedByLine(names: string[] | undefined, count: number | undefined, pref
   if (total === 1) return first;
   const rest = total - 1;
   return `${first} and ${rest} other ${rest === 1 ? 'project' : 'projects'}`;
+}
+
+function unusedMove(stages: Stage[], rows: Transition[]): { from: string; to: string } | null {
+  const used = new Set(rows.map((r) => `${r.from}->${r.to}`));
+  for (const from of stages) {
+    for (const to of stages) {
+      if (from.id === to.id) continue;
+      if (!used.has(`${from.id}->${to.id}`)) return { from: from.id, to: to.id };
+    }
+  }
+  if (stages[0] && !used.has(`*->${stages[0].id}`)) return { from: '*', to: stages[0].id };
+  return stages[0] && stages[1] ? { from: stages[0].id, to: stages[1].id } : null;
+}
+
+function StageSelect({
+  value,
+  stages,
+  allowAny,
+  onChange,
+  'aria-label': ariaLabel,
+}: {
+  value: string;
+  stages: Stage[];
+  allowAny?: boolean;
+  onChange: (id: string) => void;
+  'aria-label': string;
+}) {
+  const options = [
+    ...(allowAny ? [{ value: '*', label: 'Any stage' }] : []),
+    ...stages.map((s) => ({ value: s.id, label: s.name })),
+  ];
+  return (
+    <Select
+      aria-label={ariaLabel}
+      value={value}
+      options={options}
+      onChange={onChange}
+      style={{ minWidth: 120, width: '100%' }}
+    />
+  );
 }
 
 function MoveArrow() {

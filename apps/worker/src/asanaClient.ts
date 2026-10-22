@@ -14,10 +14,16 @@ const TASK_FIELDS = [
   'modified_at',
   'due_on',
   'start_on',
+  'permalink_url',
+  'resource_subtype',
   'assignee.email',
   'parent.gid',
   'memberships.section.name',
   'tags.name',
+  'followers.email',
+  'custom_fields.name',
+  'custom_fields.display_value',
+  'custom_fields.enum_value.name',
 ].join(',');
 
 const STORY_FIELDS = [
@@ -37,6 +43,12 @@ export type AsanaStoryExtra = {
 
 type AsanaPage<T> = { data: T[]; next_page?: { offset: string } | null };
 
+type AsanaCustomField = {
+  name?: string | null;
+  display_value?: string | null;
+  enum_value?: { name?: string | null } | null;
+};
+
 type AsanaTask = {
   gid: string;
   name?: string | null;
@@ -47,10 +59,14 @@ type AsanaTask = {
   modified_at?: string | null;
   due_on?: string | null;
   start_on?: string | null;
+  permalink_url?: string | null;
+  resource_subtype?: string | null;
   assignee?: { email?: string | null } | null;
   parent?: { gid?: string | null } | null;
   memberships?: { section?: { name?: string | null } | null }[] | null;
   tags?: { name?: string | null }[] | null;
+  followers?: { email?: string | null }[] | null;
+  custom_fields?: AsanaCustomField[] | null;
 };
 
 type AsanaStory = {
@@ -62,16 +78,16 @@ type AsanaStory = {
 };
 
 export type AsanaFetchProgress = {
-  phase: 'listing' | 'reading';
+  phase: 'listing' | 'reading' | 'importing';
   listed: number;
   read: number;
 };
 
-export async function fetchAsanaSheet(
+export async function listAsanaProjectTasks(
   token: string,
   projectGid: string,
   onProgress?: (progress: AsanaFetchProgress) => Promise<void>,
-): Promise<AsanaSheet> {
+): Promise<AsanaTask[]> {
   const tasks = await listAll<AsanaTask>(
     token,
     `/projects/${projectGid}/tasks?opt_fields=${TASK_FIELDS}&limit=100`,
@@ -92,34 +108,67 @@ export async function fetchAsanaSheet(
       seen.add(child.gid);
       all.push(child);
     }
-    if (all.length % 25 === 0) await onProgress?.({ phase: 'listing', listed: all.length, read: 0 });
+    if (all.length % 10 === 0) await onProgress?.({ phase: 'listing', listed: all.length, read: 0 });
   }
-  await onProgress?.({ phase: 'reading', listed: all.length, read: 0 });
+  await onProgress?.({ phase: 'listing', listed: all.length, read: 0 });
+  return all;
+}
 
+export function asanaTaskToRow(task: AsanaTask): Record<string, string> {
+  const section = task.memberships?.map((m) => m.section?.name).find((name) => name) ?? '';
+  const custom = task.custom_fields ?? [];
+  const priority = customValue(custom, ['priority', 'urgency']) ?? '';
+  const type = customValue(custom, ['type', 'task type', 'ticket type']) ?? '';
+  const extraLabels = custom
+    .map((field) => (field.display_value ?? field.enum_value?.name ?? '').trim())
+    .filter((value) => value && value !== '-' && value !== 'n/a');
+  const tags = [
+    ...(task.tags ?? []).map((tag) => tag.name ?? ''),
+    ...extraLabels,
+    task.resource_subtype === 'milestone' ? 'Milestone' : '',
+  ].filter(Boolean);
+  const notes = task.notes ?? '';
+  const permalink = task.permalink_url ?? '';
+  const description = permalink && !notes.includes(permalink)
+    ? `${notes}${notes ? '\n\n' : ''}Asana: ${permalink}`
+    : notes;
+  return {
+    'Task ID': task.gid,
+    Name: task.name ?? '',
+    Notes: description,
+    'Assignee Email': task.assignee?.email ?? '',
+    Followers: (task.followers ?? []).map((person) => person.email ?? '').filter(Boolean).join(', '),
+    'Section/Column': section,
+    Tags: [...new Set(tags)].join(', '),
+    Priority: priority,
+    Type: type,
+    'Due Date': task.due_on ?? '',
+    'Start Date': task.start_on ?? '',
+    'Created At': task.created_at ?? '',
+    'Completed At': task.completed_at ?? '',
+    Completed: task.completed ? 'true' : '',
+    'Last Modified': task.modified_at ?? '',
+    'Parent task': task.parent?.gid ?? '',
+    Permalink: permalink,
+  };
+}
+
+export async function fetchAsanaSheet(
+  token: string,
+  projectGid: string,
+  onProgress?: (progress: AsanaFetchProgress) => Promise<void>,
+): Promise<AsanaSheet> {
+  const all = await listAsanaProjectTasks(token, projectGid, onProgress);
+  await onProgress?.({ phase: 'reading', listed: all.length, read: 0 });
   const extras = new Map<string, AsanaStoryExtra>();
   const rows: Record<string, string>[] = [];
   for (const [index, task] of all.entries()) {
     extras.set(task.gid, await loadStories(token, task.gid));
-    const section = task.memberships?.map((m) => m.section?.name).find((name) => name) ?? '';
-    rows.push({
-      'Task ID': task.gid,
-      Name: task.name ?? '',
-      Notes: task.notes ?? '',
-      'Assignee Email': task.assignee?.email ?? '',
-      'Section/Column': section,
-      Tags: (task.tags ?? []).map((tag) => tag.name ?? '').filter(Boolean).join(', '),
-      'Due Date': task.due_on ?? '',
-      'Start Date': task.start_on ?? '',
-      'Created At': task.created_at ?? '',
-      'Completed At': task.completed_at ?? '',
-      'Last Modified': task.modified_at ?? '',
-      'Parent task': task.parent?.gid ?? '',
-    });
-    if (index === 0 || (index + 1) % 5 === 0) {
+    rows.push(asanaTaskToRow(task));
+    if (index === 0 || (index + 1) % 3 === 0) {
       await onProgress?.({ phase: 'reading', listed: all.length, read: index + 1 });
     }
   }
-
   return {
     headers: Object.keys(rows[0] ?? ASANA_HEADERS),
     rows,
@@ -128,11 +177,11 @@ export async function fetchAsanaSheet(
 }
 
 const ASANA_HEADERS = [
-  'Task ID', 'Name', 'Notes', 'Assignee Email', 'Section/Column', 'Tags',
-  'Due Date', 'Start Date', 'Created At', 'Completed At', 'Last Modified', 'Parent task',
+  'Task ID', 'Name', 'Notes', 'Assignee Email', 'Followers', 'Section/Column', 'Tags', 'Priority', 'Type',
+  'Due Date', 'Start Date', 'Created At', 'Completed At', 'Completed', 'Last Modified', 'Parent task', 'Permalink',
 ];
 
-async function loadStories(token: string, taskGid: string): Promise<AsanaStoryExtra> {
+export async function loadStories(token: string, taskGid: string): Promise<AsanaStoryExtra> {
   const stories = await listAll<AsanaStory>(token, `/tasks/${taskGid}/stories?opt_fields=${STORY_FIELDS}&limit=100`);
   const comments: AsanaStoryExtra['comments'] = [];
   const events: AsanaStoryExtra['events'] = [];
@@ -152,6 +201,13 @@ async function loadStories(token: string, taskGid: string): Promise<AsanaStoryEx
     if (events.length < 25) events.push({ text: text.slice(0, 180), at });
   }
   return { comments, events };
+}
+
+function customValue(fields: AsanaCustomField[], names: string[]): string | undefined {
+  const want = new Set(names);
+  const field = fields.find((item) => want.has((item.name ?? '').trim().toLowerCase()));
+  const value = (field?.display_value ?? field?.enum_value?.name ?? '').trim();
+  return value || undefined;
 }
 
 async function listAll<T>(token: string, path: string, onPage?: (count: number) => Promise<void>): Promise<T[]> {

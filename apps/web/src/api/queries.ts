@@ -221,7 +221,7 @@ export function useImportProgress(id: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: ['import', id] as const,
     enabled: Boolean(id) && enabled,
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 1000 : false),
     queryFn: async (): Promise<ImportProgress> => {
       const res = await fetch(`${BASE_URL}/imports/${id}`, { credentials: 'include' });
       const body = await res.json() as ImportProgress & { message?: string };

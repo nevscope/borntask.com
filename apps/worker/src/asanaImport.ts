@@ -2,8 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient, type ImportJob } from '@prisma/client';
-import { ASANA_API_COLUMNS, emailFromMappedRow, formatImportError, guessImportStatusSlug, guessImportTypeSlug, isAsanaApiMapping, parseDelimited, type AsanaImportMapping } from '@borntask/shared';
-import { fetchAsanaSheet, type AsanaStoryExtra } from './asanaClient.js';
+import { ASANA_API_COLUMNS, emailFromMappedRow, formatImportError, guessImportPriority, guessImportStatusSlug, guessImportTypeSlug, isAsanaApiMapping, parseDelimited, type AsanaImportMapping } from '@borntask/shared';
+import { asanaTaskToRow, listAsanaProjectTasks, loadStories, type AsanaStoryExtra } from './asanaClient.js';
 import { deliverMail } from './mail.js';
 
 const prisma = new PrismaClient();
@@ -48,7 +48,7 @@ async function executeAsanaImport(
   let parsed = { headers: [] as string[], rows: [] as Record<string, string>[] };
   if (apiMapping) {
     if (!data.asanaToken) throw new Error('Asana token missing from the job.');
-    const sheet = await fetchAsanaSheet(data.asanaToken, apiMapping.asanaProjectGid, async (progress) => {
+    const listed = await listAsanaProjectTasks(data.asanaToken, apiMapping.asanaProjectGid, async (progress) => {
       await prisma.importJob.update({
         where: { id: job.id },
         data: {
@@ -58,11 +58,10 @@ async function executeAsanaImport(
         },
       });
     });
-    parsed = sheet;
-    extras = sheet.extras;
+    parsed.rows = listed.map(asanaTaskToRow);
     await prisma.importJob.update({
       where: { id: job.id },
-      data: { rowsTotal: sheet.rows.length, rowsDone: 0, mapping: { ...apiMapping, phase: 'writing' } },
+      data: { rowsTotal: parsed.rows.length, rowsDone: 0, mapping: { ...apiMapping, phase: 'importing' } },
     });
   } else {
     const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
@@ -70,6 +69,7 @@ async function executeAsanaImport(
   }
   const columns: Record<string, string> = stored.columns ?? (apiMapping ? ASANA_API_COLUMNS : {});
   const sectionsAs = stored.sectionsAs === 'statuses' ? 'statuses' : 'sections';
+  const createSections = apiMapping != null || sectionsAs === 'sections';
 
   const col = (field: string) => Object.entries(columns).find(([, f]) => f === field)?.[0];
   const titleCol = col('title');
@@ -86,6 +86,7 @@ async function executeAsanaImport(
   const labelsCol = col('labels');
   const typeCol = col('type');
   const parentCol = col('parentAsanaId');
+  const priorityCol = col('priority');
 
   function parseWhen(raw: string) {
     const value = new Date(raw);
@@ -104,7 +105,9 @@ async function executeAsanaImport(
     orderBy: { position: 'asc' },
   });
   const startStatus = statuses.find((s) => s.slug === 'idea' || s.slug === 'todo') ?? statuses[0];
-  const doneStatus = statuses.find((s) => s.slug === 'deployed') ?? statuses.find((s) => s.category === 'done' && s.slug !== 'rejected');
+  const doneStatus = statuses.find((s) => s.slug === 'deployed')
+    ?? statuses.find((s) => ['closed', 'resolved', 'complete', 'done'].includes(s.slug))
+    ?? statuses.find((s) => s.category === 'done' && s.slug !== 'rejected');
   const holdStatus = statuses.find((s) => s.slug === 'on_hold');
   if (!startStatus) throw new Error('No statuses');
   let sections = await prisma.section.findMany({ where: { projectId }, orderBy: { position: 'asc' } });
@@ -140,10 +143,14 @@ async function executeAsanaImport(
 
   const unknownEmails = new Set<string>();
 
-  const persistProgress = async () => {
+  const persistProgress = async (phase?: string) => {
     await prisma.importJob.update({
       where: { id: job.id },
-      data: { rowsDone: done, errors: errors.slice(0, 50) },
+      data: {
+        rowsDone: done,
+        errors: errors.slice(0, 50),
+        ...(apiMapping && phase ? { mapping: { ...apiMapping, phase } } : {}),
+      },
     });
   };
 
@@ -151,6 +158,9 @@ async function executeAsanaImport(
     try {
       const title = clip((titleCol ? row[titleCol] : '')?.trim() || 'Untitled', 191);
       const asanaId = idCol ? (row[idCol] ?? '').trim() : '';
+      if (apiMapping && data.asanaToken && asanaId && !extras.has(asanaId)) {
+        extras.set(asanaId, await loadStories(data.asanaToken, asanaId));
+      }
       const email = emailFromMappedRow(row, columns) || (emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '');
       const assigneeEmail = email.includes('@') ? email : '';
       if (assigneeEmail && !userByEmail.has(assigneeEmail)) unknownEmails.add(assigneeEmail);
@@ -164,7 +174,7 @@ async function executeAsanaImport(
 
       const sectionName = clip(sectionCol ? (row[sectionCol] ?? '').trim() : '', 120);
       let section = sections[0]!;
-      if (sectionsAs === 'sections' && sectionName) {
+      if (createSections && sectionName) {
         const found = sections.find((s) => s.name.toLowerCase() === sectionName.toLowerCase());
         if (found) section = found;
         else {
@@ -184,7 +194,9 @@ async function executeAsanaImport(
       const dueDate = dueCol ? parseWhen((row[dueCol] ?? '').trim()) : null;
       const startDate = startCol ? parseWhen((row[startCol] ?? '').trim()) : null;
       const createdAt = createdCol ? parseWhen((row[createdCol] ?? '').trim()) : null;
-      const completedAt = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
+      const markedComplete = (row.Completed ?? '').trim().toLowerCase() === 'true';
+      const parsedCompleted = completedCol ? parseWhen((row[completedCol] ?? '').trim()) : null;
+      const completedAt = parsedCompleted ?? (markedComplete ? new Date() : null);
       const updatedAt = updatedCol ? parseWhen((row[updatedCol] ?? '').trim()) : null;
       const tagNames = labelsCol ? parseTags(row[labelsCol] ?? '') : [];
       const typeName = typeCol ? (row[typeCol] ?? '').trim() : '';
@@ -192,10 +204,12 @@ async function executeAsanaImport(
       const type = types.find((t) => t.slug === typeSlug) ?? defaultType;
       const statusSource = sectionsAs === 'statuses' ? sectionName : (statusCol ? (row[statusCol] ?? '').trim() : '');
       let statusSlug = guessImportStatusSlug(statusSource, statuses)
-        ?? (!statusSource && completedAt && doneStatus ? doneStatus.slug : startStatus.slug);
+        ?? (completedAt && doneStatus ? doneStatus.slug : startStatus.slug);
+      if (completedAt && doneStatus) statusSlug = doneStatus.slug;
       if (tagNames.some((tag) => tag.toLowerCase() === 'on hold') && holdStatus) statusSlug = holdStatus.slug;
       const status = statuses.find((s) => s.slug === statusSlug) ?? startStatus;
       const assignee = assigneeEmail ? userByEmail.get(assigneeEmail) : undefined;
+      const priority = guessImportPriority(priorityCol ? (row[priorityCol] ?? '') : (row.Priority ?? ''));
 
       const payload = {
         title,
@@ -204,6 +218,7 @@ async function executeAsanaImport(
         statusId: status.id,
         sectionId: section.id,
         assigneeId: assignee?.id ?? null,
+        priority,
         dueDate,
         startDate,
         completedAt,
@@ -269,12 +284,27 @@ async function executeAsanaImport(
           usersByEmail: userByEmail,
         });
       }
+      if (taskId) {
+        const watcherIds = new Set<string>();
+        if (assignee) watcherIds.add(assignee.id);
+        for (const raw of (row.Followers ?? '').split(/[,;]/)) {
+          const follower = userByEmail.get(raw.trim().toLowerCase());
+          if (follower) watcherIds.add(follower.id);
+        }
+        for (const userId of watcherIds) {
+          await prisma.taskWatcher.upsert({
+            where: { taskId_userId: { taskId, userId } },
+            create: { tenantId: data.tenantId, taskId, userId },
+            update: {},
+          });
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'This row could not be saved.';
       errors.push(formatImportError(`Row ${index + 2}: ${message}`));
     }
     done += 1;
-    if (done === 1 || done % 10 === 0) await persistProgress();
+    if (apiMapping || done === 1 || done % 5 === 0) await persistProgress(apiMapping ? 'importing' : undefined);
   }
 
   for (const row of parsed.rows) {

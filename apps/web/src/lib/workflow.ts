@@ -13,6 +13,18 @@ export function statusById(wf: Workflow, id: string): WorkflowStatus | undefined
   return wf.statuses.find((s) => s.id === id);
 }
 
+/** Main done stage (Done / Deployed), not side stages such as Rejected. */
+export function primaryDoneStatus(wf: Workflow): WorkflowStatus | undefined {
+  return wf.statuses.find((status) => status.category === 'done' && !status.side);
+}
+
+/** Status to send a list-row complete click to, or null if that move is not allowed. */
+export function completeTarget(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, myRoles: ProjectRole[]): WorkflowStatus | null {
+  const done = primaryDoneStatus(wf);
+  if (!done || task.statusId === done.id) return null;
+  return checkMove(wf, task, done.id, myRoles).kind === 'allowed' ? done : null;
+}
+
 export function findTransition(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string): Transition | null {
   if (task.statusId === toId) return null;
   // Leaving On hold always returns to where the task came from, for any project member.

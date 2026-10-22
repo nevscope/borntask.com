@@ -95,6 +95,25 @@ export async function loadWorkflow(db: TenantClient, workflowId: string) {
     where: { id: workflowId },
     include: { statuses: { orderBy: { position: 'asc' } }, transitions: true },
   });
+  {
+    const todo = wf.statuses.find((status) => status.slug === 'todo');
+    const doing = wf.statuses.find((status) => status.slug === 'doing');
+    const done = wf.statuses.find((status) => status.slug === 'done');
+    const hasComplete = todo && done && wf.transitions.some((row) => row.fromStatusId === todo.id && row.toStatusId === done.id);
+    if (todo && doing && done && !hasComplete) {
+      await db.workflowTransition.create({
+        data: {
+          tenantId: wf.tenantId,
+          workflowId: wf.id,
+          fromStatusId: todo.id,
+          toStatusId: done.id,
+          allowedRoleIds: [],
+          label: 'Complete',
+        },
+      });
+      return loadWorkflow(db, workflowId);
+    }
+  }
   const roles = await db.projectRole.findMany();
   const slugByRoleId = new Map(roles.map((r) => [r.id, r.slug]));
   const slugByStatusId = new Map(wf.statuses.map((s) => [s.id, s.slug]));

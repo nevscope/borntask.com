@@ -3,14 +3,19 @@ export const ASANA_API_COLUMNS: Record<string, string> = {
   Name: 'title',
   Notes: 'description',
   'Assignee Email': 'assigneeEmail',
+  Followers: 'skip',
   'Section/Column': 'section',
   Tags: 'labels',
+  Priority: 'priority',
+  Type: 'type',
   'Due Date': 'dueDate',
   'Start Date': 'startDate',
   'Created At': 'createdAt',
   'Completed At': 'completedAt',
+  Completed: 'skip',
   'Last Modified': 'updatedAt',
   'Parent task': 'parentAsanaId',
+  Permalink: 'skip',
 };
 
 export function parseAsanaProjectGid(raw: string): string | null {

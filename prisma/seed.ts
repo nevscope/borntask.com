@@ -201,7 +201,13 @@ async function seedSimple(tenantId: string) {
     });
     ids[s.slug] = row.id;
   }
-  for (const [from, to] of [['todo', 'doing'], ['doing', 'done'], ['done', 'todo'], ['doing', 'todo']] as const) {
+  for (const [from, to, label] of [
+    ['todo', 'doing', null],
+    ['doing', 'done', null],
+    ['done', 'todo', null],
+    ['doing', 'todo', null],
+    ['todo', 'done', 'Complete'],
+  ] as const) {
     await prisma.workflowTransition.create({
       data: {
         tenantId,
@@ -209,6 +215,7 @@ async function seedSimple(tenantId: string) {
         fromStatusId: ids[from]!,
         toStatusId: ids[to]!,
         allowedRoleIds: [],
+        label,
       },
     });
   }

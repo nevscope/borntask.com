@@ -10,7 +10,7 @@ import { qk, useMe, useProject, useProjectTasks, useReorderTask } from '../api/q
 import type { ProjectDetail, Task } from '../api/types';
 import { GitHubBadge, TaskHints } from '../components/Chips';
 import { BulkBar } from '../components/BulkBar';
-import { ListFields } from '../components/ListFields';
+import { CompleteTick, ListFields } from '../components/ListFields';
 import { NoAccess } from '../components/NoAccess';
 import { ProjectHeader } from '../components/ProjectHeader';
 import { ProjectViewBar, useProjectView } from '../components/ProjectViewBar';
@@ -97,6 +97,7 @@ export function ProjectListScreen() {
         <div className="bt-row" style={{ minHeight: 36, fontSize: 12, fontWeight: 600, color: color.muted }}>
           <span style={{ width: 32 }} />
           <span style={{ width: 24 }} />
+          <span style={{ width: 32 }} />
           <span className="bt-key">Key</span>
           <span className="bt-row-title" style={{ fontWeight: 600, color: color.muted, cursor: 'default' }}>Task</span>
           <span style={{ width: 110 }}>Type</span>
@@ -266,6 +267,7 @@ function Row({
             onChange={onToggle}
             style={{ width: 16, height: 16, marginTop: 3, accentColor: color.brand, flex: 'none' }}
           />
+          <CompleteTick task={task} detail={detail} roles={roles} onMove={onMove} />
           <button type="button" className="bt-row-title" style={{ flex: 1, color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
             <span>{task.title}</span>
             {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
@@ -297,6 +299,7 @@ function Row({
       <button className="bt-handle" aria-label={`Drag ${task.key}`} {...drag.listeners} {...drag.attributes}>
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5" /><circle cx="9" cy="3" r="1.5" /><circle cx="3" cy="8" r="1.5" /><circle cx="9" cy="8" r="1.5" /><circle cx="3" cy="13" r="1.5" /><circle cx="9" cy="13" r="1.5" /></svg>
       </button>
+      <CompleteTick task={task} detail={detail} roles={roles} onMove={onMove} />
       <span className="bt-key">{task.key}</span>
       <button className="bt-row-title" style={{ color: done ? color.muted : undefined, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
