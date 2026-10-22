@@ -8,6 +8,7 @@ import { requireAuth, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { getImportQueue, JOB } from '../lib/queue.js';
+import { requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 export const importRoutes: FastifyPluginAsync = async (app) => {
   app.post('/imports', async (req, reply) => {
@@ -23,8 +24,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const fieldKey = field && !Array.isArray(field) && 'value' in field ? String(field.value) : '';
       const projectKey = (qKey || fieldKey).trim();
       if (!projectKey) throw validation('Choose a project to import into.');
-      const project = await auth.db.project.findFirst({ where: { key: projectKey } });
-      if (!project) throw notFound('Choose a project to import into.');
+      const project = await requireOpenProjectWrite(auth, projectKey);
       const buf = await file.toBuffer();
       const name = file.filename || 'asana-export.csv';
       const isXlsx = name.toLowerCase().endsWith('.xlsx') || (buf[0] === 0x50 && buf[1] === 0x4b);
@@ -65,7 +65,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const job = await auth.db.importJob.findFirst({ where: { id } });
       if (!job) throw notFound();
       const project = await auth.db.project.findFirst({ where: { id: job.projectId } });
+      if (project) await requireOpenProject(auth, project.key);
       if (isAsanaApiMapping(job.mapping as unknown) || job.status === 'running' || job.status === 'done' || job.status === 'failed') {
+        const mapping = job.mapping as { phase?: string } | null;
         return {
           id: job.id,
           fileName: job.fileName,
@@ -74,6 +76,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           rowsDone: job.rowsDone,
           status: job.status,
           errors: job.errors,
+          phase: mapping && typeof mapping.phase === 'string' ? mapping.phase : undefined,
         };
       }
       const { readFile } = await import('node:fs/promises');
@@ -108,8 +111,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       }
       let projectId = job.projectId;
       if (body.projectKey) {
-        const project = await auth.db.project.findFirst({ where: { key: body.projectKey } });
-        if (!project) throw notFound('Choose a project to import into.');
+        const project = await requireOpenProjectWrite(auth, body.projectKey);
         projectId = project.id;
       }
       await auth.db.importJob.update({
@@ -131,6 +133,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const id = (req.params as { id: string }).id;
       const job = await auth.db.importJob.findFirst({ where: { id } });
       if (!job) throw notFound();
+      const dest = await auth.db.project.findFirst({ where: { id: job.projectId } });
+      if (dest) await requireOpenProjectWrite(auth, dest.key);
       await auth.db.importJob.update({ where: { id: job.id }, data: { status: 'running', rowsDone: 0 } });
       await getImportQueue().add(JOB.asanaImport, {
         tenantId: auth.tenantId,
@@ -155,8 +159,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         token: z.string().min(8),
         sectionsAs: z.enum(['sections', 'statuses']).optional(),
       }).parse(req.body);
-      const dest = await auth.db.project.findFirst({ where: { key: body.projectKey } });
-      if (!dest) throw notFound('Choose a project to import into.');
+      const dest = await requireOpenProjectWrite(auth, body.projectKey);
       const gid = parseAsanaProjectGid(body.asanaProject);
       if (!gid) throw validation('Paste an Asana project URL or project ID.');
       const peeked = await peekAsanaProject(body.token.trim(), gid);

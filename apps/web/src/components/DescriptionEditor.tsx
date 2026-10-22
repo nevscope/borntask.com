@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } f
 import type { User } from '../api/types';
 import { persistDescription, toEditorHtml } from '../lib/descriptionHtml';
 import { color, font, radius } from '../theme/tokens';
+import { filesFromClipboard } from './AttachmentTiles';
 
 interface Props {
   value: string;
@@ -20,6 +21,7 @@ interface Props {
   showPasteHint?: boolean;
   ariaLabel?: string;
   onEditorKeyDown?: (event: KeyboardEvent) => void;
+  onPasteFiles?: (files: File[]) => void;
 }
 
 export function DescriptionEditor({
@@ -34,11 +36,14 @@ export function DescriptionEditor({
   showPasteHint = true,
   ariaLabel = 'Description',
   onEditorKeyDown,
+  onPasteFiles,
 }: Props) {
   const peopleRef = useRef(people);
   peopleRef.current = people;
   const focusCb = useRef(onFocusChange);
   focusCb.current = onFocusChange;
+  const pasteFiles = useRef(onPasteFiles);
+  pasteFiles.current = onPasteFiles;
   const applying = useRef(false);
   const [focused, setFocused] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -70,6 +75,14 @@ export function DescriptionEditor({
       attributes: {
         'aria-label': ariaLabel,
         class: compact ? 'bt-desc-surface bt-desc-compact' : 'bt-desc-surface',
+      },
+      handlePaste(_view, event) {
+        const files = filesFromClipboard(event.clipboardData);
+        if (!files.length || !pasteFiles.current) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        pasteFiles.current(files);
+        return true;
       },
     },
     onUpdate: ({ editor: next }) => {

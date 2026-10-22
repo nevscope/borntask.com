@@ -222,8 +222,9 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 
   const inTrash = Boolean(task.deletedAt);
   const descTooLong = isTaskDescriptionTooLong(description);
+  const readOnly = me?.workspaceRole === 'viewer';
   const save = (input: UpdateTaskInput) => {
-    if (inTrash) return;
+    if (inTrash || readOnly) return;
     if (input.description !== undefined && isTaskDescriptionTooLong(input.description)) return;
     update.mutate(
       { key: task.key, input },
@@ -430,6 +431,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             }}
             onFocusChange={setDescFocused}
             onBlur={(next) => persistDesc(next)}
+            onPasteFiles={(files) => { void addTaskFiles(files); }}
           />
           {descTooLong && (
             <p role="alert" style={{ margin: '8px 0 0', fontSize: 12.5, color: color.danger }}>
@@ -469,9 +471,9 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
         <DevelopmentSection task={task} />
-        <Comments task={task} detail={detail} people={mentionPeople} onDraftChange={setCommentDraft} hideComposer={isPhone} />
+        <Comments task={task} detail={detail} people={mentionPeople} onDraftChange={setCommentDraft} hideComposer={isPhone || readOnly} />
 
-        {!inTrash && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
+        {!inTrash && !readOnly && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
         <ConfirmDialog
           open={confirmDelete}
           title={`Delete ${task.key} and its ${task.subtasks.length} ${task.subtasks.length === 1 ? 'subtask' : 'subtasks'}?`}

@@ -54,10 +54,15 @@ function isTypingTarget(el: EventTarget | null) {
 
 export function QuickAddProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ open: boolean; opts: OpenOptions }>({ open: false, opts: {} });
-  const open = (opts: OpenOptions = {}) => setState({ open: true, opts });
+  const me = useMe().data;
+  const open = (opts: OpenOptions = {}) => {
+    if (me?.workspaceRole === 'viewer') return;
+    setState({ open: true, opts });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (me?.workspaceRole === 'viewer') return;
       if (e.key.toLowerCase() === 'q' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) {
         e.preventDefault();
         setState({ open: true, opts: {} });
@@ -65,7 +70,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [me?.workspaceRole]);
 
   return (
     <QuickAddContext.Provider value={{ open }}>
@@ -496,6 +501,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
             placeholder="Add details."
             onChange={setDescription}
             onEditorKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey); }}
+            onPasteFiles={addFiles}
           />
           {descTooLong ? (
             <span role="alert" style={{ fontSize: 12, color: color.danger }}>{TASK_DESCRIPTION_TOO_LONG}</span>

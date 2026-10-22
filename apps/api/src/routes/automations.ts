@@ -2,26 +2,15 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { automationRuleSchema, mergeDefaultAutomations } from '@borntask/shared';
 import { requireAuth, type Authed } from '../context.js';
-import { forbidden, notFound, sendError } from '../errors.js';
+import { forbidden, sendError } from '../errors.js';
+import { assertCanManageOpenProject, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 async function projectFor(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key } });
-  if (!project) throw notFound('Project not found.');
-  if (auth.workspaceRole === 'guest') {
-    const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
-    if (!on) throw forbidden("You're not on this project.");
-  }
-  return project;
+  return requireOpenProject(auth, key);
 }
 
-async function assertCanManage(auth: Authed, projectId: string, leadId: string | null) {
-  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin' || leadId === auth.userId) return;
-  const member = await auth.db.projectMember.findFirst({
-    where: { projectId, userId: auth.userId },
-    include: { roles: { include: { role: true } } },
-  });
-  if (member?.roles.some((role) => role.role.slug === 'lead')) return;
-  throw forbidden('Only a project lead or workspace admin can change automations.');
+async function assertCanManage(auth: Authed, project: { id: string; leadId: string | null }) {
+  await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change automations.');
 }
 
 function present(rows: { onStatusSlug: string; action: string; roleSlug: string; enabled: boolean }[]) {
@@ -41,7 +30,7 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      await assertCanManage(auth, project);
       const rows = await auth.db.automation.findMany({ where: { projectId: project.id } });
       return { automations: present(rows), canManage: true };
     } catch (err) {
@@ -54,8 +43,8 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       if (auth.via === 'mcp') throw forbidden('MCP cannot create or edit automations.');
       const key = (req.params as { key: string }).key;
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManage(auth, project);
       const body = z.object({ automations: z.array(automationRuleSchema).max(40) }).parse(req.body);
       const seen = new Set<string>();
       const unique = [];

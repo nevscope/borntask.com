@@ -19,7 +19,7 @@ const ROLES = [
   },
   {
     name: 'Viewer',
-    text: 'Sees only invited projects. They cannot create projects or invite people.',
+    text: 'Sees only invited projects. They can look at list, board and task detail, but cannot create, edit, move, comment or import.',
   },
 ] as const;
 

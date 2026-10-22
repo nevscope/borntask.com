@@ -42,6 +42,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const joined = useStatusToast();
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
+  const viewer = me?.workspaceRole === 'viewer';
+  const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
   const favourites = projects.filter((p) => p.starred);
   const favouriteKeys = new Set(favourites.map((p) => p.key));
@@ -302,9 +304,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="bt-desktop-search"><TopSearch /></div>
           <div className="bt-desktop-actions">
             {(USE_PROJECT_MOCKS || USE_TASK_MOCKS) && <Tag color="gold">Mocks</Tag>}
+            {canWriteTasks && (
             <Button type="primary" onClick={openQuickAdd} style={{ height: 38, padding: '0 14px', borderRadius: radius.md, fontSize: 13.5, fontWeight: 600 }}>
               + New task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>Q</kbd>
             </Button>
+            )}
             <NotificationBell />
             <Dropdown trigger={['click']} dropdownRender={() => accountMenu}>
               <span style={{ cursor: 'pointer' }}><Avatar user={me?.user} size={34} /></span>
@@ -361,7 +365,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         onInstall={openInstall}
       />
       <InstallPrompt reopenNonce={installReopen} install={pwaInstall} />
-      <button type="button" className="bt-fab" aria-label="New task" hidden={!isPhone} onClick={openQuickAdd}>
+      <button type="button" className="bt-fab" aria-label="New task" hidden={!isPhone || !canWriteTasks} onClick={openQuickAdd}>
         <PhoneIcon kind="plus" />
       </button>
       <TaskDrawer />

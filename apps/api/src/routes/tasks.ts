@@ -19,7 +19,7 @@ import {
   storePendingUpload,
   storeTaskUpload,
 } from '../lib/attachments.js';
-import { requireOpenProject } from '../lib/projectAccess.js';
+import { canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite, requireProjectWrite } from '../lib/projectAccess.js';
 
 const createTaskSchema = z.object({
   projectKey: z.string(),
@@ -69,6 +69,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           project: true,
           labels: { include: { label: true } },
           subtasks: true,
+          attachments: { select: { id: true } },
+          comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+          _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
         },
         orderBy: { position: 'asc' },
       });
@@ -118,6 +121,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         section: true,
         project: true,
         labels: { include: { label: true } },
+        attachments: { select: { id: true } },
+        comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+        _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
       } as const;
       const assigned = await auth.db.task.findMany({
         where: { assigneeId: auth.userId, deletedAt: null, parentId: null, status: { category: { not: 'done' } } },
@@ -139,8 +145,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: auth.userId },
         include: { roles: { include: { role: true } } },
       });
+      const openIds = await openProjectIds(auth);
       const businessProjectIds = myMemberships
-        .filter((m) => m.roles.some((r) => r.role.slug === 'business'))
+        .filter((m) => m.roles.some((r) => r.role.slug === 'business') && canOpenListed(openIds, m.projectId))
         .map((m) => m.projectId);
       const approvals = businessProjectIds.length
         ? await auth.db.task.findMany({
@@ -153,10 +160,13 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           })
         : [];
 
+      const visible = <T extends { projectId: string }>(rows: T[]) =>
+        rows.filter((row) => canOpenListed(openIds, row.projectId));
+
       return {
-        assigned: assigned.map(mapTask),
-        created: created.map(mapTask),
-        watching: watching.map(mapTask),
+        assigned: visible(assigned).map(mapTask),
+        created: visible(created).map(mapTask),
+        watching: visible(watching).map(mapTask),
         approvals: approvals.map(mapTask),
       };
     } catch (err) {
@@ -170,6 +180,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const row = await findTaskByKey(auth.db, key);
       if (!row || (row.deletedAt && row.deletedAt < trashCutoff())) throw notFound();
+      await requireOpenProject(auth, row.project.key);
       const comments = await auth.db.comment.findMany({
         where: { taskId: row.id, deletedAt: null },
         orderBy: { createdAt: 'asc' },
@@ -242,8 +253,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const input = createTaskSchema.parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key: input.projectKey } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, input.projectKey);
       const type = await auth.db.taskType.findFirst({ where: { slug: input.type } });
       if (!type) throw validation('Unknown type.');
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
@@ -282,6 +292,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
       await attachPendingToTask(auth, created.id, input.attachmentIds);
+      const afterAttach = input.attachmentIds.length
+        ? await findTaskByKey(auth.db, taskKey(created.project.key, created.number))
+        : null;
       await auth.db.activityLog.create({
         data: {
           tenantId: auth.tenantId,
@@ -306,7 +319,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           url,
         });
       }
-      const mappedCreated = mapTask(created);
+      const mappedCreated = mapTask(afterAttach ?? created);
       publishTaskChange(auth, mappedCreated, 'create');
       if (created.assigneeId) {
         const assignee = await userName(created.assigneeId);
@@ -335,6 +348,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const input = updateTaskSchema.parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       let typeId: string | undefined;
       if (input.type) {
         const type = await auth.db.taskType.findFirst({ where: { slug: input.type } });
@@ -420,6 +434,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const input = z.object({ assignAndMove: z.boolean() }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       if (input.assignAndMove) {
         await auth.db.task.update({ where: { id: row.id }, data: { assigneeId: auth.userId } });
         try {
@@ -441,6 +456,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const input = z.object({ sectionId: z.string(), beforeKey: z.string().nullable() }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const siblings = await auth.db.task.findMany({
         where: { sectionId: input.sectionId, deletedAt: null, parentId: null },
         include: { project: true },
@@ -477,6 +493,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({ body: z.string().trim().min(1) }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const c = await auth.db.comment.create({
         data: { tenantId: auth.tenantId, taskId: row.id, authorId: auth.userId, body: body.body },
       });
@@ -538,6 +555,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({ body: z.string().trim().min(1) }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
       if (!c) throw notFound('Comment not found.');
       if (c.authorId !== auth.userId) throw forbidden('You can only edit your own comments.');
@@ -555,6 +573,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const { key, id } = req.params as { key: string; id: string };
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
       if (!c) throw notFound('Comment not found.');
       const canDelete = c.authorId === auth.userId || auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin';
@@ -574,6 +593,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({ title: z.string().trim().min(1) }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const last = await auth.db.task.findFirst({ where: { projectId: row.projectId }, orderBy: { number: 'desc' } });
       const child = await auth.db.task.create({
         data: {
@@ -601,12 +621,14 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const { id } = req.params as { id: string };
       const body = z.object({ done: z.boolean() }).parse(req.body);
+      const parentKey = (req.params as { key: string }).key;
+      const parent = await findTaskByKey(auth.db, parentKey);
+      if (!parent) throw notFound();
+      await requireOpenProjectWrite(auth, parent.project.key);
       const child = await auth.db.task.update({
         where: { id },
         data: { completedAt: body.done ? new Date() : null },
       });
-      const parentKey = (req.params as { key: string }).key;
-      const parent = await findTaskByKey(auth.db, parentKey);
       if (parent) publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
       return { id: child.id, title: child.title, done: Boolean(child.completedAt) };
     } catch (err) {
@@ -620,6 +642,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       await auth.db.task.update({
         where: { id: row.id },
         data: { deletedAt: new Date(), deletedById: auth.userId },
@@ -640,8 +663,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const parsed = parseTaskKey(key);
       if (!parsed) throw notFound();
-      const project = await auth.db.project.findFirst({ where: { key: parsed.projectKey } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, parsed.projectKey);
       const row = await auth.db.task.findFirst({
         where: { projectId: project.id, number: parsed.number },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
@@ -667,6 +689,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({ userId: z.string().optional(), watch: z.boolean().default(true) }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const userId = body.userId ?? auth.userId;
       if (body.watch) {
         await auth.db.taskWatcher.upsert({
@@ -689,6 +712,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProject(auth, row.project.key);
       const attachments = await auth.db.attachment.findMany({ where: { taskId: row.id }, orderBy: { createdAt: 'asc' } });
       return attachments.map((att) => mapAttachment(key, att));
     } catch (err) {
@@ -702,6 +726,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const file = await req.file();
       if (!file) throw validation('No file.');
       const buf = await file.toBuffer();
@@ -722,6 +747,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const { key, id } = req.params as { key: string; id: string };
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
+      await requireOpenProject(auth, row.project.key);
       const att = await auth.db.attachment.findFirst({ where: { id, taskId: row.id } });
       if (!att) throw notFound();
       const stream = await openAttachmentFile(auth.tenantId, att.storageKey);
@@ -740,6 +766,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const { key, id } = req.params as { key: string; id: string };
       const row = await findTaskByKey(auth.db, key);
       if (!row || row.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
       const att = await auth.db.attachment.findFirst({ where: { id, taskId: row.id } });
       if (!att) throw notFound();
       await removeAttachmentFile(auth.tenantId, att.storageKey);
@@ -753,6 +780,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
   app.post('/uploads', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
+      requireProjectWrite(auth);
       const file = await req.file();
       if (!file) throw validation('No file.');
       const buf = await file.toBuffer();

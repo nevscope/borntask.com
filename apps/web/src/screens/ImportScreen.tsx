@@ -44,6 +44,7 @@ type ImportState = {
   status?: string;
   rowsDone?: number;
   errors?: unknown;
+  phase?: string;
 };
 
 export function ImportScreen() {
@@ -67,8 +68,8 @@ export function ImportScreen() {
   useEffect(() => {
     const next = progress.data;
     if (!next || !job) return;
-    if (next.status === job.status && next.rowsDone === job.rowsDone) return;
-    setJob({ ...job, status: next.status, rowsDone: next.rowsDone, errors: next.errors });
+    if (next.status === job.status && next.rowsDone === job.rowsDone && next.rowsTotal === job.rowsTotal && next.phase === job.phase) return;
+    setJob({ ...job, status: next.status, rowsDone: next.rowsDone, rowsTotal: next.rowsTotal, errors: next.errors, phase: next.phase });
   }, [progress.data, job]);
 
   const pickFile = (file: File) => {
@@ -400,6 +401,7 @@ export function ImportScreen() {
               errors={job.errors}
               projectKey={job.projectKey}
               projectName={project?.name ?? job.projectKey}
+              phase={job.phase}
             />
           )}
         </>
@@ -412,6 +414,7 @@ export function ImportScreen() {
           errors={job.errors}
           projectKey={job.projectKey}
           projectName={project?.name ?? job.projectKey}
+          phase={job.phase}
         />
       )}
     </div>
@@ -436,6 +439,7 @@ function ImportProgressCard({
   errors,
   projectKey,
   projectName,
+  phase,
 }: {
   status: string;
   rowsDone: number;
@@ -443,9 +447,17 @@ function ImportProgressCard({
   errors: unknown;
   projectKey: string;
   projectName: string;
+  phase?: string;
 }) {
   const pct = rowsTotal > 0 ? Math.min(100, Math.round((rowsDone / rowsTotal) * 100)) : 0;
   const failed = errorList(errors);
+  const runningCopy = phase === 'listing'
+    ? `Listing Asana tasks (${rowsTotal.toLocaleString('en-GB')} so far).`
+    : phase === 'reading'
+      ? `Reading comments and activity: ${rowsDone.toLocaleString('en-GB')} of ${rowsTotal.toLocaleString('en-GB')}.`
+      : rowsTotal === 0
+        ? 'Reading the Asana project. Comments and activity are fetched per task, so this can take a while.'
+        : `Writing tasks into ${projectName}. You can open the project while this runs.`;
   return (
     <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -454,11 +466,9 @@ function ImportProgressCard({
         </strong>
         <span style={{ fontSize: 13, color: color.muted }}>{rowsDone.toLocaleString('en-GB')} of {rowsTotal.toLocaleString('en-GB')}</span>
       </div>
-      <Progress percent={pct} showInfo={false} strokeColor={status === 'failed' ? color.warning : color.brand} />
+      <Progress percent={pct} showInfo={false} status={status === 'running' && pct === 0 ? 'active' : undefined} strokeColor={status === 'failed' ? color.warning : color.brand} />
       <p style={{ margin: 0, fontSize: 13, color: color.ink3 }}>
-        {status === 'running' && (rowsTotal === 0
-          ? `Reading the Asana project. Comments and activity are fetched per task, so this can take a while.`
-          : `Tasks appear in ${projectName} as they are written. You can open the project while this runs.`)}
+        {status === 'running' && runningCopy}
         {status === 'done' && doneCopy(rowsDone, failed.length, projectName)}
         {status === 'failed' && 'The worker stopped. Tasks already written stay in the project. Retry to continue from Asana IDs that already exist.'}
       </p>

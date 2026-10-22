@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { USE_PROJECT_MOCKS, useProjects, useRequestProjectAccess } from '../api/queries';
+import { USE_PROJECT_MOCKS, useMe, useProjects, useRequestProjectAccess } from '../api/queries';
 import type { Project, StatusCounts } from '../api/types';
 import { ProjectStar } from '../components/ProjectStar';
 import { categoryBar, color, font, projectTint, radius } from '../theme/tokens';
@@ -21,6 +21,8 @@ export function ProjectsScreen() {
     },
   });
   const requestAccess = useRequestProjectAccess();
+  const role = useMe().data?.workspaceRole;
+  const canCreate = role !== 'viewer' && role !== 'guest';
   const rows = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
 
   return (
@@ -35,10 +37,14 @@ export function ProjectsScreen() {
             { label: 'Archived', value: 'archived' },
           ]}
         />
-        <Link to="/import"><Button>Import from Asana</Button></Link>
-        <Link to="/projects/new">
-          <Button type="primary">New project</Button>
-        </Link>
+        {canCreate && (
+          <>
+            <Link to="/import"><Button>Import from Asana</Button></Link>
+            <Link to="/projects/new">
+              <Button type="primary">New project</Button>
+            </Link>
+          </>
+        )}
       </div>
       {rows.length === 0 ? (
         <Empty description={tab === 'archived' ? 'No archived projects.' : 'No projects yet.'} />

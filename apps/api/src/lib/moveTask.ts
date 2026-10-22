@@ -5,6 +5,7 @@ import { actorName, enqueueChat, enqueuePersonalChat, eventsForStatus, taskUrl }
 import { runProjectAutomations } from './runAutomations.js';
 import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
 import { publishTaskChange } from './live.js';
+import { requireOpenProject, requireProjectWrite } from './projectAccess.js';
 
 function jsonStatus(value: unknown): string {
   if (!value || typeof value !== 'object' || !('status' in value)) return '';
@@ -22,6 +23,10 @@ export async function moveTask(
 ) {
   const row = await findTaskByKey(auth.db, key);
   if (!row || row.deletedAt) throw new ApiError(404, 'NOT_FOUND', 'Task not found.');
+  if (auth.via !== 'github') {
+    await requireOpenProject(auth, row.project.key);
+    requireProjectWrite(auth);
+  }
   const wf = await loadWorkflow(auth.db, row.project.workflowId);
   const fromSlug = row.status.slug;
   const toSlug = input.toStatusId;

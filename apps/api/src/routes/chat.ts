@@ -14,8 +14,9 @@ import {
 } from '@borntask/shared';
 import { requireAuth, type Authed } from '../context.js';
 import { chatAppEnabled, chatDmConfigured, config } from '../env.js';
-import { forbidden, notFound, sendError, validation } from '../errors.js';
+import { sendError, validation } from '../errors.js';
 import { decryptSecret, encryptSecret } from '../lib/secrets.js';
+import { assertCanManageOpenProject, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 const eventsSchema = z.object({
   assigned: z.boolean(),
@@ -27,23 +28,11 @@ const eventsSchema = z.object({
 });
 
 async function projectFor(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key } });
-  if (!project) throw notFound('Project not found.');
-  if (auth.workspaceRole === 'guest') {
-    const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
-    if (!on) throw forbidden("You're not on this project.");
-  }
-  return project;
+  return requireOpenProject(auth, key);
 }
 
-async function assertCanManage(auth: Authed, projectId: string, leadId: string | null) {
-  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin' || leadId === auth.userId) return;
-  const member = await auth.db.projectMember.findFirst({
-    where: { projectId, userId: auth.userId },
-    include: { roles: { include: { role: true } } },
-  });
-  if (member?.roles.some((role) => role.role.slug === 'lead')) return;
-  throw forbidden('Only a project lead or workspace admin can change Chat settings.');
+async function assertCanManage(auth: Authed, project: { id: string; leadId: string | null }) {
+  await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change Chat settings.');
 }
 
 function storedEvents(events: z.infer<typeof eventsSchema>, previous: unknown) {
@@ -108,8 +97,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         webhookUrl: z.string().optional(),
         events: eventsSchema,
       }).parse(req.body);
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManage(auth, project);
       const existing = await auth.db.chatIntegration.findFirst({
         where: { projectId: project.id, userId: null, provider: 'google_chat' },
       });
@@ -154,8 +143,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const body = z.object({ webhookUrl: z.string().optional() }).parse(req.body ?? {});
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManage(auth, project);
       const existing = await auth.db.chatIntegration.findFirst({
         where: { projectId: project.id, userId: null, provider: 'google_chat' },
       });
@@ -203,8 +192,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManage(auth, project);
       await auth.db.chatIntegration.deleteMany({ where: { projectId: project.id, userId: null, provider: 'google_chat' } });
       return { connected: false, webhookMask: '', events: defaultChatEvents(), lastPostedAt: null, lastError: null, appConfigured: chatAppEnabled() };
     } catch (err) {

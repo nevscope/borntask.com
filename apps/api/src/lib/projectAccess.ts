@@ -28,3 +28,31 @@ export async function requireOpenProject(auth: Authed, key: string) {
   if (on || project.leadId === auth.userId) return project;
   throw forbidden("You're not on this project.");
 }
+
+/** Viewers may open a project they have a seat on, but cannot change tasks or settings. */
+export function requireProjectWrite(auth: Authed) {
+  if (auth.workspaceRole === 'viewer') {
+    throw forbidden('Viewers can look at this project but cannot change it.');
+  }
+}
+
+export async function requireOpenProjectWrite(auth: Authed, key: string) {
+  const project = await requireOpenProject(auth, key);
+  requireProjectWrite(auth);
+  return project;
+}
+
+/** Owner, admin who can already open the project, or the project lead. */
+export async function assertCanManageOpenProject(
+  auth: Authed,
+  project: { id: string; leadId: string | null },
+  message = 'Only a project lead or workspace admin can change this.',
+) {
+  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin' || project.leadId === auth.userId) return;
+  const member = await auth.db.projectMember.findFirst({
+    where: { projectId: project.id, userId: auth.userId },
+    include: { roles: { include: { role: true } } },
+  });
+  if (member?.roles.some((role) => role.role.slug === 'lead')) return;
+  throw forbidden(message);
+}

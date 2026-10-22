@@ -48,10 +48,22 @@ async function executeAsanaImport(
   let parsed = { headers: [] as string[], rows: [] as Record<string, string>[] };
   if (apiMapping) {
     if (!data.asanaToken) throw new Error('Asana token missing from the job.');
-    const sheet = await fetchAsanaSheet(data.asanaToken, apiMapping.asanaProjectGid);
+    const sheet = await fetchAsanaSheet(data.asanaToken, apiMapping.asanaProjectGid, async (progress) => {
+      await prisma.importJob.update({
+        where: { id: job.id },
+        data: {
+          rowsTotal: progress.listed,
+          rowsDone: progress.read,
+          mapping: { ...apiMapping, phase: progress.phase },
+        },
+      });
+    });
     parsed = sheet;
     extras = sheet.extras;
-    await prisma.importJob.update({ where: { id: job.id }, data: { rowsTotal: sheet.rows.length } });
+    await prisma.importJob.update({
+      where: { id: job.id },
+      data: { rowsTotal: sheet.rows.length, rowsDone: 0, mapping: { ...apiMapping, phase: 'writing' } },
+    });
   } else {
     const text = await readFile(join(blobRoot, job.storageKey), 'utf8');
     parsed = parseDelimited(text);

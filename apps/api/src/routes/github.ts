@@ -10,30 +10,19 @@ import {
 import { prisma, createTenantClient } from '../db.js';
 import { requireAuth, type Authed } from '../context.js';
 import { config, githubAppEnabled } from '../env.js';
-import { forbidden, notFound, sendError, unauthorized, validation } from '../errors.js';
+import { sendError, unauthorized, validation } from '../errors.js';
 import { githubInstallUrl, githubManageUrl, installationAccountLogin, listInstallationRepos } from '../lib/githubApp.js';
 import { createGithubState, parseGithubState } from '../lib/githubState.js';
 import { runGitHubWebhookJob } from '../lib/githubWebhookJob.js';
 import { getGithubQueue, JOB } from '../lib/queue.js';
+import { assertCanManageOpenProject, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 async function projectFor(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key } });
-  if (!project) throw notFound('Project not found.');
-  if (auth.workspaceRole === 'guest') {
-    const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
-    if (!on) throw forbidden("You're not on this project.");
-  }
-  return project;
+  return requireOpenProject(auth, key);
 }
 
-async function assertCanManage(auth: Authed, projectId: string, leadId: string | null) {
-  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin' || leadId === auth.userId) return;
-  const member = await auth.db.projectMember.findFirst({
-    where: { projectId, userId: auth.userId },
-    include: { roles: { include: { role: true } } },
-  });
-  if (member?.roles.some((role) => role.role.slug === 'lead')) return;
-  throw forbidden('Only a project lead or workspace admin can change GitHub settings.');
+async function assertCanManage(auth: Authed, project: { id: string; leadId: string | null }) {
+  await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change GitHub settings.');
 }
 
 const rulesSchema = z.object({
@@ -88,8 +77,8 @@ export const githubRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const projectKey = String((req.query as { project?: string }).project ?? '');
       if (!projectKey) throw validation('Choose a project first.');
-      const project = await projectFor(auth, projectKey);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, projectKey);
+      await assertCanManage(auth, project);
       if (!githubAppEnabled()) throw validation('The GitHub App is not configured on this server yet.');
       const state = createGithubState({ tenantId: auth.tenantId, projectKey, userId: auth.userId });
       return reply.redirect(githubInstallUrl(state));
@@ -146,8 +135,8 @@ export const githubRoutes: FastifyPluginAsync = async (app) => {
         addRepo: z.string().optional(),
         removeRepo: z.string().optional(),
       }).parse(req.body);
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project.id, project.leadId);
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManage(auth, project);
       const install = await auth.db.gitHubInstallation.findFirst();
       if (!install) throw validation('Install the GitHub App first.');
       if (body.addRepo) {

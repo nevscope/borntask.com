@@ -61,8 +61,25 @@ type AsanaStory = {
   created_by?: { name?: string | null; email?: string | null } | null;
 };
 
-export async function fetchAsanaSheet(token: string, projectGid: string): Promise<AsanaSheet> {
-  const tasks = await listAll<AsanaTask>(token, `/projects/${projectGid}/tasks?opt_fields=${TASK_FIELDS}&limit=100`);
+export type AsanaFetchProgress = {
+  phase: 'listing' | 'reading';
+  listed: number;
+  read: number;
+};
+
+export async function fetchAsanaSheet(
+  token: string,
+  projectGid: string,
+  onProgress?: (progress: AsanaFetchProgress) => Promise<void>,
+): Promise<AsanaSheet> {
+  const tasks = await listAll<AsanaTask>(
+    token,
+    `/projects/${projectGid}/tasks?opt_fields=${TASK_FIELDS}&limit=100`,
+    async (listed) => {
+      await onProgress?.({ phase: 'listing', listed, read: 0 });
+    },
+  );
+  await onProgress?.({ phase: 'listing', listed: tasks.length, read: 0 });
   const seen = new Set<string>();
   const all: AsanaTask[] = [];
   for (const task of tasks) {
@@ -75,11 +92,13 @@ export async function fetchAsanaSheet(token: string, projectGid: string): Promis
       seen.add(child.gid);
       all.push(child);
     }
+    if (all.length % 25 === 0) await onProgress?.({ phase: 'listing', listed: all.length, read: 0 });
   }
+  await onProgress?.({ phase: 'reading', listed: all.length, read: 0 });
 
   const extras = new Map<string, AsanaStoryExtra>();
   const rows: Record<string, string>[] = [];
-  for (const task of all) {
+  for (const [index, task] of all.entries()) {
     extras.set(task.gid, await loadStories(token, task.gid));
     const section = task.memberships?.map((m) => m.section?.name).find((name) => name) ?? '';
     rows.push({
@@ -96,6 +115,9 @@ export async function fetchAsanaSheet(token: string, projectGid: string): Promis
       'Last Modified': task.modified_at ?? '',
       'Parent task': task.parent?.gid ?? '',
     });
+    if (index === 0 || (index + 1) % 5 === 0) {
+      await onProgress?.({ phase: 'reading', listed: all.length, read: index + 1 });
+    }
   }
 
   return {
@@ -132,12 +154,13 @@ async function loadStories(token: string, taskGid: string): Promise<AsanaStoryEx
   return { comments, events };
 }
 
-async function listAll<T>(token: string, path: string): Promise<T[]> {
+async function listAll<T>(token: string, path: string, onPage?: (count: number) => Promise<void>): Promise<T[]> {
   const out: T[] = [];
   let next: string | null = path;
   while (next) {
     const page: AsanaPage<T> = await asanaGet(token, next);
     out.push(...(page.data ?? []));
+    await onPage?.(out.length);
     const offset: string | undefined = page.next_page?.offset;
     next = offset ? `${path.split('&offset=')[0]}${path.includes('?') ? '&' : '?'}offset=${offset}` : null;
   }

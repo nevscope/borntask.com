@@ -155,6 +155,9 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
   app.post('/invites/:id/resend', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
+      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
+        throw forbid('Only an owner or admin can resend invitations.');
+      }
       const id = (req.params as { id: string }).id;
       const invite = await auth.db.invitation.findFirst({ where: { id } });
       if (!invite) throw nf();
@@ -189,6 +192,9 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
   app.post('/invites/:id/revoke', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
+      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
+        throw forbid('Only an owner or admin can revoke invitations.');
+      }
       const id = (req.params as { id: string }).id;
       const invite = await auth.db.invitation.findFirst({ where: { id } });
       if (!invite) throw nf();

@@ -168,6 +168,9 @@ export const TaskSchema = z.object({
   /** Order within its section. The API should use fractional-index strings; a float is enough for the mock. */
   position: z.number(),
   subtaskCount: z.object({ done: z.number().int(), total: z.number().int() }),
+  commentCount: z.number().int(),
+  attachmentCount: z.number().int(),
+  lastComment: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   deletedByName: z.string().nullable().optional(),

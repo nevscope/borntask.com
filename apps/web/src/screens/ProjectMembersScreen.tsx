@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe, useProject, useProjectTasks } from '../api/queries';
+import { qk, useMe, useProject, useProjectAccessRequests, useProjectTasks, useResolveAccessRequest } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole } from '../api/types';
 import { Avatar, RoleTag } from '../components/Chips';
@@ -28,13 +28,16 @@ export function ProjectMembersScreen() {
     : FALLBACK_ROLES.map((slug) => ({ slug, name: slug.charAt(0).toUpperCase() + slug.slice(1) }));
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const detail = useProject(projectKey);
+  const isLead = detail.data?.project.leadId === me?.user.id
+    || Boolean(detail.data?.members.find((m) => m.userId === me?.user.id)?.roles.includes('lead'));
+  const canReviewAccess = canAdmin || isLead;
   const tasks = useProjectTasks(projectKey).data;
   const [pendingRemove, setPendingRemove] = useState<{ userId: string; name: string } | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null);
   const qc = useQueryClient();
   const invites = useQuery({
     queryKey: ['invites', detail.data?.project.id],
-    enabled: !!detail.data?.project.id,
+    enabled: canAdmin && !!detail.data?.project.id,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/invites?projectId=${encodeURIComponent(detail.data!.project.id)}`, { credentials: 'include' });
       const json = await res.json() as { invites?: Invite[] };
@@ -128,7 +131,8 @@ export function ProjectMembersScreen() {
           ))}
         </div>
       </section>
-      <section className="bt-card">
+      {canReviewAccess && <AccessRequestsCard projectKey={projectKey} />}
+      {canAdmin && <section className="bt-card">
         <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
           Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
         </h2>
@@ -149,7 +153,7 @@ export function ProjectMembersScreen() {
           );
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
-      </section>
+      </section>}
       <ConfirmDialog
         open={pendingRevoke !== null}
         title={pendingRevoke ? `Revoke the invitation for ${pendingRevoke.email}?` : 'Revoke this invitation?'}
@@ -176,6 +180,43 @@ export function ProjectMembersScreen() {
         {memberRemoveBody(openTaskCount(tasks, detail.data?.workflow, pendingRemove?.userId))}
       </ConfirmDialog>
     </SettingsFrame>
+  );
+}
+
+function AccessRequestsCard({ projectKey }: { projectKey: string }) {
+  const sent = useStatusToast();
+  const requests = useProjectAccessRequests(projectKey, true);
+  const resolve = useResolveAccessRequest(projectKey);
+  const rows = requests.data ?? [];
+
+  function act(id: string, action: 'accept' | 'decline') {
+    resolve.mutate({ id, action }, {
+      onSuccess: () => sent.show(action === 'accept' ? 'They can now open this project.' : 'Request declined.'),
+      onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not update that request.' }),
+    });
+  }
+
+  return (
+    <section className="bt-card">
+      <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
+        Access requests <span style={{ fontWeight: 500, color: color.muted }}>{rows.length}</span>
+      </h2>
+      {rows.map((row) => (
+        <div key={row.id} className="bt-row" style={{ padding: '12px 16px' }}>
+          <span style={{ flex: '1 1 240px' }}>
+            <span style={{ display: 'block', fontWeight: 500 }}>{row.name}</span>
+            <span style={{ fontSize: 12.5, color: color.muted }}>{row.email}</span>
+          </span>
+          <Button type="primary" loading={resolve.isPending && resolve.variables?.id === row.id && resolve.variables.action === 'accept'} onClick={() => act(row.id, 'accept')}>
+            Accept
+          </Button>
+          <Button onClick={() => act(row.id, 'decline')} loading={resolve.isPending && resolve.variables?.id === row.id && resolve.variables.action === 'decline'}>
+            Decline
+          </Button>
+        </div>
+      ))}
+      {rows.length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
+    </section>
   );
 }
 

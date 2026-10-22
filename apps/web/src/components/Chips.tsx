@@ -1,6 +1,7 @@
+import { Tooltip } from 'antd';
 import { BASE_URL } from '../api/http';
 import { useWorkspaceCatalog } from '../api/catalog';
-import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectRole, TaskType, User, WorkflowStatus } from '../api/types';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectRole, Task, TaskType, User, WorkflowStatus } from '../api/types';
 import { avatarTones, chipFromHex, color, githubBadgeStyle, priorityStyle, projectTint, roleStyle, toneStyle, typeStyle } from '../theme/tokens';
 
 export function TypeTag({ type, small = false }: { type: TaskType; small?: boolean }) {
@@ -59,6 +60,49 @@ export function GitForkIcon({ size = 12 }: { size?: number }) {
       <circle cx="18" cy="18" r="2.5" />
       <path d="M6 8.5v7M18 15.5V10a3 3 0 0 0-3-3h-4" />
     </svg>
+  );
+}
+
+export function CommentIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z" />
+    </svg>
+  );
+}
+
+export function AttachmentIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21.4 11.6 12 21a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5L10 18.9a2 2 0 1 1-2.8-2.8l8.1-8.1" />
+    </svg>
+  );
+}
+
+export function TaskHints({ task }: { task: Pick<Task, 'commentCount' | 'attachmentCount' | 'lastComment'> }) {
+  const comments = task.commentCount ?? 0;
+  const files = task.attachmentCount ?? 0;
+  if (comments < 1 && files < 1) return null;
+  const last = (task.lastComment ?? '').trim();
+  const commentTip = last || (comments === 1 ? '1 comment' : `${comments} comments`);
+  const fileTip = files === 1 ? '1 attachment' : `${files} attachments`;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: color.muted, flex: 'none' }} onClick={(event) => event.stopPropagation()}>
+      {comments > 0 && (
+        <Tooltip title={commentTip}>
+          <span aria-label={commentTip} style={{ display: 'inline-flex' }}>
+            <CommentIcon />
+          </span>
+        </Tooltip>
+      )}
+      {files > 0 && (
+        <Tooltip title={fileTip}>
+          <span aria-label={fileTip} style={{ display: 'inline-flex' }}>
+            <AttachmentIcon />
+          </span>
+        </Tooltip>
+      )}
+    </span>
   );
 }
 

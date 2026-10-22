@@ -355,6 +355,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/invites', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
       const q = req.query as { projectId?: string };
       const invites = await auth.db.invitation.findMany({
         where: {

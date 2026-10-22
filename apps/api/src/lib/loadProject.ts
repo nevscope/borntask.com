@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import type { TenantClient } from '../tenantPrisma.js';
+import { stripTags } from './descriptionHtml.js';
 import { comparePosition, mapStatus, mapUser, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
 
 const EMPTY_COUNTS = { backlog: 0, active: 0, review: 0, done: 0 };
@@ -142,6 +143,9 @@ export async function findTaskByKey(db: TenantClient, key: string) {
       section: true,
       project: true,
       labels: { include: { label: true } },
+      attachments: { select: { id: true } },
+      comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
     },
   });
 }
@@ -165,8 +169,15 @@ export function mapTask(row: {
   project: { key: string };
   labels?: { label: { name: string } }[];
   subtasks?: { completedAt: Date | null }[];
+  attachments?: unknown[];
+  comments?: { body: string; createdAt: Date; deletedAt?: Date | null }[];
+  _count?: { comments?: number; attachments?: number };
 }) {
   const sub = row.subtasks ?? [];
+  const liveComments = (row.comments ?? []).filter((comment) => !comment.deletedAt);
+  const last = liveComments.length
+    ? [...liveComments].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).at(-1)
+    : undefined;
   return {
     id: row.id,
     key: taskKey(row.project.key, row.number),
@@ -184,6 +195,9 @@ export function mapTask(row: {
     labels: (row.labels ?? []).map((l) => l.label.name),
     position: positionNumber(row.position),
     subtaskCount: { done: sub.filter((s) => s.completedAt).length, total: sub.length },
+    commentCount: row._count?.comments ?? liveComments.length,
+    attachmentCount: row._count?.attachments ?? (row.attachments?.length ?? 0),
+    lastComment: last ? stripTags(last.body).replace(/\s+/g, ' ').trim() || null : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     githubBadge: null as 'pr_running' | 'pr_passed' | 'pr_failed' | 'merged' | 'branch' | null,

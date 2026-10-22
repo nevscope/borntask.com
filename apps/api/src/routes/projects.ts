@@ -8,7 +8,7 @@ import { rankKey } from '../lib/mappers.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
-import { canDiscoverWorkspaceProjects, canOpenListed, openProjectIds, requireOpenProject } from '../lib/projectAccess.js';
+import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
 const colourSchema = z.string().regex(/^#?[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/, 'Colour must be a hex value such as #178A5C');
 
@@ -195,8 +195,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const body = z.object({ name: z.string().trim().min(1).max(80) }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, key);
       const count = await auth.db.section.count({ where: { projectId: project.id } });
       const section = await auth.db.section.create({
         data: { tenantId: auth.tenantId, projectId: project.id, name: body.name, position: rankKey(count) },
@@ -210,11 +209,12 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.patch('/projects/:key/sections/:id', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const { id } = req.params as { id: string };
+      const { key, id } = req.params as { key: string; id: string };
       const body = z.object({
         name: z.string().trim().min(1).max(80).optional(),
         position: z.string().optional(),
       }).parse(req.body);
+      await requireOpenProjectWrite(auth, key);
       const section = await auth.db.section.update({
         where: { id },
         data: {
@@ -233,8 +233,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const body = z.object({ ids: z.array(z.string()).min(1) }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, key);
       const existing = await auth.db.section.findMany({ where: { projectId: project.id } });
       const known = new Set(existing.map((s) => s.id));
       if (body.ids.length !== existing.length || body.ids.some((id) => !known.has(id))) {
@@ -254,8 +253,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const body = z.object({ userId: z.string(), roleSlugs: z.array(z.string()).default([]) }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change members.');
       const member = await auth.db.projectMember.upsert({
         where: { projectId_userId: { projectId: project.id, userId: body.userId } },
         update: {},
@@ -280,8 +279,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const { key, userId } = req.params as { key: string; userId: string };
       const body = z.object({ roleSlugs: z.array(z.string()) }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change members.');
       const member = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId } });
       if (!member) throw notFound();
       await auth.db.projectMemberRole.deleteMany({ where: { memberId: member.id } });
@@ -301,8 +300,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const { key, userId } = req.params as { key: string; userId: string };
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change members.');
       const member = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId } });
       if (!member) throw notFound();
       await auth.db.projectMemberRole.deleteMany({ where: { memberId: member.id } });
@@ -377,8 +376,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const { key, id } = req.params as { key: string; id: string };
       const body = z.object({ moveToSectionId: z.string() }).parse(req.body);
-      const project = await auth.db.project.findFirst({ where: { key } });
-      if (!project) throw notFound();
+      await requireOpenProjectWrite(auth, key);
       await auth.db.task.updateMany({ where: { sectionId: id }, data: { sectionId: body.moveToSectionId } });
       await auth.db.section.delete({ where: { id } });
       return { ok: true };
@@ -410,14 +408,93 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get('/projects/:key/access-requests', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const project = await requireOpenProject(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can review access requests.');
+      const rows = await auth.db.accessRequest.findMany({
+        where: { projectId: project.id, resolvedAt: null },
+        orderBy: { createdAt: 'asc' },
+      });
+      const people = rows.length
+        ? await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.requesterId) } } })
+        : [];
+      const byId = new Map(people.map((p) => [p.id, p]));
+      return rows.map((row) => {
+        const person = byId.get(row.requesterId);
+        return {
+          id: row.id,
+          requesterId: row.requesterId,
+          name: person?.name ?? 'Unknown',
+          email: person?.email ?? '',
+          createdAt: row.createdAt.toISOString(),
+        };
+      });
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/access-requests/:id/accept', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can review access requests.');
+      const row = await auth.db.accessRequest.findFirst({
+        where: { id, projectId: project.id, resolvedAt: null },
+      });
+      if (!row) throw notFound('That request is no longer pending.');
+      await auth.db.projectMember.upsert({
+        where: { projectId_userId: { projectId: project.id, userId: row.requesterId } },
+        update: {},
+        create: { tenantId: auth.tenantId, projectId: project.id, userId: row.requesterId },
+      });
+      await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
+      await auth.db.notification.create({
+        data: { tenantId: auth.tenantId, userId: row.requesterId, kind: 'access_granted' },
+      });
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/projects/:key/access-requests/:id/decline', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const project = await requireOpenProjectWrite(auth, key);
+      await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can review access requests.');
+      const row = await auth.db.accessRequest.findFirst({
+        where: { id, projectId: project.id, resolvedAt: null },
+      });
+      if (!row) throw notFound('That request is no longer pending.');
+      await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
+      await auth.db.notification.create({
+        data: { tenantId: auth.tenantId, userId: row.requesterId, kind: 'access_declined' },
+      });
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.get('/people', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
       if (auth.workspaceRole === 'guest') throw forbidden();
       const members = await auth.db.tenantMember.findMany({ where: { isActive: true } });
       const users = await prisma.user.findMany({ where: { id: { in: members.map((m) => m.userId) } } });
+      const openIds = await openProjectIds(auth);
+      const directoryFull = auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin';
       const onProjects = await auth.db.projectMember.findMany({
-        where: { userId: { in: members.map((m) => m.userId) } },
+        where: {
+          userId: { in: members.map((m) => m.userId) },
+          ...(!directoryFull && openIds ? { projectId: { in: [...openIds] } } : {}),
+        },
         include: { project: { select: { name: true } } },
       });
       const projectsByUser = new Map<string, string[]>();

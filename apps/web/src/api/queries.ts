@@ -145,6 +145,38 @@ export const useMe = () =>
   });
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
 
+export function useProjectAccessRequests(projectKey: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['projects', projectKey, 'access-requests'] as const,
+    enabled: enabled && projectKey.length > 0,
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/access-requests`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Could not load access requests.');
+      return (await res.json()) as { id: string; requesterId: string; name: string; email: string; createdAt: string }[];
+    },
+  });
+}
+
+export function useResolveAccessRequest(projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'accept' | 'decline' }) => {
+      const res = await fetch(
+        `${BASE_URL}/projects/${encodeURIComponent(projectKey)}/access-requests/${encodeURIComponent(id)}/${action}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      const json = await res.json().catch(() => null) as { message?: string } | null;
+      if (!res.ok) throw new Error(json?.message ?? 'Could not update that request.');
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['projects', projectKey, 'access-requests'] });
+      void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
+    },
+  });
+}
+
 export function useRequestProjectAccess() {
   const qc = useQueryClient();
   return useMutation({
@@ -182,6 +214,7 @@ export type ImportProgress = {
   rowsDone: number;
   status: string;
   errors?: unknown;
+  phase?: string;
 };
 
 export function useImportProgress(id: string | undefined, enabled: boolean) {

@@ -8,7 +8,7 @@ import { useParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
-import { GitHubBadge } from '../components/Chips';
+import { GitHubBadge, TaskHints } from '../components/Chips';
 import { BulkBar } from '../components/BulkBar';
 import { ListFields } from '../components/ListFields';
 import { NoAccess } from '../components/NoAccess';
@@ -266,10 +266,11 @@ function Row({
             onChange={onToggle}
             style={{ width: 16, height: 16, marginTop: 3, accentColor: color.brand, flex: 'none' }}
           />
-          <button type="button" className="bt-row-title" style={{ flex: 1, color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3 }} onClick={() => openTask(task.key)}>
-            {task.title}
-            {task.subtaskCount.total > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
-            {task.githubBadge && <span style={{ marginLeft: 8 }}><GitHubBadge kind={task.githubBadge} compact /></span>}
+          <button type="button" className="bt-row-title" style={{ flex: 1, color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
+            <span>{task.title}</span>
+            {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+            {task.githubBadge && <GitHubBadge kind={task.githubBadge} compact />}
+            <TaskHints task={task} />
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24, fontSize: 12, color: color.muted }}>
@@ -297,10 +298,11 @@ function Row({
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5" /><circle cx="9" cy="3" r="1.5" /><circle cx="3" cy="8" r="1.5" /><circle cx="9" cy="8" r="1.5" /><circle cx="3" cy="13" r="1.5" /><circle cx="9" cy="13" r="1.5" /></svg>
       </button>
       <span className="bt-key">{task.key}</span>
-      <button className="bt-row-title" style={{ color: done ? color.muted : undefined }} onClick={() => openTask(task.key)}>
-        {task.title}
-        {task.subtaskCount.total > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
-        {task.githubBadge && <span style={{ marginLeft: 8 }}><GitHubBadge kind={task.githubBadge} compact /></span>}
+      <button className="bt-row-title" style={{ color: done ? color.muted : undefined, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+        {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400, flex: 'none' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+        {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
+        <TaskHints task={task} />
       </button>
       <ListFields task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} />
     </div>

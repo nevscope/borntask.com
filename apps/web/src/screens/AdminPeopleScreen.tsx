@@ -50,6 +50,7 @@ export function AdminPeopleScreen() {
   });
   const invites = useQuery({
     queryKey: ['invites'],
+    enabled: canAdmin,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/invites`, { credentials: 'include' });
       const json = await res.json() as { invites?: Invite[] };
@@ -247,7 +248,7 @@ export function AdminPeopleScreen() {
           ))}
         </div>
       </section>
-      <section className="bt-card">
+      {canAdmin && <section className="bt-card">
         <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
           Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
         </h2>
@@ -268,7 +269,7 @@ export function AdminPeopleScreen() {
           );
         })}
         {(invites.data ?? []).length === 0 && <p style={{ padding: '0 16px 16px', color: color.muted }}>None pending.</p>}
-      </section>
+      </section>}
       </div>
       <div style={{ flex: '1 1 240px', maxWidth: 300, width: '100%' }}>
         <WorkspaceRolesAside />

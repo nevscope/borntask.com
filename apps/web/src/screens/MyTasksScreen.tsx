@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
-import { Avatar, StatusPill, TypeTag } from '../components/Chips';
+import { Avatar, StatusPill, TaskHints, TypeTag } from '../components/Chips';
 import { useQuickAdd } from '../components/QuickAdd';
 import { useStatusToast } from '../components/StatusToast';
 import { useTaskParam } from '../components/useTaskParam';
@@ -111,7 +111,10 @@ export function MyTasksScreen() {
             ) : (
             <div key={t.key} className="bt-row" style={{ paddingLeft: 16 }}>
               <span className="bt-key">{t.key}</span>
-              <button className="bt-row-title" onClick={() => openTask(t.key)}>{t.title}</button>
+              <button className="bt-row-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(t.key)}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                <TaskHints task={t} />
+              </button>
               <TypeTag type={t.type} />
               <span style={{ fontSize: 12.5, color: color.muted, width: 150 }}>{projectName(t.projectKey)}</span>
               <Button size="small" type="primary" loading={move.isPending && move.variables?.key === t.key} onClick={() => approve(t)}>Approve</Button>
@@ -154,7 +157,10 @@ export function MyTasksScreen() {
               return (
                 <div key={t.key} className="bt-row" style={{ paddingLeft: 16 }}>
                   <span className="bt-key">{t.key}</span>
-                  <button className="bt-row-title" onClick={() => openTask(t.key)}>{t.title}</button>
+                  <button className="bt-row-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(t.key)}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                    <TaskHints task={t} />
+                  </button>
                   <TypeTag type={t.type} />
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: 150, fontSize: 12.5, color: color.ink3 }}>
                     <span style={{ width: 7, height: 7, borderRadius: 2, background: project?.color ?? color.faint }} />

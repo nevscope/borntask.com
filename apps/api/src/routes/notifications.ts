@@ -13,6 +13,8 @@ function textFor(kind: string, title: string | null, key: string | null) {
   if (kind === 'moved') return `${label} moved stage`;
   if (kind === 'invite') return 'Someone accepted an invitation';
   if (kind === 'github') return `A linked pull request updated ${key ?? label}`;
+  if (kind === 'access_granted') return 'You can now open the project you asked for.';
+  if (kind === 'access_declined') return 'Your request to open a project was declined.';
   return label;
 }
 
@@ -26,7 +28,7 @@ function present(
   },
 ) {
   const parsed = kindSchema.safeParse(row.kind);
-  const kind = parsed.success ? parsed.data : 'moved';
+  const kind = parsed.success ? parsed.data : row.kind === 'access_granted' || row.kind === 'access_declined' ? 'invite' : 'moved';
   const key = row.task ? taskKey(row.task.project.key, row.task.number) : null;
   return {
     id: row.id,

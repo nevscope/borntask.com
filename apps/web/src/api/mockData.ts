@@ -117,6 +117,9 @@ function seed(s: Seed, position: number): Task {
     labels: [],
     position,
     subtaskCount: { done: 0, total: 0 },
+    commentCount: 0,
+    attachmentCount: 0,
+    lastComment: null,
     createdAt: ago(240),
     updatedAt: ago(4),
     ...s,
@@ -189,6 +192,18 @@ const comments: Record<string, Comment[]> = {
     { id: 'c_4', authorId: 'u_maria', body: 'On iPhone SE it blocks the checkout button entirely.', via: 'app', createdAt: ago(5) },
   ],
 };
+
+function applyCommentHints(key: string) {
+  const task = tasks.find((item) => item.key === key);
+  if (!task) return;
+  const list = comments[key] ?? [];
+  task.commentCount = list.length;
+  task.lastComment = list.at(-1)?.body ?? null;
+}
+
+for (const key of Object.keys(comments)) applyCommentHints(key);
+const web142 = tasks.find((item) => item.key === 'WEB-142');
+if (web142) web142.attachmentCount = 1;
 
 const activity: Record<string, Activity[]> = {
   'WEB-142': [
@@ -413,7 +428,9 @@ export const mockApi: Api = {
       comments: comments[key] ?? [],
       activity: activity[key] ?? [],
       watcherIds: watchers[key] ?? [],
-      attachments: [],
+      attachments: key === 'WEB-142'
+        ? [{ id: 'att_1', name: 'safari-fail.png', size: 184320, mime: 'image/png' }]
+        : [],
       development: key.startsWith('WEB-')
         ? {
             enabled: true,
@@ -464,6 +481,9 @@ export const mockApi: Api = {
       labels: input.labels,
       position: Math.max(0, ...inSection.map((t) => t.position)) + 1,
       subtaskCount: { done: 0, total: 0 },
+      commentCount: 0,
+      attachmentCount: input.attachmentIds.length,
+      lastComment: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -540,6 +560,7 @@ export const mockApi: Api = {
     findTask(key);
     const c: Comment = { id: uid('c'), authorId: me.user.id, body, via: 'app', createdAt: new Date().toISOString() };
     (comments[key] ??= []).push(c);
+    applyCommentHints(key);
     return clone(c);
   },
 
@@ -550,6 +571,7 @@ export const mockApi: Api = {
     if (!c) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
     if (c.authorId !== me.user.id) throw new ApiError(403, 'FORBIDDEN', 'You can only edit your own comments.');
     c.body = body;
+    applyCommentHints(key);
     return clone(c);
   },
 
@@ -562,6 +584,7 @@ export const mockApi: Api = {
     const canDelete = c.authorId === me.user.id || me.workspaceRole === 'owner' || me.workspaceRole === 'admin';
     if (!canDelete) throw new ApiError(403, 'FORBIDDEN', 'You cannot delete this comment.');
     comments[key] = list.filter((x) => x.id !== commentId);
+    applyCommentHints(key);
   },
 
   async addSubtask(key, title) {

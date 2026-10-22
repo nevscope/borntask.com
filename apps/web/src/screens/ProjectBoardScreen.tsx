@@ -8,7 +8,7 @@ import { useParams } from 'react-router-dom';
 import { useMe, useProject, useProjectTasks } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
-import { Avatar, GitHubBadge, LockIcon, TypeTag } from '../components/Chips';
+import { Avatar, GitHubBadge, LockIcon, TaskHints, TypeTag } from '../components/Chips';
 import { NoAccess } from '../components/NoAccess';
 import { ProjectHeader } from '../components/ProjectHeader';
 import { ProjectViewBar, useProjectView } from '../components/ProjectViewBar';
@@ -343,7 +343,10 @@ function Card({ task, detail, overlay = false, dragging = false }: { task: Task;
         <TypeTag type={task.type} small />
         <span style={{ fontSize: 12, color: color.muted }}>{task.key}</span>
       </span>
-      <span style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.35 }}>{task.title}</span>
+      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13.5, fontWeight: 500, lineHeight: 1.35 }}>
+        <span style={{ flex: 1 }}>{task.title}</span>
+        <TaskHints task={task} />
+      </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: color.muted }}>
         <Avatar user={user} size={22} />
         <span style={{ color: dueColor[tone], fontWeight: tone === 'today' || tone === 'overdue' ? 600 : 400 }}>{dueLabel(task.dueDate)}</span>
