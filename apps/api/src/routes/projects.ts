@@ -481,13 +481,19 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:key/access-requests', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const key = (req.params as { key: string }).key;
+      const key = normaliseProjectKey((req.params as { key: string }).key);
       const project = await auth.db.project.findFirst({ where: { key } });
       if (!project) throw notFound('This project is not in your workspace.');
-      const existing = await auth.db.accessRequest.findFirst({
-        where: { projectId: project.id, requesterId: auth.userId, resolvedAt: null },
+      const alreadyMember = await auth.db.projectMember.findFirst({
+        where: { projectId: project.id, userId: auth.userId },
       });
-      if (!existing) {
+      const alreadyOn = Boolean(alreadyMember) || project.leadId === auth.userId || auth.workspaceRole === 'owner';
+      const existing = !alreadyOn
+        ? await auth.db.accessRequest.findFirst({
+            where: { projectId: project.id, requesterId: auth.userId, resolvedAt: null },
+          })
+        : null;
+      if (!alreadyOn && !existing) {
         await auth.db.accessRequest.create({
           data: { tenantId: auth.tenantId, projectId: project.id, requesterId: auth.userId },
         });

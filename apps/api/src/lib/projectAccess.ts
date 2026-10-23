@@ -1,3 +1,4 @@
+import { normaliseProjectKey } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { forbidden, notFound } from '../errors.js';
 import type { Authed } from '../context.js';
@@ -46,13 +47,13 @@ export function canOpenListed(openIds: Set<string> | null, projectId: string): b
   return openIds === null || openIds.has(projectId);
 }
 
-/** Admins may list other projects so they can request access. Members and guests may not. */
+/** Workspace people may list locked projects so they can request access. Guests only see seats they already have. */
 export function canDiscoverWorkspaceProjects(role: string): boolean {
-  return role === 'owner' || role === 'admin';
+  return role === 'owner' || role === 'admin' || role === 'member' || role === 'viewer';
 }
 
 export async function requireOpenProject(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key } });
+  const project = await auth.db.project.findFirst({ where: { key: normaliseProjectKey(key) } });
   if (!project) throw notFound('Project not found.');
   if (auth.workspaceRole === 'owner') return project;
   const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });

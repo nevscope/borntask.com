@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, BASE_URL } from '../api/http';
+import { ApiError } from '../api/http';
+import { useRequestProjectAccess } from '../api/queries';
 import { color, font, radius } from '../theme/tokens';
 
 function Lock() {
@@ -13,25 +13,13 @@ function Lock() {
 }
 
 export function NoAccess({ projectKey, error }: { projectKey: string; error: unknown }) {
-  const [sent, setSent] = useState(false);
-  const [lead, setLead] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const requestAccess = useRequestProjectAccess();
   const missing = error instanceof ApiError && error.status === 404;
-
-  const ask = async () => {
-    setNote(null);
-    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/access-requests`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const json = await res.json().catch(() => null) as { message?: string; leadName?: string | null } | null;
-    if (!res.ok) {
-      setNote(json?.message ?? 'Could not send the request.');
-      return;
-    }
-    setLead(json?.leadName ?? null);
-    setSent(true);
-  };
+  const sent = requestAccess.isSuccess;
+  const lead = requestAccess.data?.leadName ?? null;
+  const note = requestAccess.isError
+    ? (requestAccess.error instanceof Error ? requestAccess.error.message : 'Could not send the request.')
+    : null;
 
   return (
     <div className="bt-page">
@@ -45,13 +33,13 @@ export function NoAccess({ projectKey, error }: { projectKey: string; error: unk
               ? `Ask the project lead, ${lead}, to add you.`
               : 'Ask a project lead to add you.'}
         </span>
-        {sent ? (
+        {!missing && sent ? (
           <span style={{ fontSize: 13.5, color: color.brandStrong }}>Request sent.</span>
-        ) : (
-          <button type="button" onClick={() => void ask()} style={{ height: 36, padding: '0 14px', marginTop: 4, border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            Request
+        ) : !missing ? (
+          <button type="button" onClick={() => requestAccess.mutate(projectKey)} disabled={requestAccess.isPending} style={{ height: 36, padding: '0 14px', marginTop: 4, border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: requestAccess.isPending ? 'wait' : 'pointer' }}>
+            {requestAccess.isPending ? 'Sending…' : 'Request access'}
           </button>
-        )}
+        ) : null}
         {note && <span style={{ fontSize: 13, color: color.danger }}>{note}</span>}
         <Link to="/" style={{ fontSize: 13 }}>Back to My tasks</Link>
       </div>
