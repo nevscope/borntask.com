@@ -6,7 +6,7 @@ import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject, useProjectAccessRequests, useProjectTasks, useResolveAccessRequest } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole } from '../api/types';
-import { Avatar, RoleTag } from '../components/Chips';
+import { Avatar, RemovableRoleChip } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { SettingsFrame } from '../components/SettingsNav';
@@ -56,6 +56,7 @@ export function ProjectMembersScreen() {
       if (!res.ok) throw new Error('Could not update roles');
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.project(projectKey) }),
+    onError: () => sent.show({ kind: 'error', text: 'Could not update roles.' }),
   });
 
   const remove = useMutation({
@@ -112,7 +113,14 @@ export function ProjectMembersScreen() {
                 </span>
               </span>
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {r.roles.map((role) => <RoleTag key={role} role={role} />)}
+                {r.roles.map((role) => (
+                  <RemovableRoleChip
+                    key={role}
+                    role={role}
+                    removeLabel={`Remove ${role} from ${r.name}`}
+                    onRemove={() => saveRoles.mutate({ userId: r.userId, roleSlugs: r.roles.filter((item) => item !== role) })}
+                  />
+                ))}
                 <Dropdown
                   menu={{
                     items: roleOptions.filter((role) => !r.roles.includes(role.slug)).map((role) => ({

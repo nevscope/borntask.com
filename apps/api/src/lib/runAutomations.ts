@@ -81,7 +81,7 @@ async function assignForRole(
     },
   });
   await auth.db.notification.create({
-    data: { tenantId: auth.tenantId, userId, taskId: input.taskId, kind: 'assigned' },
+    data: { tenantId: auth.tenantId, userId, actorId: auth.userId, taskId: input.taskId, kind: 'assigned' },
   });
   const name = await actorName(auth.userId);
   const keyLabel = taskKey(input.projectKey, input.taskNumber);
@@ -125,7 +125,7 @@ async function notifyForRole(
   for (const member of members) {
     if (member.userId === auth.userId) continue;
     await auth.db.notification.create({
-      data: { tenantId: auth.tenantId, userId: member.userId, taskId: input.taskId, kind: 'moved' },
+      data: { tenantId: auth.tenantId, userId: member.userId, actorId: auth.userId, taskId: input.taskId, kind: 'moved' },
     });
     await enqueuePersonalChat(auth, member.userId, personal);
   }

@@ -52,6 +52,25 @@ export function RoleTag({ role }: { role: ProjectRole }) {
   return <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: r.bg, color: r.fg }}>{r.label}</span>;
 }
 
+export function RemovableRoleChip({
+  role,
+  onRemove,
+  removeLabel,
+}: {
+  role: ProjectRole;
+  onRemove: () => void;
+  removeLabel: string;
+}) {
+  return (
+    <span className="bt-role-chip">
+      <RoleTag role={role} />
+      <button type="button" className="bt-role-chip-x" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
+        ×
+      </button>
+    </span>
+  );
+}
+
 export function GitForkIcon({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">

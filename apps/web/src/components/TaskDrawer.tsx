@@ -26,14 +26,14 @@ import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
-import { deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
+import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
 import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { isEmptyDescription, persistDescription, sanitizeDescriptionHtml, toEditorHtml } from '../lib/descriptionHtml';
 import { allowedTypeSlugs } from '../lib/taskFilters';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
-import { AttachmentTiles, filesFromClipboard } from './AttachmentTiles';
+import { AttachmentPreview, AttachmentTiles, filesFromClipboard, type AttachmentItem } from './AttachmentTiles';
 import { DescriptionEditor } from './DescriptionEditor';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Avatar, StatusPill, TypeTag } from './Chips';
@@ -147,6 +147,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   const [confirmWatch, setConfirmWatch] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
+  const [preview, setPreview] = useState<{ item: AttachmentItem; src?: string; revoke?: boolean } | null>(null);
   const [subtaskDraft, setSubtaskDraft] = useState('');
   const [descFocused, setDescFocused] = useState(false);
   const [remoteNotice, setRemoteNotice] = useState(false);
@@ -304,22 +305,32 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', height: isPhone ? '100%' : undefined }}>
       {flow.modal}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isPhone ? 4 : 8, padding: isPhone ? '12px 8px 8px' : '12px 20px', borderBottom: `1px solid ${color.divider}`, fontSize: 12.5, color: color.muted, flex: 'none' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isPhone ? 6 : 8, padding: isPhone ? '12px 8px 8px' : '12px 20px', borderBottom: `1px solid ${color.divider}`, fontSize: 12.5, color: color.muted, flex: 'none' }}>
         {isPhone && (
           <button type="button" aria-label="Back" onClick={onClose} style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
           </button>
         )}
-        <span>{detail.project.name}</span>{isPhone ? <span>·</span> : <><span>/</span><span>{section?.name}</span><span>/</span></>}
-        <strong style={{ color: color.ink }}>{task.key}</strong>
-        <span role="status" style={{ marginLeft: 6, fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : descTooLong || update.isError ? color.danger : color.brandStrong }}>{saving ? 'Saving…' : descTooLong || update.isError ? 'Not saved' : isPhone ? 'Saved' : '✓ Saved'}</span>
-        <span style={{ flex: 1 }} />
-        <Button type="text" size="small" aria-pressed={watching} onClick={() => setConfirmWatch(true)}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, minWidth: 0, flex: '1 1 220px' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{detail.project.name}</span>
+          {isPhone ? <span aria-hidden="true">·</span> : (
+            <>
+              <span aria-hidden="true">/</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{section?.name}</span>
+              <span aria-hidden="true">/</span>
+            </>
+          )}
+          <strong style={{ color: color.ink, whiteSpace: 'nowrap' }}>{task.key}</strong>
+          <span role="status" style={{ whiteSpace: 'nowrap', fontSize: isPhone ? 12 : undefined, color: saving ? color.muted : descTooLong || update.isError ? color.danger : color.brandStrong }}>{saving ? 'Saving…' : descTooLong || update.isError ? 'Not saved' : isPhone ? 'Saved' : '✓ Saved'}</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 2, flex: 'none', marginLeft: 'auto' }}>
+        <Button type="text" size="small" aria-pressed={watching} onClick={() => setConfirmWatch(true)} style={{ whiteSpace: 'nowrap' }}>
           {watching ? 'Watching' : 'Watch'}
         </Button>
         <Button
           type="text"
           size="small"
+          style={{ whiteSpace: 'nowrap' }}
           onClick={() => {
             const href = window.location.href;
             const done = () => {
@@ -339,8 +350,9 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           {linkCopied ? 'Copied' : 'Copy link'}
         </Button>
         {!isPhone && (
-        <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18 }}>×</button>
+        <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18, flex: 'none' }}>×</button>
         )}
+        </div>
       </div>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
 
@@ -499,7 +511,24 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
               items={files}
               onAdd={(added) => void addTaskFiles(added)}
               onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
-              onOpen={(item) => void downloadTaskFile(task.key, item.id, item.name)}
+              onOpen={(item) => {
+                void (async () => {
+                  if (!canPreviewAttachment(item.mime)) {
+                    await downloadTaskFile(task.key, item.id, item.name);
+                    return;
+                  }
+                  if (item.previewUrl?.startsWith('blob:')) {
+                    setPreview({ item, src: item.previewUrl });
+                    return;
+                  }
+                  try {
+                    const { url } = await blobUrlForTaskFile(task.key, item.id);
+                    setPreview({ item, src: url, revoke: true });
+                  } catch {
+                    toast.show({ kind: 'error', text: 'Could not open that file.' });
+                  }
+                })();
+              }}
               onRemove={(id) => {
                 void deleteTaskFile(task.key, id)
                   .then(() => setAttachments(files.filter((x) => x.id !== id)))
@@ -513,6 +542,17 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         <DevelopmentSection task={task} />
         <Comments task={task} detail={detail} people={mentionPeople} onDraftChange={setCommentDraft} hideComposer={isPhone || readOnly} />
 
+        <AttachmentPreview
+          item={preview?.item ?? null}
+          src={preview?.src}
+          onClose={() => {
+            if (preview?.revoke && preview.src) URL.revokeObjectURL(preview.src);
+            setPreview(null);
+          }}
+          onDownload={() => {
+            void downloadTaskFile(task.key, preview!.item.id, preview!.item.name);
+          }}
+        />
         {!inTrash && !readOnly && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
         <ConfirmDialog
           open={confirmDelete}

@@ -100,8 +100,8 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
           </button>
         </div>
       )}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <div style={{ flex: '1 1 320px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
           <div style={{ fontSize: 12.5, color: color.muted }}>Projects / {project.key}</div>
           <h1 className="bt-h1" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{ width: 12, height: 12, borderRadius: 4, background: project.color, flex: 'none' }} />
@@ -178,6 +178,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             </Link>
           </h1>
         </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flex: '0 1 auto' }}>
         <ProjectStar projectKey={project.key} name={project.name} starred={starred} />
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {people.map((u, i) => (
@@ -186,6 +187,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             </span>
           ))}
           <InvitePeopleButton projectId={project.id} projectName={project.name} />
+        </div>
         </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, borderBottom: `1px solid ${color.border}` }}>
@@ -209,7 +211,6 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
           </NavLink>
         ))}
-        <span id="bt-saved-views" style={{ display: 'contents' }} />
       </div>
     </div>
   );

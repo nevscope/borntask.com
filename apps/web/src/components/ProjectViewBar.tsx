@@ -1,7 +1,6 @@
 // Filter builder, saved views, group and sort. Shared by the list and the board.
 import { Input, Modal, Select } from 'antd';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ProjectDetail } from '../api/types';
 import {
@@ -128,12 +127,7 @@ export function ProjectViewBar({
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<SavedView | null>(null);
   const [views, setViews] = useState<SavedView[]>(() => readSavedViews(workspaceId, detail.project.key));
-  const [viewsHost, setViewsHost] = useState<HTMLElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    setViewsHost(document.getElementById('bt-saved-views'));
-  }, [detail.project.key]);
 
   useEffect(() => {
     setViews(readSavedViews(workspaceId, detail.project.key));
@@ -185,7 +179,6 @@ export function ProjectViewBar({
 
   const viewTabs = (
     <>
-      <span aria-hidden="true" style={{ width: 1, height: 18, margin: '0 6px', background: color.border, flex: 'none' }} />
       {views.map((saved) => (
         <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 4px 0 12px' }}>
           <button
@@ -216,8 +209,8 @@ export function ProjectViewBar({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {viewsHost ? createPortal(viewTabs, viewsHost) : <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>{viewTabs}</div>}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, minWidth: 0 }}>{viewTabs}</div>
         <div ref={panelRef} style={{ position: 'relative' }}>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: color.ink3, cursor: 'pointer' }}>
             <FilterIcon /> Filter

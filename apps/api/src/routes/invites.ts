@@ -70,6 +70,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
                 data: {
                   tenantId: auth.tenantId,
                   userId: existing.id,
+                  actorId: auth.userId,
                   kind: `project_invite:${project.key}`,
                 },
               });

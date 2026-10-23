@@ -37,7 +37,7 @@ async function notifyAccessRequest(auth: Authed, project: { id: string; key: str
   for (const userId of recipients) {
     if (!(await inAppAllowed(auth, userId, 'access_request'))) continue;
     await auth.db.notification.create({
-      data: { tenantId: auth.tenantId, userId, kind: `access_request:${project.key}` },
+      data: { tenantId: auth.tenantId, userId, actorId: auth.userId, kind: `access_request:${project.key}` },
     });
   }
 }
@@ -548,7 +548,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       });
       await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
       await auth.db.notification.create({
-        data: { tenantId: auth.tenantId, userId: row.requesterId, kind: 'access_granted' },
+        data: { tenantId: auth.tenantId, userId: row.requesterId, actorId: auth.userId, kind: 'access_granted' },
       });
       return { ok: true };
     } catch (err) {
@@ -568,7 +568,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       if (!row) throw notFound('That request is no longer pending.');
       await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
       await auth.db.notification.create({
-        data: { tenantId: auth.tenantId, userId: row.requesterId, kind: 'access_declined' },
+        data: { tenantId: auth.tenantId, userId: row.requesterId, actorId: auth.userId, kind: 'access_declined' },
       });
       return { ok: true };
     } catch (err) {

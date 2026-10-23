@@ -1,5 +1,6 @@
 import { MAX_ATTACHMENT_BYTES, partitionAttachmentFiles } from '@borntask/shared';
-import { useRef } from 'react';
+import { Modal } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 import { color, radius } from '../theme/tokens';
 
 export { MAX_ATTACHMENT_BYTES };
@@ -91,7 +92,7 @@ export function AttachmentTiles({
         <div key={item.id} style={{ position: 'relative', width: 132, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div
             role={onOpen ? 'button' : item.previewUrl ? 'img' : undefined}
-            aria-label={onOpen ? `Download ${item.name}` : item.previewUrl ? `${item.name} preview` : undefined}
+            aria-label={onOpen ? `View ${item.name}` : item.previewUrl ? `${item.name} preview` : undefined}
             onClick={() => onOpen?.(item)}
             style={{
               cursor: onOpen ? 'pointer' : undefined,
@@ -191,5 +192,85 @@ export function AttachmentTiles({
         </span>
       )}
     </div>
+  );
+}
+
+export function AttachmentPreview({
+  item,
+  src,
+  onClose,
+  onDownload,
+}: {
+  item: { name: string; mime: string } | null;
+  src?: string;
+  onClose: () => void;
+  onDownload?: () => void;
+}) {
+  if (!item) return null;
+  return <AttachmentPreviewBody item={item} src={src} onClose={onClose} onDownload={onDownload} />;
+}
+
+function AttachmentPreviewBody({
+  item,
+  src,
+  onClose,
+  onDownload,
+}: {
+  item: { name: string; mime: string };
+  src?: string;
+  onClose: () => void;
+  onDownload?: () => void;
+}) {
+  const [turn, setTurn] = useState(0);
+  useEffect(() => {
+    setTurn(0);
+  }, [item.name, src]);
+  const image = item.mime.startsWith('image/');
+  const pdf = item.mime === 'application/pdf';
+  const rotatable = image || pdf;
+  return (
+    <Modal
+      open
+      centered
+      title={item.name}
+      onCancel={onClose}
+      footer={(
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {rotatable && (
+            <button
+              type="button"
+              onClick={() => setTurn((deg) => deg + 90)}
+              style={{ height: 32, padding: '0 12px', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.surface, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+            >
+              Rotate
+            </button>
+          )}
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              style={{ height: 32, padding: '0 12px', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.surface, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+            >
+              Download
+            </button>
+          )}
+        </div>
+      )}
+      width={image || pdf ? 880 : 560}
+    >
+      <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+        <div style={{ transform: rotatable ? `rotate(${turn}deg)` : undefined, transformOrigin: 'center center', display: 'flex', justifyContent: 'center' }}>
+          {image && src ? (
+            <img src={src} alt={item.name} style={{ display: 'block', maxWidth: turn % 180 === 0 ? '100%' : '70vh', maxHeight: turn % 180 === 0 ? '70vh' : '100%', margin: '0 auto' }} />
+          ) : pdf && src ? (
+            <iframe title={item.name} src={src} style={{ width: turn % 180 === 0 ? '100%' : '70vh', height: turn % 180 === 0 ? '70vh' : '100%', minHeight: 480, border: 0 }} />
+          ) : src && item.mime.startsWith('text/') ? (
+            <iframe title={item.name} src={src} style={{ width: '100%', height: '50vh', border: `1px solid ${color.border}`, borderRadius: radius.md }} />
+          ) : (
+            <p style={{ margin: 0, color: color.muted }}>This file cannot be previewed in the browser.</p>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -125,6 +125,7 @@ model User {
   comments      Comment[]
   watchers      TaskWatcher[]
   notifications Notification[]
+  notificationsActed Notification[] @relation("NotificationActor")
   notifyPrefs   NotificationPreference[]
   chatIntegrations ChatIntegration[]
   apiTokens     ApiToken[]
@@ -629,6 +630,7 @@ model Notification {
   id        String    @id @default(cuid())
   tenantId  String
   userId    String
+  actorId   String?
   taskId    String?
   kind      String
   readAt    DateTime?
@@ -636,9 +638,11 @@ model Notification {
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actor  User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   task   Task?     @relation(fields: [taskId], references: [id])
 
   @@index([tenantId, userId])
+  @@index([actorId])
 }
 
 model NotificationPreference {

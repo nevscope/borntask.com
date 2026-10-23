@@ -52,16 +52,24 @@ export async function deleteTaskFile(taskKey: string, id: string): Promise<void>
   if (!res.ok) throw new Error('Could not remove that file.');
 }
 
-export async function downloadTaskFile(taskKey: string, id: string, name: string): Promise<void> {
+export function canPreviewAttachment(mime: string): boolean {
+  return mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('text/');
+}
+
+export async function blobUrlForTaskFile(taskKey: string, id: string): Promise<{ url: string; mime: string }> {
   const res = await fetch(`${BASE_URL}/tasks/${encodeURIComponent(taskKey)}/attachments/${encodeURIComponent(id)}`, {
     credentials: 'include',
   });
-  if (!res.ok) throw new Error('Could not download that file.');
+  if (!res.ok) throw new Error('Could not open that file.');
   const blob = await res.blob();
-  const href = URL.createObjectURL(blob);
+  return { url: URL.createObjectURL(blob), mime: blob.type };
+}
+
+export async function downloadTaskFile(taskKey: string, id: string, name: string): Promise<void> {
+  const { url } = await blobUrlForTaskFile(taskKey, id);
   const a = document.createElement('a');
-  a.href = href;
+  a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(href);
+  URL.revokeObjectURL(url);
 }

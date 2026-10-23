@@ -42,7 +42,7 @@ a { color: var(--bt-brand-strong); }
   display: flex;
   flex-direction: column;
 }
-.bt-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 28px; background: var(--bt-surface); border-bottom: 1px solid var(--bt-border); }
+.bt-topbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 12px 28px; background: var(--bt-surface); border-bottom: 1px solid var(--bt-border); }
 .bt-page { padding: 24px 28px 56px; display: flex; flex-direction: column; gap: 16px; }
 
 .bt-nav-link { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: var(--bt-ink3); text-decoration: none; font-size: 13.5px; }
@@ -93,6 +93,26 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-check-row.ant-checkbox-wrapper { align-items: center; gap: 8px; font-size: 13.5px; }
 .bt-hit { background: var(--bt-highlight); color: inherit; border-radius: 3px; padding: 0 1px; }
 .bt-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bt-role-chip { position: relative; display: inline-flex; }
+.bt-role-chip-x {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--bt-border);
+  border-radius: 50%;
+  background: var(--bt-surface);
+  color: var(--bt-ink3);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.bt-role-chip:hover .bt-role-chip-x,
+.bt-role-chip-x:focus-visible { opacity: 1; }
 
 .bt-desc-surface { outline: none; min-height: 112px; }
 .bt-desc-surface.bt-desc-compact { min-height: 52px; }
@@ -209,8 +229,8 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   opacity: 0.82;
 }
 
-.bt-desktop-search { display: flex; flex: 1 1 280px; max-width: 520px; min-width: 0; }
-.bt-desktop-actions { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 12px; }
+.bt-desktop-search { display: flex; flex: 1 1 auto; max-width: 520px; min-width: 0; }
+.bt-desktop-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; }
 .bt-phone-title,
 .bt-phone-search,
 .bt-phone-tabs,

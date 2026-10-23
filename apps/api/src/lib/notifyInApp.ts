@@ -19,6 +19,7 @@ export async function notifyInApp(
     data: {
       tenantId: auth.tenantId,
       userId,
+      actorId: auth.userId,
       kind: data.kind,
       taskId: data.taskId,
     },

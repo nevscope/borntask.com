@@ -7,7 +7,7 @@ import { BASE_URL } from '../api/http';
 import { qk, useMe, useProjects } from '../api/queries';
 import type { ProjectRole, User, WorkspaceRole } from '../api/types';
 import { useWorkspaceCatalog } from '../api/catalog';
-import { RoleTag } from '../components/Chips';
+import { RemovableRoleChip, RoleTag } from '../components/Chips';
 import { EmailSuggestField } from '../components/InvitePeople';
 import { ProjectColourField } from '../components/ProjectColourField';
 import { color, font, parseProjectHex, projectSwatches, radius } from '../theme/tokens';
@@ -274,7 +274,14 @@ export function CreateProjectScreen() {
                 return (
                   <div key={m.userId} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 12px', borderTop: `1px solid ${color.divider}` }}>
                     <span style={{ flex: '1 1 140px' }}>{person?.name ?? m.userId}</span>
-                    {m.roles.map((role) => <RoleTag key={role} role={role} />)}
+                    {m.roles.map((role) => (
+                      <RemovableRoleChip
+                        key={role}
+                        role={role}
+                        removeLabel={`Remove ${role}`}
+                        onRemove={() => setPicked(picked.map((x) => x.userId === m.userId ? { ...x, roles: x.roles.filter((item) => item !== role) } : x))}
+                      />
+                    ))}
                     <Select<ProjectRole>
                       placeholder="+ role"
                       style={{ width: 140 }}
