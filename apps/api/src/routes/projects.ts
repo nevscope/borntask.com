@@ -8,6 +8,7 @@ import { rankKey } from '../lib/mappers.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
+import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
 import { normaliseProjectKey } from '@borntask/shared';
 import { inAppAllowed } from '../lib/notifyInApp.js';
 import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
@@ -122,28 +123,12 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:key/accept-invite', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const key = (req.params as { key: string }).key;
+      const key = normaliseProjectKey((req.params as { key: string }).key);
       const project = await auth.db.project.findFirst({ where: { key } });
       if (!project) throw notFound('Project not found.');
       const invite = await findPendingProjectInvite(auth, project.id);
       if (!invite) throw validation('There is no invitation for you on this project.');
-      const member = await auth.db.projectMember.upsert({
-        where: { projectId_userId: { projectId: project.id, userId: auth.userId } },
-        update: {},
-        create: { tenantId: auth.tenantId, projectId: project.id, userId: auth.userId },
-      });
-      const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
-      for (const roleId of roleIds) {
-        await auth.db.projectMemberRole.upsert({
-          where: { memberId_roleId: { memberId: member.id, roleId } },
-          update: {},
-          create: { tenantId: auth.tenantId, memberId: member.id, roleId },
-        });
-      }
-      await prisma.invitation.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date() },
-      });
+      await acceptProjectInvite(auth.db, { tenantId: auth.tenantId, userId: auth.userId, invite });
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
       return { ...detail, project: { ...detail.project, pendingInvite: false } };

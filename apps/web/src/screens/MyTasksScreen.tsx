@@ -74,7 +74,7 @@ export function MyTasksScreen() {
     );
 
   return (
-    <div className="bt-page" style={{ maxWidth: 1100, margin: '0 auto', width: '100%', paddingTop: isPhone ? 8 : 32, gap: isPhone ? 12 : 22 }}>
+    <div className="bt-page" style={{ paddingTop: isPhone ? 8 : 32, gap: isPhone ? 12 : 22 }}>
       <div>
         <h1 className="bt-h1" style={{ fontSize: 26 }}>My tasks</h1>
         <p style={{ margin: '6px 0 0', color: color.muted, fontSize: 13.5 }}>

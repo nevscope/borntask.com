@@ -2,13 +2,36 @@ import { normaliseProjectKey } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { forbidden, notFound } from '../errors.js';
 import type { Authed } from '../context.js';
+import { acceptProjectInvite } from './applyProjectInvite.js';
 
-export async function pendingInviteProjectIds(auth: Authed): Promise<string[]> {
+async function userEmail(auth: Authed): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { email: true } });
-  if (!user) return [];
+  return user ? user.email.toLowerCase() : null;
+}
+
+/** Workspace members who were invited to a project get a seat, even if the link expired before they clicked Join. */
+export async function grantPendingProjectSeats(auth: Authed): Promise<void> {
+  const email = await userEmail(auth);
+  if (!email) return;
   const invites = await auth.db.invitation.findMany({
     where: {
-      email: user.email.toLowerCase(),
+      email,
+      acceptedAt: null,
+      revokedAt: null,
+      projectId: { not: null },
+    },
+  });
+  for (const invite of invites) {
+    await acceptProjectInvite(auth.db, { tenantId: auth.tenantId, userId: auth.userId, invite });
+  }
+}
+
+export async function pendingInviteProjectIds(auth: Authed): Promise<string[]> {
+  const email = await userEmail(auth);
+  if (!email) return [];
+  const invites = await auth.db.invitation.findMany({
+    where: {
+      email,
       acceptedAt: null,
       revokedAt: null,
       expiresAt: { gt: new Date() },
@@ -20,11 +43,11 @@ export async function pendingInviteProjectIds(auth: Authed): Promise<string[]> {
 }
 
 export async function findPendingProjectInvite(auth: Authed, projectId: string) {
-  const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { email: true } });
-  if (!user) return null;
+  const email = await userEmail(auth);
+  if (!email) return null;
   return auth.db.invitation.findFirst({
     where: {
-      email: user.email.toLowerCase(),
+      email,
       projectId,
       acceptedAt: null,
       revokedAt: null,
@@ -36,6 +59,7 @@ export async function findPendingProjectInvite(auth: Authed, projectId: string) 
 /** Owner sees every project. Everyone else needs a seat (member or lead). */
 export async function openProjectIds(auth: Authed): Promise<Set<string> | null> {
   if (auth.workspaceRole === 'owner') return null;
+  await grantPendingProjectSeats(auth);
   const [members, led] = await Promise.all([
     auth.db.projectMember.findMany({ where: { userId: auth.userId }, select: { projectId: true } }),
     auth.db.project.findMany({ where: { leadId: auth.userId }, select: { id: true } }),
@@ -56,6 +80,7 @@ export async function requireOpenProject(auth: Authed, key: string) {
   const project = await auth.db.project.findFirst({ where: { key: normaliseProjectKey(key) } });
   if (!project) throw notFound('Project not found.');
   if (auth.workspaceRole === 'owner') return project;
+  await grantPendingProjectSeats(auth);
   const on = await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } });
   if (on || project.leadId === auth.userId) return project;
   if (await findPendingProjectInvite(auth, project.id)) return project;

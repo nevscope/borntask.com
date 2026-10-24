@@ -37,12 +37,17 @@ async function main() {
   await app.register(cookie);
   await app.register(secureSession, {
     key: Buffer.from(config.sessionSecret.padEnd(32, '0').slice(0, 32)),
+    expiry: config.sessionMaxAgeSeconds,
     cookie: {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
+      maxAge: config.sessionMaxAgeSeconds,
     },
+  });
+  app.addHook('onRequest', async (req) => {
+    if (req.session.get('userId')) req.session.touch();
   });
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
 

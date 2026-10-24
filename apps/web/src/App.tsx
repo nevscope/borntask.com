@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from './api/http';
-import { useMe } from './api/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiError, UNAUTH_EVENT } from './api/http';
+import { qk, useMe } from './api/queries';
 import { safeNext } from './lib/safeNext';
 import { color } from './theme/tokens';
 import { AppShell } from './components/AppShell';
@@ -63,16 +64,30 @@ function DemoScreenParam() {
   return null;
 }
 
+function signInTo(path: string, search: string) {
+  const dest = safeNext(`${path}${search}`);
+  return dest ? `/sign-in?next=${encodeURIComponent(dest)}` : '/sign-in';
+}
+
 function RequireAuth() {
   const me = useMe();
+  const qc = useQueryClient();
   const location = useLocation();
+  const [kicked, setKicked] = useState(false);
+  useEffect(() => {
+    const onUnauth = () => {
+      setKicked(true);
+      qc.removeQueries({ queryKey: qk.me });
+    };
+    window.addEventListener(UNAUTH_EVENT, onUnauth);
+    return () => window.removeEventListener(UNAUTH_EVENT, onUnauth);
+  }, [qc]);
+  const unauthenticated = kicked || (me.isError && me.error instanceof ApiError && me.error.status === 401);
+  if (unauthenticated || (!me.isLoading && !me.data)) {
+    return <Navigate to={signInTo(location.pathname, location.search)} replace />;
+  }
   if (me.isLoading) {
     return <div style={{ minHeight: '100dvh', background: color.canvas }} aria-busy="true" aria-label="Checking sign-in" />;
-  }
-  const unauthenticated = me.isError && me.error instanceof ApiError && me.error.status === 401;
-  if (unauthenticated || !me.data) {
-    const dest = safeNext(`${location.pathname}${location.search}`);
-    return <Navigate to={dest ? `/sign-in?next=${encodeURIComponent(dest)}` : '/sign-in'} replace />;
   }
   return <Outlet />;
 }

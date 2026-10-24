@@ -133,6 +133,7 @@ export const qk = {
   search: (q: string) => ['search', q] as const,
   task: (key: string) => ['tasks', key] as const,
   notifications: ['me', 'notifications'] as const,
+  people: ['people'] as const,
 };
 
 // ---------- reads ----------
@@ -140,7 +141,8 @@ export const useMe = () =>
   useQuery({
     queryKey: qk.me,
     queryFn: () => api.getMe(),
-    staleTime: Infinity,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
     retry: (count, err) => (err instanceof ApiError && err.status === 401 ? false : count < 2),
   });
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
@@ -173,6 +175,44 @@ export function useResolveAccessRequest(projectKey: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['projects', projectKey, 'access-requests'] });
       void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
+    },
+  });
+}
+
+export function usePeople() {
+  return useQuery({
+    queryKey: qk.people,
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/people`, { credentials: 'include' });
+      if (!res.ok) return [] as { id: string; name: string; email: string; initials: string }[];
+      return (await res.json()) as { id: string; name: string; email: string; initials: string }[];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useInviteToProject(projectId: string | undefined, projectKey: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email: string; tenantRole?: 'member' | 'admin' | 'viewer'; projectRoleSlugs?: string[] }) => {
+      const res = await fetch(`${BASE_URL}/invites`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emails: [input.email],
+          tenantRole: input.tenantRole ?? 'member',
+          projectId: projectId || undefined,
+          projectRoleSlugs: projectId ? (input.projectRoleSlugs ?? ['developer']) : undefined,
+        }),
+      });
+      const json = await res.json() as { message?: string; invites?: { email: string; url: string; tenantRole: string }[] };
+      if (!res.ok) throw new Error(json.message ?? 'Could not send the invitation.');
+      return json.invites ?? [];
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      if (projectKey) void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
     },
   });
 }

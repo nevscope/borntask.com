@@ -83,6 +83,12 @@ export function sendError(reply: FastifyReply, err: unknown): FastifyReply {
       message: 'That field is too long. Shorten it and try again.',
     });
   }
+  if (err instanceof Prisma.PrismaClientKnownRequestError || err instanceof Prisma.PrismaClientValidationError) {
+    return reply.status(500).send({
+      code: 'SERVER',
+      message: 'Something went wrong. Try again.',
+    });
+  }
   const message = err instanceof Error ? err.message : 'Server error';
   return reply.status(500).send({ code: 'SERVER', message: isIssueDump(message) ? humanizeZodIssues(parseIssueDump(message) ?? []) : message });
 }

@@ -18,7 +18,9 @@ export const config = {
   publicUrl: env('PUBLIC_URL', 'http://localhost:5174'),
   apiPublicUrl: env('API_PUBLIC_URL', 'http://localhost:3010'),
   sessionSecret: env('SESSION_SECRET', 'borntask-local-dev-session-secret-change-me'),
-  allowDevLogin: boolEnv('ALLOW_DEV_LOGIN', true),
+  /** Chrome caps cookies at about 400 days. Rolling touch keeps an active user signed in. */
+  sessionMaxAgeSeconds: 400 * 24 * 60 * 60,
+  allowDevLogin: boolEnv('ALLOW_DEV_LOGIN', false),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   microsoftClientId: process.env.MICROSOFT_CLIENT_ID ?? '',

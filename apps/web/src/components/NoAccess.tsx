@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { ApiError } from '../api/http';
 import { useRequestProjectAccess } from '../api/queries';
+import { safeNext } from '../lib/safeNext';
 import { color, font, radius } from '../theme/tokens';
 
 function Lock() {
@@ -13,7 +14,12 @@ function Lock() {
 }
 
 export function NoAccess({ projectKey, error }: { projectKey: string; error: unknown }) {
+  const location = useLocation();
   const requestAccess = useRequestProjectAccess();
+  if (error instanceof ApiError && error.status === 401) {
+    const dest = safeNext(`${location.pathname}${location.search}`);
+    return <Navigate to={dest ? `/sign-in?next=${encodeURIComponent(dest)}` : '/sign-in'} replace />;
+  }
   const missing = error instanceof ApiError && error.status === 404;
   const sent = requestAccess.isSuccess;
   const lead = requestAccess.data?.leadName ?? null;

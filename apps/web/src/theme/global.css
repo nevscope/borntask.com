@@ -230,7 +230,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 }
 
 .bt-desktop-search { display: flex; flex: 1 1 auto; max-width: 520px; min-width: 0; }
-.bt-desktop-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; }
+.bt-desktop-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; margin-left: auto; }
 .bt-phone-title,
 .bt-phone-search,
 .bt-phone-tabs,

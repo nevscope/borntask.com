@@ -1,5 +1,5 @@
 import { Button, Dropdown, Tag } from 'antd';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useNotifications, useProjects } from '../api/queries';
@@ -49,6 +49,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const favourites = projects.filter((p) => p.starred);
   const favouriteKeys = new Set(favourites.map((p) => p.key));
   const [recentKeys, setRecentKeys] = useState<string[]>([]);
+  const recentDisplayReady = useRef(false);
+  const recentWorkspaceId = useRef<string | undefined>(undefined);
   const recent = recentKeys
     .map((key) => projects.find((p) => p.key === key))
     .filter((p): p is NonNullable<typeof p> => p !== undefined && !favouriteKeys.has(p.key))
@@ -123,14 +125,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!workspaceId) {
+      recentDisplayReady.current = false;
+      recentWorkspaceId.current = undefined;
       setRecentKeys([]);
       return;
     }
-    setRecentKeys(readRecentProjectKeys(workspaceId));
-    const match = pathname.match(/^\/p\/([^/]+)/);
-    if (match?.[1]) {
-      setRecentKeys(recordRecentProject(workspaceId, match[1]));
+    if (recentWorkspaceId.current !== workspaceId) {
+      recentWorkspaceId.current = workspaceId;
+      recentDisplayReady.current = false;
     }
+    const projectKey = pathname.match(/^\/p\/([^/]+)/)?.[1];
+    if (projectKey) {
+      recordRecentProject(workspaceId, projectKey);
+      if (!recentDisplayReady.current) {
+        setRecentKeys(readRecentProjectKeys(workspaceId));
+        recentDisplayReady.current = true;
+        return;
+      }
+      setRecentKeys((keys) => (keys.includes(projectKey) ? keys : [...keys, projectKey].slice(0, 10)));
+      return;
+    }
+    setRecentKeys(readRecentProjectKeys(workspaceId));
+    recentDisplayReady.current = true;
   }, [pathname, workspaceId]);
 
   const phoneTitle = (() => {

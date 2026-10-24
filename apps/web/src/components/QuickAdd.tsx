@@ -27,6 +27,7 @@ import { isEmptyDescription, persistDescription } from '../lib/descriptionHtml';
 import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DescriptionEditor } from './DescriptionEditor';
+import { useMentionInvite } from './useMentionInvite';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
@@ -134,6 +135,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     () => (detail ? detail.users.filter((u) => detail.members.some((m) => m.userId === u.id)) : []),
     [detail],
   );
+  const mentionInvite = useMentionInvite(detail?.project, people);
   const parsed = parseQuickTitle(raw, people);
   const token = tokenAtCursor(raw, caret);
   const suggestions = useMemo(
@@ -509,6 +511,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           <DescriptionEditor
             value={description}
             people={people}
+            invitePeople={mentionInvite.invitePeople}
+            canInvite={mentionInvite.canInvite}
+            onInvite={mentionInvite.onInvite}
             minHeight={112}
             placeholder="Add details."
             onChange={setDescription}

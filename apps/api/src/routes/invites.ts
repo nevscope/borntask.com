@@ -8,6 +8,7 @@ import { remapRoleSlug } from '../lib/mappers.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { hashToken, newInviteToken } from '../lib/tokens.js';
+import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
 
 const createInviteSchema = z.object({
   emails: z.array(z.string().email()).min(1).max(20),
@@ -41,7 +42,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         }
         const { token, hash } = newInviteToken();
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        await auth.db.invitation.create({
+        const invite = await auth.db.invitation.create({
           data: {
             tenantId: auth.tenantId,
             email,
@@ -56,6 +57,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         });
         const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
         created.push({ email, url, tenantRole });
+        let seatedExisting = false;
         if (input.projectId) {
           const existing = await prisma.user.findFirst({ where: { email } });
           const seat = existing
@@ -64,29 +66,41 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
             })
             : null;
           if (existing && seat?.isActive) {
+            await acceptProjectInvite(auth.db, {
+              tenantId: auth.tenantId,
+              userId: existing.id,
+              invite,
+            });
+            seatedExisting = true;
             const project = await auth.db.project.findFirst({ where: { id: input.projectId }, select: { key: true, name: true } });
             if (project) {
-              await auth.db.notification.create({
-                data: {
-                  tenantId: auth.tenantId,
-                  userId: existing.id,
-                  actorId: auth.userId,
-                  kind: `project_invite:${project.key}`,
-                },
-              });
+              try {
+                await auth.db.notification.create({
+                  data: {
+                    tenantId: auth.tenantId,
+                    userId: existing.id,
+                    actorId: auth.userId,
+                    kind: `project_invite:${project.key}`,
+                  },
+                });
+              } catch {
+                // Seating already succeeded; a missing notification column must not undo the invite.
+              }
             }
           }
         }
-        await enqueueMail({
-          kind: 'invite',
-          to: email,
-          inviteUrl: url,
-          workspaceName: ws.name,
-          inviterName: actor?.name ?? 'A teammate',
-          roleLabel: roleLabel(tenantRole, roleRows[0]?.name),
-          message: input.message ?? null,
-          expiresAt: expiresAt.toISOString(),
-        });
+        if (!seatedExisting) {
+          await enqueueMail({
+            kind: 'invite',
+            to: email,
+            inviteUrl: url,
+            workspaceName: ws.name,
+            inviterName: actor?.name ?? 'A teammate',
+            roleLabel: roleLabel(tenantRole, roleRows[0]?.name),
+            message: input.message ?? null,
+            expiresAt: expiresAt.toISOString(),
+          });
+        }
       }
       return { invites: created };
     } catch (err) {
@@ -126,25 +140,13 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       }
 
       if (invite.projectId) {
-        const member = await db.projectMember.upsert({
-          where: { projectId_userId: { projectId: invite.projectId, userId: user.id } },
-          update: {},
-          create: { tenantId: invite.tenantId, projectId: invite.projectId, userId: user.id },
+        await acceptProjectInvite(db, { tenantId: invite.tenantId, userId: user.id, invite });
+      } else {
+        await prisma.invitation.update({
+          where: { id: invite.id },
+          data: { acceptedAt: new Date() },
         });
-        const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
-        for (const roleId of roleIds) {
-          await db.projectMemberRole.upsert({
-            where: { memberId_roleId: { memberId: member.id, roleId } },
-            update: {},
-            create: { tenantId: invite.tenantId, memberId: member.id, roleId },
-          });
-        }
       }
-
-      await prisma.invitation.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date() },
-      });
       setSession(req, reply, { userId: user.id, tenantId: invite.tenantId });
       let projectKey: string | null = null;
       let projectName: string | null = null;

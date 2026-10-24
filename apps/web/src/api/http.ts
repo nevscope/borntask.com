@@ -35,6 +35,12 @@ export class ApiError extends Error {
 
 export const BASE_URL: string = import.meta.env.VITE_API_URL ?? '/api';
 
+export const UNAUTH_EVENT = 'bt:unauthorized';
+
+export function emitUnauthorized() {
+  window.dispatchEvent(new Event(UNAUTH_EVENT));
+}
+
 export async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -44,6 +50,7 @@ export async function request<T>(method: string, path: string, schema: z.ZodType
   });
 
   if (!res.ok) {
+    if (res.status === 401) emitUnauthorized();
     const json: unknown = await res.json().catch(() => null);
     const parsed = ApiErrorBodySchema.safeParse(json);
     if (parsed.success) {

@@ -9,12 +9,17 @@ import { persistDescription, toEditorHtml } from '../lib/descriptionHtml';
 import { color, font, radius } from '../theme/tokens';
 import { filesFromClipboard } from './AttachmentTiles';
 
+export type MentionInviteTarget = { email: string; person?: User };
+
 interface Props {
   value: string;
   onChange: (html: string) => void;
   onBlur?: (html: string) => void;
   onFocusChange?: (focused: boolean) => void;
   people?: User[];
+  invitePeople?: User[];
+  canInvite?: boolean;
+  onInvite?: (target: MentionInviteTarget) => Promise<boolean>;
   placeholder?: string;
   minHeight?: number;
   compact?: boolean;
@@ -30,6 +35,9 @@ export function DescriptionEditor({
   onBlur,
   onFocusChange,
   people = [],
+  invitePeople = [],
+  canInvite = false,
+  onInvite,
   placeholder = 'Add details.',
   minHeight = 140,
   compact = false,
@@ -40,6 +48,12 @@ export function DescriptionEditor({
 }: Props) {
   const peopleRef = useRef(people);
   peopleRef.current = people;
+  const invitePeopleRef = useRef(invitePeople);
+  invitePeopleRef.current = invitePeople;
+  const canInviteRef = useRef(canInvite);
+  canInviteRef.current = canInvite;
+  const onInviteRef = useRef(onInvite);
+  onInviteRef.current = onInvite;
   const focusCb = useRef(onFocusChange);
   focusCb.current = onFocusChange;
   const pasteFiles = useRef(onPasteFiles);
@@ -72,7 +86,7 @@ export function DescriptionEditor({
       Placeholder.configure({ placeholder }),
       Mention.configure({
         HTMLAttributes: { class: 'bt-mention' },
-        suggestion: mentionSuggestion(peopleRef, suggestionOpen),
+        suggestion: mentionSuggestion(peopleRef, invitePeopleRef, canInviteRef, onInviteRef, suggestionOpen),
       }),
     ],
     content: toEditorHtml(value),
@@ -142,12 +156,18 @@ export function DescriptionEditor({
         return;
       }
       if (event.key !== 'Enter' || event.shiftKey) return;
-      const person = peopleRef.current[0];
-      if (!person || !editor) return;
+      const choice = mentionChoices('', peopleRef.current, invitePeopleRef.current, canInviteRef.current)[0];
+      if (!choice || !editor) return;
       event.preventDefault();
       event.stopPropagation();
-      editor.chain().focus().insertContent({ type: 'mention', attrs: { id: person.id, label: person.name } }).insertContent('\u00a0').run();
-      setMentionOpen(false);
+      void (async () => {
+        if (choice.kind === 'invite') {
+          const ok = await onInviteRef.current?.({ email: choice.email, person: choice.person });
+          if (!ok) return;
+        }
+        editor.chain().focus().insertContent({ type: 'mention', attrs: { id: choice.id, label: choice.label } }).insertContent('\u00a0').run();
+        setMentionOpen(false);
+      })();
     };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', onKey, true);
@@ -164,6 +184,8 @@ export function DescriptionEditor({
         focused={focused}
         mentionOpen={mentionOpen}
         people={people}
+        invitePeople={invitePeople}
+        canInvite={canInvite}
         showPasteHint={showPasteHint}
         pickerId={`bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`}
         onMention={() => {
@@ -171,9 +193,13 @@ export function DescriptionEditor({
           editor.chain().focus().run();
           setMentionOpen((open) => !open);
         }}
-        onPickMention={(person) => {
+        onPickMention={async (choice) => {
           if (!editor) return;
-          editor.chain().focus().insertContent({ type: 'mention', attrs: { id: person.id, label: person.name } }).insertContent('\u00a0').run();
+          if (choice.kind === 'invite') {
+            const ok = await onInvite?.({ email: choice.email, person: choice.person });
+            if (!ok) return;
+          }
+          editor.chain().focus().insertContent({ type: 'mention', attrs: { id: choice.id, label: choice.label } }).insertContent('\u00a0').run();
           setMentionOpen(false);
         }}
       />
@@ -202,6 +228,8 @@ function Toolbar({
   focused,
   mentionOpen,
   people,
+  invitePeople,
+  canInvite,
   showPasteHint,
   pickerId,
   onMention,
@@ -211,10 +239,12 @@ function Toolbar({
   focused: boolean;
   mentionOpen: boolean;
   people: User[];
+  invitePeople: User[];
+  canInvite: boolean;
   showPasteHint: boolean;
   pickerId: string;
   onMention: () => void;
-  onPickMention: (person: User) => void;
+  onPickMention: (choice: MentionChoice) => void;
 }) {
   const tool = (label: string, active: boolean, run: () => void, style?: CSSProperties) => (
     <button
@@ -311,16 +341,18 @@ function Toolbar({
             boxShadow: `0 8px 24px ${color.shadow}`,
           }}
         >
-          {people.length === 0 ? (
-            <div style={{ padding: '8px 10px', fontSize: 13, color: color.muted }}>No people on this project yet.</div>
+          {mentionChoices('', people, invitePeople, canInvite).length === 0 ? (
+            <div style={{ padding: '8px 10px', fontSize: 13, color: color.muted }}>
+              {canInvite ? 'No people on this project yet. Type @ and their email to invite them.' : 'No people on this project yet.'}
+            </div>
           ) : (
-            people.map((person) => (
+            mentionChoices('', people, invitePeople, canInvite).map((choice) => (
               <button
-                key={person.id}
+                key={`${choice.kind}-${choice.id}`}
                 type="button"
                 role="option"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onPickMention(person)}
+                onClick={() => onPickMention(choice)}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -335,7 +367,7 @@ function Toolbar({
                   cursor: 'pointer',
                 }}
               >
-                {person.name}
+                {choice.title}
               </button>
             ))
           )}
@@ -345,36 +377,96 @@ function Toolbar({
   );
 }
 
-function mentionSuggestion(peopleRef: { current: User[] }, openRef: { current: boolean }) {
+type MentionChoice = {
+  kind: 'mention' | 'invite';
+  id: string;
+  label: string;
+  email: string;
+  person?: User;
+  title: string;
+};
+
+function looksLikeEmail(raw: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim());
+}
+
+function mentionChoices(query: string, people: User[], invitePeople: User[], canInvite: boolean): MentionChoice[] {
+  const q = query.trim().toLowerCase();
+  const match = (person: User) => !q || person.name.toLowerCase().includes(q) || person.email.toLowerCase().includes(q);
+  const members = people.filter(match).slice(0, 8).map((person) => ({
+    kind: 'mention' as const,
+    id: person.id,
+    label: person.name,
+    email: person.email,
+    person,
+    title: person.name,
+  }));
+  const taken = new Set(members.map((row) => row.email.toLowerCase()));
+  const invites = canInvite
+    ? invitePeople
+      .filter((person) => match(person) && !taken.has(person.email.toLowerCase()))
+      .slice(0, 5)
+      .map((person) => ({
+        kind: 'invite' as const,
+        id: person.id,
+        label: person.name,
+        email: person.email,
+        person,
+        title: `Invite ${person.name} to this project`,
+      }))
+    : [];
+  const rows: MentionChoice[] = [...members, ...invites];
+  if (canInvite && looksLikeEmail(q) && !rows.some((row) => row.email.toLowerCase() === q)) {
+    rows.push({
+      kind: 'invite',
+      id: q,
+      label: q,
+      email: q,
+      title: `Invite ${q} to this project`,
+    });
+  }
+  return rows.slice(0, 8);
+}
+
+function emptyMentionCopy(query: string, people: User[], canInvite: boolean) {
+  const q = query.trim();
+  if (canInvite && q.includes('@') && !looksLikeEmail(q)) return 'Finish the email address to invite them.';
+  if (canInvite && q) return 'No matching people. Type their email to invite them to this project.';
+  return people.length ? 'No matching people' : 'Type @ then a name when the project has people';
+}
+
+function mentionSuggestion(
+  peopleRef: { current: User[] },
+  invitePeopleRef: { current: User[] },
+  canInviteRef: { current: boolean },
+  onInviteRef: { current: ((target: MentionInviteTarget) => Promise<boolean>) | undefined },
+  openRef: { current: boolean },
+) {
   return {
-    items: ({ query }: { query: string }) => {
-      const q = query.toLowerCase();
-      return peopleRef.current
-        .filter((person) => person.name.toLowerCase().includes(q) || person.email.toLowerCase().includes(q))
-        .slice(0, 8);
-    },
+    items: ({ query }: { query: string }) =>
+      mentionChoices(query, peopleRef.current, invitePeopleRef.current, canInviteRef.current),
     render: () => {
       let root: HTMLDivElement | null = null;
       let unmount: (() => void) | undefined;
       let selected = 0;
-      let current: SuggestionProps<User> | null = null;
+      let current: SuggestionProps<MentionChoice> | null = null;
 
-      function paint(props: SuggestionProps<User>) {
+      function paint(props: SuggestionProps<MentionChoice>) {
         current = props;
         if (!root) return;
         root.replaceChildren();
         if (!props.items.length) {
           const empty = document.createElement('div');
-          empty.textContent = peopleRef.current.length ? 'No matching people' : 'Type @ then a name when the project has people';
+          empty.textContent = emptyMentionCopy(props.query, peopleRef.current, canInviteRef.current);
           empty.style.cssText = `padding:8px 10px;font-size:13px;color:${color.muted}`;
           root.appendChild(empty);
           return;
         }
-        props.items.forEach((person, index) => {
+        props.items.forEach((choice, index) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.setAttribute('role', 'option');
-          btn.textContent = person.name;
+          btn.textContent = choice.title;
           btn.style.cssText = [
             'display:block',
             'width:100%',
@@ -390,21 +482,29 @@ function mentionSuggestion(peopleRef: { current: User[] }, openRef: { current: b
           ].join(';');
           btn.onmousedown = (event) => {
             event.preventDefault();
-            props.command({ id: person.id, label: person.name });
+            void applyMention(choice, props);
           };
           root!.appendChild(btn);
         });
       }
 
+      async function applyMention(choice: MentionChoice, props: SuggestionProps<MentionChoice>) {
+        if (choice.kind === 'invite') {
+          const ok = await onInviteRef.current?.({ email: choice.email, person: choice.person });
+          if (!ok) return;
+        }
+        props.command({ id: choice.id, label: choice.label });
+      }
+
       return {
-        onStart(props: SuggestionProps<User>) {
+        onStart(props: SuggestionProps<MentionChoice>) {
           selected = 0;
           openRef.current = true;
           root = document.createElement('div');
           root.setAttribute('role', 'listbox');
           root.style.cssText = [
             `z-index:2000`,
-            `min-width:180px`,
+            `min-width:220px`,
             `padding:4px`,
             `border:1px solid ${color.border}`,
             `border-radius:${radius.md}px`,
@@ -413,7 +513,7 @@ function mentionSuggestion(peopleRef: { current: User[] }, openRef: { current: b
           unmount = props.mount(root);
           paint(props);
         },
-        onUpdate(props: SuggestionProps<User>) {
+        onUpdate(props: SuggestionProps<MentionChoice>) {
           selected = 0;
           paint(props);
         },
@@ -430,8 +530,8 @@ function mentionSuggestion(peopleRef: { current: User[] }, openRef: { current: b
             return true;
           }
           if (event.key === 'Enter') {
-            const person = current.items[selected];
-            if (person) current.command({ id: person.id, label: person.name });
+            const choice = current.items[selected];
+            if (choice) void applyMention(choice, current);
             return true;
           }
           if (event.key === 'Escape') return true;

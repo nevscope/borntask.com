@@ -9,12 +9,15 @@ import { color, font } from '../../theme/tokens';
 
 type Providers = { google: boolean; microsoft: boolean; devLogin: boolean };
 
+const LOCAL_DEV_USER = { name: 'BornTask Owner', email: 'owner@borntask.com' };
+
 export function SignInScreen() {
   const me = useMe();
   const [params] = useSearchParams();
   const invite = params.get('invite') ?? undefined;
   const next = safeNext(params.get('next'));
-  const [providers, setProviders] = useState<Providers>({ google: false, microsoft: false, devLogin: true });
+  const [form] = Form.useForm<{ name: string; email: string }>();
+  const [providers, setProviders] = useState<Providers>({ google: false, microsoft: false, devLogin: import.meta.env.DEV });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +27,10 @@ export function SignInScreen() {
       .then((p: Providers) => setProviders(p))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (providers.devLogin) form.setFieldsValue(LOCAL_DEV_USER);
+  }, [form, providers.devLogin]);
 
   const start = (path: string) => {
     const q = invite ? `?invite=${encodeURIComponent(invite)}` : '';
@@ -78,16 +85,18 @@ export function SignInScreen() {
           </div>
           <OauthButton mark="G" disabled={!providers.google} onClick={() => start('/auth/google')}>Continue with Google</OauthButton>
           <OauthButton mark="M" disabled={!providers.microsoft} onClick={() => start('/auth/microsoft')}>Continue with Microsoft</OauthButton>
-          {!providers.google && !providers.microsoft && (
+          {!providers.google && !providers.microsoft && !providers.devLogin && (
             <p style={{ color: color.muted, fontSize: 13, margin: 0 }}>
-              Google and Microsoft are not configured on this API. Use developer sign-in below.
+              Google and Microsoft are not configured on this API. Set the OAuth client values in `.env` and restart the API.
             </p>
           )}
           {providers.devLogin && (
             <>
             {error && <p style={{ margin: 0, color: color.danger, fontSize: 13 }}>{error}</p>}
             <Form
+              form={form}
               layout="vertical"
+              initialValues={LOCAL_DEV_USER}
               style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
               onFinish={async (values: { email: string; name: string }) => {
                 setBusy(true);

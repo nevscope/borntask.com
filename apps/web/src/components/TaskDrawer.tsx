@@ -35,6 +35,7 @@ import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
 import { AttachmentPreview, AttachmentTiles, filesFromClipboard, type AttachmentItem } from './AttachmentTiles';
 import { DescriptionEditor } from './DescriptionEditor';
+import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Avatar, StatusPill, TypeTag } from './Chips';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
@@ -86,7 +87,7 @@ export function TaskDrawer() {
             ? { top: 0, bottom: 0, height: '100%', maxHeight: '100dvh' }
             : { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
           content: { height: '100%' },
-          body: { padding: 0, height: '100%', overflow: isPhone ? 'hidden' : 'auto' },
+          body: { padding: 0, height: '100%', overflow: 'hidden' },
         }}
       >
         {task.data && detail.data ? (
@@ -214,6 +215,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     return seated;
   })();
   const mentionPeople = detail.users.length ? detail.users : memberUsers;
+  const mentionInvite = useMentionInvite(detail.project, mentionPeople);
   const watching = Boolean(me && task.watcherIds?.includes(me.user.id));
   const labelSuggestions = [...new Set((useProjectTasks(detail.project.key).data ?? []).flatMap((row) => row.labels))];
   const businessNames = detail.members
@@ -303,9 +305,10 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   const passFail = quick.slice(0, 2);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', height: isPhone ? '100%' : undefined }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {flow.modal}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isPhone ? 6 : 8, padding: isPhone ? '12px 8px 8px' : '12px 20px', borderBottom: `1px solid ${color.divider}`, fontSize: 12.5, color: color.muted, flex: 'none' }}>
+      <div style={{ flex: 'none', background: color.surface, borderBottom: `1px solid ${color.divider}` }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: isPhone ? 6 : 8, padding: isPhone ? '12px 8px 8px' : '12px 20px', fontSize: 12.5, color: color.muted }}>
         {isPhone && (
           <button type="button" aria-label="Back" onClick={onClose} style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
@@ -354,7 +357,6 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         )}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
 
       {remoteNotice && (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 24px 0', padding: '10px 14px', borderRadius: 10, background: color.infoTint, border: `1px solid ${color.infoBorder}`, color: color.info, fontSize: 13.5 }}>
@@ -388,7 +390,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         </div>
       )}
 
-      <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: isPhone ? '8px 16px 12px' : '8px 20px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <Input.TextArea
           className="bt-task-title"
           variant="borderless"
@@ -407,6 +409,31 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           style={{ fontFamily: font.display, fontSize: 22, fontWeight: 600, letterSpacing: '-0.025em', background: color.subtle, borderRadius: radius.md, padding: '6px 8px', lineHeight: 1.25 }}
         />
 
+        {!inTrash && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
+            <StatusMenu
+              name={status?.name ?? task.statusId}
+              dot={null}
+              bare
+              trigger={<StatusPill status={status} />}
+              options={options}
+              onMove={(statusId) => flow.requestMove(task, statusId)}
+            />
+            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+          </div>
+        )}
+
+        {inTrash && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
+            <StatusPill status={status} />
+            <TypeTag type={task.type} />
+          </div>
+        )}
+      </div>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {task.statusId === 'idea' && !inTrash && (
           canDecide ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, background: color.mergedTint, border: `1px solid ${color.mergedTint}` }}>
@@ -423,34 +450,34 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           )
         )}
 
-        {!inTrash && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
-            <StatusMenu
-              name={status?.name ?? task.statusId}
-              dot={null}
-              bare
-              trigger={<StatusPill status={status} />}
-              options={options}
-              onMove={(statusId) => flow.requestMove(task, statusId)}
-            />
-            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
-            {!isPhone && task.statusId !== 'idea' && quick.length > 0 && (
-              <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-                <span style={{ fontSize: 12.5, color: color.muted }}>You can:</span>
-                {quick.map((o, i) => (
-                  <Button key={o.status.id} type={i === 0 && !o.status.side ? 'primary' : 'default'} onClick={() => flow.requestMove(task, o.status.id)}>
-                    {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
-                  </Button>
-                ))}
-              </span>
-            )}
-          </div>
-        )}
-
-        {inTrash && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
-            <StatusPill status={status} />
-            <TypeTag type={task.type} />
+        {!inTrash && !isPhone && task.statusId !== 'idea' && quick.length > 0 && (
+          <div
+            role="group"
+            aria-labelledby="bt-task-next-step"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              padding: 14,
+              borderRadius: 10,
+              background: color.subtle,
+              border: `1px solid ${color.divider}`,
+            }}
+          >
+            <span id="bt-task-next-step" style={{ fontSize: 13.5, fontWeight: 600, color: color.ink2 }}>
+              Choose one next step
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {quick.map((o, i) => (
+                <Button
+                  key={o.status.id}
+                  type={i === 0 && !o.status.side ? 'primary' : 'default'}
+                  onClick={() => flow.requestMove(task, o.status.id)}
+                >
+                  {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -476,6 +503,9 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             key={editorKey}
             value={description}
             people={mentionPeople}
+            invitePeople={mentionInvite.invitePeople}
+            canInvite={mentionInvite.canInvite}
+            onInvite={mentionInvite.onInvite}
             minHeight={88}
             onChange={(next) => {
               setDescription(next);
@@ -539,8 +569,8 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         </Section>
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
+        <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} hideComposer={isPhone || readOnly} />
         <DevelopmentSection task={task} />
-        <Comments task={task} detail={detail} people={mentionPeople} onDraftChange={setCommentDraft} hideComposer={isPhone || readOnly} />
 
         <AttachmentPreview
           item={preview?.item ?? null}
@@ -639,7 +669,7 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
   );
 }
 
-function Comments({ task, detail, people, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
+function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; mentionInvite: ReturnType<typeof useMentionInvite>; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
   const me = useMe().data;
   const add = useAddComment();
   const [draft, setDraft] = useState('');
@@ -676,7 +706,7 @@ function Comments({ task, detail, people, onDraftChange, hideComposer = false }:
       </div>
       {tab === 'comments'
         ? task.comments.map((comment) => (
-            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} people={people} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
+            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
           ))
         : activity.map((item) => (
             <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
@@ -688,6 +718,9 @@ function Comments({ task, detail, people, onDraftChange, hideComposer = false }:
           <DescriptionEditor
             value={draft}
             people={people}
+            invitePeople={mentionInvite.invitePeople}
+            canInvite={mentionInvite.canInvite}
+            onInvite={mentionInvite.onInvite}
             compact
             showPasteHint={false}
             minHeight={64}
@@ -716,6 +749,7 @@ function CommentRow({
   comment,
   who,
   people,
+  mentionInvite,
   meId,
   workspaceRole,
 }: {
@@ -723,6 +757,7 @@ function CommentRow({
   comment: Comment;
   who: ProjectDetail['users'][number] | undefined;
   people: ProjectDetail['users'];
+  mentionInvite: ReturnType<typeof useMentionInvite>;
   meId: string | undefined;
   workspaceRole: WorkspaceRole | undefined;
 }) {
@@ -758,6 +793,9 @@ function CommentRow({
               <DescriptionEditor
                 value={editDraft}
                 people={people}
+                invitePeople={mentionInvite.invitePeople}
+                canInvite={mentionInvite.canInvite}
+                onInvite={mentionInvite.onInvite}
                 compact
                 showPasteHint={false}
                 minHeight={64}
