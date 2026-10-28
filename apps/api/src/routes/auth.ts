@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { config, googleEnabled, microsoftEnabled } from '../env.js';
 import { clearSession, initialsOf, requireUser, sessionTenantId, sessionUserId, setSession } from '../context.js';
-import { sendError, unauthorized, validation } from '../errors.js';
+import { ApiError, sendError, unauthorized, validation } from '../errors.js';
 import { finishLogin } from '../lib/finishLogin.js';
+import { nameFromEmail, normalizeEmail, startChallenge, verifyCode, verifyLink } from '../lib/emailLogin.js';
 import { googleAuthUrl, googleProfile, microsoftAuthUrl, microsoftProfile } from '../lib/oauth.js';
 import { createOauthState, parseOauthState } from '../lib/oauthState.js';
+import { clientIp, enforceRateLimit } from '../lib/rateLimit.js';
+import { sendLoginCodeEmail } from '../lib/sendLoginCode.js';
 import { hashToken } from '../lib/tokens.js';
 
 const devLoginSchema = z.object({
@@ -16,12 +19,78 @@ const devLoginSchema = z.object({
   next: z.string().optional(),
 });
 
+const emailStartSchema = z.object({
+  email: z.string().min(3).max(320),
+  next: z.string().max(2000).optional(),
+  invite: z.string().max(200).optional(),
+});
+
+const emailVerifySchema = z.object({
+  email: z.string().max(320).optional(),
+  code: z.string().max(20).optional(),
+  token: z.string().max(128).optional(),
+});
+
+function inAppNext(raw: string | undefined): string | undefined {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/sign-in')) return undefined;
+  return raw;
+}
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.get('/auth/providers', async () => ({
     google: googleEnabled(),
     microsoft: microsoftEnabled(),
+    email: true,
     devLogin: config.allowDevLogin,
   }));
+
+  app.post('/auth/email/start', async (req, reply) => {
+    try {
+      const input = emailStartSchema.parse(req.body);
+      const email = normalizeEmail(input.email);
+      if (!email) throw validation('Enter a valid email address.');
+      await enforceRateLimit(`auth-email-ip:${clientIp(req)}`, 10, 15 * 60);
+      await enforceRateLimit(`auth-email-to:${email}`, 5, 60 * 60);
+      const { code, linkToken } = await startChallenge(email, {
+        nextPath: inAppNext(input.next) ?? null,
+        inviteToken: input.invite ?? null,
+      });
+      try {
+        await sendLoginCodeEmail(email, code, linkToken);
+      } catch {
+        throw new ApiError(503, 'MAIL', 'We could not send the email just now. Try again in a minute.');
+      }
+      return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/auth/email/verify', async (req, reply) => {
+    try {
+      await enforceRateLimit(`auth-email-verify:${clientIp(req)}`, 30, 15 * 60);
+      const input = emailVerifySchema.parse(req.body);
+      const challenge = input.token
+        ? await verifyLink(input.token)
+        : await (async () => {
+            const email = normalizeEmail(input.email ?? '');
+            return email ? verifyCode(email, input.code ?? '') : null;
+          })();
+      if (!challenge) throw validation('That code did not work. Check the latest email, or send a new code.');
+      if (challenge.inviteToken) req.session.set('inviteToken', challenge.inviteToken);
+      const redirect = await finishLogin(req, reply, {
+        email: challenge.email,
+        name: nameFromEmail(challenge.email),
+        provider: 'email',
+        providerId: challenge.email,
+      });
+      const next = inAppNext(challenge.nextPath ?? undefined);
+      if (redirect === '/' && next) return { ok: true, redirect: next };
+      return { ok: true, redirect };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
 
   app.get('/auth/google', async (req, reply) => {
     if (!googleEnabled()) return reply.redirect(`${config.publicUrl}/sign-in?error=google-unconfigured`);

@@ -6,6 +6,7 @@ import {
   workingDaysBetween,
   type MailJob,
 } from '@borntask/shared';
+import { htmlToPlain } from '@borntask/shared';
 import { deliverMail } from './mail.js';
 
 const prisma = new PrismaClient();
@@ -124,7 +125,7 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
         key,
         title: c.task.title,
         url: itemUrl(c.task.project.key, c.task.number),
-        extra: `${c.author.name} on ${key}: "${c.body.slice(0, 140)}"`,
+        extra: `${c.author.name} on ${key}: "${htmlToPlain(c.body).slice(0, 140)}"`,
       };
     });
 

@@ -1,16 +1,18 @@
 import { Input } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useAcceptProjectInvite, useMe, useProjects } from '../api/queries';
 import type { ProjectDetail } from '../api/types';
 import { color, font, radius } from '../theme/tokens';
 import { Avatar, EditIcon } from './Chips';
+import { MenuPicker } from './FieldPickers';
 import { InvitePeopleButton } from './InvitePeople';
 import { ProjectStar } from './ProjectStar';
 import { projectViewSearch } from './ProjectViewBar';
 import { useStatusToast } from './StatusToast';
+import { useIsPhone } from '../hooks/useIsPhone';
 
 export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const { project } = detail;
@@ -19,6 +21,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
   const [params] = useSearchParams();
   const search = projectViewSearch(params);
+  const navigate = useNavigate();
   const me = useMe().data;
   const qc = useQueryClient();
   const toast = useStatusToast();
@@ -80,6 +83,10 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
 
   const accept = useAcceptProjectInvite();
   const pendingInvite = Boolean(project.pendingInvite || listed?.pendingInvite);
+  const isPhone = useIsPhone();
+  const views = (['list', 'board', 'trash', 'members', 'structure'] as const);
+  const phoneViews = (['list', 'board'] as const);
+  const moreViews = (['trash', 'members', 'structure'] as const);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -191,16 +198,16 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
         </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, borderBottom: `1px solid ${color.border}` }}>
-        {(['list', 'board', 'trash', 'members', 'structure'] as const).map((view) => (
+        {(isPhone ? phoneViews : views).map((view) => (
           <NavLink
             key={view}
             to={`${view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}${view === 'list' || view === 'board' ? search : ''}`}
             style={({ isActive }) => ({
-              height: 38,
-              padding: '0 12px',
+              height: isPhone ? 36 : 38,
+              padding: isPhone ? '0 10px' : '0 12px',
               display: 'inline-flex',
               alignItems: 'center',
-              fontSize: 13.5,
+              fontSize: isPhone ? 13 : 13.5,
               textDecoration: 'none',
               color: isActive ? color.ink : color.muted,
               fontWeight: isActive ? 600 : 400,
@@ -211,6 +218,22 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
           </NavLink>
         ))}
+        {isPhone && (
+          <MenuPicker
+            ariaLabel="More project pages"
+            label={<span style={{ height: 36, padding: '0 10px', display: 'inline-flex', alignItems: 'center', fontSize: 13, color: color.muted }}>More</span>}
+            items={moreViews.map((view) => ({
+              id: view,
+              label: view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections',
+            }))}
+            onPick={(id) => {
+              const path = id === 'members' || id === 'structure'
+                ? `/p/${project.key}/settings/${id}`
+                : `/p/${project.key}/${id}`;
+              navigate(path);
+            }}
+          />
+        )}
       </div>
     </div>
   );

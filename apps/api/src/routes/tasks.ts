@@ -1,17 +1,20 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { isTaskDescriptionTooLong, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
+import { commentParentForClient, createTaskStartSlug, isTaskDescriptionTooLong, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { actorName, enqueueChat, enqueuePersonalChat, mentionUserIds, taskUrl, userName, workspacePeople } from '../lib/chatNotify.js';
+import { actorName, enqueueChat, enqueuePersonalChat, taskUrl, userName } from '../lib/chatNotify.js';
 import { badgesForTasks } from '../lib/githubBadge.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, taskKey } from '../lib/loadProject.js';
 import { nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
+import { enqueueTaskEventEmail } from '../lib/enqueueTaskEmail.js';
 import { moveTask } from '../lib/moveTask.js';
+import { moveTaskToProject } from '../lib/moveTaskToProject.js';
 import { publishTaskChange } from '../lib/live.js';
 import { notifyInApp } from '../lib/notifyInApp.js';
+import { postComment } from '../lib/postComment.js';
 import {
   attachPendingToTask,
   mapAttachment,
@@ -230,8 +233,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         comments: comments.map((c) => ({
           id: c.id,
           authorId: c.authorId,
+          parentId: commentParentForClient(comments, c),
           body: c.body,
-          via: 'app' as const,
+          via: c.via === 'mcp' ? 'mcp' as const : 'app' as const,
           createdAt: c.createdAt.toISOString(),
         })),
         activity: activity.map((a) => ({
@@ -262,7 +266,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       }
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       const wf = await loadWorkflow(auth.db, project.workflowId);
-      const startSlug = input.type === 'bug' ? (ws?.bugsStartIn === 'idea' ? 'idea' : 'approved') : 'idea';
+      const startSlug = createTaskStartSlug(input.type, ws?.bugsStartIn);
       const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
       if (!statusId) throw validation('Workflow has no start status.');
       const last = await auth.db.task.findFirst({
@@ -339,6 +343,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         await enqueueChat(auth, assignedJob);
         await notifyInApp(auth, created.assigneeId, 'assigned', { kind: 'assigned', taskId: created.id });
         await enqueuePersonalChat(auth, created.assigneeId, assignedJob);
+        await enqueueTaskEventEmail(auth, created.assigneeId, 'assigned', {
+          taskId: created.id,
+          taskKey: createdKey,
+          title: created.title,
+          projectName: created.project.name,
+          statusName: created.status.name,
+          actorName: name,
+          eventLabel: 'assigned you',
+          url,
+        });
       }
       return mappedCreated;
     } catch (err) {
@@ -410,6 +424,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         await enqueueChat(auth, assignedJob);
         await notifyInApp(auth, input.assigneeId, 'assigned', { kind: 'assigned', taskId: updated.id });
         await enqueuePersonalChat(auth, input.assigneeId, assignedJob);
+        await enqueueTaskEventEmail(auth, input.assigneeId, 'assigned', {
+          taskId: updated.id,
+          taskKey: updatedKey,
+          title: updated.title,
+          projectName: updated.project.name,
+          statusName: updated.status.name,
+          actorName: name,
+          eventLabel: 'assigned you',
+          url: assignedJob.url,
+        });
       }
       return mappedUpdated;
     } catch (err) {
@@ -430,6 +454,20 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         })
         .parse(req.body);
       return await moveTask(auth, key, input);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/move-project', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const input = z.object({
+        projectKey: z.string().min(1),
+        sectionId: z.string().optional(),
+      }).parse(req.body);
+      return await moveTaskToProject(auth, key, input);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -495,65 +533,82 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/tasks/:key/copy', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const source = await findTaskByKey(auth.db, key);
+      if (!source || source.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, source.project.key);
+      const last = await auth.db.task.findFirst({
+        where: { projectId: source.projectId },
+        orderBy: { number: 'desc' },
+      });
+      const lastInSection = await auth.db.task.findFirst({
+        where: { sectionId: source.sectionId, deletedAt: null },
+        orderBy: { position: 'desc' },
+      });
+      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+      const wf = await loadWorkflow(auth.db, source.project.workflowId);
+      const startSlug = createTaskStartSlug(source.type.slug, ws?.bugsStartIn);
+      const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
+      if (!statusId) throw validation('Workflow has no start status.');
+      const created = await auth.db.task.create({
+        data: {
+          tenantId: auth.tenantId,
+          projectId: source.projectId,
+          number: (last?.number ?? 0) + 1,
+          title: `Copy of ${source.title}`.slice(0, 200),
+          description: source.description,
+          typeId: source.typeId,
+          statusId,
+          sectionId: source.sectionId,
+          assigneeId: null,
+          reporterId: auth.userId,
+          priority: source.priority,
+          dueDate: source.dueDate,
+          position: nextPosition(lastInSection?.position ?? null),
+        },
+        include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
+      });
+      if (source.labels.length) {
+        await auth.db.taskLabel.createMany({
+          data: source.labels.map((row) => ({
+            tenantId: auth.tenantId,
+            taskId: created.id,
+            labelId: row.labelId,
+          })),
+        });
+      }
+      await auth.db.activityLog.create({
+        data: {
+          tenantId: auth.tenantId,
+          taskId: created.id,
+          actorId: auth.userId,
+          actorType: auth.actorType,
+          via: auth.via,
+          action: `copied from ${key}`,
+        },
+      });
+      const fresh = await findTaskByKey(auth.db, taskKey(created.project.key, created.number));
+      if (!fresh) throw notFound();
+      const mapped = mapTask(fresh);
+      publishTaskChange(auth, mapped, 'create');
+      return mapped;
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post('/tasks/:key/comments', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const body = z.object({ body: z.string().trim().min(1) }).parse(req.body);
+      const body = z.object({ body: z.string().trim().min(1), parentId: z.string().optional() }).parse(req.body);
       const row = await findTaskByKey(auth.db, key);
       if (!row) throw notFound();
       await requireOpenProjectWrite(auth, row.project.key);
-      const c = await auth.db.comment.create({
-        data: { tenantId: auth.tenantId, taskId: row.id, authorId: auth.userId, body: body.body },
-      });
-      if (auth.via === 'mcp') {
-        await auth.db.activityLog.create({
-          data: {
-            tenantId: auth.tenantId,
-            taskId: row.id,
-            actorId: auth.userId,
-            actorType: 'mcp',
-            via: 'mcp',
-            action: 'commented',
-          },
-        });
-      }
-      const name = await actorName(auth.userId);
-      const commentKey = taskKey(row.project.key, row.number);
-      const commentUrl = taskUrl(row.project.key, commentKey, c.id);
-      if (body.body.includes('@')) {
-        const mentionJob = {
-          projectId: row.projectId,
-          event: 'mention' as const,
-          title: row.title,
-          taskKey: commentKey,
-          projectName: row.project.name,
-          text: `${name} mentioned someone in a comment.`,
-          url: commentUrl,
-        };
-        await enqueueChat(auth, mentionJob);
-        const people = await workspacePeople(auth);
-        for (const userId of mentionUserIds(body.body, people)) {
-          await notifyInApp(auth, userId, 'mention', { kind: 'mention', taskId: row.id });
-          await enqueuePersonalChat(auth, userId, mentionJob);
-        }
-      }
-      const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
-      const commentJob = {
-        projectId: row.projectId,
-        event: 'watch_comment' as const,
-        title: row.title,
-        taskKey: commentKey,
-        projectName: row.project.name,
-        text: `${name} commented.`,
-        url: commentUrl,
-      };
-      for (const watcher of watchers) {
-        await notifyInApp(auth, watcher.userId, 'watched_comment', { kind: 'watched_comment', taskId: row.id });
-        await enqueuePersonalChat(auth, watcher.userId, commentJob);
-      }
-      publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');
-      return { id: c.id, authorId: c.authorId, body: c.body, via: auth.via, createdAt: c.createdAt.toISOString() };
+      return await postComment(auth, row, body.body, body.parentId);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -572,7 +627,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       if (c.authorId !== auth.userId) throw forbidden('You can only edit your own comments.');
       const next = await auth.db.comment.update({ where: { id: c.id }, data: { body: body.body } });
       publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
-      return { id: next.id, authorId: next.authorId, body: next.body, via: auth.via, createdAt: next.createdAt.toISOString() };
+      return { id: next.id, authorId: next.authorId, parentId: next.parentId, body: next.body, via: auth.via === 'mcp' ? 'mcp' : 'app', createdAt: next.createdAt.toISOString() };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -589,6 +644,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       if (!c) throw notFound('Comment not found.');
       const canDelete = c.authorId === auth.userId || auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin';
       if (!canDelete) throw forbidden('You cannot delete this comment.');
+      await auth.db.comment.updateMany({ where: { parentId: c.id, deletedAt: null }, data: { parentId: null } });
       await auth.db.comment.update({ where: { id: c.id }, data: { deletedAt: new Date() } });
       publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
       return reply.status(204).send();

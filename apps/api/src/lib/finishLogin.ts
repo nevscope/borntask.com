@@ -12,13 +12,16 @@ export async function finishLogin(
   profile: { email: string; name: string; providerId?: string; provider?: AuthProvider },
 ): Promise<string> {
   const email = profile.email.toLowerCase();
+  const emailOnly = profile.provider === 'email';
   const user = await prisma.user.upsert({
     where: { email },
-    update: {
-      name: profile.name,
-      authProvider: profile.provider ?? undefined,
-      providerId: profile.providerId ?? undefined,
-    },
+    update: emailOnly
+      ? {}
+      : {
+          name: profile.name,
+          authProvider: profile.provider ?? undefined,
+          providerId: profile.providerId ?? undefined,
+        },
     create: {
       email,
       name: profile.name,

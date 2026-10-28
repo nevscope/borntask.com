@@ -17,6 +17,7 @@ import { InboxSheet, NotificationBell } from './NotificationBell';
 import { TopSearch } from './TopSearch';
 import { useStatusToast } from './StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useBackLayer } from '../lib/backLayer';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { OfflineBanner } from './OfflineBanner';
 import { InstallPrompt, usePwaInstall } from './InstallPrompt';
@@ -35,6 +36,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [shortcuts, setShortcuts] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [youOpen, setYouOpen] = useState(false);
+  useBackLayer(isPhone && inboxOpen, () => setInboxOpen(false));
+  useBackLayer(isPhone && youOpen, () => setYouOpen(false));
+  useBackLayer(shortcuts, () => setShortcuts(false));
   const [installReopen, setInstallReopen] = useState(0);
   const pwaInstall = usePwaInstall();
   const openInstall = () => setInstallReopen((n) => n + 1);

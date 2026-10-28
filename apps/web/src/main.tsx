@@ -8,6 +8,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { WorkspaceCatalogProvider } from './api/catalog';
 import { App } from './App';
 import { QuickAddProvider } from './components/QuickAdd';
+import { BackLayerProvider } from './lib/backLayer';
 import { StatusToastHost } from './components/StatusToast';
 import { ThemeProvider } from './theme/ThemeProvider';
 import './theme/global.css';
@@ -24,9 +25,11 @@ const router = createBrowserRouter([
     path: '*',
     element: (
       <StatusToastHost>
+        <BackLayerProvider>
         <QuickAddProvider>
           <App />
         </QuickAddProvider>
+        </BackLayerProvider>
       </StatusToastHost>
     ),
   },

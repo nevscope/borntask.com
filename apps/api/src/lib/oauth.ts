@@ -49,8 +49,9 @@ export async function googleProfile(code: string): Promise<{ email: string; name
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
   if (!meRes.ok) throw new Error('Google profile failed');
-  const me = (await meRes.json()) as { email?: string; name?: string; sub?: string };
+  const me = (await meRes.json()) as { email?: string; name?: string; sub?: string; email_verified?: boolean };
   if (!me.email) throw new Error('Google email missing');
+  if (!me.email_verified) throw new Error('Google did not verify this email.');
   return { email: me.email.toLowerCase(), name: me.name ?? me.email, providerId: me.sub ?? me.email };
 }
 

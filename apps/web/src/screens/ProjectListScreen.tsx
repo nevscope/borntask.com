@@ -1,12 +1,13 @@
 // Screen 2 · Project list. Drag the handle to reorder or move between sections.
 // Click type, status, assignee, due date or priority to change them. Status goes through moveTask.
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { Skeleton } from 'antd';
+import { Skeleton, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
+import { useCopyTask, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
+import { useStatusToast } from '../components/StatusToast';
 import type { ProjectDetail, Task } from '../api/types';
-import { GitHubBadge, TaskHints } from '../components/Chips';
+import { CopyIcon, GitHubBadge, TaskHints } from '../components/Chips';
 import { BulkBar } from '../components/BulkBar';
 import { ListColumnHead } from '../components/ListColumnHead';
 import { ListFields } from '../components/ListFields';
@@ -212,7 +213,7 @@ function SectionGroup({
   const quickAdd = useQuickAdd();
   const end = useDroppable({ id: `end:${id}`, disabled: !draggable });
   return (
-    <div>
+    <div className="bt-section-group">
       <div className="bt-group-head">{name} <span style={{ color: color.muted, fontWeight: 500 }}>{total}</span></div>
       {tasks.map((task) => (
         <Row key={task.key} task={task} detail={detail} draggable={draggable && !compact} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} onToggle={() => onToggle(task.key)} compact={compact} hiddenCols={hiddenCols} />
@@ -258,9 +259,34 @@ function Row({
   hiddenCols: ListField[];
 }) {
   const { openTask } = useTaskParam();
+  const copyTask = useCopyTask();
+  const toast = useStatusToast();
   const drag = useDraggable({ id: task.key, disabled: !draggable });
   const drop = useDroppable({ id: `row:${task.key}`, disabled: !draggable });
   const done = statusById(detail.workflow, task.statusId)?.category === 'done';
+  const copy = (event: { stopPropagation(): void }) => {
+    event.stopPropagation();
+    copyTask.mutate(task.key, {
+      onSuccess: (created) => {
+        toast.show(`Created ${created.key}.`);
+        openTask(created.key);
+      },
+      onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not copy this task.' }),
+    });
+  };
+  const copyControl = (
+    <Tooltip title="Copy this task">
+      <button
+        type="button"
+        className={`bt-row-copy${compact ? ' always' : ''}`}
+        aria-label={`Copy ${task.key}`}
+        disabled={copyTask.isPending}
+        onClick={copy}
+      >
+        <CopyIcon />
+      </button>
+    </Tooltip>
+  );
 
   if (compact) {
     return (
@@ -276,12 +302,15 @@ function Row({
             onChange={onToggle}
             style={{ width: 16, height: 16, marginTop: 3, accentColor: color.brand, flex: 'none' }}
           />
-          <button type="button" className="bt-row-title" style={{ flex: 1, color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
-            <span>{task.title}</span>
-            {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
-            {task.githubBadge && <GitHubBadge kind={task.githubBadge} compact />}
-            <TaskHints task={task} />
-          </button>
+          <span className="bt-title-cluster" style={{ flex: 1, minWidth: 0 }}>
+            <button type="button" className="bt-row-title" style={{ color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
+              <span>{task.title}</span>
+              {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+              {task.githubBadge && <GitHubBadge kind={task.githubBadge} compact />}
+              <TaskHints task={task} />
+            </button>
+            {copyControl}
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24, fontSize: 12, color: color.muted }}>
           <span>{task.key}</span>
@@ -308,12 +337,15 @@ function Row({
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5" /><circle cx="9" cy="3" r="1.5" /><circle cx="3" cy="8" r="1.5" /><circle cx="9" cy="8" r="1.5" /><circle cx="3" cy="13" r="1.5" /><circle cx="9" cy="13" r="1.5" /></svg>
       </button>
       <span className="bt-key">{task.key}</span>
-      <button className="bt-row-title" style={{ color: done ? color.muted : undefined, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-        {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400, flex: 'none' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
-        {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
-        <TaskHints task={task} />
-      </button>
+      <span className="bt-title-cluster">
+        <button className="bt-row-title" style={{ color: done ? color.muted : undefined, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+          {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400, flex: 'none' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
+          {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
+          <TaskHints task={task} />
+        </button>
+        {copyControl}
+      </span>
       <ListFields task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} hiddenCols={hiddenCols} />
     </div>
   );

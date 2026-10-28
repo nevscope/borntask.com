@@ -225,6 +225,36 @@ let notifications: Notification[] = [
     readAt: null,
   },
   {
+    id: 'n_mention_2',
+    kind: 'mention',
+    text: 'Karl Farrugia mentioned you on Lazy-load hero and product images',
+    taskKey: 'WEB-133',
+    projectKey: 'WEB',
+    actor: users[4]!,
+    createdAt: ago(5),
+    readAt: null,
+  },
+  {
+    id: 'n_mention_3',
+    kind: 'mention',
+    text: 'Daniela Vella mentioned you on Welcome pack checkout link',
+    taskKey: 'CLI-9',
+    projectKey: 'CLI',
+    actor: users[3]!,
+    createdAt: ago(8),
+    readAt: ago(1),
+  },
+  {
+    id: 'n_mention_4',
+    kind: 'mention',
+    text: 'Luke Camilleri mentioned you on Shorter onboarding questionnaire',
+    taskKey: 'CLI-14',
+    projectKey: 'CLI',
+    actor: users[2]!,
+    createdAt: ago(12),
+    readAt: ago(4),
+  },
+  {
     id: 'n_assigned',
     kind: 'assigned',
     text: 'Luke Camilleri assigned you Add Apple Pay to checkout',
@@ -232,6 +262,16 @@ let notifications: Notification[] = [
     projectKey: 'WEB',
     actor: users[2]!,
     createdAt: ago(2),
+    readAt: null,
+  },
+  {
+    id: 'n_assigned_2',
+    kind: 'assigned',
+    text: 'You were assigned Review push notification copy',
+    taskKey: 'MOB-27',
+    projectKey: 'MOB',
+    actor: users[4]!,
+    createdAt: ago(6),
     readAt: null,
   },
   {
@@ -535,6 +575,46 @@ export const mockApi: Api = {
     return clone(t);
   },
 
+  async moveTaskToProject(key, input) {
+    await wait();
+    const t = findTask(key);
+    if (t.projectKey === input.projectKey) throw new ApiError(400, 'VALIDATION', 'Choose a different project.');
+    const dest = projectOf(input.projectKey);
+    const destSections = sections.filter((section) => section.projectKey === dest.key).sort((a, b) => a.position - b.position);
+    const section = input.sectionId
+      ? destSections.find((item) => item.id === input.sectionId)
+      : destSections[0];
+    if (!section) throw new ApiError(400, 'VALIDATION', 'Choose a section in that project.');
+    const max = Math.max(0, ...tasks.filter((task) => task.projectKey === dest.key).map((task) => {
+      const parsed = Number(task.key.slice(task.key.lastIndexOf('-') + 1));
+      return Number.isInteger(parsed) ? parsed : 0;
+    }));
+    const oldKey = t.key;
+    t.key = `${dest.key}-${max + 1}`;
+    t.projectKey = dest.key;
+    t.sectionId = section.id;
+    t.position = Math.max(0, ...tasks.filter((task) => task.sectionId === section.id && task.key !== t.key).map((task) => task.position)) + 1;
+    touch(t);
+    if (comments[oldKey]) {
+      comments[t.key] = comments[oldKey]!;
+      delete comments[oldKey];
+    }
+    if (activity[oldKey]) {
+      activity[t.key] = activity[oldKey]!;
+      delete activity[oldKey];
+    }
+    if (subtasks[oldKey]) {
+      subtasks[t.key] = subtasks[oldKey]!;
+      delete subtasks[oldKey];
+    }
+    if (watchers[oldKey]) {
+      watchers[t.key] = watchers[oldKey]!;
+      delete watchers[oldKey];
+    }
+    log(t.key, `moved from ${oldKey} in ${projects.find((project) => project.key === oldKey.split('-')[0])?.name ?? oldKey} to ${t.key}`);
+    return clone(t);
+  },
+
   async reorderTask(key, input) {
     await wait();
     const t = findTask(key);
@@ -556,10 +636,33 @@ export const mockApi: Api = {
     return clone(t);
   },
 
-  async addComment(key, body) {
+  async copyTask(key) {
+    await wait();
+    const source = findTask(key);
+    const created = await this.createTask({
+      projectKey: source.projectKey,
+      sectionId: source.sectionId,
+      type: source.type,
+      title: `Copy of ${source.title}`.slice(0, 200),
+      description: source.description,
+      assigneeId: null,
+      priority: source.priority,
+      dueDate: source.dueDate,
+      labels: source.labels,
+      attachmentIds: [],
+    });
+    return created;
+  },
+
+  async addComment(key, body, parentId) {
     await wait();
     findTask(key);
-    const c: Comment = { id: uid('c'), authorId: me.user.id, body, via: 'app', createdAt: new Date().toISOString() };
+    if (parentId) {
+      const parent = (comments[key] ?? []).find((row) => row.id === parentId);
+      if (!parent) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
+      if (parent.parentId) throw new ApiError(403, 'FORBIDDEN', 'Replies can only be one level deep.');
+    }
+    const c: Comment = { id: uid('c'), authorId: me.user.id, parentId: parentId ?? null, body, via: 'app', createdAt: new Date().toISOString() };
     (comments[key] ??= []).push(c);
     applyCommentHints(key);
     return clone(c);
@@ -584,7 +687,9 @@ export const mockApi: Api = {
     if (!c) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
     const canDelete = c.authorId === me.user.id || me.workspaceRole === 'owner' || me.workspaceRole === 'admin';
     if (!canDelete) throw new ApiError(403, 'FORBIDDEN', 'You cannot delete this comment.');
-    comments[key] = list.filter((x) => x.id !== commentId);
+    comments[key] = list
+      .filter((x) => x.id !== commentId)
+      .map((x) => (x.parentId === commentId ? { ...x, parentId: null } : x));
     applyCommentHints(key);
   },
 

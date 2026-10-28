@@ -33,6 +33,7 @@ import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { useBackLayer } from '../lib/backLayer';
 
 const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature'];
 
@@ -201,6 +202,13 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   }
 
   const hasDraft = raw.trim() !== '' || !isEmptyDescription(description) || files.length > 0 || moveComment.trim() !== '';
+  useBackLayer(true, () => {
+    if (hasDraft) {
+      setDiscardOpen(true);
+      return true;
+    }
+    onClose();
+  });
   const descTooLong = isTaskDescriptionTooLong(persistDescription(description));
 
   function readCaret() {

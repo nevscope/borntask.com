@@ -5,6 +5,7 @@ import {
   chatRejectDialog,
   interpretChatEvent,
   chatActorEmail,
+  createTaskStartSlug,
   isTaskDescriptionTooLong,
   TASK_DESCRIPTION_TOO_LONG,
   type ChatTaskType,
@@ -101,7 +102,7 @@ export async function createTaskFromChat(
   if (!type) throw new ApiError(400, 'VALIDATION', 'Unknown type.');
   const ws = await scoped.db.workspace.findUnique({ where: { id: scoped.tenantId } });
   const wf = await loadWorkflow(scoped.db, project.workflowId);
-  const startSlug = input.type === 'bug' ? (ws?.bugsStartIn === 'idea' ? 'idea' : 'approved') : 'idea';
+  const startSlug = createTaskStartSlug(input.type, ws?.bugsStartIn);
   const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
   if (!statusId) throw new ApiError(400, 'VALIDATION', 'Workflow has no start status.');
   const sectionId = await defaultSectionId(scoped, project.id);

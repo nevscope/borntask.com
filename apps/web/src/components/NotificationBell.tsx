@@ -1,13 +1,31 @@
 import { Popover } from 'antd';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAcceptProjectInvite, useMarkNotificationsRead, useNotifications } from '../api/queries';
-import type { Notification } from '../api/types';
+import type { Notification, NotificationKind } from '../api/types';
 import { formatWhen } from '../lib/relativeTime';
 import { color, radius } from '../theme/tokens';
 import { useStatusToast } from './StatusToast';
 import { Avatar } from './Chips';
+
+const GROUP_ORDER: { kind: NotificationKind; label: string }[] = [
+  { kind: 'invite', label: 'Invites' },
+  { kind: 'access_request', label: 'Access requests' },
+  { kind: 'mention', label: 'Mentioned' },
+  { kind: 'assigned', label: 'Assigned' },
+  { kind: 'moved', label: 'Stage changes' },
+  { kind: 'github', label: 'GitHub' },
+];
+
+const GROUP_PREVIEW = 3;
+
+function groupedNotifications(items: Notification[]) {
+  return GROUP_ORDER.map((group) => ({
+    ...group,
+    items: items.filter((note) => note.kind === group.kind),
+  })).filter((group) => group.items.length > 0);
+}
 
 function BellIcon() {
   return (
@@ -40,7 +58,7 @@ function NotificationRow({
         display: 'flex',
         gap: 12,
         width: '100%',
-        padding: '12px 16px',
+        padding: '9px 16px',
         borderBottom: `1px solid ${color.divider}`,
         background: unread ? color.unreadRow : color.surface,
         color: color.ink,
@@ -114,9 +132,11 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
   const mark = useMarkNotificationsRead();
   const accept = useAcceptProjectInvite();
   const [tab, setTab] = useState<'unread' | 'all'>('unread');
+  const [openGroups, setOpenGroups] = useState<Partial<Record<NotificationKind, boolean>>>({});
   const items = list?.items ?? [];
   const unreadCount = list?.unreadCount ?? 0;
   const shown = tab === 'unread' ? items.filter((n) => !n.readAt) : items;
+  const groups = useMemo(() => groupedNotifications(shown), [shown]);
 
   const go = (note: Notification) => {
     if (note.kind === 'access_request' && note.projectKey) {
@@ -179,7 +199,7 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
             type="button"
             role="tab"
             aria-selected={tab === 'unread'}
-            onClick={() => setTab('unread')}
+            onClick={() => { setTab('unread'); setOpenGroups({}); }}
             style={{
               height: 26,
               padding: '0 10px',
@@ -199,7 +219,7 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
             type="button"
             role="tab"
             aria-selected={tab === 'all'}
-            onClick={() => setTab('all')}
+            onClick={() => { setTab('all'); setOpenGroups({}); }}
             style={{
               height: 26,
               padding: '0 10px',
@@ -241,16 +261,69 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
           {tab === 'unread' ? 'You are up to date.' : 'No notifications yet.'}
         </div>
       ) : (
-        <div style={{ flex: phone ? 1 : undefined, overflow: phone ? 'auto' : undefined }}>
-          {shown.map((note) => (
-            <NotificationRow
-              key={note.id}
-              note={note}
-              onOpen={open}
-              onAccept={join}
-              accepting={accept.isPending && accept.variables === note.projectKey}
-            />
-          ))}
+        <div style={{ flex: phone ? 1 : undefined, maxHeight: phone ? undefined : 420, overflow: 'auto' }}>
+          {groups.map((group) => {
+            const unreadInGroup = group.items.filter((note) => !note.readAt).length;
+            const expanded = Boolean(openGroups[group.kind]);
+            const visible = expanded ? group.items : group.items.slice(0, GROUP_PREVIEW);
+            const hidden = group.items.length - visible.length;
+            return (
+              <section key={group.kind} aria-label={group.label}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 16px 4px',
+                    background: color.subtle,
+                    borderBottom: `1px solid ${color.divider}`,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 600, color: color.ink3, letterSpacing: 0.2 }}>{group.label}</span>
+                  <span style={{ fontSize: 12, color: color.muted }}>{group.items.length}</span>
+                  {unreadInGroup > 0 && (
+                    <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: color.brandStrong }}>
+                      {unreadInGroup} unread
+                    </span>
+                  )}
+                </div>
+                {visible.map((note) => (
+                  <NotificationRow
+                    key={note.id}
+                    note={note}
+                    onOpen={open}
+                    onAccept={join}
+                    accepting={accept.isPending && accept.variables === note.projectKey}
+                  />
+                ))}
+                {hidden > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroups((current) => ({ ...current, [group.kind]: true }))}
+                    style={{
+                      width: '100%',
+                      height: 32,
+                      padding: '0 16px',
+                      border: 0,
+                      borderBottom: `1px solid ${color.divider}`,
+                      background: color.surface,
+                      color: color.brandStrong,
+                      font: 'inherit',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Show {hidden} more
+                  </button>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
       <div style={{ padding: '10px 16px', fontSize: 12.5, color: color.muted }}>

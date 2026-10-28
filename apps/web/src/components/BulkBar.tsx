@@ -1,12 +1,13 @@
 // Dark bar shown when list rows are selected. Moves still go through moveTask.
 import { DatePicker, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { useDeleteTask, useMe, useMoveTask, useReorderTask, useRestoreTask, useUpdateTask } from '../api/queries';
+import { useDeleteTask, useMe, useMoveTask, useMoveTaskToProject, useReorderTask, useRestoreTask, useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { moveOptions } from '../lib/workflow';
 import { color, radius } from '../theme/tokens';
 import { trashToldCopy } from '../lib/toldPeople';
 import { ConfirmDialog } from './ConfirmDialog';
+import { MoveToProjectDialog } from './MoveToProjectDialog';
 import { useStatusToast } from './StatusToast';
 
 export function BulkBar({
@@ -27,10 +28,12 @@ export function BulkBar({
   const reorder = useReorderTask();
   const del = useDeleteTask();
   const restore = useRestoreTask();
+  const moveProject = useMoveTaskToProject();
   const [commentFor, setCommentFor] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmMoveProject, setConfirmMoveProject] = useState(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -154,6 +157,13 @@ export function BulkBar({
         />
         <button
           type="button"
+          onClick={() => setConfirmMoveProject(true)}
+          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.inverseMuted, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+        >
+          Move to project
+        </button>
+        <button
+          type="button"
           onClick={() => setConfirmDelete(true)}
           style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.inverseDanger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
         >
@@ -177,6 +187,25 @@ export function BulkBar({
           </button>
         </div>
       )}
+      <MoveToProjectDialog
+        open={confirmMoveProject}
+        sourceProjectKey={detail.project.key}
+        count={tasks.length}
+        busy={moveProject.isPending}
+        onCancel={() => setConfirmMoveProject(false)}
+        onConfirm={async ({ projectKey, sectionId }) => {
+          try {
+            for (const task of tasks) {
+              await moveProject.mutateAsync({ key: task.key, input: { projectKey, sectionId } });
+            }
+            setConfirmMoveProject(false);
+            toast.show(`${tasks.length === 1 ? '1 task' : `${tasks.length} tasks`} moved to ${projectKey}.`);
+            onClear();
+          } catch {
+            toast.show({ kind: 'error', text: 'Could not move one or more tasks to that project.' });
+          }
+        }}
+      />
       <ConfirmDialog
         open={confirmDelete}
         title={`Delete ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}?`}

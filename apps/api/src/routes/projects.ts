@@ -593,7 +593,14 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         return {
           ...mapUser(u ?? { id: m.userId, name: 'Unknown', email: '' }),
           workspaceRole: m.tenantRole,
-          signsInWith: u?.authProvider === 'microsoft' ? 'Microsoft' : u?.authProvider === 'google' ? 'Google' : '-',
+          signsInWith:
+            u?.authProvider === 'microsoft'
+              ? 'Microsoft'
+              : u?.authProvider === 'google'
+                ? 'Google'
+                : u?.authProvider === 'email'
+                  ? 'Email'
+                  : '-',
           projects: (projectsByUser.get(m.userId) ?? []).join(', ') || 'None',
         };
       });

@@ -76,6 +76,8 @@ export function ListFields({
     );
   }
 
+  const canComplete = Boolean(completeTarget(detail.workflow, task));
+
   if (compact) {
     return (
       <>
@@ -87,7 +89,6 @@ export function ListFields({
           options={moveOptions(detail.workflow, task, roles)}
           onMove={(statusId) => onMove(task, statusId)}
         />
-        <CompleteTick always task={task} detail={detail} roles={roles} onComplete={onComplete} />
         <span style={{ marginLeft: 'auto', color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 12 }}>
           <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
         </span>
@@ -97,9 +98,11 @@ export function ListFields({
 
   return (
     <>
-      <span className="bt-complete-slot">
-        <CompleteTick task={task} detail={detail} roles={roles} onComplete={onComplete} />
-      </span>
+      {canComplete && (
+        <span className="bt-complete-slot">
+          <CompleteTick task={task} detail={detail} roles={roles} onComplete={onComplete} />
+        </span>
+      )}
       {show('type') && (
       <span style={{ width: LIST_FIELD_WIDTH.type }}>
         <TypePicker allowed={allowed} bare trigger={<TypeTag type={task.type} />} value={task.type} onChange={(type) => save({ type })} />

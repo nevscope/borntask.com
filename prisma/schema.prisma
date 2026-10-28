@@ -20,6 +20,7 @@ enum TenantRole {
 enum AuthProvider {
   google
   microsoft
+  email
 }
 
 enum BugsStartIn {
@@ -114,6 +115,7 @@ model User {
   providerId    String?
   digestMode    DigestMode   @default(workdays)
   digestHour    Int          @default(8)
+  emailPerTask  Boolean      @default(false)
   timeZone      String       @default("Europe/Malta")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -546,16 +548,21 @@ model Comment {
   tenantId  String
   taskId    String
   authorId  String
+  parentId  String?
   body      String    @db.Text
   mentions  Json?
+  via       ActivityVia @default(app)
   deletedAt DateTime?
   createdAt DateTime  @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   task   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User      @relation(fields: [authorId], references: [id])
+  parent Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies Comment[] @relation("CommentReplies")
 
   @@index([tenantId, taskId])
+  @@index([parentId])
 }
 
 model Attachment {
@@ -812,6 +819,22 @@ model DevLink {
 
   @@unique([taskId, kind, repoFullName, ref])
   @@index([tenantId, taskId])
+}
+
+/// Passwordless email sign-in. Auth-only; not tenant-scoped.
+model EmailLoginCode {
+  challengeId String    @id
+  email       String
+  codeHash    String
+  linkHash    String    @unique
+  nextPath    String?   @db.Text
+  inviteToken String?
+  attempts    Int       @default(0)
+  createdAt   DateTime
+  expiresAt   DateTime
+  consumedAt  DateTime?
+
+  @@index([email])
 }
 
 model GitHubEventLog {

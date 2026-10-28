@@ -7,6 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { useAddComment, useMe, useMoveTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { canOverride, checkMove, rolesLabel, statusById } from '../lib/workflow';
+import { useBackLayer } from '../lib/backLayer';
 import { color } from '../theme/tokens';
 import { useStatusToast } from './StatusToast';
 
@@ -33,6 +34,8 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState('');
   const [blocked, setBlocked] = useState<BlockedState | null>(null);
+  useBackLayer(pending !== null, () => setPending(null));
+  useBackLayer(Boolean(options?.board && blocked), () => setBlocked(null));
 
   const myRoles: ProjectRole[] = detail?.members.find((m) => m.userId === me?.user.id)?.roles ?? [];
   const mayOverride = me ? canOverride(me.workspaceRole, myRoles) : false;

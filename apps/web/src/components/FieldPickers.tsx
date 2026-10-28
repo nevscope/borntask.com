@@ -6,6 +6,7 @@ import { useWorkspaceCatalog } from '../api/catalog';
 import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectDetail, TaskType, User, WorkflowStatus } from '../api/types';
 import { dueLabel, parseDuePhrase } from '../lib/dates';
 import { rolesLabel, type MoveCheck } from '../lib/workflow';
+import { useBackLayer } from '../lib/backLayer';
 import { color, priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
 import { Avatar, LockIcon, StatusDot, TypeTag } from './Chips';
 
@@ -370,6 +371,7 @@ function Picker({
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
+  useBackLayer(open, close);
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: MouseEvent) => {
@@ -407,23 +409,21 @@ function Picker({
       ref={menuRef}
       role="dialog"
       aria-label={ariaLabel}
-      style={bare
-        ? {
-            position: 'fixed',
-            zIndex: 1200,
-            top: pos.top,
-            left: pos.left,
-            transform: pos.up ? 'translateY(-100%)' : undefined,
-            width: 320,
-            maxWidth: 'calc(100vw - 16px)',
-            maxHeight: pos.maxHeight,
-            overflow: 'auto',
-            padding: 6,
-            background: color.surface,
-            border: `1px solid ${color.border}`,
-            borderRadius: 12,
-          }
-        : { position: 'absolute', zIndex: 30, top: 'calc(100% + 6px)', left: 0, width: 280, maxWidth: '80vw', maxHeight: 'min(440px, calc(100vh - 16px))', overflow: 'auto', padding: 6, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12 }}
+      style={{
+        position: 'fixed',
+        zIndex: 1200,
+        top: pos.top,
+        left: pos.left,
+        transform: pos.up ? 'translateY(-100%)' : undefined,
+        width: 320,
+        maxWidth: 'calc(100vw - 16px)',
+        maxHeight: pos.maxHeight,
+        overflow: 'auto',
+        padding: 6,
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+        borderRadius: 12,
+      }}
     >
       {children(close)}
     </div>
@@ -473,7 +473,7 @@ function Picker({
       >
         {label}
       </button>
-      {menu && (bare ? createPortal(menu, document.body) : menu)}
+      {menu && createPortal(menu, document.body)}
     </div>
   );
 }

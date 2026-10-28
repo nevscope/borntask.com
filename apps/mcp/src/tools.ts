@@ -20,7 +20,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'get_task',
-    description: 'Read one task, including description, comments and activity.',
+    description: 'Read one task, including description, comments, activity, attachment list and a url you can open in the browser.',
     inputSchema: {
       type: 'object',
       properties: { key: { type: 'string', description: 'Task key, such as WEB-142.' } },
@@ -39,7 +39,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'create_task',
-    description: 'Create a task. Ideas, improvements and features start in Idea. Bugs start where the workspace says bugs start. You cannot delete, change settings or invite people.',
+    description: 'Create a task. The result includes a url you can open in the browser. Ideas, improvements and features start in Idea. Bugs start where the workspace says bugs start. You cannot delete, change settings or invite people.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -87,15 +87,41 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'move_task_to_project',
+    description: 'Move a task into a different project. The task key changes to the new project prefix. Comments, files and history stay. Status is matched onto the destination workflow. You cannot delete tasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Current task key, such as WEB-142.' },
+        projectKey: { type: 'string', description: 'Destination project key, such as MOB.' },
+        sectionId: { type: 'string', description: 'Section id. Omit to use the first section.' },
+      },
+      required: ['key', 'projectKey'],
+    },
+  },
+  {
     name: 'add_comment',
-    description: 'Add a comment on a task. Mention someone with @Name to notify them.',
+    description: 'Add a comment on a task. Mention someone with @Name to notify them. Pass parentId to reply one level deep.',
     inputSchema: {
       type: 'object',
       properties: {
         key: { type: 'string' },
         body: { type: 'string' },
+        parentId: { type: 'string', description: 'Comment id to reply to. Replies cannot be nested further.' },
       },
       required: ['key', 'body'],
+    },
+  },
+  {
+    name: 'get_attachment',
+    description: 'Download a task attachment. Images are returned so you can see screenshots. Other files return name and size.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Task key, such as WEB-142.' },
+        id: { type: 'string', description: 'Attachment id from get_task.' },
+      },
+      required: ['key', 'id'],
     },
   },
 ];
@@ -123,6 +149,39 @@ function text(value: unknown) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
 }
 
+function webUrl(projectKey: string, taskKey: string, commentId?: string): string {
+  const base = `${(process.env.PUBLIC_URL ?? 'http://localhost:5174').replace(/\/$/, '')}/p/${encodeURIComponent(projectKey)}/list?task=${encodeURIComponent(taskKey)}`;
+  return commentId ? `${base}&comment=${encodeURIComponent(commentId)}` : base;
+}
+
+function withTaskUrl(value: unknown) {
+  if (!value || typeof value !== 'object') return text(value);
+  const row = value as { key?: string; projectKey?: string; id?: string };
+  if (!row.key || !row.projectKey) return text(value);
+  const url = webUrl(row.projectKey, row.key, row.id && 'body' in row ? row.id : undefined);
+  return text({ ...row, url });
+}
+
+async function fetchAttachment(token: string, key: string, id: string) {
+  const res = await fetch(`${apiBase()}/tasks/${encodeURIComponent(key)}/attachments/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}`, 'X-BornTask-Via': 'mcp' },
+  });
+  if (!res.ok) {
+    const textBody = await res.text();
+    let message = res.statusText;
+    try {
+      const json = JSON.parse(textBody) as { message?: string };
+      if (json.message) message = json.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message || `Request failed (${res.status})`);
+  }
+  const mime = res.headers.get('content-type') || 'application/octet-stream';
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { mime, buf, name: /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? id };
+}
+
 export async function callTool(token: string, name: string, args: Record<string, unknown>) {
   const str = (key: string) => (typeof args[key] === 'string' ? args[key] : undefined);
   switch (name) {
@@ -131,7 +190,7 @@ export async function callTool(token: string, name: string, args: Record<string,
       return text(await api(token, 'GET', `/search?q=${encodeURIComponent(query)}`));
     }
     case 'get_task':
-      return text(await api(token, 'GET', `/tasks/${encodeURIComponent(str('key') ?? '')}`));
+      return withTaskUrl(await api(token, 'GET', `/tasks/${encodeURIComponent(str('key') ?? '')}`));
     case 'list_projects':
       return text(await api(token, 'GET', '/projects'));
     case 'list_my_tasks':
@@ -146,7 +205,7 @@ export async function callTool(token: string, name: string, args: Record<string,
       if (!sectionId) throw new Error('This project has no section to put the task in.');
       const disabled = new Set(project.disabledTypes ?? []);
       const defaultType = ['idea', 'bug', 'improvement', 'feature', 'task'].find((slug) => !disabled.has(slug)) ?? 'idea';
-      return text(await api(token, 'POST', `/projects/${encodeURIComponent(projectKey)}/tasks`, {
+      return withTaskUrl(await api(token, 'POST', `/projects/${encodeURIComponent(projectKey)}/tasks`, {
         projectKey,
         sectionId,
         type: str('type') ?? defaultType,
@@ -175,8 +234,35 @@ export async function callTool(token: string, name: string, args: Record<string,
         comment: str('comment'),
         overrideReason: str('overrideReason'),
       }));
-    case 'add_comment':
-      return text(await api(token, 'POST', `/tasks/${encodeURIComponent(str('key') ?? '')}/comments`, { body: str('body') ?? '' }));
+    case 'move_task_to_project':
+      return text(await api(token, 'POST', `/tasks/${encodeURIComponent(str('key') ?? '')}/move-project`, {
+        projectKey: str('projectKey'),
+        sectionId: str('sectionId'),
+      }));
+    case 'add_comment': {
+      const key = str('key') ?? '';
+      const created = await api(token, 'POST', `/tasks/${encodeURIComponent(key)}/comments`, {
+        body: str('body') ?? '',
+        parentId: str('parentId'),
+      }) as { id?: string };
+      const task = await api(token, 'GET', `/tasks/${encodeURIComponent(key)}`) as { projectKey?: string };
+      const url = task.projectKey && created.id ? webUrl(task.projectKey, key, created.id) : undefined;
+      return text({ ...created, url, taskUrl: task.projectKey ? webUrl(task.projectKey, key) : undefined });
+    }
+    case 'get_attachment': {
+      const key = str('key') ?? '';
+      const id = str('id') ?? '';
+      const file = await fetchAttachment(token, key, id);
+      if (file.mime.startsWith('image/')) {
+        return {
+          content: [
+            { type: 'text', text: `${file.name} (${file.mime})` },
+            { type: 'image', data: file.buf.toString('base64'), mimeType: file.mime },
+          ],
+        };
+      }
+      return text({ name: file.name, mime: file.mime, size: file.buf.length, note: 'Not an image. Open the task url from get_task to download it.' });
+    }
     default:
       throw new Error(`Unknown tool ${name}.`);
   }

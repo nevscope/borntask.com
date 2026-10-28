@@ -35,6 +35,8 @@ import {
 } from '../lib/taskFilters';
 import { color, radius } from '../theme/tokens';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useBackLayer } from '../lib/backLayer';
+import { useIsPhone } from '../hooks/useIsPhone';
 
 export type ProjectView = {
   filters: FilterCondition[];
@@ -126,6 +128,9 @@ export function ProjectViewBar({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<SavedView | null>(null);
+  const isPhone = useIsPhone();
+  useBackLayer(open, () => setOpen(false));
+  useBackLayer(saving, () => setSaving(false));
   const [views, setViews] = useState<SavedView[]>(() => readSavedViews(workspaceId, detail.project.key));
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -201,9 +206,11 @@ export function ProjectViewBar({
           <button type="button" aria-label={`Remove view ${saved.name}`} onClick={() => setPendingDelete(saved)} style={iconBtn}>×</button>
         </span>
       ))}
+      {!isPhone && (
       <button type="button" onClick={() => setSaving(true)} style={{ height: 32, padding: '0 10px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
         + Save view
       </button>
+      )}
     </>
   );
 
@@ -231,7 +238,7 @@ export function ProjectViewBar({
             <button type="button" aria-label={`Remove ${fieldLabel(condition.field)} filter`} onClick={() => change({ filters: view.filters.filter((f) => f.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
-        {mode === 'list' && (
+        {mode === 'list' && !isPhone && (
           <>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 13, color: color.muted }}>Group</span>
@@ -254,7 +261,7 @@ export function ProjectViewBar({
             <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
           </>
         )}
-        {mode === 'board' && (
+        {mode === 'board' && !isPhone && (
           <>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 13, color: color.muted }}>Columns</span>

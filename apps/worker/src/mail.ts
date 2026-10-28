@@ -81,6 +81,30 @@ function digestLine(item: { key: string; title: string; statusName?: string; ext
   return extra ? `${item.key}  ${item.title}  (${extra})` : `${item.key}  ${item.title}`;
 }
 
+function renderTaskEvent(job: Extract<MailJob, { kind: 'task-event' }>): { subject: string; text: string; html: string } {
+  const subject = `${job.taskKey} ${job.title} - ${job.eventLabel}`;
+  const lines = [
+    `Hello ${job.greetingName},`,
+    '',
+    `${job.actorName} ${job.eventLabel} on ${job.taskKey} ${job.title}.`,
+    job.statusName ? `Status: ${job.statusName}` : '',
+    `Project: ${job.projectName}`,
+    job.comment ? `\n${job.comment}` : '',
+    '',
+    job.url,
+    job.replyTo ? '\nReply to this email to add a comment.' : '',
+  ].filter((line, i, all) => line !== '' || all[i - 1] !== '');
+  const text = [...lines, '', `Change email settings: ${job.profileUrl}`].join('\n');
+  const html = shell(
+    `<p style="margin:0 0 8px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;color:#121417;">${esc(job.taskKey)} ${esc(job.title)}</p>
+     <p style="margin:0 0 16px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:#5B6157;">${esc(job.actorName)} ${esc(job.eventLabel)}${job.statusName ? ` · ${esc(job.statusName)}` : ''} · ${esc(job.projectName)}</p>
+     ${job.comment ? `<p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;line-height:1.55;color:#121417;white-space:pre-wrap;">${esc(job.comment)}</p>` : ''}
+     ${button(job.url, 'Open task')}`,
+    `${job.replyTo ? 'Reply to this email to add a comment. ' : ''}<a href="${esc(job.profileUrl)}" style="color:#0F6B46;">Change email settings</a>`,
+  );
+  return { subject, text, html };
+}
+
 function htmlSection(
   title: string,
   colour: string,
@@ -107,6 +131,7 @@ function htmlSection(
 }
 
 export function renderMail(job: MailJob): { subject: string; text: string; html: string } {
+  if (job.kind === 'task-event') return renderTaskEvent(job);
   if (job.kind === 'digest') {
     const dueCount = job.due.length + job.overdue.length;
     const subject = digestSubject(dueCount, job.mentions.length);
@@ -145,6 +170,27 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
     return { subject, text, html };
   }
 
+  if (job.kind === 'login-code') {
+    const subject = `${job.code} is your BornTask sign-in code`;
+    const text = [
+      `Your BornTask sign-in code is ${job.code}`,
+      '',
+      'It works once and expires in 15 minutes.',
+      '',
+      `Or sign in with this link: ${job.linkUrl}`,
+      '',
+      "Didn't ask for this? You can ignore this email - nobody can sign in without the code.",
+    ].join('\n');
+    const html = shell(
+      `<p style="margin:0 0 16px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;">Your sign-in code</p>
+       <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#262A24;">Enter this code on BornTask, or tap the button below. It works once and expires in 15 minutes.</p>
+       <p style="margin:0 0 20px;font-size:32px;font-weight:800;letter-spacing:8px;color:#121417;">${esc(job.code.split('').join(' '))}</p>
+       ${button(job.linkUrl, 'Sign in to BornTask')}`,
+      "Didn't ask for this? You can ignore this email - nobody can sign in without the code.",
+    );
+    return { subject, text, html };
+  }
+
   if (job.kind === 'wrong-account') {
     const subject = `${job.requesterName} asked for an invitation to ${job.workspaceName}`;
     const text = [
@@ -179,7 +225,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
     '',
     `Accept invitation: ${job.inviteUrl}`,
     '',
-    `Sign in with Google or Microsoft as ${job.to}. This link works once and expires on ${when}.`,
+    `Sign in with Google, Microsoft or an email code as ${job.to}. This link works once and expires on ${when}.`,
     '',
     `You received this because ${job.inviterName} invited this address. If you weren't expecting it, you can ignore this email.`,
   ].filter((line) => line !== '').join('\n');
@@ -188,7 +234,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
      <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#262A24;">You've been invited as <strong>${esc(job.roleLabel)}</strong> to ${esc(job.workspaceName)}.</p>
      ${quote ? `<div style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #CFE7DA;background:#F7F8F6;font-size:14.5px;line-height:1.5;color:#3A3F38;">${esc(quote)}</div>` : ''}
      <p style="margin:0 0 16px;">${button(job.inviteUrl, 'Accept invitation')}</p>
-     <p style="margin:0;font-size:13px;line-height:1.5;color:#5B6157;">Sign in with Google or Microsoft as <strong style="color:#3A3F38;">${esc(job.to)}</strong>. This link works once and expires on ${esc(when)}.</p>`,
+     <p style="margin:0;font-size:13px;line-height:1.5;color:#5B6157;">Sign in with Google, Microsoft or an email code as <strong style="color:#3A3F38;">${esc(job.to)}</strong>. This link works once and expires on ${esc(when)}.</p>`,
     `You received this because ${esc(job.inviterName)} invited this address. If you weren't expecting it, you can ignore this email.`,
   );
   return { subject, text, html };
@@ -205,6 +251,14 @@ function devLog(job: MailJob) {
   }
   if (job.kind === 'digest') {
     console.log(`[BornTask] Digest for ${job.to}: ${renderMail(job).subject}`);
+    return;
+  }
+  if (job.kind === 'login-code') {
+    console.log(`[BornTask] DEV email sign-in for ${job.to}: code ${job.code}, link ${job.linkUrl}`);
+    return;
+  }
+  if (job.kind === 'task-event') {
+    console.log(`[BornTask] Task email for ${job.to}: ${job.taskKey} ${job.eventLabel} ${job.url}`);
     return;
   }
   console.log(`[BornTask] Wrong-account request: ${job.requesterEmail} asked for an invite meant for ${job.invitedEmail}`);
@@ -228,6 +282,7 @@ export async function deliverMail(input: unknown): Promise<{ ok: true; skipped?:
       personalizations: [{ to: [{ email: job.to }] }],
       from: FROM,
       subject: rendered.subject,
+      ...(job.kind === 'task-event' && job.replyTo ? { reply_to: { email: job.replyTo, name: 'BornTask' } } : {}),
       content: [
         { type: 'text/plain', value: rendered.text },
         { type: 'text/html', value: rendered.html },

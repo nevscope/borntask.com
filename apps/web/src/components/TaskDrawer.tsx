@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import {
   useAddComment,
   useAddSubtask,
+  useCopyTask,
   useDeleteComment,
   useDeleteTask,
   useMe,
@@ -19,6 +20,7 @@ import {
   useTask,
   useUpdateComment,
   useUpdateTask,
+  useMoveTaskToProject,
   qk,
 } from '../api/queries';
 import type { ActorVia, Comment, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
@@ -37,12 +39,14 @@ import { AttachmentPreview, AttachmentTiles, filesFromClipboard, type Attachment
 import { DescriptionEditor } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
+import { MoveToProjectDialog } from './MoveToProjectDialog';
 import { Avatar, StatusPill, TypeTag } from './Chips';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
 import { useTaskParam } from './useTaskParam';
 import { setLiveDrawerGuard } from '../lib/liveDrawer';
+import { useBackLayer } from '../lib/backLayer';
 import { useIsPhone } from '../hooks/useIsPhone';
 
 type CloseGuard = {
@@ -51,7 +55,7 @@ type CloseGuard = {
 };
 
 export function TaskDrawer() {
-  const { taskKey, closeTask } = useTaskParam();
+  const { taskKey, closeTask, openTask } = useTaskParam();
   const projectKey = taskKey?.split('-')[0] ?? '';
   const task = useTask(taskKey);
   const detail = useProject(projectKey);
@@ -59,18 +63,27 @@ export function TaskDrawer() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const isPhone = useIsPhone();
 
+  const back = useBackLayer(!!taskKey, () => {
+    guard.current.flush();
+    if (guard.current.dirty) {
+      setDiscardOpen(true);
+      return true;
+    }
+    closeTask();
+  });
+
   function requestClose() {
     guard.current.flush();
     if (guard.current.dirty) {
       setDiscardOpen(true);
       return;
     }
-    closeTask();
+    back.dismiss(() => closeTask());
   }
 
   function discardAndClose() {
     setDiscardOpen(false);
-    closeTask();
+    back.dismiss(() => closeTask());
   }
 
   return (
@@ -91,7 +104,7 @@ export function TaskDrawer() {
         }}
       >
         {task.data && detail.data ? (
-          <DrawerBody key={task.data.key} task={task.data} detail={detail.data} onClose={requestClose} closeNow={closeTask} guard={guard} />
+          <DrawerBody key={task.data.key} task={task.data} detail={detail.data} onClose={requestClose} closeNow={closeTask} openTask={openTask} guard={guard} />
         ) : task.isError ? (
           <div style={{ padding: 32 }}>
             <h2 className="bt-h1" style={{ fontSize: 20 }}>{taskKey} doesn't exist or was deleted</h2>
@@ -116,7 +129,7 @@ export function TaskDrawer() {
   );
 }
 
-function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDetail; detail: ProjectDetail; onClose: () => void; closeNow: () => void; guard: RefObject<CloseGuard> }) {
+function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task: TaskDetail; detail: ProjectDetail; onClose: () => void; closeNow: () => void; openTask: (key: string) => void; guard: RefObject<CloseGuard> }) {
   const isPhone = useIsPhone();
   const toast = useStatusToast();
   const qc = useQueryClient();
@@ -124,7 +137,9 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
   const catalog = useWorkspaceCatalog();
   const update = useUpdateTask();
   const del = useDeleteTask();
+  const moveProject = useMoveTaskToProject();
   const restore = useRestoreTask();
+  const copyTask = useCopyTask();
   const watch = useSetWatching();
   const flow = useMoveFlow(detail);
   const saving = useIsMutating() > 0;
@@ -145,6 +160,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     return readTaskAttachments(task.key);
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmMoveProject, setConfirmMoveProject] = useState(false);
   const [confirmWatch, setConfirmWatch] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
@@ -355,6 +371,25 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
           {linkCopied ? 'Copied' : 'Copy link'}
         </Button>
         {!isPhone && (
+        <Button
+          type="text"
+          size="small"
+          style={{ whiteSpace: 'nowrap' }}
+          loading={copyTask.isPending}
+          onClick={() => {
+            copyTask.mutate(task.key, {
+              onSuccess: (created) => {
+                toast.show(`Created ${created.key}.`);
+                openTask(created.key);
+              },
+              onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not copy this task.' }),
+            });
+          }}
+        >
+          Copy
+        </Button>
+        )}
+        {!isPhone && (
         <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18, flex: 'none' }}>×</button>
         )}
         </div>
@@ -515,7 +550,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             }}
             onFocusChange={setDescFocused}
             onBlur={(next) => persistDesc(next)}
-            onPasteFiles={(files) => { void addTaskFiles(files); }}
+            onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }}
           />
           {descTooLong && (
             <p role="alert" style={{ margin: '8px 0 0', fontSize: 12.5, color: color.danger }}>
@@ -530,13 +565,13 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
               const pasted = filesFromClipboard(e.clipboardData);
               if (pasted.length) {
                 e.preventDefault();
-                void addTaskFiles(pasted);
+                void addTaskFiles(pasted).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); });
               }
             }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              void addTaskFiles(Array.from(e.dataTransfer.files));
+              void addTaskFiles(Array.from(e.dataTransfer.files)).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); });
             }}
           >
             <AttachmentTiles
@@ -585,7 +620,34 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
             void downloadTaskFile(task.key, preview!.item.id, preview!.item.name);
           }}
         />
-        {!inTrash && !readOnly && <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>}
+        {!inTrash && !readOnly && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button type="text" style={{ alignSelf: 'flex-start' }} onClick={() => setConfirmMoveProject(true)} loading={moveProject.isPending}>
+              Move to another project
+            </Button>
+            <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>
+          </div>
+        )}
+        <MoveToProjectDialog
+          open={confirmMoveProject}
+          sourceProjectKey={task.projectKey}
+          count={1}
+          busy={moveProject.isPending}
+          onCancel={() => setConfirmMoveProject(false)}
+          onConfirm={({ projectKey, sectionId }) => {
+            moveProject.mutate(
+              { key: task.key, input: { projectKey, sectionId } },
+              {
+                onSuccess: (moved) => {
+                  setConfirmMoveProject(false);
+                  openTask(moved.key);
+                  toast.show({ text: <><strong>{task.key}</strong> is now <strong>{moved.key}</strong> in {projectKey}.</> });
+                },
+                onError: () => toast.show({ kind: 'error', text: 'Could not move this task to that project.' }),
+              },
+            );
+          }}
+        />
         <ConfirmDialog
           open={confirmDelete}
           title={`Delete ${task.key} and its ${task.subtasks.length} ${task.subtasks.length === 1 ? 'subtask' : 'subtasks'}?`}
@@ -626,7 +688,15 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
       </div>
       </div>
       {isPhone && !inTrash && (
-        <PhoneMoveBar task={task} options={passFail} onMove={(statusId) => flow.requestMove(task, statusId)} onDraftChange={setCommentDraft} />
+        <PhoneMoveBar
+          task={task}
+          people={mentionPeople}
+          mentionInvite={mentionInvite}
+          options={passFail}
+          onMove={(statusId) => flow.requestMove(task, statusId)}
+          onDraftChange={setCommentDraft}
+          onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }}
+        />
       )}
     </div>
   );
@@ -682,16 +752,22 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
     onDraftChange(value);
   };
   const sending = useRef(false);
-  const send = () => {
+  const send = (parentId?: string, value?: string, after?: () => void) => {
     if (sending.current || add.isPending) return;
-    const body = persistDescription(draft);
+    const body = persistDescription(value ?? draft);
     if (isEmptyDescription(body)) return;
     sending.current = true;
-    add.mutate({ key: task.key, body }, {
-      onSuccess: () => write(''),
+    add.mutate({ key: task.key, body, parentId }, {
+      onSuccess: () => {
+        if (!parentId) write('');
+        after?.();
+      },
       onSettled: () => { sending.current = false; },
     });
   };
+  const liveIds = new Set(task.comments.map((comment) => comment.id));
+  const roots = task.comments.filter((comment) => !comment.parentId || !liveIds.has(comment.parentId));
+  const repliesOf = (id: string) => task.comments.filter((comment) => comment.parentId === id);
   const userOf = (id: string) => detail.users.find((u) => u.id === id);
   useEffect(() => {
     if (!commentId) return;
@@ -714,8 +790,15 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
         </button>
       </div>
       {tab === 'comments'
-        ? task.comments.map((comment) => (
-            <CommentRow key={comment.id} taskKey={task.key} projectKey={task.projectKey} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={comment.id === commentId} onPasteFiles={onPasteFiles} />
+        ? roots.map((comment) => (
+            <div key={comment.id}>
+              <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={comment.id === commentId} onPasteFiles={onPasteFiles} onReply={(body, done) => send(comment.id, body, done)} />
+              {repliesOf(comment.id).map((reply) => (
+                <div key={reply.id} style={{ marginLeft: 36, marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${color.divider}` }}>
+                  <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={reply} who={userOf(reply.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={reply.id === commentId} onPasteFiles={onPasteFiles} />
+                </div>
+              ))}
+            </div>
           ))
         : activity.map((item) => (
             <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
@@ -744,9 +827,11 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
               send();
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line. Type @ to tag someone. Paste a screenshot to attach it.</span>
-            <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: color.muted, lineHeight: 1.45 }}>
+              <kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line
+            </span>
+            <Button type="primary" style={{ flexShrink: 0 }} onClick={() => send()} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
           </div>
         </>
       )}
@@ -765,6 +850,7 @@ function CommentRow({
   workspaceRole,
   highlighted,
   onPasteFiles,
+  onReply,
 }: {
   taskKey: string;
   projectKey: string;
@@ -776,6 +862,7 @@ function CommentRow({
   workspaceRole: WorkspaceRole | undefined;
   highlighted: boolean;
   onPasteFiles?: (files: File[]) => void;
+  onReply?: (body: string, done: () => void) => void;
 }) {
   const toast = useStatusToast();
   const update = useUpdateComment();
@@ -784,6 +871,8 @@ function CommentRow({
   const [editDraft, setEditDraft] = useState(comment.body);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [replying, setReplying] = useState(false);
+  const [replyDraft, setReplyDraft] = useState('');
   const canEdit = meId === comment.authorId;
   const canDelete = canEdit || workspaceRole === 'owner' || workspaceRole === 'admin';
 
@@ -854,6 +943,11 @@ function CommentRow({
           <>
             <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: readableDescriptionHtml(comment.body, people) }} />
             <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              {onReply && (
+                <button type="button" onClick={() => setReplying((open) => !open)} style={commentAction}>
+                  Reply
+                </button>
+              )}
               <button type="button" onClick={copyLink} style={commentAction}>
                 {linkCopied ? 'Copied' : 'Copy link'}
               </button>
@@ -868,6 +962,28 @@ function CommentRow({
                 </button>
               )}
             </div>
+            {replying && onReply && (
+              <div style={{ marginTop: 8 }}>
+                <DescriptionEditor
+                  value={replyDraft}
+                  people={people}
+                  invitePeople={mentionInvite.invitePeople}
+                  canInvite={mentionInvite.canInvite}
+                  onInvite={mentionInvite.onInvite}
+                  compact
+                  showPasteHint={false}
+                  minHeight={56}
+                  placeholder="Write a reply. Type @ to mention someone."
+                  ariaLabel="Reply"
+                  onChange={setReplyDraft}
+                  onPasteFiles={onPasteFiles}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                  <Button onClick={() => { setReplying(false); setReplyDraft(''); }}>Cancel</Button>
+                  <Button type="primary" disabled={isEmptyDescription(replyDraft)} onClick={() => onReply(replyDraft, () => { setReplying(false); setReplyDraft(''); })}>Reply</Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -898,14 +1014,20 @@ const commentAction = {
 
 function PhoneMoveBar({
   task,
+  people,
+  mentionInvite,
   options,
   onMove,
   onDraftChange,
+  onPasteFiles,
 }: {
   task: TaskDetail;
+  people: ProjectDetail['users'];
+  mentionInvite: ReturnType<typeof useMentionInvite>;
   options: ReturnType<typeof moveOptions>;
   onMove: (statusId: string) => void;
   onDraftChange: (value: string) => void;
+  onPasteFiles?: (files: File[]) => void;
 }) {
   const add = useAddComment();
   const [draft, setDraft] = useState('');
@@ -914,33 +1036,26 @@ function PhoneMoveBar({
     onDraftChange(value);
   };
   const send = () => {
-    if (!draft.trim()) return;
-    add.mutate({ key: task.key, body: draft.trim() }, { onSuccess: () => write('') });
+    const body = persistDescription(draft);
+    if (isEmptyDescription(body) || add.isPending) return;
+    add.mutate({ key: task.key, body }, { onSuccess: () => write('') });
   };
   const allowed = options.filter((item) => item.check.kind === 'allowed');
 
   return (
-    <div style={{ flex: 'none', padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: `1px solid ${color.border}`, display: 'flex', flexDirection: 'column', gap: 10, background: color.surface }}>
-      <Input
-        value={draft}
-        onChange={(e) => write(e.target.value)}
-        onPressEnter={send}
-        placeholder="Comment…"
-        aria-label="Write a comment"
-        style={{ height: 44, borderRadius: 22 }}
-      />
+    <div className="bt-phone-move-bar" style={{ flex: 'none', padding: '10px 14px calc(10px + env(safe-area-inset-bottom, 0px))', borderTop: `1px solid ${color.border}`, display: 'flex', flexDirection: 'column', gap: 10, background: color.surface }}>
       {allowed.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(allowed.length, 2)}, minmax(0, 1fr))`, gap: 8 }}>
-          {allowed.slice(0, 2).map((item, index) => {
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {allowed.slice(0, 2).map((item) => {
             const label = item.check.kind === 'allowed' && item.check.transition.label && !item.status.side
               ? `${item.check.transition.label} · ${item.status.name}`
               : item.status.name;
             return (
               <Button
                 key={item.status.id}
-                type={index === 0 && !item.status.side ? 'primary' : 'default'}
+                size="small"
                 onClick={() => onMove(item.status.id)}
-                style={{ height: 48, borderRadius: 12, fontSize: 15, fontWeight: index === 0 ? 600 : 500 }}
+                style={{ height: 32, borderRadius: 8, fontSize: 13 }}
               >
                 {label}
               </Button>
@@ -948,6 +1063,28 @@ function PhoneMoveBar({
           })}
         </div>
       )}
+      <DescriptionEditor
+        value={draft}
+        people={people}
+        invitePeople={mentionInvite.invitePeople}
+        canInvite={mentionInvite.canInvite}
+        onInvite={mentionInvite.onInvite}
+        compact
+        showPasteHint={false}
+        minHeight={56}
+        placeholder="Comment. Type @ to mention someone."
+        ariaLabel="Comment"
+        onChange={write}
+        onPasteFiles={onPasteFiles}
+        onEditorKeyDown={(e) => {
+          if (e.key !== 'Enter' || e.shiftKey) return;
+          e.preventDefault();
+          send();
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
+      </div>
     </div>
   );
 }

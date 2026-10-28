@@ -10,6 +10,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { useQuickAdd } from './components/QuickAdd';
 import { AcceptInviteScreen } from './screens/auth/AcceptInviteScreen';
 import { CreateWorkspaceScreen } from './screens/auth/CreateWorkspaceScreen';
+import { EmailLinkScreen } from './screens/auth/EmailLinkScreen';
 import { SignInScreen } from './screens/auth/SignInScreen';
 import { WelcomeGuestScreen } from './screens/auth/WelcomeGuestScreen';
 import { WelcomeMemberScreen } from './screens/auth/WelcomeMemberScreen';
@@ -132,6 +133,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInScreen />} />
+      <Route path="/sign-in/email" element={<EmailLinkScreen />} />
       <Route path="/privacy" element={<PublicLegalScreen key="privacy" kind="privacy" />} />
       <Route path="/terms" element={<PublicLegalScreen key="terms" kind="terms" />} />
       <Route path="/invite/:token" element={<AcceptInviteScreen />} />

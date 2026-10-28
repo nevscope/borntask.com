@@ -24,7 +24,8 @@ export function ProjectsScreen() {
   const acceptInvite = useAcceptProjectInvite();
   const role = useMe().data?.workspaceRole;
   const canCreate = role !== 'viewer' && role !== 'guest';
-  const rows = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
+  const listed = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
+  const rows = [...listed].sort((a, b) => Number(b.starred) - Number(a.starred));
 
   return (
     <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>

@@ -187,6 +187,7 @@ export type Subtask = z.infer<typeof SubtaskSchema>;
 export const CommentSchema = z.object({
   id: z.string(),
   authorId: z.string(),
+  parentId: z.string().nullable().optional(),
   body: z.string(),
   via: ActorViaSchema,
   createdAt: z.string(),
@@ -341,6 +342,12 @@ export const MoveTaskInputSchema = z.object({
 });
 export type MoveTaskInput = z.infer<typeof MoveTaskInputSchema>;
 
+export const MoveTaskToProjectInputSchema = z.object({
+  projectKey: z.string().min(1),
+  sectionId: z.string().optional(),
+});
+export type MoveTaskToProjectInput = z.infer<typeof MoveTaskToProjectInputSchema>;
+
 export const ReorderTaskInputSchema = z.object({
   sectionId: z.string(),
   /** Place before this task; null = end of the section. */
@@ -381,8 +388,10 @@ export interface Api {
   createTask(input: CreateTaskInput): Promise<Task>; // POST /projects/:projectKey/tasks
   updateTask(key: string, input: UpdateTaskInput): Promise<Task>; // PATCH /tasks/:key
   moveTask(key: string, input: MoveTaskInput): Promise<Task>; // POST /tasks/:key/move  (403 TRANSITION_NOT_ALLOWED)
+  moveTaskToProject(key: string, input: MoveTaskToProjectInput): Promise<Task>; // POST /tasks/:key/move-project
   reorderTask(key: string, input: ReorderTaskInput): Promise<Task>; // POST /tasks/:key/reorder
-  addComment(key: string, body: string): Promise<Comment>; // POST /tasks/:key/comments
+  copyTask(key: string): Promise<Task>; // POST /tasks/:key/copy
+  addComment(key: string, body: string, parentId?: string): Promise<Comment>; // POST /tasks/:key/comments
   updateComment(key: string, commentId: string, body: string): Promise<Comment>; // PATCH /tasks/:key/comments/:id
   deleteComment(key: string, commentId: string): Promise<void>; // DELETE /tasks/:key/comments/:id
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks

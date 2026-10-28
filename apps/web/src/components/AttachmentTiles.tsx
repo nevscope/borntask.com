@@ -1,6 +1,7 @@
 import { MAX_ATTACHMENT_BYTES, partitionAttachmentFiles } from '@borntask/shared';
 import { Modal } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import { useBackLayer } from '../lib/backLayer';
 import { color, radius } from '../theme/tokens';
 
 export { MAX_ATTACHMENT_BYTES };
@@ -222,6 +223,7 @@ function AttachmentPreviewBody({
   onDownload?: () => void;
 }) {
   const [turn, setTurn] = useState(0);
+  useBackLayer(true, onClose);
   useEffect(() => {
     setTurn(0);
   }, [item.name, src]);

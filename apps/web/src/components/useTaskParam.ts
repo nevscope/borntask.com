@@ -18,6 +18,6 @@ export function useTaskParam() {
       next.delete('task');
       next.delete('comment');
       return next;
-    });
+    }, { replace: true });
   return { taskKey, commentId, openTask, closeTask };
 }

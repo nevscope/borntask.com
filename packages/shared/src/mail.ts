@@ -43,5 +43,34 @@ const digestMailSchema = z.object({
   footerNote: z.string().min(1),
 });
 
-export const mailJobSchema = z.discriminatedUnion('kind', [inviteMailSchema, wrongAccountMailSchema, digestMailSchema]);
+const loginCodeMailSchema = z.object({
+  kind: z.literal('login-code'),
+  to: z.string().email(),
+  code: z.string().length(6),
+  linkUrl: z.string().url(),
+});
+
+const taskEventMailSchema = z.object({
+  kind: z.literal('task-event'),
+  to: z.string().email(),
+  greetingName: z.string().min(1),
+  actorName: z.string().min(1),
+  eventLabel: z.string().min(1),
+  taskKey: z.string().min(1),
+  title: z.string().min(1),
+  projectName: z.string().min(1),
+  statusName: z.string().optional(),
+  comment: z.string().optional(),
+  url: z.string().url(),
+  replyTo: z.string().email().optional(),
+  profileUrl: z.string().url(),
+});
+
+export const mailJobSchema = z.discriminatedUnion('kind', [
+  inviteMailSchema,
+  wrongAccountMailSchema,
+  digestMailSchema,
+  loginCodeMailSchema,
+  taskEventMailSchema,
+]);
 export type MailJob = z.infer<typeof mailJobSchema>;

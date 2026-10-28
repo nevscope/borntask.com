@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CreateTaskInput, MoveTaskInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -88,8 +88,10 @@ export const api: Api = {
   createTask: (input) => tasksApi().createTask(input),
   updateTask: (key, input) => tasksApi().updateTask(key, input),
   moveTask: (key, input) => tasksApi().moveTask(key, input),
+  moveTaskToProject: (key, input) => tasksApi().moveTaskToProject(key, input),
   reorderTask: (key, input) => tasksApi().reorderTask(key, input),
-  addComment: (key, body) => tasksApi().addComment(key, body),
+  copyTask: (key) => tasksApi().copyTask(key),
+  addComment: (key, body, parentId) => tasksApi().addComment(key, body, parentId),
   updateComment: (key, commentId, body) => tasksApi().updateComment(key, commentId, body),
   deleteComment: (key, commentId) => tasksApi().deleteComment(key, commentId),
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
@@ -348,6 +350,14 @@ export function useCreateTask() {
   });
 }
 
+export function useCopyTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => api.copyTask(key),
+    onSuccess: (task) => invalidateTaskViews(qc, task),
+  });
+}
+
 export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({
@@ -368,6 +378,18 @@ export function useMoveTask() {
   });
 }
 
+export function useMoveTaskToProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: MoveTaskToProjectInput }) => api.moveTaskToProject(key, input),
+    onSuccess: (task, { key }) => {
+      invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) });
+      invalidateTaskViews(qc, task);
+      void qc.removeQueries({ queryKey: qk.task(key) });
+    },
+  });
+}
+
 export function useReorderTask() {
   const qc = useQueryClient();
   return useMutation({
@@ -381,7 +403,7 @@ export function useReorderTask() {
 export function useAddComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ key, body }: { key: string; body: string }) => api.addComment(key, body),
+    mutationFn: ({ key, body, parentId }: { key: string; body: string; parentId?: string }) => api.addComment(key, body, parentId),
     onSuccess: (_c, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
   });
 }

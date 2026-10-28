@@ -81,14 +81,16 @@ type Profile = {
   email: string;
   timeZone: string;
   digestMode: DigestMode;
+  emailPerTask: boolean;
   prefs: Pref[];
 };
 
-function snapshot(draft: { name: string; timeZone: string; digestMode: DigestMode; prefs: Pref[] }) {
+function snapshot(draft: { name: string; timeZone: string; digestMode: DigestMode; emailPerTask: boolean; prefs: Pref[] }) {
   return JSON.stringify({
     name: draft.name.trim(),
     timeZone: draft.timeZone,
     digestMode: draft.digestMode,
+    emailPerTask: draft.emailPerTask,
     prefs: draft.prefs,
   });
 }
@@ -104,6 +106,7 @@ export function ProfileSettingsScreen() {
   const [name, setName] = useState(me?.user.name ?? '');
   const [timeZone, setTimeZone] = useState<string>('Europe/Malta');
   const [digestMode, setDigestMode] = useState<DigestMode>('workdays');
+  const [emailPerTask, setEmailPerTask] = useState(false);
   const [prefs, setPrefs] = useState<Pref[]>(emptyPrefs);
   const [baseline, setBaseline] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -151,12 +154,13 @@ export function ProfileSettingsScreen() {
     setName(profile.data.name);
     setTimeZone(profile.data.timeZone);
     setDigestMode(profile.data.digestMode);
+    setEmailPerTask(profile.data.emailPerTask);
     setPrefs(profile.data.prefs);
     setBaseline(snapshot(profile.data));
     setSaved(false);
   }, [profile.data]);
 
-  const dirty = Boolean(baseline) && snapshot({ name, timeZone, digestMode, prefs }) !== baseline;
+  const dirty = Boolean(baseline) && snapshot({ name, timeZone, digestMode, emailPerTask, prefs }) !== baseline;
   const unsaved = useUnsavedChanges(dirty || urlDirty);
 
   const prefOf = (event: string) => prefs.find((row) => row.event === event) ?? { event, inApp: true, email: true };
@@ -177,7 +181,7 @@ export function ProfileSettingsScreen() {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), timeZone, digestMode, prefs }),
+      body: JSON.stringify({ name: name.trim(), timeZone, digestMode, emailPerTask, prefs }),
     });
     const json = await res.json().catch(() => ({})) as Profile & { message?: string };
     setBusy(false);
@@ -193,6 +197,7 @@ export function ProfileSettingsScreen() {
     setName(json.name);
     setTimeZone(json.timeZone);
     setDigestMode(json.digestMode);
+    setEmailPerTask(json.emailPerTask);
     setPrefs(json.prefs);
     setBaseline(snapshot(json));
     setSaved(true);
@@ -402,7 +407,7 @@ export function ProfileSettingsScreen() {
       <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
         <span style={{ flex: '1 1 280px' }}>
           <span style={{ display: 'block', fontWeight: 600 }}>Daily digest email</span>
-          <span style={{ fontSize: 13, color: color.muted }}>What's due and what mentions you, once a day instead of one email per event.</span>
+          <span style={{ fontSize: 13, color: color.muted }}>What's due and what mentions you, once a day. Turn on one email per ticket below if you also want an email as things happen.</span>
         </span>
         <Select
           value={digestMode}
@@ -414,6 +419,15 @@ export function ProfileSettingsScreen() {
             { value: 'off', label: 'Off' },
           ]}
         />
+      </section>
+      <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
+        <span style={{ flex: '1 1 280px' }}>
+          <span style={{ display: 'block', fontWeight: 600 }}>One email per ticket</span>
+          <span style={{ fontSize: 13, color: color.muted }}>Send an email when you are assigned, mentioned or someone comments on a task you watch. Reply to that email to add a comment.</span>
+        </span>
+        <Checkbox checked={emailPerTask} onChange={(event) => { setEmailPerTask(event.target.checked); setSaved(false); }}>
+          Send one email per event
+        </Checkbox>
       </section>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Button type="primary" loading={busy} disabled={!dirty} onClick={() => void save()}>

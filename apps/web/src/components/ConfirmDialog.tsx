@@ -1,6 +1,7 @@
 // SheetModals alertdialog. Used when a click cannot be undone.
 import { Modal } from 'antd';
 import type { ReactNode } from 'react';
+import { useBackLayer } from '../lib/backLayer';
 import { color, font, radius } from '../theme/tokens';
 
 export function ConfirmDialog({
@@ -26,6 +27,7 @@ export function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  useBackLayer(open, onCancel);
   return (
     <Modal
       open={open}

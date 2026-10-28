@@ -1,5 +1,6 @@
 export * from './queues.js';
 export * from './mail.js';
+export * from './inboundMail.js';
 export * from './digest.js';
 export * from './domain.js';
 export * from './attachments.js';

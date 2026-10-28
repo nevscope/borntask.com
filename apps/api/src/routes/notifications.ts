@@ -177,11 +177,15 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     return first;
   }
 
+  async function unreadFor(auth: Awaited<ReturnType<typeof requireAuth>>) {
+    return auth.db.notification.count({ where: { userId: auth.userId, readAt: null } });
+  }
+
   app.get('/me/notifications', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
       const items = (await listFor(auth)).map(present);
-      return { items, unreadCount: items.filter((n) => !n.readAt).length };
+      return { items, unreadCount: await unreadFor(auth) };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -201,7 +205,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         data: { readAt: new Date() },
       });
       const items = (await listFor(auth)).map(present);
-      return { items, unreadCount: items.filter((n) => !n.readAt).length };
+      return { items, unreadCount: await unreadFor(auth) };
     } catch (err) {
       return sendError(reply, err);
     }

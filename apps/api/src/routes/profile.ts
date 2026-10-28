@@ -27,6 +27,7 @@ const saveSchema = z.object({
   name: z.string().trim().min(1, 'Enter a display name.').max(80, 'Display name must be 80 characters or fewer.'),
   timeZone: z.enum(TIME_ZONES),
   digestMode: z.enum(['workdays', 'daily', 'off']),
+  emailPerTask: z.boolean().optional(),
   prefs: z.array(prefSchema).length(PROFILE_EVENTS.length),
 });
 
@@ -61,6 +62,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         email: user.email,
         timeZone: TIME_ZONES.includes(user.timeZone as (typeof TIME_ZONES)[number]) ? user.timeZone : 'Europe/Malta',
         digestMode: user.digestMode,
+        emailPerTask: user.emailPerTask,
         prefs: presentPrefs(rows),
       };
     } catch (err) {
@@ -77,7 +79,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
 
       await prisma.user.update({
         where: { id: auth.userId },
-        data: { name: body.name, timeZone: body.timeZone, digestMode: body.digestMode },
+        data: { name: body.name, timeZone: body.timeZone, digestMode: body.digestMode, emailPerTask: body.emailPerTask ?? undefined },
       });
 
       for (const row of body.prefs) {
@@ -105,6 +107,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         email: user.email,
         timeZone: user.timeZone,
         digestMode: user.digestMode,
+        emailPerTask: user.emailPerTask,
         prefs: presentPrefs(rows),
         initials: initialsOf(user.name),
       };

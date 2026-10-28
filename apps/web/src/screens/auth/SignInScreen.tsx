@@ -1,5 +1,5 @@
 import { Button, Form, Input } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../../api/http';
 import { useMe } from '../../api/queries';
@@ -7,7 +7,7 @@ import { safeNext } from '../../lib/safeNext';
 import { LogoMark } from '../../components/Logo';
 import { color, font } from '../../theme/tokens';
 
-type Providers = { google: boolean; microsoft: boolean; devLogin: boolean };
+type Providers = { google: boolean; microsoft: boolean; email?: boolean; devLogin: boolean };
 
 const LOCAL_DEV_USER = { name: 'BornTask Owner', email: 'owner@borntask.com' };
 
@@ -81,13 +81,14 @@ export function SignInScreen() {
         <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
             <h2 style={{ margin: 0, fontFamily: font.display, fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em' }}>Sign in</h2>
-            <p style={{ margin: '8px 0 0', fontSize: 14, color: color.muted }}>Continue with Google or Microsoft. A new account sets up a workspace next.</p>
+            <p style={{ margin: '8px 0 0', fontSize: 14, color: color.muted }}>Continue with Google, Microsoft or an email code. A new account sets up a workspace next.</p>
           </div>
           <OauthButton mark="G" disabled={!providers.google} onClick={() => start('/auth/google')}>Continue with Google</OauthButton>
           <OauthButton mark="M" disabled={!providers.microsoft} onClick={() => start('/auth/microsoft')}>Continue with Microsoft</OauthButton>
+          <EmailCodeForm invite={invite} next={next} />
           {!providers.google && !providers.microsoft && !providers.devLogin && (
             <p style={{ color: color.muted, fontSize: 13, margin: 0 }}>
-              Google and Microsoft are not configured on this API. Set the OAuth client values in `.env` and restart the API.
+              Google and Microsoft are not configured on this API. You can still sign in with an email code.
             </p>
           )}
           {providers.devLogin && (
@@ -173,5 +174,163 @@ function OauthButton({ mark, disabled, onClick, children }: { mark: string; disa
       <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', background: color.chip, fontSize: 12, fontWeight: 700 }}>{mark}</span>
       {children}
     </button>
+  );
+}
+
+function EmailCodeForm({ invite, next }: { invite?: string; next?: string }) {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const sendCode = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/auth/email/start`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), next, invite }),
+      });
+      const json = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (!res.ok) {
+        setError(json?.message ?? 'We could not send the code. Try again.');
+        return;
+      }
+      setStep('code');
+      setCode('');
+      setNotice(`If ${email.trim()} can sign in, a code is on its way. Check your inbox and spam folder.`);
+    } catch {
+      setError('We could not send the code. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verify = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/auth/email/verify`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), code }),
+      });
+      const json = (await res.json().catch(() => null)) as { redirect?: string; message?: string } | null;
+      if (res.ok && json?.redirect) {
+        window.location.assign(json.redirect);
+        return;
+      }
+      setError(json?.message ?? 'That code did not work. Try again.');
+    } catch {
+      setError('That code did not work. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const linkStyle = {
+    background: 'none',
+    border: 0,
+    padding: 0,
+    color: color.brandStrong,
+    font: 'inherit',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  } as const;
+
+  if (step === 'code') {
+    return (
+      <form onSubmit={verify} aria-label="Enter your sign-in code" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1, height: 1, background: color.divider }} />
+          <span style={{ fontSize: 12, color: color.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>or</span>
+          <span style={{ flex: 1, height: 1, background: color.divider }} />
+        </div>
+        {notice ? (
+          <p role="status" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: color.ink3 }}>
+            {notice}
+          </p>
+        ) : null}
+        <label htmlFor="bt-email-code" style={{ fontSize: 13, fontWeight: 600 }}>
+          6-digit code
+        </label>
+        <Input
+          id="bt-email-code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          autoFocus
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="123456"
+        />
+        <Button type="primary" htmlType="submit" loading={busy} disabled={code.length !== 6} block style={{ height: 48, borderRadius: 10, fontWeight: 600 }}>
+          Sign in
+        </Button>
+        {error ? (
+          <p role="alert" style={{ margin: 0, color: color.danger, fontSize: 13 }}>
+            {error}
+          </p>
+        ) : null}
+        <p style={{ margin: 0, fontSize: 13, color: color.muted }}>
+          <button type="button" style={linkStyle} onClick={() => void sendCode()} disabled={busy}>
+            Send a new code
+          </button>
+          {' - '}
+          <button
+            type="button"
+            style={linkStyle}
+            onClick={() => {
+              setStep('email');
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            Use a different email
+          </button>
+        </p>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={sendCode} aria-label="Sign in with email" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ flex: 1, height: 1, background: color.divider }} />
+        <span style={{ fontSize: 12, color: color.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>or</span>
+        <span style={{ flex: 1, height: 1, background: color.divider }} />
+      </div>
+      <label htmlFor="bt-email-address" style={{ fontSize: 13, fontWeight: 600 }}>
+        Email
+      </label>
+      <Input
+        id="bt-email-address"
+        type="email"
+        autoComplete="email"
+        maxLength={320}
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+      />
+      <Button htmlType="submit" loading={busy} disabled={!email.trim()} block style={{ height: 48, borderRadius: 10, fontWeight: 600 }}>
+        Email me a code
+      </Button>
+      {error ? (
+        <p role="alert" style={{ margin: 0, color: color.danger, fontSize: 13 }}>
+          {error}
+        </p>
+      ) : null}
+    </form>
   );
 }
