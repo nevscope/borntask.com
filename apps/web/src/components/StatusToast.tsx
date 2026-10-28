@@ -65,8 +65,10 @@ export function StatusToastHost({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({ show, dismiss }), [show, dismiss]);
   return (
     <ToastContext.Provider value={value}>
-      {children}
-      {payload ? <StatusToastView payload={payload} onDismiss={dismiss} /> : null}
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {children}
+        {payload ? <StatusToastView payload={payload} onDismiss={dismiss} /> : null}
+      </div>
     </ToastContext.Provider>
   );
 }

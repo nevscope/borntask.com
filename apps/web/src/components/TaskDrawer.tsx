@@ -99,7 +99,7 @@ export function TaskDrawer() {
           wrapper: isPhone
             ? { top: 0, bottom: 0, height: '100%', maxHeight: '100dvh' }
             : { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
-          content: { height: '100%' },
+          content: { height: '100%', overflow: 'hidden' },
           body: { padding: 0, height: '100%', overflow: 'hidden' },
         }}
       >
@@ -469,7 +469,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
       </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' }}>
       <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {task.statusId === 'idea' && !inTrash && (
           canDecide ? (

@@ -10,6 +10,7 @@ import { App } from './App';
 import { QuickAddProvider } from './components/QuickAdd';
 import { BackLayerProvider } from './lib/backLayer';
 import { StatusToastHost } from './components/StatusToast';
+import { UpdateBanner } from './components/UpdateBanner';
 import { ThemeProvider } from './theme/ThemeProvider';
 import './theme/global.css';
 import './theme/theme.css';
@@ -25,11 +26,16 @@ const router = createBrowserRouter([
     path: '*',
     element: (
       <StatusToastHost>
-        <BackLayerProvider>
-        <QuickAddProvider>
-          <App />
-        </QuickAddProvider>
-        </BackLayerProvider>
+        <div className="bt-app-root">
+          <UpdateBanner />
+          <div className="bt-app-body">
+            <BackLayerProvider>
+            <QuickAddProvider>
+              <App />
+            </QuickAddProvider>
+            </BackLayerProvider>
+          </div>
+        </div>
       </StatusToastHost>
     ),
   },

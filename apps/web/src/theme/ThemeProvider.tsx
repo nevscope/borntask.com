@@ -61,7 +61,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <ConfigProvider theme={antdThemeFor(resolved)} locale={enGB}>
+      <ConfigProvider theme={antdThemeFor(resolved)} locale={enGB} getPopupContainer={() => document.body}>
         {children}
       </ConfigProvider>
     </ThemeContext.Provider>

@@ -11,15 +11,28 @@ The panel client times out at about 30s. The deploy keeps running. That timeout 
 
 ## How to run (preferred)
 
-Plesk REST domain exec as the subscription user. Domain id **144** (`borntask.com`). Shell is `/bin/bash`. Check `post_domains_by_id_exec` usage before the first call in a session.
+Plesk REST domain exec as the subscription user. Domain id **144** (`borntask.com`). Shell is `/bin/bash`. Check `post_domains_By_id_exec` usage before the first call in a session.
+
+Call `si_plesk_api_method_execute_write` with **nested** `arguments`. Flattening `id` / `command` next to `methodName` fails with `Missing required argument 'id'`.
+
+```
+methodName: post_domains_By_id_exec
+arguments: {
+  id: 144,
+  command: ["bash", "-lc", "..."]
+}
+```
 
 1. Confirm the user asked to deploy.
 2. If `deploy/plesk/deploy.sh` is already in `ps`, do not start another. Poll the log in step 4.
 3. Start it detached. Git stores the script as mode 644, so `bash -lc /path/deploy.sh` returns permission denied (exit 126). Always invoke it with `bash`:
 
 ```
-id: 144
-command: ["bash", "-lc", "setsid nohup bash /var/www/vhosts/borntask.com/repo/deploy/plesk/deploy.sh > /var/www/vhosts/borntask.com/repo/deploy/plesk/last-deploy.log 2>&1 < /dev/null & echo STARTED"]
+methodName: post_domains_By_id_exec
+arguments: {
+  id: 144,
+  command: ["bash", "-lc", "setsid nohup bash /var/www/vhosts/borntask.com/repo/deploy/plesk/deploy.sh > /var/www/vhosts/borntask.com/repo/deploy/plesk/last-deploy.log 2>&1 < /dev/null & echo STARTED"]
+}
 ```
 
 4. Poll `deploy/plesk/last-deploy.log`. Sleep about 45s, then `tail` the last 50 lines. Image builds often take several minutes. Stop when a line `DEPLOY_EXIT:` appears.

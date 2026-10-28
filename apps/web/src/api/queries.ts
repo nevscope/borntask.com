@@ -306,7 +306,12 @@ export const useProjectTrash = (projectKey: string) =>
       return body as Task[];
     },
   });
-export const useNotifications = () => useQuery({ queryKey: qk.notifications, queryFn: () => api.listNotifications() });
+export const useNotifications = () =>
+  useQuery({
+    queryKey: qk.notifications,
+    queryFn: () => api.listNotifications(),
+    staleTime: 15_000,
+  });
 
 // ---------- cache helpers ----------
 export type LiveTaskEvent = {
@@ -317,10 +322,18 @@ export type LiveTaskEvent = {
   actorId?: string;
 };
 
+let notifyInvalidateAt = 0;
+function invalidateNotificationsSoon(qc: QueryClient) {
+  const now = Date.now();
+  if (now - notifyInvalidateAt < 4000) return;
+  notifyInvalidateAt = now;
+  void qc.invalidateQueries({ queryKey: qk.notifications });
+}
+
 export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?: { skipTask?: boolean }) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(event.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
-  void qc.invalidateQueries({ queryKey: qk.notifications });
+  invalidateNotificationsSoon(qc);
   if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
 }
 

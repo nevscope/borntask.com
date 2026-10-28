@@ -318,7 +318,8 @@ export function StatusMenu({
 
 function placeMenu(rect: DOMRect): { top: number; left: number; up: boolean; maxHeight: number } {
   const width = Math.min(320, window.innerWidth - 16);
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+  const preferLeft = rect.right - width;
+  const left = Math.max(8, Math.min(preferLeft, rect.left, window.innerWidth - width - 8));
   const spaceBelow = window.innerHeight - rect.bottom - 8;
   const spaceAbove = rect.top - 8;
   const up = spaceBelow < 280 && spaceAbove > spaceBelow;
@@ -411,7 +412,7 @@ function Picker({
       aria-label={ariaLabel}
       style={{
         position: 'fixed',
-        zIndex: 1200,
+        zIndex: 2200,
         top: pos.top,
         left: pos.left,
         transform: pos.up ? 'translateY(-100%)' : undefined,

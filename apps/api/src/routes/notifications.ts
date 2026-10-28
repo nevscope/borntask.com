@@ -79,6 +79,8 @@ function present(
 
 type NotifyDb = Awaited<ReturnType<typeof requireAuth>>['db'];
 
+const actorBackfillTried = new Set<string>();
+
 function nearest<T>(rows: T[], at: Date, when: (row: T) => Date): T | undefined {
   return rows.reduce<T | undefined>((best, row) => {
     if (!best) return row;
@@ -87,7 +89,8 @@ function nearest<T>(rows: T[], at: Date, when: (row: T) => Date): T | undefined 
 }
 
 async function backfillActors(db: NotifyDb, rows: { id: string; actorId: string | null; kind: string; taskId: string | null; userId: string; createdAt: Date }[]) {
-  const missing = rows.filter((row) => !row.actorId);
+  const missing = rows.filter((row) => !row.actorId && !actorBackfillTried.has(row.id));
+  for (const row of missing) actorBackfillTried.add(row.id);
   if (!missing.length) return false;
 
   const commentTaskIds = [...new Set(missing.filter((row) => row.taskId && (row.kind === 'mention' || row.kind === 'watched_comment')).map((row) => row.taskId!))];
@@ -184,8 +187,8 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me/notifications', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const items = (await listFor(auth)).map(present);
-      return { items, unreadCount: await unreadFor(auth) };
+      const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
+      return { items: rows.map(present), unreadCount };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -204,8 +207,8 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         },
         data: { readAt: new Date() },
       });
-      const items = (await listFor(auth)).map(present);
-      return { items, unreadCount: await unreadFor(auth) };
+      const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
+      return { items: rows.map(present), unreadCount };
     } catch (err) {
       return sendError(reply, err);
     }

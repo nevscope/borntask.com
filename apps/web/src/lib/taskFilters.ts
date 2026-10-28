@@ -337,13 +337,18 @@ export function sortTasks(tasks: Task[], sort: SortBy): Task[] {
 }
 
 /** Keep group headers, but only the first `limit` tasks in display order. */
-export function takeGroupedTasks(groups: TaskGroup[], limit: number): Array<TaskGroup & { total: number }> {
+export function takeGroupedTasks(groups: TaskGroup[], limit: number, collapsedIds?: Set<string>): Array<TaskGroup & { total: number }> {
   let left = limit;
   const out: Array<TaskGroup & { total: number }> = [];
   for (const group of groups) {
+    const total = group.tasks.length;
+    if (collapsedIds?.has(group.id)) {
+      out.push({ ...group, tasks: [], total });
+      continue;
+    }
     if (left <= 0) break;
     const tasks = group.tasks.slice(0, left);
-    out.push({ ...group, tasks, total: group.tasks.length });
+    out.push({ ...group, tasks, total });
     left -= tasks.length;
   }
   return out;

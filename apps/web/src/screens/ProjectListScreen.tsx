@@ -2,7 +2,7 @@
 // Click type, status, assignee, due date or priority to change them. Status goes through moveTask.
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { Skeleton, Tooltip } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useCopyTask, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
 import { useStatusToast } from '../components/StatusToast';
@@ -19,6 +19,7 @@ import { useMoveFlow } from '../components/useMoveFlow';
 import { useTaskParam } from '../components/useTaskParam';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useVisibleWindow } from '../hooks/useVisibleWindow';
+import { readCollapsedGroups, writeCollapsedGroups } from '../lib/listCollapse';
 import { choicesFor, groupTasks, LIST_FIELD_LABEL, LIST_FIELD_WIDTH, LIST_FIELDS, personChoices, sortTasks, takeGroupedTasks, taskMatches, type ListField } from '../lib/taskFilters';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
@@ -47,7 +48,20 @@ export function ProjectListScreen() {
   }, [detail.data, visible, view.group, view.sort]);
   const windowReset = `${projectKey}|${view.group}|${view.sort}|${JSON.stringify(view.filters)}`;
   const { shown, sentinelRef, remaining } = useVisibleWindow(visible.length, windowReset);
-  const windowed = takeGroupedTasks(groups, shown);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set(readCollapsedGroups(projectKey, view.group)));
+  useEffect(() => {
+    setCollapsedIds(new Set(readCollapsedGroups(projectKey, view.group)));
+  }, [projectKey, view.group]);
+  const toggleGroup = (id: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      writeCollapsedGroups(projectKey, view.group, [...next]);
+      return next;
+    });
+  };
+  const windowed = takeGroupedTasks(groups, shown, collapsedIds);
 
   if (detail.isError || tasks.isError) return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error} />;
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
@@ -122,6 +136,8 @@ export function ProjectListScreen() {
             detail={d}
             tasks={group.tasks}
             canAdd={view.group === 'section' && group.id !== 'other'}
+            collapsed={collapsedIds.has(group.id)}
+            onCollapse={() => toggleGroup(group.id)}
             draggable={manual}
             selected={selected}
             meId={me?.user.id}
@@ -184,6 +200,8 @@ function SectionGroup({
   detail,
   tasks,
   canAdd,
+  collapsed,
+  onCollapse,
   draggable,
   selected,
   meId,
@@ -200,6 +218,8 @@ function SectionGroup({
   detail: ProjectDetail;
   tasks: Task[];
   canAdd: boolean;
+  collapsed: boolean;
+  onCollapse: () => void;
   draggable: boolean;
   selected: string[];
   meId?: string;
@@ -214,11 +234,22 @@ function SectionGroup({
   const end = useDroppable({ id: `end:${id}`, disabled: !draggable });
   return (
     <div className="bt-section-group">
-      <div className="bt-group-head">{name} <span style={{ color: color.muted, fontWeight: 500 }}>{total}</span></div>
-      {tasks.map((task) => (
+      <button
+        type="button"
+        className={`bt-group-head${end.isOver && collapsed ? ' drop-before' : ''}`}
+        aria-expanded={!collapsed}
+        onClick={onCollapse}
+        ref={collapsed ? end.setNodeRef : undefined}
+      >
+        <svg className="bt-group-chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {name} <span style={{ color: color.muted, fontWeight: 500 }}>{total}</span>
+      </button>
+      {!collapsed && tasks.map((task) => (
         <Row key={task.key} task={task} detail={detail} draggable={draggable && !compact} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} onToggle={() => onToggle(task.key)} compact={compact} hiddenCols={hiddenCols} />
       ))}
-      {canAdd && (
+      {canAdd && !collapsed && (
         <div ref={end.setNodeRef} className={`bt-row${end.isOver ? ' drop-before' : ''}`} style={{ padding: '0 16px 0 58px', minHeight: 40, height: 40 }}>
           <button
             type="button"

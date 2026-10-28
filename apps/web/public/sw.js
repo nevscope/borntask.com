@@ -1,6 +1,6 @@
 /* BornTask shell service worker. API and cookie/session fetches are network-only. */
-const SHELL = 'bt-shell-v1';
-const RUNTIME = 'bt-runtime-v1';
+const SHELL = 'bt-shell-v2';
+const RUNTIME = 'bt-runtime-v2';
 const SHELL_URLS = [
   '/',
   '/index.html',
@@ -33,7 +33,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname === '/api' || url.pathname.startsWith('/api/') || request.credentials === 'include') {
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/') || url.pathname === '/version.json' || request.credentials === 'include') {
     return;
   }
 
