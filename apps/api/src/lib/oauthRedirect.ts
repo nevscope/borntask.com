@@ -1,6 +1,6 @@
 import { validation } from '../errors.js';
 
-const DESKTOP_SCHEMES = new Set(['cursor:', 'vscode:', 'vscode-insiders:']);
+const DESKTOP_SCHEMES = new Set(['cursor:', 'vscode:', 'vscode-insiders:', 'claude:']);
 
 export function safeRedirect(uri: string): URL {
   let parsed: URL;

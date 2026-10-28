@@ -7,6 +7,7 @@ describe('OAuth return addresses', () => {
     expect(safeRedirect('http://localhost:8787/callback').hostname).toBe('localhost');
     expect(safeRedirect('http://127.0.0.1:8787/callback').hostname).toBe('127.0.0.1');
     expect(safeRedirect('cursor://anysphere.cursor-mcp/oauth/callback').protocol).toBe('cursor:');
+    expect(safeRedirect('claude://claude.ai/mcp-auth-callback/sdk').hostname).toBe('claude.ai');
   });
 
   test('rejects other schemes and non-local http', () => {
