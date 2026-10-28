@@ -520,7 +520,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       }
       const name = await actorName(auth.userId);
       const commentKey = taskKey(row.project.key, row.number);
-      const commentUrl = taskUrl(row.project.key, commentKey);
+      const commentUrl = taskUrl(row.project.key, commentKey, c.id);
       if (body.body.includes('@')) {
         const mentionJob = {
           projectId: row.projectId,

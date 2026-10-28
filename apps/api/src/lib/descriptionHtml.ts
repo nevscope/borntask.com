@@ -40,6 +40,8 @@ export function sanitizeDescriptionHtml(html: string): string {
     if (name === 'br') return '<br>';
     if (full.startsWith('</')) return `</${name}>`;
     if (name === 'a') {
+      const type = attr(full, 'data-type');
+      if (type === 'mention') return mentionOpenTag(attr(full, 'data-id'), attr(full, 'data-label'));
       const href = attr(full, 'href');
       const safe = safeHref(href);
       return safe ? `<a href="${escapeAttr(safe)}" rel="noopener noreferrer" target="_blank">` : '<a>';
@@ -49,7 +51,7 @@ export function sanitizeDescriptionHtml(html: string): string {
       const id = attr(full, 'data-id');
       const label = attr(full, 'data-label');
       if (type === 'mention') {
-        const bits = ['<span data-type="mention"'];
+        const bits = ['<span class="bt-mention" data-type="mention"'];
         if (id) bits.push(` data-id="${escapeAttr(id)}"`);
         if (label) bits.push(` data-label="${escapeAttr(label)}"`);
         bits.push('>');
@@ -59,6 +61,19 @@ export function sanitizeDescriptionHtml(html: string): string {
     }
     return `<${name}>`;
   });
+}
+
+function mentionSearchHref(label: string): string {
+  return `/search?q=${encodeURIComponent(label)}`;
+}
+
+function mentionOpenTag(id: string, label: string): string {
+  const name = label || id;
+  const bits = [`<a href="${escapeAttr(mentionSearchHref(name))}" class="bt-mention" data-type="mention"`];
+  if (id) bits.push(` data-id="${escapeAttr(id)}"`);
+  if (label) bits.push(` data-label="${escapeAttr(label)}"`);
+  bits.push('>');
+  return bits.join('');
 }
 
 function attr(tag: string, name: string): string {

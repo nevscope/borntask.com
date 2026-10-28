@@ -4,17 +4,20 @@ import { useSearchParams } from 'react-router-dom';
 export function useTaskParam() {
   const [params, setParams] = useSearchParams();
   const taskKey = params.get('task');
+  const commentId = params.get('comment');
   const openTask = (key: string) =>
     setParams((p) => {
       const next = new URLSearchParams(p);
       next.set('task', key);
+      next.delete('comment');
       return next;
     });
   const closeTask = () =>
     setParams((p) => {
       const next = new URLSearchParams(p);
       next.delete('task');
+      next.delete('comment');
       return next;
     });
-  return { taskKey, openTask, closeTask };
+  return { taskKey, commentId, openTask, closeTask };
 }

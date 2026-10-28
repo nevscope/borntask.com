@@ -122,8 +122,10 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-desc-surface code { font-family: var(--bt-mono); font-size: 12.5px; background: var(--bt-chip); padding: 1px 4px; border-radius: 4px; }
 .bt-desc-surface pre { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--bt-chip); overflow: auto; }
 .bt-desc-surface pre code { background: none; padding: 0; }
+.bt-desc-surface a,
+.bt-comment-body a { color: var(--bt-brand-strong); text-decoration: underline; cursor: pointer; }
 .bt-desc-surface .bt-mention,
-.bt-comment-body .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; }
+.bt-comment-body .bt-mention { font-weight: 600; color: var(--bt-brand-strong); background: var(--bt-brand-tint); border-radius: 4px; padding: 0 3px; text-decoration: none; cursor: pointer; }
 .bt-desc-surface p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; height: 0; color: var(--bt-muted); pointer-events: none; }
 .bt-task-title.ant-input,
 .bt-task-title textarea.ant-input {
@@ -133,6 +135,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   line-height: 1.25;
   resize: none;
 }
+.bt-comment-target { margin: -6px -8px; padding: 6px 8px; border-radius: 8px; background: var(--bt-brand-tint); outline: 1px solid var(--bt-brand); }
 .bt-comment-body { font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .bt-comment-body p { margin: 0 0 6px; }
 .bt-comment-body p:last-child { margin-bottom: 0; }

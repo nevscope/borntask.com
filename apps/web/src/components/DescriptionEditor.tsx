@@ -4,12 +4,22 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { User } from '../api/types';
-import { persistDescription, toEditorHtml } from '../lib/descriptionHtml';
+import { mentionSearchHref, persistDescription, toEditorHtml } from '../lib/descriptionHtml';
 import { color, font, radius } from '../theme/tokens';
 import { filesFromClipboard } from './AttachmentTiles';
 
 export type MentionInviteTarget = { email: string; person?: User };
+
+const TaskMention = Mention.extend({
+  parseHTML() {
+    return [
+      { tag: 'span[data-type="mention"]' },
+      { tag: 'a[data-type="mention"]' },
+    ];
+  },
+});
 
 interface Props {
   value: string;
@@ -66,6 +76,9 @@ export function DescriptionEditor({
   const [focused, setFocused] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   mentionUiOpen.current = mentionOpen;
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -78,13 +91,13 @@ export function DescriptionEditor({
         strike: false,
         underline: false,
         link: {
-          openOnClick: false,
+          openOnClick: true,
           autolink: true,
           HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
         },
       }),
       Placeholder.configure({ placeholder }),
-      Mention.configure({
+      TaskMention.configure({
         HTMLAttributes: { class: 'bt-mention' },
         suggestion: mentionSuggestion(peopleRef, invitePeopleRef, canInviteRef, onInviteRef, suggestionOpen),
       }),
@@ -110,6 +123,18 @@ export function DescriptionEditor({
         event.stopPropagation();
         pasteFiles.current(files);
         return true;
+      },
+      handleClick(_view, _pos, event) {
+        const target = event.target as HTMLElement | null;
+        const mention = target?.closest?.('[data-type="mention"]');
+        if (mention instanceof HTMLElement) {
+          const label = mention.getAttribute('data-label') || mention.textContent?.replace(/^@/, '').trim() || '';
+          if (!label) return false;
+          event.preventDefault();
+          navigateRef.current(mentionSearchHref(label));
+          return true;
+        }
+        return false;
       },
     },
     onUpdate: ({ editor: next }) => {

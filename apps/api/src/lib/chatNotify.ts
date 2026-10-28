@@ -4,8 +4,9 @@ import { config } from '../env.js';
 import { prisma } from '../db.js';
 import { getNotifyQueue, JOB } from './queue.js';
 
-export function taskUrl(projectKey: string, taskKey: string): string {
-  return `${config.publicUrl.replace(/\/$/, '')}/p/${encodeURIComponent(projectKey)}/list?task=${encodeURIComponent(taskKey)}`;
+export function taskUrl(projectKey: string, taskKey: string, commentId?: string): string {
+  const base = `${config.publicUrl.replace(/\/$/, '')}/p/${encodeURIComponent(projectKey)}/list?task=${encodeURIComponent(taskKey)}`;
+  return commentId ? `${base}&comment=${encodeURIComponent(commentId)}` : base;
 }
 
 export async function enqueueChat(auth: Authed, job: Omit<ChatPostJob, 'tenantId'>): Promise<void> {

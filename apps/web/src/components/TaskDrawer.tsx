@@ -29,7 +29,7 @@ import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSess
 import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
 import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { useWorkspaceCatalog } from '../api/catalog';
-import { isEmptyDescription, persistDescription, sanitizeDescriptionHtml, toEditorHtml } from '../lib/descriptionHtml';
+import { isEmptyDescription, persistDescription, readableDescriptionHtml } from '../lib/descriptionHtml';
 import { allowedTypeSlugs } from '../lib/taskFilters';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
@@ -186,18 +186,20 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
     writeTaskAttachments(task.key, next);
   };
 
-  async function addTaskFiles(list: File[] | FileList) {
+  async function addTaskFiles(list: File[] | FileList): Promise<number> {
     const { accepted, reason } = partitionAttachmentFiles(Array.from(list));
     if (reason) toast.show({ kind: 'error', text: reason });
-    if (!accepted.length) return;
+    if (!accepted.length) return 0;
     try {
       const next = [...files];
       for (const file of accepted) {
         next.push(await uploadTaskFile(task.key, file));
       }
       setAttachments(next);
+      return accepted.length;
     } catch (err) {
       toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not attach that file.' });
+      return 0;
     }
   }
 
@@ -569,7 +571,7 @@ function DrawerBody({ task, detail, onClose, closeNow, guard }: { task: TaskDeta
         </Section>
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
-        <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} hideComposer={isPhone || readOnly} />
+        <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }} hideComposer={isPhone || readOnly} />
         <DevelopmentSection task={task} />
 
         <AttachmentPreview
@@ -669,8 +671,9 @@ function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (v
   );
 }
 
-function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; mentionInvite: ReturnType<typeof useMentionInvite>; onDraftChange: (value: string) => void; hideComposer?: boolean }) {
+function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteFiles, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; mentionInvite: ReturnType<typeof useMentionInvite>; onDraftChange: (value: string) => void; onPasteFiles?: (files: File[]) => void; hideComposer?: boolean }) {
   const me = useMe().data;
+  const { commentId } = useTaskParam();
   const add = useAddComment();
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
@@ -690,6 +693,12 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComp
     });
   };
   const userOf = (id: string) => detail.users.find((u) => u.id === id);
+  useEffect(() => {
+    if (!commentId) return;
+    setTab('comments');
+    const el = document.getElementById(`comment-${commentId}`);
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [commentId, task.comments.length]);
   const activity = task.activity
     .map((a) => ({ id: a.id, at: a.at, who: userOf(a.actorId), text: a.text, via: a.via }))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -706,7 +715,7 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComp
       </div>
       {tab === 'comments'
         ? task.comments.map((comment) => (
-            <CommentRow key={comment.id} taskKey={task.key} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} />
+            <CommentRow key={comment.id} taskKey={task.key} projectKey={task.projectKey} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={comment.id === commentId} onPasteFiles={onPasteFiles} />
           ))
         : activity.map((item) => (
             <div key={item.id} style={{ fontSize: 12.5, color: color.muted, paddingLeft: 38 }}>
@@ -724,9 +733,10 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComp
             compact
             showPasteHint={false}
             minHeight={64}
-            placeholder="Write a comment. Type @ to mention someone."
+            placeholder="Write a comment. Type @ to mention someone. Paste a screenshot to attach it."
             ariaLabel="Comment"
             onChange={write}
+            onPasteFiles={onPasteFiles}
             onEditorKeyDown={(e) => {
               if (e.key !== 'Enter') return;
               if (e.shiftKey) return;
@@ -735,7 +745,7 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComp
             }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line. Type @ to tag someone.</span>
+            <span style={{ fontSize: 12, color: color.muted }}><kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line. Type @ to tag someone. Paste a screenshot to attach it.</span>
             <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
           </div>
         </>
@@ -746,28 +756,52 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, hideComp
 
 function CommentRow({
   taskKey,
+  projectKey,
   comment,
   who,
   people,
   mentionInvite,
   meId,
   workspaceRole,
+  highlighted,
+  onPasteFiles,
 }: {
   taskKey: string;
+  projectKey: string;
   comment: Comment;
   who: ProjectDetail['users'][number] | undefined;
   people: ProjectDetail['users'];
   mentionInvite: ReturnType<typeof useMentionInvite>;
   meId: string | undefined;
   workspaceRole: WorkspaceRole | undefined;
+  highlighted: boolean;
+  onPasteFiles?: (files: File[]) => void;
 }) {
+  const toast = useStatusToast();
   const update = useUpdateComment();
   const remove = useDeleteComment();
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(comment.body);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const canEdit = meId === comment.authorId;
   const canDelete = canEdit || workspaceRole === 'owner' || workspaceRole === 'admin';
+
+  function copyLink() {
+    const url = `${window.location.origin}/p/${encodeURIComponent(projectKey)}/list?task=${encodeURIComponent(taskKey)}&comment=${encodeURIComponent(comment.id)}`;
+    const done = () => {
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+      toast.show('Comment link copied.');
+    };
+    if (!navigator.clipboard?.writeText) {
+      toast.show({ text: 'Could not copy the link.', kind: 'error' });
+      return;
+    }
+    void navigator.clipboard.writeText(url).then(done).catch(() => {
+      toast.show({ text: 'Could not copy the link.', kind: 'error' });
+    });
+  }
 
   const save = () => {
     const body = persistDescription(editDraft);
@@ -783,7 +817,7 @@ function CommentRow({
   };
 
   return (
-    <div style={{ display: 'flex', gap: 10 }}>
+    <div id={`comment-${comment.id}`} className={highlighted ? 'bt-comment-target' : undefined} style={{ display: 'flex', gap: 10 }}>
       <Avatar user={who} size={28} />
       <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.5 }}>
         <strong>{who?.name}</strong> <span style={{ color: color.muted, fontSize: 12.5 }}>{dayjs(comment.createdAt).format('D MMM HH:mm')}</span>
@@ -802,6 +836,7 @@ function CommentRow({
                 placeholder="Edit comment. Type @ to mention someone."
                 ariaLabel="Edit comment"
                 onChange={setEditDraft}
+                onPasteFiles={onPasteFiles}
                 onEditorKeyDown={(e) => {
                   if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); return; }
                   if (e.key !== 'Enter' || e.shiftKey) return;
@@ -817,21 +852,22 @@ function CommentRow({
           </>
         ) : (
           <>
-            <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: sanitizeDescriptionHtml(toEditorHtml(comment.body)) }} />
-            {(canEdit || canDelete) && (
-              <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-                {canEdit && (
-                  <button type="button" onClick={() => { setEditDraft(comment.body); setEditing(true); }} style={commentAction}>
-                    Edit
-                  </button>
-                )}
-                {canDelete && (
-                  <button type="button" onClick={() => setConfirmDelete(true)} style={commentAction}>
-                    Delete
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: readableDescriptionHtml(comment.body, people) }} />
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              <button type="button" onClick={copyLink} style={commentAction}>
+                {linkCopied ? 'Copied' : 'Copy link'}
+              </button>
+              {canEdit && (
+                <button type="button" onClick={() => { setEditDraft(comment.body); setEditing(true); }} style={commentAction}>
+                  Edit
+                </button>
+              )}
+              {canDelete && (
+                <button type="button" onClick={() => setConfirmDelete(true)} style={commentAction}>
+                  Delete
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>

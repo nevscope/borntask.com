@@ -74,6 +74,8 @@ export function sanitizeDescriptionHtml(html: string): string {
     if (name === 'br') return '<br>';
     if (full.startsWith('</')) return `</${name}>`;
     if (name === 'a') {
+      const type = attr(full, 'data-type');
+      if (type === 'mention') return mentionOpenTag(attr(full, 'data-id'), attr(full, 'data-label'));
       const href = attr(full, 'href');
       const safe = safeHref(href);
       return safe ? `<a href="${escapeAttr(safe)}" rel="noopener noreferrer" target="_blank">` : '<a>';
@@ -83,7 +85,7 @@ export function sanitizeDescriptionHtml(html: string): string {
       const id = attr(full, 'data-id');
       const label = attr(full, 'data-label');
       if (type === 'mention') {
-        const bits = ['<span data-type="mention"'];
+        const bits = ['<span class="bt-mention" data-type="mention"'];
         if (id) bits.push(` data-id="${escapeAttr(id)}"`);
         if (label) bits.push(` data-label="${escapeAttr(label)}"`);
         bits.push('>');
@@ -93,6 +95,80 @@ export function sanitizeDescriptionHtml(html: string): string {
     }
     return `<${name}>`;
   });
+}
+
+export function mentionSearchHref(label: string): string {
+  return `/search?q=${encodeURIComponent(label)}`;
+}
+
+function mentionOpenTag(id: string, label: string): string {
+  const name = label || id;
+  const bits = [`<a href="${escapeAttr(mentionSearchHref(name))}" class="bt-mention" data-type="mention"`];
+  if (id) bits.push(` data-id="${escapeAttr(id)}"`);
+  if (label) bits.push(` data-label="${escapeAttr(label)}"`);
+  bits.push('>');
+  return bits.join('');
+}
+
+/** Display-only: turn raw URLs and @Name into links. Persist still uses sanitizeDescriptionHtml. */
+export function readableDescriptionHtml(value: string, people: { id: string; name: string }[] = []): string {
+  const html = toEditorHtml(value);
+  if (!html) return '';
+  return linkifyPlainUrls(linkifyAtNames(mentionsToLinks(html), people));
+}
+
+function mentionsToLinks(html: string): string {
+  return html.replace(/<span([^>]*data-type=["']mention["'][^>]*)>([\s\S]*?)<\/span>/gi, (_all, rawAttrs: string, inner: string) => {
+    const attrs = `<span${rawAttrs}>`;
+    return `${mentionOpenTag(attr(attrs, 'data-id'), attr(attrs, 'data-label'))}${inner}</a>`;
+  });
+}
+
+function mapTextOutsideLinks(html: string, fn: (text: string) => string): string {
+  return html
+    .split(/(<a\b[^>]*>[\s\S]*?<\/a>)/gi)
+    .map((part) => {
+      if (/^<a\b/i.test(part)) return part;
+      return part.replace(/([^<]+)|(<[^>]+>)/g, (_all, text: string | undefined, tag: string | undefined) => (tag ? tag : fn(text ?? '')));
+    })
+    .join('');
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function linkifyAtNames(html: string, people: { id: string; name: string }[]): string {
+  if (!people.length) return html;
+  const names = [...people]
+    .flatMap((person) => {
+      const first = person.name.split(/\s+/)[0] ?? person.name;
+      const firstUnique = people.filter((other) => (other.name.split(/\s+/)[0] ?? '') === first).length === 1;
+      return firstUnique && first !== person.name
+        ? [{ id: person.id, name: person.name, token: person.name }, { id: person.id, name: person.name, token: first }]
+        : [{ id: person.id, name: person.name, token: person.name }];
+    })
+    .sort((a, b) => b.token.length - a.token.length);
+  return mapTextOutsideLinks(html, (text) => {
+    let out = text;
+    for (const person of names) {
+      const re = new RegExp(`@${escapeRegExp(person.token)}(?![\\p{L}\\p{N}])`, 'giu');
+      out = out.replace(re, () => `${mentionOpenTag(person.id, person.name)}@${escapeText(person.name)}</a>`);
+    }
+    return out;
+  });
+}
+
+function linkifyPlainUrls(html: string): string {
+  return mapTextOutsideLinks(html, (text) =>
+    text.replace(/\b(https?:\/\/[^\s<]+)/gi, (raw) => {
+      const trimmed = raw.replace(/[),.;!?]+$/u, '');
+      const tail = raw.slice(trimmed.length);
+      const safe = safeHref(trimmed);
+      if (!safe) return raw;
+      return `<a href="${escapeAttr(safe)}" rel="noopener noreferrer" target="_blank">${escapeText(trimmed)}</a>${tail}`;
+    }),
+  );
 }
 
 function attr(tag: string, name: string): string {

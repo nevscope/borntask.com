@@ -18,6 +18,7 @@ import {
   tokenAtCursor,
   TYPE_TOKENS,
 } from '../lib/quickParse';
+import { allowedTypeSlugs } from '../lib/taskFilters';
 import { checkMove, initialStatusFor, moveOptions, statusById } from '../lib/workflow';
 import { chipFromHex, color, priorityStyle, radius, typeStyle } from '../theme/tokens';
 import { rememberTaskAttachments } from '../lib/attachmentSession';
@@ -101,7 +102,8 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [typeError, setTypeError] = useState(false);
   const [raw, setRaw] = useState('');
   const catalog = useWorkspaceCatalog();
-  const typeList = catalog.types.length ? catalog.types.map((item) => item.slug) : TYPES;
+  const catalogSlugs = catalog.types.length ? catalog.types.map((item) => item.slug) : TYPES;
+  const typeList = detail ? allowedTypeSlugs(detail, catalogSlugs) : catalogSlugs;
   const [description, setDescription] = useState('');
   const [assigneeOverride, setAssigneeOverride] = useState<string | null | undefined>(undefined);
   const [dueOverride, setDueOverride] = useState<string | null | undefined>(undefined);
@@ -131,6 +133,15 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     if (!sectionId || !detail.sections.some((s) => s.id === sectionId)) setSectionId(detail.sections[0]?.id);
   }, [detail, sectionId]);
 
+  useEffect(() => {
+    if (!detail || !type) return;
+    if (!typeList.includes(type)) {
+      setType(undefined);
+      setStatusPick(undefined);
+      setMoveComment('');
+    }
+  }, [detail, type, typeList]);
+
   const people = useMemo(
     () => (detail ? detail.users.filter((u) => detail.members.some((m) => m.userId === u.id)) : []),
     [detail],
@@ -139,8 +150,8 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const parsed = parseQuickTitle(raw, people);
   const token = tokenAtCursor(raw, caret);
   const suggestions = useMemo(
-    () => (token && !suggestDismissed ? suggestionsFor(token.kind, token.query, people) : []),
-    [token, suggestDismissed, people],
+    () => (token && !suggestDismissed ? suggestionsFor(token.kind, token.query, people, typeList) : []),
+    [token, suggestDismissed, people, typeList],
   );
   const suggestOpen = !!token && !suggestDismissed;
 
@@ -174,8 +185,8 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   }
 
   useEffect(() => {
-    if (parsed.type && parsed.type !== type) changeType(parsed.type);
-  }, [parsed.type, type]);
+    if (parsed.type && parsed.type !== type && typeList.includes(parsed.type)) changeType(parsed.type);
+  }, [parsed.type, type, typeList]);
 
   function pickType(t: TaskType) {
     setRaw((prev) => stripTypeTokens(prev));
@@ -328,7 +339,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           }
           finish(task.key, task.projectKey, openAfter);
         },
-        onError: () => toast.show({ kind: 'error', text: 'Could not create this task.' }),
+        onError: (err) => toast.show({ kind: 'error', text: err instanceof Error && err.message ? err.message : 'Could not create this task.' }),
       },
     );
     })();
@@ -652,7 +663,7 @@ interface TitleSuggestion {
   user?: User;
 }
 
-function suggestionsFor(kind: '@' | '#' | '!', query: string, people: User[]): TitleSuggestion[] {
+function suggestionsFor(kind: '@' | '#' | '!', query: string, people: User[], allowedTypes: string[]): TitleSuggestion[] {
   const q = query.toLowerCase();
   if (kind === '@') {
     return people
@@ -668,6 +679,7 @@ function suggestionsFor(kind: '@' | '#' | '!', query: string, people: User[]): T
   }
   if (kind === '#') {
     return TYPE_TOKENS
+      .filter((item) => allowedTypes.includes(item.type))
       .filter((item) => item.token.includes(q) || typeLook(item.type).label.toLowerCase().includes(q))
       .map((item) => ({
         id: item.type,

@@ -138,13 +138,18 @@ export async function callTool(token: string, name: string, args: Record<string,
       return text(await api(token, 'GET', '/me/tasks'));
     case 'create_task': {
       const projectKey = str('projectKey') ?? '';
-      const project = await api(token, 'GET', `/projects/${encodeURIComponent(projectKey)}`) as { sections?: { id: string }[] };
+      const project = await api(token, 'GET', `/projects/${encodeURIComponent(projectKey)}`) as {
+        sections?: { id: string }[];
+        disabledTypes?: string[];
+      };
       const sectionId = str('sectionId') ?? project.sections?.[0]?.id;
       if (!sectionId) throw new Error('This project has no section to put the task in.');
+      const disabled = new Set(project.disabledTypes ?? []);
+      const defaultType = ['idea', 'bug', 'improvement', 'feature', 'task'].find((slug) => !disabled.has(slug)) ?? 'idea';
       return text(await api(token, 'POST', `/projects/${encodeURIComponent(projectKey)}/tasks`, {
         projectKey,
         sectionId,
-        type: str('type') ?? 'idea',
+        type: str('type') ?? defaultType,
         title: str('title') ?? '',
         description: str('description') ?? '',
         assigneeId: str('assigneeId') ?? null,
