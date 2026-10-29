@@ -146,6 +146,16 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     }
   }, [detail, type, typeList]);
 
+  useEffect(() => {
+    if (opts.type || type) return;
+    if (typeList.length !== 1) return;
+    const only = typeList[0];
+    if (only) {
+      setType(only as TaskType);
+      setTypeError(false);
+    }
+  }, [opts.type, type, typeList]);
+
   const people = useMemo(
     () => (detail ? detail.users.filter((u) => detail.members.some((m) => m.userId === u.id)) : []),
     [detail],

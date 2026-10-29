@@ -1,7 +1,7 @@
 // Filter builder, saved views, group and sort. Shared by the list and the board.
 import { Input, Modal, Select } from 'antd';
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import type { ProjectDetail } from '../api/types';
 import {
   activePresetId,
@@ -24,8 +24,10 @@ import {
   readColumns,
   readGroup,
   readHiddenCols,
+  readLastProjectView,
   readSavedViews,
   readSort,
+  writeLastProjectView,
   writeSavedViews,
   type ColumnBy,
   type FilterCondition,
@@ -53,18 +55,31 @@ export type ProjectView = {
 
 const KEEP = ['task', 'f', 'group', 'sort', 'columns', 'hide', 'view'] as const;
 
+const URL_VIEW_KEYS = ['f', 'view', 'group', 'sort', 'columns', 'hide'] as const;
+
 export function useProjectView(): ProjectView & { setView: (patch: Partial<ProjectView>) => void } {
+  const { projectKey } = useParams();
   const [params, setParams] = useSearchParams();
+  const hasUrlView = URL_VIEW_KEYS.some((key) => params.has(key));
+  const last = !hasUrlView && projectKey ? readLastProjectView(projectKey) : null;
   const rawFilters = params.get('f');
-  const filters = rawFilters === null ? defaultFilters() : decodeFilters(rawFilters);
-  const group = readGroup(params.get('group'));
-  const sort = readSort(params.get('sort'));
-  const columns = readColumns(params.get('columns'));
-  const hiddenCols = readHiddenCols(params.get('hide'));
-  const viewId = params.get('view');
+  const filters = hasUrlView
+    ? (rawFilters === null ? defaultFilters() : decodeFilters(rawFilters))
+    : (last?.filters ?? defaultFilters());
+  const group = hasUrlView ? readGroup(params.get('group')) : (last?.group ?? 'section');
+  const sort = hasUrlView ? readSort(params.get('sort')) : (last?.sort ?? 'manual');
+  const columns = hasUrlView ? readColumns(params.get('columns')) : (last?.columns ?? 'status');
+  const hiddenCols = hasUrlView ? readHiddenCols(params.get('hide')) : (last?.hiddenCols ?? []);
+  const viewId = hasUrlView ? params.get('view') : (last?.viewId ?? 'preset-open');
+
+  useEffect(() => {
+    if (!projectKey) return;
+    writeLastProjectView(projectKey, { filters, group, sort, columns, hiddenCols, viewId });
+  }, [projectKey, encodeFilters(filters), group, sort, columns, encodeHiddenCols(hiddenCols), viewId]);
 
   const setView = (patch: Partial<ProjectView>) => {
     const merged: ProjectView = { filters, group, sort, columns, hiddenCols, viewId, ...patch };
+    if (projectKey) writeLastProjectView(projectKey, merged);
     const next = new URLSearchParams(params);
     next.set('f', encodeFilters(merged.filters));
     next.set('group', merged.group);

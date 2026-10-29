@@ -151,7 +151,7 @@ export function newFilterId(): string {
 }
 
 export function defaultFilters(): FilterCondition[] {
-  return PRESET_VIEWS.find((preset) => preset.id === 'preset-all')?.filters ?? [];
+  return PRESET_VIEWS.find((preset) => preset.id === 'preset-open')?.filters ?? [];
 }
 
 /** Story/epic grouping only when the project has work breakdown on. */
@@ -519,4 +519,65 @@ export function readSavedViews(workspaceId: string, projectKey: string): SavedVi
 
 export function writeSavedViews(workspaceId: string, projectKey: string, views: SavedView[]): void {
   localStorage.setItem(VIEW_KEY(workspaceId, projectKey), JSON.stringify(views));
+}
+
+const LAST_VIEW_KEY = 'bt-last-project-view';
+
+export type LastProjectView = {
+  filters: FilterCondition[];
+  group: GroupBy;
+  sort: SortBy;
+  columns: ColumnBy;
+  hiddenCols: ListField[];
+  viewId: string | null;
+};
+
+function isStoredFilter(value: unknown): value is FilterCondition {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Partial<FilterCondition>;
+  return typeof row.id === 'string'
+    && typeof row.field === 'string' && isField(row.field)
+    && typeof row.op === 'string' && isOp(row.op)
+    && Array.isArray(row.values) && row.values.every((item) => typeof item === 'string');
+}
+
+export function readLastProjectView(projectKey: string): LastProjectView | null {
+  try {
+    const raw = localStorage.getItem(LAST_VIEW_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const row = (parsed as Record<string, unknown>)[projectKey];
+    if (!row || typeof row !== 'object') return null;
+    const view = row as Partial<LastProjectView>;
+    if (!Array.isArray(view.filters) || !view.filters.every(isStoredFilter)) return null;
+    if (!view.group || !isGroup(view.group) || !view.sort || !isSort(view.sort) || !view.columns || !isColumns(view.columns)) return null;
+    const hiddenCols = Array.isArray(view.hiddenCols)
+      ? view.hiddenCols.filter((col): col is ListField => (LIST_FIELDS as readonly string[]).includes(col))
+      : [];
+    return {
+      filters: view.filters,
+      group: view.group,
+      sort: view.sort,
+      columns: view.columns,
+      hiddenCols,
+      viewId: typeof view.viewId === 'string' ? view.viewId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastProjectView(projectKey: string, view: LastProjectView): void {
+  try {
+    const raw = localStorage.getItem(LAST_VIEW_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    const all = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, LastProjectView>
+      : {};
+    all[projectKey] = view;
+    localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(all));
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
