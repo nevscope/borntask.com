@@ -2,13 +2,14 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma, createTenantClient } from '../db.js';
 import { config } from '../env.js';
-import { requireAuth, requireUser, setSession } from '../context.js';
+import { requireAuth, requireUser, setSession, type Authed } from '../context.js';
 import { forbidden as forbid, notFound as nf, sendError as send, validation as val } from '../errors.js';
 import { remapRoleSlug } from '../lib/mappers.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { hashToken, newInviteToken } from '../lib/tokens.js';
 import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
+import { assertCanManageOpenProject } from '../lib/projectAccess.js';
 
 const createInviteSchema = z.object({
   emails: z.array(z.string().email()).min(1).max(20),
@@ -17,6 +18,14 @@ const createInviteSchema = z.object({
   projectRoleSlugs: z.array(z.string()).optional(),
   message: z.string().max(1000).optional(),
 });
+
+async function assertCanManageInvitation(auth: Authed, invite: { projectId: string | null }) {
+  if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin') return;
+  if (!invite.projectId) throw forbid('Only an owner or admin can manage workspace invitations.');
+  const project = await auth.db.project.findFirst({ where: { id: invite.projectId } });
+  if (!project) throw nf();
+  await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can manage this invitation.');
+}
 
 export const inviteRoutes: FastifyPluginAsync = async (app) => {
   app.post('/invites', async (req, reply) => {
@@ -178,12 +187,10 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
   app.post('/invites/:id/resend', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
-        throw forbid('Only an owner or admin can resend invitations.');
-      }
       const id = (req.params as { id: string }).id;
       const invite = await auth.db.invitation.findFirst({ where: { id } });
       if (!invite) throw nf();
+      await assertCanManageInvitation(auth, invite);
       if (invite.acceptedAt || invite.revokedAt) throw val('This invitation is no longer pending.');
       const { token, hash } = newInviteToken();
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -215,12 +222,10 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
   app.post('/invites/:id/revoke', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
-        throw forbid('Only an owner or admin can revoke invitations.');
-      }
       const id = (req.params as { id: string }).id;
       const invite = await auth.db.invitation.findFirst({ where: { id } });
       if (!invite) throw nf();
+      await assertCanManageInvitation(auth, invite);
       await auth.db.invitation.update({ where: { id: invite.id }, data: { revokedAt: new Date() } });
       return { ok: true };
     } catch (err) {

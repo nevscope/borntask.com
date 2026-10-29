@@ -2,7 +2,7 @@ import { Modal, Select } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { useMe, useProjects } from '../api/queries';
+import { qk, useMe, useProjects } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole, User } from '../api/types';
 import { RoleTag } from './Chips';
@@ -330,6 +330,8 @@ export function InvitePeopleButton({
       const json = await res.json() as { message?: string; invites?: { email: string; url: string; tenantRole: string }[] };
       if (!res.ok) throw new Error(json.message ?? 'Invite failed');
       void qc.invalidateQueries({ queryKey: ['invites'] });
+      void qc.invalidateQueries({ queryKey: qk.people });
+      void qc.invalidateQueries({ queryKey: qk.projects });
       sent.show(inviteSentText(json.invites ?? []));
       setOpen(false);
     } catch {

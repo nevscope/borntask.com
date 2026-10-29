@@ -9,6 +9,7 @@ import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { colourSchema, deleteRole, deleteType, deleteWorkflow, patchRole, patchType, uniqueSlug } from '../lib/adminCatalog.js';
 import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
+import { assertCanManageOpenProject } from '../lib/projectAccess.js';
 
 function requireOwnerAdmin(role: string) {
   if (role !== 'owner' && role !== 'admin') throw forbidden('Owners and admins only.');
@@ -355,8 +356,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/invites', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      requireOwnerAdmin(auth.workspaceRole);
       const q = req.query as { projectId?: string };
+      if (q.projectId) {
+        const project = await auth.db.project.findFirst({ where: { id: q.projectId } });
+        if (!project) throw notFound();
+        await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can see project invitations.');
+      } else {
+        requireOwnerAdmin(auth.workspaceRole);
+      }
       const invites = await auth.db.invitation.findMany({
         where: {
           acceptedAt: null,

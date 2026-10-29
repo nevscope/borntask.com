@@ -37,7 +37,7 @@ export function ProjectMembersScreen() {
   const qc = useQueryClient();
   const invites = useQuery({
     queryKey: ['invites', detail.data?.project.id],
-    enabled: canAdmin && !!detail.data?.project.id,
+    enabled: canReviewAccess && !!detail.data?.project.id,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/invites?projectId=${encodeURIComponent(detail.data!.project.id)}`, { credentials: 'include' });
       const json = await res.json() as { invites?: Invite[] };
@@ -140,7 +140,7 @@ export function ProjectMembersScreen() {
         </div>
       </section>
       {canReviewAccess && <AccessRequestsCard projectKey={projectKey} />}
-      {canAdmin && <section className="bt-card">
+      {canReviewAccess && <section className="bt-card">
         <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
           Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
         </h2>
