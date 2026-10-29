@@ -57,7 +57,7 @@ cd "$COMPOSE_DIR"
 docker_cmd compose "${compose_env[@]}" --profile app up -d --build
 
 docker_cmd compose "${compose_env[@]}" --profile app exec -T api \
-  npx prisma db push --schema /app/prisma/schema.prisma --accept-data-loss=false
+  node /app/prisma/migrateDeploy.mjs
 
 # Context is only the Dockerfile. deploy/plesk also holds .env.integrations.
 builder_ctx=$(mktemp -d)

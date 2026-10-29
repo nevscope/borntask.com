@@ -1,6 +1,7 @@
 // Workflow rules, shared by the board, the task drawer, My tasks and the mock API.
 // The Fastify API must enforce the same rules in moveTask(); the UI only uses them to show
 // what is possible before the user tries.
+import { createTaskStartSlug } from '@borntask/shared';
 import type { BuiltinProjectRole, ProjectRole, Task, Transition, Workflow, WorkflowStatus, WorkspaceRole } from '../api/types';
 import { roleStyle } from '../theme/tokens';
 
@@ -83,17 +84,25 @@ export function canOverride(workspaceRole: WorkspaceRole, myRoles: ProjectRole[]
   return workspaceRole === 'owner' || workspaceRole === 'admin' || myRoles.includes('lead');
 }
 
-/** Bugs skip approval when that stage exists; otherwise the first main backlog stage. */
-export function initialStatusFor(type: Task['type'], workflow?: Workflow, storiesNeedApproval = true): string {
-  const skipApproval = type === 'bug' || ((type === 'story' || type === 'epic') && !storiesNeedApproval);
+/** Same start stage as create-task: bugs follow Workspace.bugsStartIn; stories and epics follow the project setting. */
+export function initialStatusFor(
+  type: Task['type'],
+  workflow?: Workflow,
+  storiesNeedApproval = true,
+  bugsStartIn?: string | null,
+): string {
+  const slug = createTaskStartSlug(type, bugsStartIn, storiesNeedApproval);
   if (workflow) {
-    const wanted = skipApproval ? ['approved', 'new', 'todo', 'submitted', 'backlog', 'idea'] : ['idea', 'new', 'todo', 'submitted', 'backlog'];
-    for (const id of wanted) {
+    if (workflow.statuses.some((status) => status.id === slug && !status.side)) return slug;
+    const fallback = slug === 'approved'
+      ? ['approved', 'new', 'todo', 'submitted', 'backlog', 'idea']
+      : ['idea', 'new', 'todo', 'submitted', 'backlog'];
+    for (const id of fallback) {
       if (workflow.statuses.some((status) => status.id === id && !status.side)) return id;
     }
     return workflow.statuses.find((status) => status.category === 'backlog' && !status.side)?.id
       ?? workflow.statuses[0]?.id
-      ?? 'idea';
+      ?? slug;
   }
-  return skipApproval ? 'approved' : 'idea';
+  return slug;
 }

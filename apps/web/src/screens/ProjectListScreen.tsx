@@ -20,7 +20,7 @@ import { useTaskParam } from '../components/useTaskParam';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useVisibleWindow } from '../hooks/useVisibleWindow';
 import { readCollapsedGroups, writeCollapsedGroups } from '../lib/listCollapse';
-import { choicesFor, groupTasks, LIST_FIELD_LABEL, LIST_FIELD_WIDTH, LIST_FIELDS, personChoices, sortTasks, takeGroupedTasks, taskMatches, type ListField } from '../lib/taskFilters';
+import { allowedGroup, choicesFor, groupTasks, LIST_FIELD_LABEL, LIST_FIELD_WIDTH, LIST_FIELDS, personChoices, sortTasks, takeGroupedTasks, taskMatches, type ListField } from '../lib/taskFilters';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
 
@@ -44,8 +44,8 @@ export function ProjectListScreen() {
   }, [detail.data, tasks.data, view.filters, view.sort, me?.user.id]);
   const groups = useMemo(() => {
     if (!detail.data) return [];
-    return groupTasks(visible, view.group, detail.data).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
-  }, [detail.data, visible, view.group, view.sort]);
+    return groupTasks(visible, allowedGroup(view.group, detail.data.workBreakdown), detail.data, tasks.data).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
+  }, [detail.data, visible, view.group, view.sort, tasks.data]);
   const windowReset = `${projectKey}|${view.group}|${view.sort}|${JSON.stringify(view.filters)}`;
   const { shown, sentinelRef, remaining } = useVisibleWindow(visible.length, windowReset);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set(readCollapsedGroups(projectKey, view.group)));

@@ -36,7 +36,7 @@ export function ProjectBoardScreen() {
 
   const visible = useMemo(() => {
     if (!detail.data || !tasks.data) return [];
-    return tasks.data.filter((task) => task.type !== 'story' && task.type !== 'epic' && taskMatches(task, view.filters, detail.data, me?.user.id));
+    return tasks.data.filter((task) => taskMatches(task, view.filters, detail.data, me?.user.id));
   }, [detail.data, tasks.data, view.filters, me?.user.id]);
 
   if (detail.isError || tasks.isError) return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error} />;

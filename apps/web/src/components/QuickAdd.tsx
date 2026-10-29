@@ -167,7 +167,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const priority = priorityOverride ?? parsed.priority ?? 'none';
   const assignee = people.find((p) => p.id === assigneeId);
   const myRoles: ProjectRole[] = detail?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
-  const startStatus = detail && type ? statusById(detail.workflow, initialStatusFor(type, detail.workflow, detail.storiesNeedApproval !== false)) : undefined;
+  const startStatus = detail && type
+    ? statusById(detail.workflow, initialStatusFor(type, detail.workflow, detail.storiesNeedApproval !== false, catalog.bugsStartIn))
+    : undefined;
   const parentChoices = projectTasks.filter((task) => {
     if (type === 'story') return task.type === 'epic';
     if (type === 'epic') return false;

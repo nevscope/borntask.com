@@ -1,5 +1,5 @@
 import { suggestProjectKey, normaliseProjectKey } from '@borntask/shared';
-import { Button, Input, Radio, Select } from 'antd';
+import { Button, Input, Radio, Select, Switch } from 'antd';
 import type { WorkBreakdown } from '../api/types';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -244,9 +244,9 @@ export function CreateProjectScreen() {
             </span>
           </label>
           {workBreakdown !== 'off' && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-              <input type="checkbox" checked={storiesNeedApproval} onChange={(e) => setStoriesNeedApproval(e.target.checked)} />
-              Stories and epics start in Idea and need approval
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 500 }}>
+              <Switch checked={storiesNeedApproval} onChange={setStoriesNeedApproval} />
+              Stories and epics start in Idea
             </label>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

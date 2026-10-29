@@ -91,6 +91,8 @@ export const chipSwatches = [
   { id: 'violet', label: 'Violet', hex: '#5B3FC4', bg: '#F1EEFC', fg: '#5B3FC4', also: ['#8E59D9'], darkBg: '#28233F', darkFg: '#BBAAF7' },
   { id: 'graphite', label: 'Graphite', hex: '#3A3F38', bg: '#F1F2EF', fg: '#3A3F38', also: ['#5B6157', '#8A9086'], darkBg: '#252926', darkFg: '#C3C8BF' },
   { id: 'ink', label: 'Ink', hex: '#121417', bg: '#121417', fg: '#FFFFFF', darkBg: '#E8EBE5', darkFg: '#121417' },
+  { id: 'story', label: 'Story', hex: '#0F4C6A', bg: '#E6F1F6', fg: '#0F4C6A', darkBg: '#143040', darkFg: '#8EC4DE' },
+  { id: 'epic', label: 'Epic', hex: '#6B3D7A', bg: '#F4ECF6', fg: '#6B3D7A', darkBg: '#2E2238', darkFg: '#D2B4DE' },
 ] as const;
 
 export const statusSwatches = [

@@ -2,7 +2,12 @@ import { describe, expect, test } from 'vitest';
 import { renderMail } from '../apps/worker/src/mail.ts';
 import { isDueForHardDelete, TRASH_MS } from '../apps/worker/src/trashPurge.ts';
 import { digestSubject, shouldSendDigest, workingDaysBetween } from '../packages/shared/src/digest.ts';
+import { readdirSync } from 'node:fs';
 import { createTaskStartSlug, planningParentAllowed, planningTypeAllowed } from '../packages/shared/src/domain.ts';
+import { CHECKS } from '../prisma/migrateDeploy.mjs';
+import { allowedGroup, groupTasks } from '../apps/web/src/lib/taskFilters.ts';
+import { initialStatusFor } from '../apps/web/src/lib/workflow.ts';
+import type { ProjectDetail, Task } from '../apps/web/src/api/types.ts';
 import {
   commentParentForClient,
   htmlToPlain,
@@ -179,6 +184,33 @@ describe('planning parent rules', () => {
   });
 });
 
+describe('quick add start status', () => {
+  test('follows workspace bugsStartIn', () => {
+    expect(initialStatusFor('bug', undefined, true, 'idea')).toBe('idea');
+    expect(initialStatusFor('bug', undefined, true, 'approved')).toBe('approved');
+    expect(initialStatusFor('story', undefined, false)).toBe('approved');
+    expect(initialStatusFor('story', undefined, true)).toBe('idea');
+  });
+});
+
+describe('list grouping', () => {
+  test('keeps children under a story that the open filter hid', () => {
+    const story = { id: 's1', type: 'story', title: 'Checkout', planningParentId: null } as Task;
+    const child = { id: 't1', type: 'bug', title: 'Fail', planningParentId: 's1' } as Task;
+    const detail = { sections: [], users: [], workflow: { statuses: [] } } as unknown as ProjectDetail;
+    const groups = groupTasks([child], 'story', detail, [story, child]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.id).toBe('s1');
+    expect(groups[0]?.tasks.map((row) => row.id)).toEqual(['t1']);
+  });
+
+  test('drops story grouping when work breakdown is off', () => {
+    expect(allowedGroup('story', 'off')).toBe('section');
+    expect(allowedGroup('epic', 'stories')).toBe('section');
+    expect(allowedGroup('story', 'stories')).toBe('story');
+  });
+});
+
 describe('comment replies and notify de-dupe', () => {
   test('treats replies whose parent is gone as top-level', () => {
     const comments = [
@@ -226,5 +258,15 @@ describe('project automations', () => {
     expect(merged[0]).toEqual({ onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: false });
     expect(merged[1]?.enabled).toBe(true);
     expect(merged[2]?.onStatusSlug).toBe('wip');
+  });
+});
+
+describe('prisma migrate baseline list', () => {
+  test('covers every folder in prisma/migrations', () => {
+    const folders = readdirSync(new URL('../prisma/migrations', import.meta.url), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    expect(CHECKS.map((row) => row.name).sort()).toEqual(folders);
   });
 });

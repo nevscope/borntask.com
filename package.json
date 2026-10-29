@@ -21,6 +21,7 @@
     "test:isolation": "vitest run tests/isolation",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "node prisma/migrateDeploy.mjs",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:studio": "prisma studio",

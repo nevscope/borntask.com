@@ -151,7 +151,14 @@ export function newFilterId(): string {
 }
 
 export function defaultFilters(): FilterCondition[] {
-  return PRESET_VIEWS[0]!.filters;
+  return PRESET_VIEWS.find((preset) => preset.id === 'preset-all')?.filters ?? [];
+}
+
+/** Story/epic grouping only when the project has work breakdown on. */
+export function allowedGroup(group: GroupBy, breakdown?: string | null): GroupBy {
+  if (group === 'epic' && breakdown !== 'epics_stories') return 'section';
+  if (group === 'story' && breakdown !== 'stories' && breakdown !== 'epics_stories') return 'section';
+  return group;
 }
 
 export function sameFilters(a: FilterCondition[], b: FilterCondition[]): boolean {
@@ -442,7 +449,7 @@ export function takeGroupedTasks(groups: TaskGroup[], limit: number, collapsedId
   return out;
 }
 
-export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail): TaskGroup[] {
+export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail, allTasks?: Task[]): TaskGroup[] {
   if (group === 'none') return [{ id: 'all', name: 'All tasks', tasks }];
   if (group === 'section') {
     const known = new Set(detail.sections.map((s) => s.id));
@@ -462,8 +469,9 @@ export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail)
       .filter((g) => g.tasks.length > 0);
   }
   if (group === 'story' || group === 'epic') {
-    const byId = new Map(tasks.map((task) => [task.id, task]));
-    const parents = tasks.filter((task) => task.type === group);
+    const universe = allTasks ?? tasks;
+    const byId = new Map(universe.map((task) => [task.id, task]));
+    const parents = universe.filter((task) => task.type === group);
     const groups = parents.map((parent) => ({
       id: parent.id,
       name: parent.title,
@@ -476,8 +484,9 @@ export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail)
       if (task.type === group) return false;
       return group === 'story' ? !storyIdOf(task, byId) : !epicIdOf(task, byId);
     });
-    if (none.length) groups.push({ id: 'none', name: group === 'story' ? 'No story' : 'No epic', tasks: none });
-    return groups;
+    const visible = groups.filter((row) => row.tasks.length > 0);
+    if (none.length) visible.push({ id: 'none', name: group === 'story' ? 'No story' : 'No epic', tasks: none });
+    return visible;
   }
   const ids = [...new Set(tasks.map((t) => t.assigneeId ?? 'none'))];
   return ids.map((id) => ({

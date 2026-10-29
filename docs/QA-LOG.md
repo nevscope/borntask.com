@@ -161,10 +161,42 @@ Token-light pass. Gates: `npm test` 45 passed after isolation re-run; `npm run d
 | ID | Flow | Result | Finding |
 |---|---|---|---|
 | QA-22-01 | Isolation tests | Y | First `npm test` failed: `Project.disabledTypes` missing. Re-run of `tests/isolation` then passed (column present). |
-| QA-22-02 | Prisma migrate history | N (logged) | `prisma migrate deploy` returns P3005 (schema not empty / not baselined). Bigger than a smoke fix. Apply new SQL by hand or baseline `_prisma_migrations`. |
+| QA-22-02 | Prisma migrate history | Y | `prisma migrate deploy` returns P3005 (schema not empty / not baselined). Bigger than a smoke fix. Apply new SQL by hand or baseline `_prisma_migrations`. |
 | QA-22-03 | API reads | Y | Dev-login + GET `/me`, `/projects`, `/projects/WEB`, `/projects/WEB/tasks`, `/me/tasks`, `/tasks/WEB-1`, `/search?q=checkout`, `/people`, `/workflows`, `/me/notifications`, `/me/profile`, `/me/tokens`, `/projects/WEB/github`, `/projects/WEB/chat`, `/projects/WEB/automations` all 200. |
 | QA-22-04 | `GET /tasks?project=WEB` | n/a | 404. Correct path is `/projects/WEB/tasks`. Not a product bug. |
 | QA-22-05 | My tasks / List / Board / People | Y | `/` shows empty assigned + Website card. `/p/WEB/list` and `/p/WEB/board` list live tasks. `/settings/people` loads. Inbox shows 1 unread. |
 | QA-22-06 | Status category filter | leftover | List and board show "Remove Status category filter". Deployed WEB-1 is hidden. Stored view, not a crash. |
 
-Still N (unchanged): XLSX, Stripe, Chat DMs, 14-day trial, deploy, Prisma baseline.
+Still N (unchanged): XLSX, Stripe, Chat DMs, 14-day trial, deploy. Prisma baseline was closed on 29 Oct.
+
+# Pre-deploy review - 29 Oct 2026
+
+Scope: commit `f14c66a` ("many small changes") - work breakdown (stories/epics), list grouping, import parent column, profile prefs, filters. Did not deploy. Did not start a new import or create extra tasks.
+
+Gates (fresh this pass):
+
+| Gate | Result |
+|---|---|
+| `npm test` | 12 files, 63 tests passed (includes isolation + leftovers planning rules) |
+| `npm run typecheck` | passed (shared, api, mcp, web, worker) |
+| `npm run design:check` | contrast AA pass; design lint 98 files, 0 errors, 0 warnings |
+| API 3010 | 200 after dev-login: `/me`, `/projects`, `/projects/WEB` (`workBreakdown: epics_stories`, `storiesNeedApproval: true`), `/projects/WEB/tasks` (planning parent fields present), `/me/tasks`, `/me/profile`, `/people`, `/workflows` |
+| UI 5174 | `/p/WEB/settings/details` shows Work breakdown radios + "Stories and epics start in Idea" switch. `/p/WEB/list` loads. Group by Story/Epic not visible in the narrow browser pane (`!isPhone`). Status category filter chip still present (QA-22-06). |
+
+| ID | Pri | Area | Finding | Fix vs log |
+|---|---|---|---|---|
+| QA-29-01 | P0 | Deploy | New migration `prisma/migrations/20261029150000_work_breakdown/migration.sql` adds `Project.workBreakdown`, `Project.storiesNeedApproval`, `Task.planningParentId`. Prod will break if this is not applied. Existing leftover: `prisma migrate deploy` P3005 (not baselined). | Y locally. `prisma/migrateDeploy.mjs` baselines present migrations then deploys the rest. Plesk `deploy.sh` now runs that instead of `db push`. Not deployed. |
+| QA-29-02 | P2 | Quick add vs API | Web `initialStatusFor()` always starts bugs in Approved (`type === 'bug'`). API uses `createTaskStartSlug()` + `Workspace.bugsStartIn`. Workspace set to Idea would mismatch between drawer/API and Quick add. | Y. `initialStatusFor` uses `createTaskStartSlug`. Catalog now carries `bugsStartIn` into Quick add. |
+| QA-29-03 | P2 | Brand / create project | Create project uses a native checkbox for "Stories and epics start in Idea and need approval". Project details uses Ant Design Switch and shorter copy "Stories and epics start in Idea". Same setting, two controls and two labels. | Y. Both screens use Switch + "Stories and epics start in Idea". |
+| QA-29-04 | P2 | Board | `ProjectBoardScreen` hides story and epic cards (`task.type !== 'story' && task.type !== 'epic'`). Board has no Story/Epic grouping. Planning items only appear on list. | Y. They are tasks on the same workflow, so the board no longer hides them. |
+| QA-29-05 | P2 | List group | `groupTasks` builds the parent map from the *filtered* task list. If a story/epic is hidden by the Open/Completed filter, children land in "No story" / "No epic". | Y. Parents come from the full project set; rows inside groups stay filtered. |
+| QA-29-06 | P2 | Breakdown off | Turning work breakdown off does not clear `planningParentId` or change existing story/epic types. Saved views can still group by story. | Y. Keep data. Hide types and grouping. Invalid story/epic group falls back to section. |
+| QA-29-07 | P2 | Type chips | `PLANNING_TYPES` colours `#0F4C6A` / `#6B3D7A` are not on `chipSwatches`. Catalog `TypeTag` uses `chipFromHex`, so Story/Epic chips can miss the dark tokens in `theme.css`. | Y. Swatches added. `TypeTag` prefers `typeStyle` for builtin slugs. |
+| QA-29-08 | P2 | Import | Asana parent column still writes `Task.parentId` (subtask). Label is "Parent task (subtask)". It does not set `planningParentId`. Jira-style story/epic trees will not import as work breakdown. | Skipped. Import stays subtask `parentId`. |
+| QA-29-09 | P3 | Tests | Leftovers cover `planningTypeAllowed` / `planningParentAllowed` / start slugs only. No API test for create/update parent, loop, or type-not-allowed. | Y. `tests/planningParent.test.ts` covers create, update, self-parent, loop, type not allowed. |
+| QA-29-10 | P3 | MCP copy | `create_task` now accepts story/epic and `planningParentId`, but the tool description still only mentions idea/bug start rules. | Y. Description names story/epic start rules and work breakdown. |
+| QA-29-11 | P3 | Leftover | List still shows "Remove Status category filter" (QA-22-06). Not new, still hides Deployed WEB-1. | Y. Default view is All (no filters). Open remains a preset. |
+
+Brand pass: no em dash in new UI copy (hyphens in "Off - a flat list"). Brand green `#178A5C` on Website. New type tokens exist in light, dark, and system dark. Create-project checkbox is the main UI inconsistency.
+
+Still N: XLSX, Stripe, Chat DMs, 14-day trial, deploy. Prisma migrate path is in repo; prod still needs a deploy to run it.

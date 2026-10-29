@@ -215,7 +215,7 @@ export function ProjectDetailsScreen() {
               <Radio value="epics_stories">Epics and stories</Radio>
             </Radio.Group>
             <span style={{ fontSize: 12.5, fontWeight: 400, color: color.muted }}>
-              Optional. If you used Jira, turn on epics and stories. They stay as tasks on this workflow.
+              Optional. If you used Jira, turn on epics and stories. They stay as tasks on this workflow. Turning this off hides grouping and those types; existing parents stay.
             </span>
           </label>
           {workBreakdown !== 'off' && (

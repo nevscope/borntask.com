@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { ProjectDetail } from '../api/types';
 import {
   activePresetId,
+  allowedGroup,
   chipLabel,
   choicesFor,
   decodeFilters,
@@ -271,7 +272,7 @@ export function ProjectViewBar({
           <>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 13, color: color.muted }}>Group</span>
-            <select aria-label="Group" value={view.group} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
+            <select aria-label="Group" value={allowedGroup(view.group, detail.workBreakdown)} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
               <option value="section">Section</option>
               <option value="status">Status</option>
               <option value="assignee">Assignee</option>

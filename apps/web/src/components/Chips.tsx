@@ -8,7 +8,7 @@ export function TypeTag({ type, small = false }: { type: TaskType; small?: boole
   const catalog = useWorkspaceCatalog();
   const custom = catalog.types.find((item) => item.slug === type);
   const builtin = type in typeStyle ? typeStyle[type as BuiltinTaskType] : null;
-  const s = custom ? chipFromHex(custom.colour, custom.name) : builtin ?? chipFromHex(color.muted, type);
+  const s = builtin ?? (custom ? chipFromHex(custom.colour, custom.name) : chipFromHex(color.muted, type));
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', height: small ? 20 : 24, fontSize: small ? 11.5 : 12, fontWeight: 500, padding: small ? '0 7px' : '0 8px', borderRadius: 6, background: s.bg, color: s.fg, whiteSpace: 'nowrap' }}>
       {s.label}

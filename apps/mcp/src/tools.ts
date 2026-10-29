@@ -39,7 +39,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'create_task',
-    description: 'Create a task. The result includes a url you can open in the browser. Ideas, improvements and features start in Idea. Bugs start where the workspace says bugs start. You cannot delete, change settings or invite people.',
+    description: 'Create a task. The result includes a url you can open in the browser. Ideas, improvements and features start in Idea. Bugs start where the workspace says bugs start. Stories and epics start in Idea unless the project turns that off, in which case they start in Approved. Story and epic types need work breakdown on the project. You cannot delete, change settings or invite people.',
     inputSchema: {
       type: 'object',
       properties: {
