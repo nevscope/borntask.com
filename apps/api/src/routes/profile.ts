@@ -35,20 +35,31 @@ function defaultInApp() {
   return true;
 }
 
-function defaultEmail(event: string) {
-  return event !== 'digest_ready';
+function defaultEmail(event: string, emailPerTask: boolean, digestMode: string) {
+  if (event === 'digest_ready') return digestMode !== 'off';
+  return emailPerTask;
 }
 
-function presentPrefs(rows: { event: string; channel: string; enabled: boolean }[]) {
+function presentPrefs(
+  rows: { event: string; channel: string; enabled: boolean }[],
+  emailPerTask: boolean,
+  digestMode: string,
+) {
   return PROFILE_EVENTS.map((event) => {
     const inApp = rows.find((row) => row.event === event && row.channel === 'in_app');
     const email = rows.find((row) => row.event === event && row.channel === 'email');
     return {
       event,
       inApp: inApp ? inApp.enabled : defaultInApp(),
-      email: email ? email.enabled : defaultEmail(event),
+      email: email ? email.enabled : defaultEmail(event, emailPerTask, digestMode),
     };
   });
+}
+
+function digestModeFromPrefs(digestMode: 'workdays' | 'daily' | 'off', digestEmail: boolean | undefined) {
+  if (digestEmail === false) return 'off';
+  if (digestEmail === true && digestMode === 'off') return 'workdays';
+  return digestMode;
 }
 
 export const profileRoutes: FastifyPluginAsync = async (app) => {
@@ -63,7 +74,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         timeZone: TIME_ZONES.includes(user.timeZone as (typeof TIME_ZONES)[number]) ? user.timeZone : 'Europe/Malta',
         digestMode: user.digestMode,
         emailPerTask: user.emailPerTask,
-        prefs: presentPrefs(rows),
+        prefs: presentPrefs(rows, user.emailPerTask, user.digestMode),
       };
     } catch (err) {
       return sendError(reply, err);
@@ -76,10 +87,13 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       const body = saveSchema.parse(req.body);
       const seen = new Set(body.prefs.map((row) => row.event));
       if (seen.size !== PROFILE_EVENTS.length) throw validation('Every notification row is required.');
+      const digestEmail = body.prefs.find((row) => row.event === 'digest_ready')?.email;
+      const digestMode = digestModeFromPrefs(body.digestMode, digestEmail);
+      const emailPerTask = body.emailPerTask ?? body.prefs.some((row) => row.event !== 'digest_ready' && row.email);
 
       await prisma.user.update({
         where: { id: auth.userId },
-        data: { name: body.name, timeZone: body.timeZone, digestMode: body.digestMode, emailPerTask: body.emailPerTask ?? undefined },
+        data: { name: body.name, timeZone: body.timeZone, digestMode, emailPerTask },
       });
 
       for (const row of body.prefs) {
@@ -108,7 +122,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         timeZone: user.timeZone,
         digestMode: user.digestMode,
         emailPerTask: user.emailPerTask,
-        prefs: presentPrefs(rows),
+        prefs: presentPrefs(rows, user.emailPerTask, user.digestMode),
         initials: initialsOf(user.name),
       };
     } catch (err) {

@@ -1,8 +1,15 @@
+export type ImportReporterAs = 'importer' | 'original';
+
+export function parseImportReporterAs(raw: unknown): ImportReporterAs {
+  return raw === 'original' ? 'original' : 'importer';
+}
+
 export const ASANA_API_COLUMNS: Record<string, string> = {
   'Task ID': 'asanaTaskId',
   Name: 'title',
   Notes: 'description',
   'Assignee Email': 'assigneeEmail',
+  'Created By Email': 'reporterEmail',
   Followers: 'skip',
   'Section/Column': 'section',
   Tags: 'labels',
@@ -33,6 +40,7 @@ export type AsanaImportMapping = {
   source: 'asana_api';
   asanaProjectGid: string;
   sectionsAs: 'sections' | 'statuses';
+  reporterAs: ImportReporterAs;
   columns: Record<string, string>;
 };
 

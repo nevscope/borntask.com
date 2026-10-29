@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { workspacePackById, type WorkspacePack, type WorkspacePackId } from '@borntask/shared';
+import { PLANNING_TYPES, workspacePackById, type WorkspacePack, type WorkspacePackId } from '@borntask/shared';
 import type { TenantClient } from '../tenantPrisma.js';
 import { colourForCategory } from './mappers.js';
 
@@ -14,7 +14,11 @@ export async function bootstrapWorkspaceDefaults(db: Db, tenantId: string, packI
     });
     roleIds[role.slug] = row.id;
   }
-  for (const type of pack.types) {
+  const types = [...pack.types];
+  for (const extra of PLANNING_TYPES) {
+    if (!types.some((type) => type.slug === extra.slug)) types.push({ ...extra });
+  }
+  for (const type of types) {
     await db.taskType.create({
       data: {
         tenantId,

@@ -107,29 +107,18 @@ export function AttachmentIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function TaskHints({ task }: { task: Pick<Task, 'commentCount' | 'attachmentCount' | 'lastComment'> }) {
+export function TaskHints({ task }: { task: Pick<Task, 'commentCount' | 'lastComment'> }) {
   const comments = task.commentCount ?? 0;
-  const files = task.attachmentCount ?? 0;
-  if (comments < 1 && files < 1) return null;
+  if (comments < 1) return null;
   const last = (task.lastComment ?? '').trim();
   const commentTip = last || (comments === 1 ? '1 comment' : `${comments} comments`);
-  const fileTip = files === 1 ? '1 attachment' : `${files} attachments`;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: color.muted, flex: 'none' }} onClick={(event) => event.stopPropagation()}>
-      {comments > 0 && (
-        <Tooltip title={commentTip}>
-          <span aria-label={commentTip} style={{ display: 'inline-flex' }}>
-            <CommentIcon />
-          </span>
-        </Tooltip>
-      )}
-      {files > 0 && (
-        <Tooltip title={fileTip}>
-          <span aria-label={fileTip} style={{ display: 'inline-flex' }}>
-            <AttachmentIcon />
-          </span>
-        </Tooltip>
-      )}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: color.muted, flex: 'none' }}>
+      <Tooltip title={commentTip}>
+        <span aria-label={commentTip} style={{ display: 'inline-flex' }}>
+          <CommentIcon />
+        </span>
+      </Tooltip>
     </span>
   );
 }

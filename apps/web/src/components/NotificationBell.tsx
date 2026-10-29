@@ -43,13 +43,9 @@ function refLabel(n: Notification) {
 function NotificationRow({
   note,
   onOpen,
-  onAccept,
-  accepting,
 }: {
   note: Notification;
   onOpen: (note: Notification) => void;
-  onAccept: (note: Notification) => void;
-  accepting: boolean;
 }) {
   const unread = !note.readAt;
   return (
@@ -88,28 +84,6 @@ function NotificationRow({
           <span style={{ fontSize: 12, color: color.muted }}>{refLabel(note)} · {formatWhen(note.createdAt)}</span>
         </span>
       </button>
-      {note.needsAccept && note.projectKey && (
-        <button
-          type="button"
-          onClick={() => onAccept(note)}
-          disabled={accepting}
-          style={{
-            alignSelf: 'center',
-            height: 32,
-            padding: '0 12px',
-            border: 0,
-            borderRadius: radius.md,
-            background: color.brandFill,
-            color: color.brandOn,
-            font: 'inherit',
-            fontSize: 12.5,
-            fontWeight: 600,
-            cursor: accepting ? 'wait' : 'pointer',
-          }}
-        >
-          {accepting ? 'Joining…' : 'Join project'}
-        </button>
-      )}
       <span
         aria-hidden="true"
         style={{
@@ -162,17 +136,6 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
       return;
     }
     go(note);
-  };
-
-  const join = (note: Notification) => {
-    if (!note.projectKey) return;
-    void accept.mutateAsync(note.projectKey).then(() => {
-      if (!note.readAt) mark.mutate({ id: note.id });
-      onClose();
-      go(note);
-    }).catch((err: unknown) => {
-      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
-    });
   };
 
   return (
@@ -291,13 +254,7 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
                   )}
                 </div>
                 {visible.map((note) => (
-                  <NotificationRow
-                    key={note.id}
-                    note={note}
-                    onOpen={open}
-                    onAccept={join}
-                    accepting={accept.isPending && accept.variables === note.projectKey}
-                  />
+                  <NotificationRow key={note.id} note={note} onOpen={open} />
                 ))}
                 {hidden > 0 && (
                   <button

@@ -44,6 +44,10 @@
   --bt-type-improvement-fg: #8A5A0B;
   --bt-type-feature-bg: #EAF1FD;
   --bt-type-feature-fg: #1F55B8;
+  --bt-type-story-bg: #E6F1F6;
+  --bt-type-story-fg: #0F4C6A;
+  --bt-type-epic-bg: #F4ECF6;
+  --bt-type-epic-fg: #6B3D7A;
   --bt-tone-neutral-bg: #F1F2EF;
   --bt-tone-neutral-fg: #3A3F38;
   --bt-tone-neutral-dot: #8A9086;
@@ -164,6 +168,10 @@
   --bt-type-improvement-fg: #E8B75F;
   --bt-type-feature-bg: #182846;
   --bt-type-feature-fg: #8FB5F6;
+  --bt-type-story-bg: #143040;
+  --bt-type-story-fg: #8EC4DE;
+  --bt-type-epic-bg: #2E2238;
+  --bt-type-epic-fg: #D2B4DE;
   --bt-tone-neutral-bg: #252926;
   --bt-tone-neutral-fg: #C3C8BF;
   --bt-tone-neutral-dot: #8F968B;
@@ -285,6 +293,10 @@
     --bt-type-improvement-fg: #E8B75F;
     --bt-type-feature-bg: #182846;
     --bt-type-feature-fg: #8FB5F6;
+    --bt-type-story-bg: #143040;
+    --bt-type-story-fg: #8EC4DE;
+    --bt-type-epic-bg: #2E2238;
+    --bt-type-epic-fg: #D2B4DE;
     --bt-tone-neutral-bg: #252926;
     --bt-tone-neutral-fg: #C3C8BF;
     --bt-tone-neutral-dot: #8F968B;

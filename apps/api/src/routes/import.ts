@@ -102,6 +102,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({
         mapping: z.record(z.string()),
         sectionsAs: z.enum(['sections', 'statuses']).optional(),
+        reporterAs: z.enum(['importer', 'original']).optional(),
         projectKey: z.string().min(1).optional(),
       }).parse(req.body);
       const job = await auth.db.importJob.findFirst({ where: { id } });
@@ -118,7 +119,11 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         where: { id: job.id },
         data: {
           projectId,
-          mapping: { columns: body.mapping, sectionsAs: body.sectionsAs ?? 'sections' },
+          mapping: {
+            columns: body.mapping,
+            sectionsAs: body.sectionsAs ?? 'sections',
+            reporterAs: body.reporterAs ?? 'original',
+          },
         },
       });
       return { ok: true };
@@ -158,6 +163,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         asanaProject: z.string().min(1),
         token: z.string().min(8),
         sectionsAs: z.enum(['sections', 'statuses']).optional(),
+        reporterAs: z.enum(['importer', 'original']).optional(),
       }).parse(req.body);
       const dest = await requireOpenProjectWrite(auth, body.projectKey);
       const gid = parseAsanaProjectGid(body.asanaProject);
@@ -176,6 +182,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
             source: 'asana_api',
             asanaProjectGid: gid,
             sectionsAs: body.sectionsAs ?? 'sections',
+            reporterAs: body.reporterAs ?? 'original',
             columns: ASANA_API_COLUMNS,
           },
           createdById: auth.userId,

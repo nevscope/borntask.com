@@ -1,5 +1,6 @@
 import { suggestProjectKey, normaliseProjectKey } from '@borntask/shared';
-import { Button, Input, Select } from 'antd';
+import { Button, Input, Radio, Select } from 'antd';
+import type { WorkBreakdown } from '../api/types';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -33,6 +34,8 @@ export function CreateProjectScreen() {
   const [colour, setColour] = useState<string>(() => randomProjectColour());
   const [hexDraft, setHexDraft] = useState(colour);
   const [workflow, setWorkflow] = useState<'delivery' | 'simple'>('delivery');
+  const [workBreakdown, setWorkBreakdown] = useState<WorkBreakdown>('off');
+  const [storiesNeedApproval, setStoriesNeedApproval] = useState(true);
   const [sections, setSections] = useState<string[]>(['Inbox']);
   const [sectionDraft, setSectionDraft] = useState('');
   const [addingSection, setAddingSection] = useState(false);
@@ -99,6 +102,8 @@ export function CreateProjectScreen() {
           key: derivedKey || undefined,
           colour: parseProjectHex(colour) ?? colour,
           workflow,
+          workBreakdown,
+          storiesNeedApproval: workBreakdown === 'off' ? undefined : storiesNeedApproval,
           sections,
           members: picked.map((m) => ({ userId: m.userId, roleSlugs: m.roles })),
         }),
@@ -223,6 +228,27 @@ export function CreateProjectScreen() {
               />
             </label>
           </div>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+            Work breakdown
+            <Radio.Group
+              value={workBreakdown}
+              onChange={(e) => setWorkBreakdown(e.target.value)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+              <Radio value="off">Off - a flat list of tasks</Radio>
+              <Radio value="stories">Stories - group work under a story</Radio>
+              <Radio value="epics_stories">Epics and stories - if you used Jira</Radio>
+            </Radio.Group>
+            <span style={{ fontWeight: 400, color: color.muted, fontSize: 12.5 }}>
+              You can change this later. Stories and epics are still tasks, with the same workflow.
+            </span>
+          </label>
+          {workBreakdown !== 'off' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <input type="checkbox" checked={storiesNeedApproval} onChange={(e) => setStoriesNeedApproval(e.target.checked)} />
+              Stories and epics start in Idea and need approval
+            </label>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 500 }}>Sections</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>

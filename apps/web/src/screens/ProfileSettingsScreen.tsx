@@ -96,7 +96,11 @@ function snapshot(draft: { name: string; timeZone: string; digestMode: DigestMod
 }
 
 function emptyPrefs(): Pref[] {
-  return EVENTS.map((row) => ({ event: row.key, inApp: true, email: row.key !== 'digest_ready' }));
+  return EVENTS.map((row) => ({ event: row.key, inApp: true, email: false }));
+}
+
+function eventEmailOn(list: Pref[]) {
+  return list.some((row) => row.event !== 'digest_ready' && row.email);
 }
 
 export function ProfileSettingsScreen() {
@@ -167,7 +171,28 @@ export function ProfileSettingsScreen() {
 
   const patchPref = (event: string, next: Partial<Pref>) => {
     setSaved(false);
-    setPrefs((list) => list.map((row) => (row.event === event ? { ...row, ...next } : row)));
+    setPrefs((list) => {
+      const updated = list.map((row) => (row.event === event ? { ...row, ...next } : row));
+      if (event === 'digest_ready' && next.email !== undefined) {
+        setDigestMode(next.email ? (digestMode === 'off' ? 'workdays' : digestMode) : 'off');
+      }
+      if (event !== 'digest_ready' && next.email !== undefined) {
+        setEmailPerTask(eventEmailOn(updated));
+      }
+      return updated;
+    });
+  };
+
+  const setDigest = (value: DigestMode) => {
+    setDigestMode(value);
+    setSaved(false);
+    setPrefs((list) => list.map((row) => (row.event === 'digest_ready' ? { ...row, email: value !== 'off' } : row)));
+  };
+
+  const setPerTask = (on: boolean) => {
+    setEmailPerTask(on);
+    setSaved(false);
+    setPrefs((list) => list.map((row) => (row.event === 'digest_ready' ? row : { ...row, email: on })));
   };
 
   const save = async () => {
@@ -363,6 +388,7 @@ export function ProfileSettingsScreen() {
         <div style={{ minWidth: 620 }}>
           <div style={{ padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Notify me when</h2>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: color.muted }}>Tick Email for the events you want in your inbox. The daily digest has its own setting below.</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 90px 90px 110px', gap: 8, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
             <span /><span style={{ textAlign: 'center' }}>In app</span><span style={{ textAlign: 'center' }}>Email</span><span style={{ textAlign: 'center' }}>Google Chat</span>
@@ -411,7 +437,7 @@ export function ProfileSettingsScreen() {
         </span>
         <Select
           value={digestMode}
-          onChange={(value) => { setDigestMode(value); setSaved(false); }}
+          onChange={setDigest}
           style={{ minWidth: 180, height: 38, padding: '0 12px' }}
           options={[
             { value: 'workdays', label: 'Workdays at 08:00' },
@@ -425,7 +451,7 @@ export function ProfileSettingsScreen() {
           <span style={{ display: 'block', fontWeight: 600 }}>One email per ticket</span>
           <span style={{ fontSize: 13, color: color.muted }}>Send an email when you are assigned, mentioned or someone comments on a task you watch. Reply to that email to add a comment.</span>
         </span>
-        <Checkbox checked={emailPerTask} onChange={(event) => { setEmailPerTask(event.target.checked); setSaved(false); }}>
+        <Checkbox checked={emailPerTask} onChange={(event) => setPerTask(event.target.checked)}>
           Send one email per event
         </Checkbox>
       </section>

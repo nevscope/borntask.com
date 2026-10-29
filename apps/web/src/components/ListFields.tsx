@@ -62,7 +62,7 @@ export function ListFields({
   const toast = useStatusToast();
   const catalog = useWorkspaceCatalog();
   const update = useUpdateTask();
-  const allowed = allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature']);
+  const allowed = allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic']);
   const show = (field: ListField) => !hiddenCols.includes(field);
   const status = statusById(detail.workflow, task.statusId);
   const user = detail.users.find((row) => row.id === task.assigneeId);

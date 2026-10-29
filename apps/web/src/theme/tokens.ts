@@ -170,6 +170,8 @@ export const typeStyle: Record<BuiltinTaskType, { label: string; bg: string; fg:
   bug: { label: 'Bug', bg: 'var(--bt-type-bug-bg)', fg: 'var(--bt-type-bug-fg)' },
   improvement: { label: 'Improvement', bg: 'var(--bt-type-improvement-bg)', fg: 'var(--bt-type-improvement-fg)' },
   feature: { label: 'Feature', bg: 'var(--bt-type-feature-bg)', fg: 'var(--bt-type-feature-fg)' },
+  story: { label: 'Story', bg: 'var(--bt-type-story-bg)', fg: 'var(--bt-type-story-fg)' },
+  epic: { label: 'Epic', bg: 'var(--bt-type-epic-bg)', fg: 'var(--bt-type-epic-fg)' },
 };
 
 export const toneStyle: Record<StatusTone, { bg: string; fg: string; dot: string }> = {

@@ -22,6 +22,8 @@ const TYPE_WORDS: Record<string, TaskType> = {
   imp: 'improvement',
   feature: 'feature',
   feat: 'feature',
+  story: 'story',
+  epic: 'epic',
 };
 
 export type QuickTrigger = '@' | '#' | '!';
@@ -63,6 +65,8 @@ export const TYPE_TOKENS: { token: string; type: TaskType }[] = [
   { token: 'bug', type: 'bug' },
   { token: 'feature', type: 'feature' },
   { token: 'improvement', type: 'improvement' },
+  { token: 'story', type: 'story' },
+  { token: 'epic', type: 'epic' },
 ];
 
 export const PRIORITY_TOKENS: { token: string; priority: Priority }[] = [

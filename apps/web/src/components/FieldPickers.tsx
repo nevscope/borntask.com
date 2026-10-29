@@ -20,6 +20,8 @@ const TYPE_HINT: Record<BuiltinTaskType, string> = {
   bug: 'Something is broken',
   improvement: 'Make something better',
   feature: 'Something new',
+  story: 'A slice of work',
+  epic: 'A larger outcome',
 };
 
 const PRIORITIES: Priority[] = ['urgent', 'high', 'medium', 'low', 'none'];

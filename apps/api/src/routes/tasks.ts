@@ -1,12 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { commentParentForClient, createTaskStartSlug, isTaskDescriptionTooLong, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
+import { commentParentForClient, createTaskStartSlug, isTaskDescriptionTooLong, planningTypeAllowed, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { actorName, enqueueChat, enqueuePersonalChat, taskUrl, userName } from '../lib/chatNotify.js';
 import { badgesForTasks } from '../lib/githubBadge.js';
-import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, taskKey } from '../lib/loadProject.js';
+import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, planningMetaForProject, taskKey } from '../lib/loadProject.js';
+import { resolvePlanningParent } from '../lib/planning.js';
 import { nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { enqueueTaskEventEmail } from '../lib/enqueueTaskEmail.js';
@@ -36,6 +37,7 @@ const createTaskSchema = z.object({
   dueDate: z.string().nullable(),
   labels: z.array(z.string()),
   attachmentIds: z.array(z.string()),
+  planningParentId: z.string().nullable().optional(),
 });
 
 const updateTaskSchema = z
@@ -48,6 +50,7 @@ const updateTaskSchema = z
     dueDate: z.string().nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),
+    planningParentId: z.string().nullable(),
   })
   .partial();
 
@@ -80,7 +83,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { position: 'asc' },
       });
       const badges = await badgesForTasks(auth.db, rows.map((row) => row.id));
-      return rows.map((row) => ({ ...mapTask(row), githubBadge: badges.get(row.id) ?? null }));
+      const planning = await planningMetaForProject(auth.db, project.id);
+      return rows.map((row) => ({ ...mapTask(row, planning.get(row.id)), githubBadge: badges.get(row.id) ?? null }));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -168,10 +172,10 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         rows.filter((row) => canOpenListed(openIds, row.projectId));
 
       return {
-        assigned: visible(assigned).map(mapTask),
-        created: visible(created).map(mapTask),
-        watching: visible(watching).map(mapTask),
-        approvals: approvals.map(mapTask),
+        assigned: visible(assigned).map((row) => mapTask(row)),
+        created: visible(created).map((row) => mapTask(row)),
+        watching: visible(watching).map((row) => mapTask(row)),
+        approvals: approvals.map((row) => mapTask(row)),
       };
     } catch (err) {
       return sendError(reply, err);
@@ -209,9 +213,20 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const ghActivity = activity.filter((a) => a.via === 'github').slice(0, 8);
       const attachments = await auth.db.attachment.findMany({ where: { taskId: row.id }, orderBy: { createdAt: 'asc' } });
       const mappedKey = taskKey(row.project.key, row.number);
+      const planning = await planningMetaForProject(auth.db, row.projectId);
+      const planningKids = await auth.db.task.findMany({
+        where: { planningParentId: row.id, deletedAt: null, parentId: null },
+        include: { type: true, project: true },
+        orderBy: { position: 'asc' },
+      });
       return {
-        ...mapTask({ ...row, subtasks: children }),
+        ...mapTask({ ...row, subtasks: children }, planning.get(row.id)),
         githubBadge: badges.get(row.id) ?? null,
+        planningChildren: planningKids.map((kid) => ({
+          key: taskKey(kid.project.key, kid.number),
+          title: kid.title,
+          type: kid.type.slug,
+        })),
         development: {
           enabled: repoCount > 0,
           suggestedBranch: branch,
@@ -264,9 +279,13 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       if (project.disabledTypes.split(',').map((slug) => slug.trim()).includes(input.type)) {
         throw validation('This project does not use that task type.');
       }
+      if (!planningTypeAllowed(project.workBreakdown, input.type)) {
+        throw validation('Turn on work breakdown for this project to use that type.');
+      }
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       const wf = await loadWorkflow(auth.db, project.workflowId);
-      const startSlug = createTaskStartSlug(input.type, ws?.bugsStartIn);
+      const startSlug = createTaskStartSlug(input.type, ws?.bugsStartIn, project.storiesNeedApproval);
+      const planningParentId = await resolvePlanningParent(auth.db, project, input.type, input.planningParentId);
       const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
       if (!statusId) throw validation('Workflow has no start status.');
       const last = await auth.db.task.findFirst({
@@ -296,6 +315,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           priority: input.priority,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
           position: nextPosition(lastInSection?.position ?? null),
+          planningParentId,
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
@@ -327,7 +347,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           url,
         });
       }
-      const mappedCreated = mapTask(afterAttach ?? created);
+      const createdPlanning = await planningMetaForProject(auth.db, created.projectId);
+      const mappedCreated = mapTask(afterAttach ?? created, createdPlanning.get(created.id));
       publishTaskChange(auth, mappedCreated, 'create');
       if (created.assigneeId) {
         const assignee = await userName(created.assigneeId);
@@ -375,8 +396,15 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         if (row.project.disabledTypes.split(',').map((slug) => slug.trim()).includes(input.type)) {
           throw validation('This project does not use that task type.');
         }
+        if (!planningTypeAllowed(row.project.workBreakdown, input.type)) {
+          throw validation('Turn on work breakdown for this project to use that type.');
+        }
         typeId = type.id;
       }
+      const nextSlug = input.type ?? row.type.slug;
+      const planningParentId = input.planningParentId === undefined
+        ? undefined
+        : await resolvePlanningParent(auth.db, row.project, nextSlug, input.planningParentId, row.id);
       const updated = await auth.db.task.update({
         where: { id: row.id },
         data: {
@@ -391,6 +419,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           priority: input.priority,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
           sectionId: input.sectionId,
+          planningParentId,
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
@@ -550,7 +579,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       });
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       const wf = await loadWorkflow(auth.db, source.project.workflowId);
-      const startSlug = createTaskStartSlug(source.type.slug, ws?.bugsStartIn);
+      const startSlug = createTaskStartSlug(source.type.slug, ws?.bugsStartIn, source.project.storiesNeedApproval);
       const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
       if (!statusId) throw validation('Workflow has no start status.');
       const created = await auth.db.task.create({
@@ -568,6 +597,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           priority: source.priority,
           dueDate: source.dueDate,
           position: nextPosition(lastInSection?.position ?? null),
+          planningParentId: source.planningParentId,
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });

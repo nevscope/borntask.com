@@ -21,7 +21,7 @@ export type FilterCondition = {
   values: string[];
 };
 
-export type GroupBy = 'section' | 'status' | 'assignee' | 'priority' | 'none';
+export type GroupBy = 'section' | 'status' | 'assignee' | 'priority' | 'story' | 'epic' | 'none';
 export type SortBy = 'manual' | 'due' | 'priority' | 'updated' | 'created' | 'title';
 export type ColumnBy = 'status' | 'section' | 'assignee' | 'priority';
 export const LIST_FIELDS = ['type', 'status', 'assignee', 'due', 'priority'] as const;
@@ -49,6 +49,49 @@ export type SavedView = {
   sort: SortBy;
   filters: FilterCondition[];
 };
+
+export type PresetView = {
+  id: string;
+  name: string;
+  group: GroupBy;
+  sort: SortBy;
+  filters: FilterCondition[];
+};
+
+const hideDone: FilterCondition = { id: 'hide-done', field: 'category', op: 'not', values: ['done'] };
+
+export const PRESET_VIEWS: PresetView[] = [
+  { id: 'preset-open', name: 'Open', group: 'section', sort: 'manual', filters: [hideDone] },
+  { id: 'preset-all', name: 'All', group: 'section', sort: 'manual', filters: [] },
+  {
+    id: 'preset-mine',
+    name: 'Assigned to me',
+    group: 'section',
+    sort: 'manual',
+    filters: [hideDone, { id: 'mine', field: 'assignee', op: 'is', values: ['me'] }],
+  },
+  {
+    id: 'preset-week',
+    name: 'Due this week',
+    group: 'section',
+    sort: 'due',
+    filters: [hideDone, { id: 'week', field: 'due', op: 'is', values: ['week'] }],
+  },
+  {
+    id: 'preset-overdue',
+    name: 'Overdue',
+    group: 'section',
+    sort: 'due',
+    filters: [hideDone, { id: 'overdue', field: 'due', op: 'is', values: ['overdue'] }],
+  },
+  {
+    id: 'preset-done',
+    name: 'Completed',
+    group: 'section',
+    sort: 'updated',
+    filters: [{ id: 'done', field: 'category', op: 'is', values: ['done'] }],
+  },
+];
 
 export type TaskGroup = { id: string; name: string; tasks: Task[] };
 export type FilterChoice = { value: string; label: string };
@@ -108,7 +151,23 @@ export function newFilterId(): string {
 }
 
 export function defaultFilters(): FilterCondition[] {
-  return [{ id: 'hide-done', field: 'category', op: 'not', values: ['done'] }];
+  return PRESET_VIEWS[0]!.filters;
+}
+
+export function sameFilters(a: FilterCondition[], b: FilterCondition[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((left, i) => {
+    const right = b[i];
+    return !!right && left.field === right.field && left.op === right.op
+      && left.values.length === right.values.length
+      && left.values.every((value, j) => value === right.values[j]);
+  });
+}
+
+export function activePresetId(filters: FilterCondition[], viewId: string | null): string | null {
+  if (viewId && PRESET_VIEWS.some((preset) => preset.id === viewId)) return viewId;
+  if (viewId) return null;
+  return PRESET_VIEWS.find((preset) => sameFilters(filters, preset.filters))?.id ?? null;
 }
 
 export function fieldLabel(field: FilterField): string {
@@ -138,7 +197,7 @@ function isOp(value: string): value is FilterOp {
 }
 
 function isGroup(value: string): value is GroupBy {
-  return value === 'section' || value === 'status' || value === 'assignee' || value === 'priority' || value === 'none';
+  return value === 'section' || value === 'status' || value === 'assignee' || value === 'priority' || value === 'story' || value === 'epic' || value === 'none';
 }
 
 function isSort(value: string): value is SortBy {
@@ -172,7 +231,36 @@ export function encodeHiddenCols(cols: ListField[]): string {
 
 export function allowedTypeSlugs(detail: ProjectDetail, slugs: string[]): string[] {
   const disabled = new Set(detail.disabledTypes ?? []);
-  return slugs.filter((slug) => !disabled.has(slug));
+  const mode = detail.workBreakdown ?? 'off';
+  return slugs.filter((slug) => {
+    if (disabled.has(slug)) return false;
+    if (slug === 'epic') return mode === 'epics_stories';
+    if (slug === 'story') return mode === 'stories' || mode === 'epics_stories';
+    return true;
+  });
+}
+
+export function isPlanningTask(task: Pick<Task, 'type'>): boolean {
+  return task.type === 'story' || task.type === 'epic';
+}
+
+export function storyIdOf(task: Task, byId: Map<string, Task>): string | null {
+  if (task.type === 'story') return task.id;
+  const parent = task.planningParentId ? byId.get(task.planningParentId) : undefined;
+  if (parent?.type === 'story') return parent.id;
+  return null;
+}
+
+export function epicIdOf(task: Task, byId: Map<string, Task>): string | null {
+  if (task.type === 'epic') return task.id;
+  const parent = task.planningParentId ? byId.get(task.planningParentId) : undefined;
+  if (!parent) return null;
+  if (parent.type === 'epic') return parent.id;
+  if (parent.type === 'story' && parent.planningParentId) {
+    const epic = byId.get(parent.planningParentId);
+    return epic?.type === 'epic' ? epic.id : null;
+  }
+  return null;
 }
 
 export function encodeFilters(filters: FilterCondition[]): string {
@@ -372,6 +460,24 @@ export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail)
     return (Object.keys(priorityStyle) as Priority[])
       .map((p) => ({ id: p, name: priorityStyle[p].label, tasks: tasks.filter((t) => t.priority === p) }))
       .filter((g) => g.tasks.length > 0);
+  }
+  if (group === 'story' || group === 'epic') {
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    const parents = tasks.filter((task) => task.type === group);
+    const groups = parents.map((parent) => ({
+      id: parent.id,
+      name: parent.title,
+      tasks: tasks.filter((task) => {
+        if (task.id === parent.id) return false;
+        return group === 'story' ? storyIdOf(task, byId) === parent.id : epicIdOf(task, byId) === parent.id;
+      }),
+    }));
+    const none = tasks.filter((task) => {
+      if (task.type === group) return false;
+      return group === 'story' ? !storyIdOf(task, byId) : !epicIdOf(task, byId);
+    });
+    if (none.length) groups.push({ id: 'none', name: group === 'story' ? 'No story' : 'No epic', tasks: none });
+    return groups;
   }
   const ids = [...new Set(tasks.map((t) => t.assigneeId ?? 'none'))];
   return ids.map((id) => ({

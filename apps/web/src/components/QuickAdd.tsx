@@ -5,7 +5,7 @@ import { Button, Input, Modal } from 'antd';
 import type { InputRef } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useCreateTask, useMe, useMoveTask, useProject, useProjects } from '../api/queries';
+import { useCreateTask, useMe, useMoveTask, useProject, useProjectTasks, useProjects } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { BuiltinTaskType, Priority, ProjectRole, TaskType, User } from '../api/types';
 import { dueLabel } from '../lib/dates';
@@ -35,7 +35,7 @@ import { useStatusToast } from './StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useBackLayer } from '../lib/backLayer';
 
-const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature'];
+const TYPES: BuiltinTaskType[] = ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'];
 
 function typeLook(type: string, name?: string, colour?: string) {
   if (name && colour) return chipFromHex(colour, name);
@@ -48,6 +48,7 @@ interface OpenOptions {
   projectKey?: string;
   sectionId?: string;
   type?: TaskType;
+  planningParentId?: string;
 }
 
 const QuickAddContext = createContext<{ open: (o?: OpenOptions) => void }>({ open: () => {} });
@@ -98,8 +99,10 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const [projectKey, setProjectKey] = useState(opts.projectKey ?? projectKeyFromPath(pathname) ?? '');
   const detail = useProject(projectKey).data;
+  const projectTasks = useProjectTasks(projectKey).data ?? [];
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);
   const [type, setType] = useState<TaskType | undefined>(opts.type);
+  const [planningParentId, setPlanningParentId] = useState<string | null>(opts.planningParentId ?? null);
   const [typeError, setTypeError] = useState(false);
   const [raw, setRaw] = useState('');
   const catalog = useWorkspaceCatalog();
@@ -164,7 +167,13 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const priority = priorityOverride ?? parsed.priority ?? 'none';
   const assignee = people.find((p) => p.id === assigneeId);
   const myRoles: ProjectRole[] = detail?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
-  const startStatus = detail && type ? statusById(detail.workflow, initialStatusFor(type, detail.workflow)) : undefined;
+  const startStatus = detail && type ? statusById(detail.workflow, initialStatusFor(type, detail.workflow, detail.storiesNeedApproval !== false)) : undefined;
+  const parentChoices = projectTasks.filter((task) => {
+    if (type === 'story') return task.type === 'epic';
+    if (type === 'epic') return false;
+    return task.type === 'story' || ((detail?.workBreakdown ?? 'off') === 'epics_stories' && task.type === 'epic');
+  });
+  const showParent = (detail?.workBreakdown ?? 'off') !== 'off' && type !== 'epic';
   const chosenStatusId = statusPick ?? startStatus?.id;
   const chosenStatus = detail && chosenStatusId ? statusById(detail.workflow, chosenStatusId) : startStatus;
   const moveCheck = detail && startStatus && chosenStatusId && chosenStatusId !== startStatus.id
@@ -328,6 +337,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         dueDate: dueDate ?? null,
         labels: [],
         attachmentIds: uploaded.map((f) => f.id),
+        planningParentId,
       },
       {
         onSuccess: (task) => {
@@ -565,6 +575,19 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
               onPick={setSectionId}
             />
           </Chip>
+          {showParent && (
+            <Chip>
+              <MenuPicker
+                ariaLabel="Part of"
+                label={<span style={clipLabel}>{parentChoices.find((task) => task.id === planningParentId)?.title ?? (type === 'story' ? 'No epic' : 'No story')}</span>}
+                items={[
+                  { id: '', label: type === 'story' ? 'No epic' : 'No story' },
+                  ...parentChoices.map((task) => ({ id: task.id, label: `${task.key} ${task.title}` })),
+                ]}
+                onPick={(id) => setPlanningParentId(id || null)}
+              />
+            </Chip>
+          )}
           <Chip>
             {detail ? (
               <AssigneePicker

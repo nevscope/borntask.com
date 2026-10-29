@@ -8,6 +8,7 @@ const FIELD_HINTS: Record<string, string[]> = {
   title: ['name', 'task name', 'title'],
   description: ['notes', 'description'],
   assigneeEmail: ['assignee email'],
+  reporterEmail: ['created by email', 'creator email', 'reporter email', 'created by'],
   section: ['section/column', 'section', 'column'],
   status: ['status'],
   dueDate: ['due date', 'due'],
@@ -75,7 +76,15 @@ export function guessImportTypeSlug(
 }
 
 export function emailFromMappedRow(row: Record<string, string>, columns: Record<string, string>): string {
-  const headers = Object.entries(columns).filter(([, field]) => field === 'assigneeEmail').map(([header]) => header);
+  return mappedEmail(row, columns, 'assigneeEmail');
+}
+
+export function mappedEmail(
+  row: Record<string, string>,
+  columns: Record<string, string>,
+  field: 'assigneeEmail' | 'reporterEmail',
+): string {
+  const headers = Object.entries(columns).filter(([, mapped]) => mapped === field).map(([header]) => header);
   for (const header of headers) {
     const value = (row[header] ?? '').trim().toLowerCase();
     if (value.includes('@')) return value;

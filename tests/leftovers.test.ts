@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { renderMail } from '../apps/worker/src/mail.ts';
 import { isDueForHardDelete, TRASH_MS } from '../apps/worker/src/trashPurge.ts';
 import { digestSubject, shouldSendDigest, workingDaysBetween } from '../packages/shared/src/digest.ts';
-import { createTaskStartSlug } from '../packages/shared/src/domain.ts';
+import { createTaskStartSlug, planningParentAllowed, planningTypeAllowed } from '../packages/shared/src/domain.ts';
 import {
   commentParentForClient,
   htmlToPlain,
@@ -34,6 +34,14 @@ describe('daily digest', () => {
       shouldSendDigest({
         digestMode: 'off',
         emailEnabled: true,
+        now,
+        timeZone: 'Europe/Malta',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSendDigest({
+        digestMode: 'daily',
+        emailEnabled: false,
         now,
         timeZone: 'Europe/Malta',
       }),
@@ -154,6 +162,20 @@ describe('copy start status', () => {
     expect(createTaskStartSlug('bug', 'approved')).toBe('approved');
     expect(createTaskStartSlug('bug', 'idea')).toBe('idea');
     expect(createTaskStartSlug('bug')).toBe('approved');
+    expect(createTaskStartSlug('story', undefined, true)).toBe('idea');
+    expect(createTaskStartSlug('story', undefined, false)).toBe('approved');
+    expect(createTaskStartSlug('epic', undefined, false)).toBe('approved');
+  });
+});
+
+describe('planning parent rules', () => {
+  test('keeps epics and stories optional and two levels deep', () => {
+    expect(planningTypeAllowed('off', 'story')).toBe(false);
+    expect(planningTypeAllowed('stories', 'epic')).toBe(false);
+    expect(planningParentAllowed('stories', 'feature', 'story')).toBe(true);
+    expect(planningParentAllowed('stories', 'story', 'epic')).toBe(false);
+    expect(planningParentAllowed('epics_stories', 'story', 'epic')).toBe(true);
+    expect(planningParentAllowed('epics_stories', 'epic', 'story')).toBe(false);
   });
 });
 

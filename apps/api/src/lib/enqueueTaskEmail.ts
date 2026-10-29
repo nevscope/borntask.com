@@ -11,12 +11,13 @@ function firstName(name: string): string {
 
 export async function emailAllowed(auth: Authed, userId: string, event: string): Promise<boolean> {
   if (userId === auth.userId) return false;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { emailPerTask: true, email: true, name: true } });
-  if (!user?.emailPerTask) return false;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { emailPerTask: true } });
+  if (!user) return false;
   const pref = await auth.db.notificationPreference.findFirst({
     where: { userId, event, channel: 'email' },
   });
-  return pref ? pref.enabled : event !== 'digest_ready';
+  if (pref) return pref.enabled;
+  return user.emailPerTask && event !== 'digest_ready';
 }
 
 export async function enqueueTaskEventEmail(

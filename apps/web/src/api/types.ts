@@ -5,7 +5,10 @@ import { taskDescriptionSchema } from '@borntask/shared';
 import { z } from 'zod';
 
 // ---------- enums ----------
-export const BuiltinTaskTypeSchema = z.enum(['idea', 'bug', 'improvement', 'feature']);
+export const WorkBreakdownSchema = z.enum(['off', 'stories', 'epics_stories']);
+export type WorkBreakdown = z.infer<typeof WorkBreakdownSchema>;
+
+export const BuiltinTaskTypeSchema = z.enum(['idea', 'bug', 'improvement', 'feature', 'story', 'epic']);
 export type BuiltinTaskType = z.infer<typeof BuiltinTaskTypeSchema>;
 export const TaskTypeSchema = z.string().min(1);
 export type TaskType = z.infer<typeof TaskTypeSchema>;
@@ -146,6 +149,8 @@ export const ProjectDetailSchema = z.object({
   users: z.array(UserSchema),
   workflow: WorkflowSchema,
   disabledTypes: z.array(z.string()).optional(),
+  workBreakdown: WorkBreakdownSchema.optional(),
+  storiesNeedApproval: z.boolean().optional(),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 
@@ -178,6 +183,10 @@ export const TaskSchema = z.object({
   deletedByName: z.string().nullable().optional(),
   daysLeft: z.number().int().nullable().optional(),
   githubBadge: z.enum(['pr_running', 'pr_passed', 'pr_failed', 'merged', 'branch']).nullable().optional(),
+  planningParentId: z.string().nullable().optional(),
+  planningParentKey: z.string().nullable().optional(),
+  planningParentTitle: z.string().nullable().optional(),
+  planningChildCount: z.object({ done: z.number().int(), total: z.number().int() }).optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -244,6 +253,7 @@ export const TaskDetailSchema = TaskSchema.extend({
   /** Set while the task is still in the 30-day trash window. */
   deletedAt: z.string().nullable().optional(),
   development: TaskDevelopmentSchema.optional(),
+  planningChildren: z.array(z.object({ key: z.string(), title: z.string(), type: TaskTypeSchema })).optional(),
 });
 
 export const SearchHitSchema = z.object({
@@ -316,6 +326,7 @@ export const CreateTaskInputSchema = z.object({
   labels: z.array(z.string()),
   /** Ids returned by the upload endpoint; attached when the task is created. */
   attachmentIds: z.array(z.string()),
+  planningParentId: z.string().nullable().optional(),
 });
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
 
@@ -329,6 +340,7 @@ export const UpdateTaskInputSchema = z
     dueDate: z.string().nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),
+    planningParentId: z.string().nullable(),
   })
   .partial();
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;

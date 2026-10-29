@@ -33,6 +33,12 @@ enum WeekStart {
   sunday
 }
 
+enum WorkBreakdown {
+  off
+  stories
+  epics_stories
+}
+
 enum StatusCategory {
   backlog
   active
@@ -278,6 +284,9 @@ model Project {
   archivedAt  DateTime?
   /** Comma-separated task type slugs this project does not use. Empty means all workspace types. */
   disabledTypes String  @default("")
+  /** Optional Jira-style planning: stories, or epics and stories. Off leaves the project as a flat task list. */
+  workBreakdown WorkBreakdown @default(off)
+  storiesNeedApproval Boolean @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -469,6 +478,7 @@ model Task {
   estimate         String?
   position         String
   parentId         String?
+  planningParentId String?
   completedAt      DateTime?
   deletedAt        DateTime?
   deletedById      String?
@@ -486,6 +496,8 @@ model Task {
   reporter       User            @relation("TaskReporter", fields: [reporterId], references: [id])
   parent         Task?           @relation("Subtasks", fields: [parentId], references: [id])
   subtasks       Task[]          @relation("Subtasks")
+  planningParent   Task?  @relation("PlanningTree", fields: [planningParentId], references: [id], onDelete: SetNull)
+  planningChildren Task[] @relation("PlanningTree")
   watchers       TaskWatcher[]
   labels         TaskLabel[]
   comments       Comment[]
@@ -498,6 +510,7 @@ model Task {
   @@index([tenantId, projectId])
   @@index([tenantId, assigneeId])
   @@index([tenantId, asanaTaskId])
+  @@index([planningParentId])
   @@fulltext([title, description])
 }
 

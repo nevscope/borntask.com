@@ -186,12 +186,13 @@ export function mapTask(row: {
   createdAt: Date;
   updatedAt: Date;
   project: { key: string };
+  planningParentId?: string | null;
   labels?: { label: { name: string } }[];
   subtasks?: { completedAt: Date | null }[];
   attachments?: unknown[];
   comments?: { body: string; createdAt: Date; deletedAt?: Date | null }[];
   _count?: { comments?: number; attachments?: number };
-}) {
+}, planning?: PlanningMeta) {
   const sub = row.subtasks ?? [];
   const liveComments = (row.comments ?? []).filter((comment) => !comment.deletedAt);
   const last = liveComments.length
@@ -220,7 +221,72 @@ export function mapTask(row: {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     githubBadge: null as 'pr_running' | 'pr_passed' | 'pr_failed' | 'merged' | 'branch' | null,
+    planningParentId: planning?.parentId ?? row.planningParentId ?? null,
+    planningParentKey: planning?.parentKey ?? null,
+    planningParentTitle: planning?.parentTitle ?? null,
+    planningChildCount: planning?.childCount ?? { done: 0, total: 0 },
   };
+}
+
+export type PlanningMeta = {
+  parentId: string | null;
+  parentKey: string | null;
+  parentTitle: string | null;
+  childCount: { done: number; total: number };
+};
+
+export async function planningMetaForProject(db: TenantClient, projectId: string) {
+  const rows = await db.task.findMany({
+    where: { projectId, deletedAt: null, parentId: null },
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      planningParentId: true,
+      type: { select: { slug: true } },
+      status: { select: { category: true } },
+      project: { select: { key: true } },
+    },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const childrenOf = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (!row.planningParentId) continue;
+    const list = childrenOf.get(row.planningParentId) ?? [];
+    list.push(row);
+    childrenOf.set(row.planningParentId, list);
+  }
+  const out = new Map<string, PlanningMeta>();
+  for (const row of rows) {
+    const parent = row.planningParentId ? byId.get(row.planningParentId) : undefined;
+    const work = workItemsUnder(row.id, childrenOf);
+    out.set(row.id, {
+      parentId: parent?.id ?? null,
+      parentKey: parent ? `${parent.project.key}-${parent.number}` : null,
+      parentTitle: parent?.title ?? null,
+      childCount: {
+        done: work.filter((item) => item.status.category === 'done').length,
+        total: work.length,
+      },
+    });
+  }
+  return out;
+}
+
+function workItemsUnder<T extends { id: string; type: { slug: string } }>(
+  id: string,
+  childrenOf: Map<string, T[]>,
+): T[] {
+  const direct = childrenOf.get(id) ?? [];
+  const work: T[] = [];
+  for (const child of direct) {
+    if (child.type.slug === 'story' || child.type.slug === 'epic') {
+      work.push(...workItemsUnder(child.id, childrenOf));
+    } else {
+      work.push(child);
+    }
+  }
+  return work;
 }
 
 export async function loadProjectDetail(db: TenantClient, key: string, userId: string) {
@@ -254,6 +320,8 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
     })),
     users: users.map(mapUser),
     disabledTypes: project.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
+    workBreakdown: project.workBreakdown,
+    storiesNeedApproval: project.storiesNeedApproval,
     workflow: {
       id: workflow.id,
       name: workflow.name,

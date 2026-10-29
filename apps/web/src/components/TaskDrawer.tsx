@@ -235,7 +235,15 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const mentionPeople = detail.users.length ? detail.users : memberUsers;
   const mentionInvite = useMentionInvite(detail.project, mentionPeople);
   const watching = Boolean(me && task.watcherIds?.includes(me.user.id));
-  const labelSuggestions = [...new Set((useProjectTasks(detail.project.key).data ?? []).flatMap((row) => row.labels))];
+  const projectTasks = useProjectTasks(detail.project.key).data ?? [];
+  const labelSuggestions = [...new Set(projectTasks.flatMap((row) => row.labels))];
+  const breakdown = detail.workBreakdown ?? 'off';
+  const parentChoices = projectTasks.filter((row) => {
+    if (row.id === task.id) return false;
+    if (task.type === 'story') return row.type === 'epic';
+    if (task.type === 'epic') return false;
+    return row.type === 'story' || (breakdown === 'epics_stories' && row.type === 'epic');
+  });
   const businessNames = detail.members
     .filter((m) => m.roles.includes('business') && m.userId !== me?.user.id)
     .map((m) => detail.users.find((u) => u.id === m.userId)?.name)
@@ -456,7 +464,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               options={options}
               onMove={(statusId) => flow.requestMove(task, statusId)}
             />
-            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
           </div>
         )}
 
@@ -527,6 +535,18 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           <PriorityPicker value={task.priority} onChange={(priority) => save({ priority })} />
           <FieldLabel>Section</FieldLabel>
           <Select value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} />
+          {breakdown !== 'off' && task.type !== 'epic' && (
+            <>
+              <FieldLabel>Part of</FieldLabel>
+              <Select
+                allowClear
+                placeholder={task.type === 'story' ? 'Epic' : 'Story or epic'}
+                value={task.planningParentId ?? undefined}
+                onChange={(planningParentId: string | undefined) => save({ planningParentId: planningParentId ?? null })}
+                options={parentChoices.map((row) => ({ value: row.id, label: `${row.key} ${row.title}` }))}
+              />
+            </>
+          )}
           <FieldLabel>Labels</FieldLabel>
           <div className={isPhone ? undefined : 'bt-field-wide'}>
             <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
@@ -606,6 +626,25 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
         </Section>
 
         <Subtasks task={task} onDraftChange={setSubtaskDraft} />
+        {(task.type === 'story' || task.type === 'epic') && (
+          <Section title={`In this ${task.type} ${task.planningChildCount?.done ?? 0}/${task.planningChildCount?.total ?? 0}`}>
+            {(task.planningChildren ?? []).length === 0 && (
+              <span style={{ fontSize: 13, color: color.muted }}>Nothing sits under this yet.</span>
+            )}
+            {(task.planningChildren ?? []).map((child) => (
+              <button
+                key={child.key}
+                type="button"
+                onClick={() => openTask(child.key)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: '6px 0', font: 'inherit', cursor: 'pointer', color: color.ink }}
+              >
+                <TypeTag type={child.type} />
+                <span style={{ fontSize: 12.5, color: color.muted }}>{child.key}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{child.title}</span>
+              </button>
+            ))}
+          </Section>
+        )}
         <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }} hideComposer={isPhone || readOnly} />
         <DevelopmentSection task={task} />
 

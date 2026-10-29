@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient, type ImportJob } from '@prisma/client';
-import { ASANA_API_COLUMNS, emailFromMappedRow, formatImportError, guessImportPriority, guessImportStatusSlug, guessImportTypeSlug, isAsanaApiMapping, parseDelimited, type AsanaImportMapping } from '@borntask/shared';
+import { ASANA_API_COLUMNS, emailFromMappedRow, formatImportError, guessImportPriority, guessImportStatusSlug, guessImportTypeSlug, isAsanaApiMapping, mappedEmail, parseDelimited, parseImportReporterAs, type AsanaImportMapping } from '@borntask/shared';
 import { asanaTaskToRow, listAsanaProjectTasks, loadStories, type AsanaStoryExtra } from './asanaClient.js';
 import { deliverMail } from './mail.js';
 
@@ -42,8 +42,9 @@ async function executeAsanaImport(
   const projectId = project.id;
   const workflowId = project.workflowId;
 
-  const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string };
+  const stored = (job.mapping ?? {}) as { columns?: Record<string, string>; sectionsAs?: string; reporterAs?: string };
   const apiMapping = isAsanaApiMapping(job.mapping as unknown) ? job.mapping as AsanaImportMapping : null;
+  const reporterAs = parseImportReporterAs(apiMapping?.reporterAs ?? stored.reporterAs);
   let extras = new Map<string, AsanaStoryExtra>();
   let parsed = { headers: [] as string[], rows: [] as Record<string, string>[] };
   if (apiMapping) {
@@ -76,6 +77,7 @@ async function executeAsanaImport(
   const idCol = col('asanaTaskId');
   const descCol = col('description');
   const emailCol = col('assigneeEmail');
+  const reporterCol = col('reporterEmail');
   const sectionCol = col('section');
   const statusCol = col('status');
   const dueCol = col('dueDate');
@@ -164,6 +166,11 @@ async function executeAsanaImport(
       const email = emailFromMappedRow(row, columns) || (emailCol ? (row[emailCol] ?? '').trim().toLowerCase() : '');
       const assigneeEmail = email.includes('@') ? email : '';
       if (assigneeEmail && !userByEmail.has(assigneeEmail)) unknownEmails.add(assigneeEmail);
+      const reporterEmail = mappedEmail(row, columns, 'reporterEmail')
+        || (reporterCol ? (row[reporterCol] ?? '').trim().toLowerCase() : '');
+      const originalReporter = reporterEmail.includes('@') ? userByEmail.get(reporterEmail) : undefined;
+      if (reporterAs === 'original' && reporterEmail.includes('@') && !originalReporter) unknownEmails.add(reporterEmail);
+      const reporterId = reporterAs === 'original' && originalReporter ? originalReporter.id : data.actorId;
 
       const existing = asanaId
         ? await prisma.task.findFirst({
@@ -234,6 +241,7 @@ async function executeAsanaImport(
           where: { id: existing.id },
           data: {
             ...payload,
+            reporterId,
             projectId,
             deletedAt: null,
             deletedById: null,
@@ -247,7 +255,7 @@ async function executeAsanaImport(
             tenantId: data.tenantId,
             projectId,
             number,
-            reporterId: data.actorId,
+            reporterId,
             position: `a${number}`,
             ...payload,
             ...(updatedAt ? { updatedAt } : {}),
@@ -287,6 +295,7 @@ async function executeAsanaImport(
       if (taskId) {
         const watcherIds = new Set<string>();
         if (assignee) watcherIds.add(assignee.id);
+        if (originalReporter) watcherIds.add(originalReporter.id);
         for (const raw of (row.Followers ?? '').split(/[,;]/)) {
           const follower = userByEmail.get(raw.trim().toLowerCase());
           if (follower) watcherIds.add(follower.id);

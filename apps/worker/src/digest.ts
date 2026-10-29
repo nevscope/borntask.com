@@ -32,8 +32,8 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
     },
   });
   if (!user) return null;
-  const emailPref = user.notifyPrefs.find((row) => row.event === 'digest_ready' && row.channel === 'email');
-  const emailEnabled = emailPref ? emailPref.enabled : user.digestMode !== 'off';
+  const digestEmailPrefs = user.notifyPrefs.filter((row) => row.event === 'digest_ready' && row.channel === 'email');
+  const emailEnabled = digestEmailPrefs.length === 0 || digestEmailPrefs.every((row) => row.enabled);
   if (
     !shouldSendDigest({
       digestMode: user.digestMode,

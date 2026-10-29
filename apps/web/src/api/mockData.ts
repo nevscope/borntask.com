@@ -120,6 +120,10 @@ function seed(s: Seed, position: number): Task {
     commentCount: 0,
     attachmentCount: 0,
     lastComment: null,
+    planningParentId: null,
+    planningParentKey: null,
+    planningParentTitle: null,
+    planningChildCount: { done: 0, total: 0 },
     createdAt: ago(240),
     updatedAt: ago(4),
     ...s,
@@ -389,6 +393,8 @@ export const mockApi: Api = {
       users,
       workflow: deliveryWorkflow,
       disabledTypes: [],
+      workBreakdown: 'off',
+      storiesNeedApproval: true,
     });
   },
 
@@ -525,6 +531,10 @@ export const mockApi: Api = {
       commentCount: 0,
       attachmentCount: input.attachmentIds.length,
       lastComment: null,
+      planningParentId: input.planningParentId ?? null,
+      planningParentKey: null,
+      planningParentTitle: null,
+      planningChildCount: { done: 0, total: 0 },
       createdAt: now,
       updatedAt: now,
     };

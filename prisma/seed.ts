@@ -7,6 +7,8 @@ const TYPE_TEMPLATES: Record<string, string> = {
   bug: '## Steps\n\n## Expected\n\n## Actual\n',
   improvement: '## Today\n\n## Proposed\n',
   feature: '## Acceptance criteria\n\n- \n',
+  story: '## Outcome\n\n## In scope\n\n- \n',
+  epic: '## Goal\n\n## Why now\n',
 };
 
 async function seedWorkspace(opts: {
@@ -48,6 +50,8 @@ async function seedWorkspace(opts: {
     { slug: 'bug', name: 'Bug', colour: '#B42323' },
     { slug: 'improvement', name: 'Improvement', colour: '#8A5A0B' },
     { slug: 'feature', name: 'Feature', colour: '#1F55B8' },
+    { slug: 'story', name: 'Story', colour: '#0F4C6A' },
+    { slug: 'epic', name: 'Epic', colour: '#6B3D7A' },
   ];
   for (const t of types) {
     await prisma.taskType.create({

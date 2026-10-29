@@ -136,6 +136,7 @@ export function ProjectListScreen() {
             detail={d}
             tasks={group.tasks}
             canAdd={view.group === 'section' && group.id !== 'other'}
+            addParentId={(view.group === 'story' || view.group === 'epic') && group.id !== 'none' ? group.id : undefined}
             collapsed={collapsedIds.has(group.id)}
             onCollapse={() => toggleGroup(group.id)}
             draggable={manual}
@@ -200,6 +201,7 @@ function SectionGroup({
   detail,
   tasks,
   canAdd,
+  addParentId,
   collapsed,
   onCollapse,
   draggable,
@@ -218,6 +220,7 @@ function SectionGroup({
   detail: ProjectDetail;
   tasks: Task[];
   canAdd: boolean;
+  addParentId?: string;
   collapsed: boolean;
   onCollapse: () => void;
   draggable: boolean;
@@ -249,11 +252,15 @@ function SectionGroup({
       {!collapsed && tasks.map((task) => (
         <Row key={task.key} task={task} detail={detail} draggable={draggable && !compact} selected={selected.includes(task.key)} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} onToggle={() => onToggle(task.key)} compact={compact} hiddenCols={hiddenCols} />
       ))}
-      {canAdd && !collapsed && (
+      {(canAdd || addParentId) && !collapsed && (
         <div ref={end.setNodeRef} className={`bt-row${end.isOver ? ' drop-before' : ''}`} style={{ padding: '0 16px 0 58px', minHeight: 40, height: 40 }}>
           <button
             type="button"
-            onClick={() => quickAdd.open({ projectKey: detail.project.key, sectionId: id })}
+            onClick={() => quickAdd.open({
+              projectKey: detail.project.key,
+              sectionId: canAdd ? id : detail.sections[0]?.id,
+              planningParentId: addParentId,
+            })}
             style={{ height: 40, padding: 0, border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             + Add task to {name}
@@ -336,6 +343,7 @@ function Row({
           <span className="bt-title-cluster" style={{ flex: 1, minWidth: 0 }}>
             <button type="button" className="bt-row-title" style={{ color: done ? color.muted : undefined, whiteSpace: 'normal', fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
               <span>{task.title}</span>
+              {(task.planningChildCount?.total ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.planningChildCount?.done}/{task.planningChildCount?.total}</span>}
               {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400 }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
               {task.githubBadge && <GitHubBadge kind={task.githubBadge} compact />}
               <TaskHints task={task} />
@@ -371,6 +379,7 @@ function Row({
       <span className="bt-title-cluster">
         <button className="bt-row-title" style={{ color: done ? color.muted : undefined, display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => openTask(task.key)}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+          {(task.planningChildCount?.total ?? 0) > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400, flex: 'none' }}>{task.planningChildCount?.done}/{task.planningChildCount?.total}</span>}
           {task.subtaskCount.total > 0 && <span style={{ fontSize: 12, color: color.muted, fontWeight: 400, flex: 'none' }}>{task.subtaskCount.done}/{task.subtaskCount.total}</span>}
           {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
           <TaskHints task={task} />

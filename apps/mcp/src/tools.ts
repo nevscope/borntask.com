@@ -45,9 +45,10 @@ export const TOOLS: ToolDef[] = [
       properties: {
         projectKey: { type: 'string' },
         title: { type: 'string' },
-        type: { type: 'string', enum: ['idea', 'bug', 'improvement', 'feature'] },
+        type: { type: 'string', enum: ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'] },
         description: { type: 'string' },
         sectionId: { type: 'string', description: 'Section id. Omit to use the first section.' },
+        planningParentId: { type: 'string', description: 'Id of the story or epic this sits under.' },
         assigneeId: { type: 'string' },
         priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low', 'none'] },
         dueDate: { type: 'string', description: 'YYYY-MM-DD' },
@@ -64,7 +65,8 @@ export const TOOLS: ToolDef[] = [
         key: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
-        type: { type: 'string', enum: ['idea', 'bug', 'improvement', 'feature'] },
+        type: { type: 'string', enum: ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'] },
+        planningParentId: { type: ['string', 'null'], description: 'Id of the story or epic this sits under.' },
         assigneeId: { type: ['string', 'null'] },
         priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low', 'none'] },
         dueDate: { type: ['string', 'null'] },
@@ -216,6 +218,7 @@ export async function callTool(token: string, name: string, args: Record<string,
         dueDate: str('dueDate') ?? null,
         labels: [],
         attachmentIds: [],
+        planningParentId: str('planningParentId') ?? null,
       }));
     }
     case 'update_task': {
@@ -226,6 +229,7 @@ export async function callTool(token: string, name: string, args: Record<string,
       }
       if ('assigneeId' in args) patch.assigneeId = args.assigneeId ?? null;
       if ('dueDate' in args) patch.dueDate = args.dueDate ?? null;
+      if ('planningParentId' in args) patch.planningParentId = args.planningParentId ?? null;
       return text(await api(token, 'PATCH', `/tasks/${encodeURIComponent(key)}`, patch));
     }
     case 'move_task':

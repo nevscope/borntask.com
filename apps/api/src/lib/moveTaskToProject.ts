@@ -85,6 +85,7 @@ export async function moveTaskToProject(
         statusId: childMapped.id,
         previousStatusId: childPrevious,
         parentId: task.id === row.id ? null : row.id,
+        planningParentId: null,
         assigneeId: task.id === row.id ? assigneeId : task.assigneeId && destUserIds.has(task.assigneeId) ? task.assigneeId : null,
         completedAt: childDone ? (task.completedAt ?? new Date()) : null,
         position,

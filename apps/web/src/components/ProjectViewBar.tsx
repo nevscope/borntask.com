@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ProjectDetail } from '../api/types';
 import {
+  activePresetId,
   chipLabel,
   choicesFor,
   decodeFilters,
@@ -18,6 +19,7 @@ import {
   encodeHiddenCols,
   LIST_FIELD_LABEL,
   LIST_FIELDS,
+  PRESET_VIEWS,
   readColumns,
   readGroup,
   readHiddenCols,
@@ -30,6 +32,7 @@ import {
   type FilterOp,
   type GroupBy,
   type ListField,
+  type PresetView,
   type SavedView,
   type SortBy,
 } from '../lib/taskFilters';
@@ -155,9 +158,15 @@ export function ProjectViewBar({
     onView(keepView ? patch : { ...patch, viewId: null });
   };
 
+  const applyPreset = (preset: PresetView) => {
+    onView({ filters: preset.filters, group: preset.group, sort: preset.sort, viewId: preset.id });
+  };
+
   const applySaved = (saved: SavedView) => {
     onView({ filters: saved.filters, group: saved.group, sort: saved.sort, viewId: saved.id });
   };
+
+  const selectedPreset = activePresetId(view.filters, view.viewId);
 
   const removeSaved = (id: string) => {
     const next = views.filter((v) => v.id !== id);
@@ -184,6 +193,26 @@ export function ProjectViewBar({
 
   const viewTabs = (
     <>
+      {PRESET_VIEWS.map((preset) => (
+        <button
+          key={preset.id}
+          type="button"
+          onClick={() => applyPreset(preset)}
+          style={{
+            height: 32,
+            padding: '0 12px',
+            border: 0,
+            background: 'transparent',
+            font: 'inherit',
+            fontSize: 13.5,
+            fontWeight: selectedPreset === preset.id ? 600 : 400,
+            color: selectedPreset === preset.id ? color.ink : color.muted,
+            cursor: 'pointer',
+          }}
+        >
+          {preset.name}
+        </button>
+      ))}
       {views.map((saved) => (
         <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 4px 0 12px' }}>
           <button
@@ -247,6 +276,8 @@ export function ProjectViewBar({
               <option value="status">Status</option>
               <option value="assignee">Assignee</option>
               <option value="priority">Priority</option>
+              {(detail.workBreakdown === 'stories' || detail.workBreakdown === 'epics_stories') && <option value="story">Story</option>}
+              {detail.workBreakdown === 'epics_stories' && <option value="epic">Epic</option>}
               <option value="none">None</option>
             </select>
             <span style={{ fontSize: 13, color: color.muted }}>Sort</span>

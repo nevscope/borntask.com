@@ -1,4 +1,5 @@
-import { Alert, Button, Input, Modal, Select } from 'antd';
+import { Alert, Button, Input, Modal, Radio, Select, Switch } from 'antd';
+import type { WorkBreakdown } from '../api/types';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +13,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color, parseProjectHex } from '../theme/tokens';
 
 type WorkflowOption = { id: string; name: string; statuses?: { name: string; side?: boolean }[] };
-type SavedProject = { name: string; colour: string; workflowId: string };
+type SavedProject = { name: string; colour: string; workflowId: string; workBreakdown: WorkBreakdown; storiesNeedApproval: boolean };
 
 function workflowLabel(workflow: WorkflowOption) {
   const stages = (workflow.statuses ?? []).filter((stage) => !stage.side).map((stage) => stage.name);
@@ -31,6 +32,8 @@ export function ProjectDetailsScreen() {
   const [colour, setColour] = useState('');
   const [hexDraft, setHexDraft] = useState('');
   const [workflowId, setWorkflowId] = useState('');
+  const [workBreakdown, setWorkBreakdown] = useState<WorkBreakdown>('off');
+  const [storiesNeedApproval, setStoriesNeedApproval] = useState(true);
   const [readyKey, setReadyKey] = useState('');
   const [saved, setSaved] = useState<SavedProject | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,7 +61,11 @@ export function ProjectDetailsScreen() {
     setColour(next);
     setHexDraft(next);
     setWorkflowId(project.workflowId);
-    setSaved({ name: project.name, colour: next, workflowId: project.workflowId });
+    const breakdown = detail.data?.workBreakdown ?? 'off';
+    const approval = detail.data?.storiesNeedApproval !== false;
+    setWorkBreakdown(breakdown);
+    setStoriesNeedApproval(approval);
+    setSaved({ name: project.name, colour: next, workflowId: project.workflowId, workBreakdown: breakdown, storiesNeedApproval: approval });
     setReadyKey(projectKey);
     setError(null);
   }, [project, projectKey, readyKey]);
@@ -72,6 +79,8 @@ export function ProjectDetailsScreen() {
       name.trim() !== saved.name
       || colour.toLowerCase() !== saved.colour.toLowerCase()
       || workflowChanged
+      || workBreakdown !== saved.workBreakdown
+      || storiesNeedApproval !== saved.storiesNeedApproval
     ),
   );
   const unsaved = useUnsavedChanges(dirty);
@@ -85,9 +94,9 @@ export function ProjectDetailsScreen() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), colour, workflowId }),
+        body: JSON.stringify({ name: name.trim(), colour, workflowId, workBreakdown, storiesNeedApproval }),
       });
-      const json = await res.json().catch(() => ({})) as { message?: string; colour?: string; name?: string; workflowId?: string };
+      const json = await res.json().catch(() => ({})) as { message?: string; colour?: string; name?: string; workflowId?: string; workBreakdown?: WorkBreakdown; storiesNeedApproval?: boolean };
       if (!res.ok) throw new Error(json.message ?? 'Could not save the project.');
       const nextName = json.name ?? name.trim();
       const next = parseProjectHex(json.colour ?? colour) ?? colour;
@@ -96,7 +105,11 @@ export function ProjectDetailsScreen() {
       setColour(next);
       setHexDraft(next);
       setWorkflowId(nextWorkflow);
-      setSaved({ name: nextName, colour: next, workflowId: nextWorkflow });
+      const nextBreakdown = json.workBreakdown ?? workBreakdown;
+      const nextApproval = json.storiesNeedApproval ?? storiesNeedApproval;
+      setWorkBreakdown(nextBreakdown);
+      setStoriesNeedApproval(nextApproval);
+      setSaved({ name: nextName, colour: next, workflowId: nextWorkflow, workBreakdown: nextBreakdown, storiesNeedApproval: nextApproval });
       setConfirmWorkflow(false);
       void qc.invalidateQueries({ queryKey: qk.projects });
       void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
@@ -189,6 +202,28 @@ export function ProjectDetailsScreen() {
               Changing workflow moves existing tasks to the closest stage. A stage with the same name stays. To edit the stages themselves, open Workflow in the settings menu.
             </span>
           </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+            Work breakdown
+            <Radio.Group
+              value={workBreakdown}
+              disabled={!canManage}
+              onChange={(e) => setWorkBreakdown(e.target.value)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+              <Radio value="off">Off - a flat list of tasks</Radio>
+              <Radio value="stories">Stories</Radio>
+              <Radio value="epics_stories">Epics and stories</Radio>
+            </Radio.Group>
+            <span style={{ fontSize: 12.5, fontWeight: 400, color: color.muted }}>
+              Optional. If you used Jira, turn on epics and stories. They stay as tasks on this workflow.
+            </span>
+          </label>
+          {workBreakdown !== 'off' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 500 }}>
+              <Switch checked={storiesNeedApproval} disabled={!canManage} onChange={setStoriesNeedApproval} />
+              Stories and epics start in Idea
+            </label>
+          )}
           <div>
             <Button
               type="primary"

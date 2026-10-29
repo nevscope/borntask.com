@@ -84,9 +84,10 @@ export function canOverride(workspaceRole: WorkspaceRole, myRoles: ProjectRole[]
 }
 
 /** Bugs skip approval when that stage exists; otherwise the first main backlog stage. */
-export function initialStatusFor(type: Task['type'], workflow?: Workflow): string {
+export function initialStatusFor(type: Task['type'], workflow?: Workflow, storiesNeedApproval = true): string {
+  const skipApproval = type === 'bug' || ((type === 'story' || type === 'epic') && !storiesNeedApproval);
   if (workflow) {
-    const wanted = type === 'bug' ? ['approved', 'new', 'todo', 'submitted', 'backlog', 'idea'] : ['idea', 'new', 'todo', 'submitted', 'backlog'];
+    const wanted = skipApproval ? ['approved', 'new', 'todo', 'submitted', 'backlog', 'idea'] : ['idea', 'new', 'todo', 'submitted', 'backlog'];
     for (const id of wanted) {
       if (workflow.statuses.some((status) => status.id === id && !status.side)) return id;
     }
@@ -94,5 +95,5 @@ export function initialStatusFor(type: Task['type'], workflow?: Workflow): strin
       ?? workflow.statuses[0]?.id
       ?? 'idea';
   }
-  return type === 'bug' ? 'approved' : 'idea';
+  return skipApproval ? 'approved' : 'idea';
 }

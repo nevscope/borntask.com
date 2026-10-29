@@ -14,6 +14,7 @@ const FIELDS = [
   { value: 'title', label: 'Title' },
   { value: 'description', label: 'Description' },
   { value: 'assigneeEmail', label: 'Assignee' },
+  { value: 'reporterEmail', label: 'Created by (email)' },
   { value: 'section', label: 'Section' },
   { value: 'status', label: 'Status (see right)' },
   { value: 'dueDate', label: 'Due date' },
@@ -65,6 +66,7 @@ export function ImportScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sectionsAs, setSectionsAs] = useState<'sections' | 'statuses'>('sections');
+  const [reporterAs, setReporterAs] = useState<'importer' | 'original'>('original');
   const [showPreview, setShowPreview] = useState(false);
   const [asanaProject, setAsanaProject] = useState('');
   const [asanaToken, setAsanaToken] = useState('');
@@ -119,7 +121,7 @@ export function ImportScreen() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mapping: job.mapping, sectionsAs, projectKey: destKey }),
+        body: JSON.stringify({ mapping: job.mapping, sectionsAs, reporterAs, projectKey: destKey }),
       });
       const res = await fetch(`${BASE_URL}/imports/${job.id}/run`, { method: 'POST', credentials: 'include' });
       if (!res.ok) throw new Error('Could not start import');
@@ -147,6 +149,7 @@ export function ImportScreen() {
           asanaProject: gid,
           token: asanaToken,
           sectionsAs,
+          reporterAs,
         }),
       });
       const json = await res.json() as ImportState & { message?: string };
@@ -249,8 +252,9 @@ export function ImportScreen() {
               onChange={(e) => setAsanaToken(e.target.value)}
               autoComplete="off"
             />
+            <ReporterAsPicker value={reporterAs} onChange={setReporterAs} />
             <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
-              Imports sections, descriptions, subtasks, comments, activity, priority, custom-field labels, followers who already have accounts, and completed tasks as Deployed. Attachments stay in Asana.
+              Imports sections, descriptions, subtasks, comments, activity, priority, custom-field labels, followers who already have accounts, and completed tasks as Deployed. Attachments stay in Asana. Original creators must already be members, matched on email.
             </p>
             <div>
               <Button type="primary" loading={busy} disabled={(!creatingNew && !dest) || (creatingNew && !newName.trim()) || !asanaProject.trim() || asanaToken.trim().length < 8} onClick={() => void startAsana()}>
@@ -347,6 +351,7 @@ export function ImportScreen() {
               )}
               <section className="bt-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <h2 style={{ margin: 0, fontSize: 15 }}>People</h2>
+                <ReporterAsPicker value={reporterAs} onChange={setReporterAs} />
                 {job.unknownEmails.length > 0 ? (
                   <>
                     <p style={{ margin: 0, fontSize: 13, color: color.ink3, lineHeight: 1.5 }}>
@@ -509,6 +514,46 @@ function ImportProgressCard({
         <Link to={`/p/${projectKey}/list`} style={{ fontSize: 13, color: color.brandStrong, fontWeight: 600 }}>View {projectName}</Link>
       )}
     </section>
+  );
+}
+
+function ReporterAsPicker({
+  value,
+  onChange,
+}: {
+  value: 'importer' | 'original';
+  onChange: (next: 'importer' | 'original') => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Created by</h3>
+      <div role="group" aria-label="Created by" style={{ display: 'flex', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9 }}>
+        {([
+          { id: 'original', label: 'Original creator' },
+          { id: 'importer', label: 'Me' },
+        ] as const).map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={value === option.id}
+            onClick={() => onChange(option.id)}
+            style={{
+              flex: 1, height: 30, border: 0, borderRadius: 6,
+              background: value === option.id ? color.ink : 'transparent',
+              color: value === option.id ? color.surface : color.ink3,
+              font: 'inherit', fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ margin: 0, fontSize: 12.5, color: color.muted, lineHeight: 1.5 }}>
+        {value === 'original'
+          ? 'Each task is created by the Asana or Jira person, if their email already belongs to this workspace. Otherwise it is created by you.'
+          : 'Every imported task is created by you.'}
+      </p>
+    </div>
   );
 }
 

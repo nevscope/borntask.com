@@ -17,6 +17,8 @@ const TASK_FIELDS = [
   'permalink_url',
   'resource_subtype',
   'assignee.email',
+  'created_by.email',
+  'created_by.name',
   'parent.gid',
   'memberships.section.name',
   'tags.name',
@@ -62,6 +64,7 @@ type AsanaTask = {
   permalink_url?: string | null;
   resource_subtype?: string | null;
   assignee?: { email?: string | null } | null;
+  created_by?: { name?: string | null; email?: string | null } | null;
   parent?: { gid?: string | null } | null;
   memberships?: { section?: { name?: string | null } | null }[] | null;
   tags?: { name?: string | null }[] | null;
@@ -137,6 +140,7 @@ export function asanaTaskToRow(task: AsanaTask): Record<string, string> {
     Name: task.name ?? '',
     Notes: description,
     'Assignee Email': task.assignee?.email ?? '',
+    'Created By Email': task.created_by?.email ?? '',
     Followers: (task.followers ?? []).map((person) => person.email ?? '').filter(Boolean).join(', '),
     'Section/Column': section,
     Tags: [...new Set(tags)].join(', '),

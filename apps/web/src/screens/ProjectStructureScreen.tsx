@@ -16,6 +16,8 @@ const TYPE_TPL: Record<BuiltinTaskType, string> = {
   bug: 'Template: steps, expected, actual',
   improvement: 'Template: current, proposed',
   feature: 'Template: acceptance criteria',
+  story: 'Template: outcome, in scope',
+  epic: 'Template: goal, why now',
 };
 
 export function ProjectStructureScreen() {

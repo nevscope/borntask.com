@@ -9,7 +9,8 @@ import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
-import { normaliseProjectKey } from '@borntask/shared';
+import { normaliseProjectKey, workBreakdownSchema } from '@borntask/shared';
+import { ensurePlanningTypes } from '../lib/planning.js';
 import { inAppAllowed } from '../lib/notifyInApp.js';
 import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
@@ -55,6 +56,8 @@ const createProjectSchema = z.object({
     userId: z.string(),
     roleSlugs: z.array(z.string()).default([]),
   })).optional(),
+  workBreakdown: workBreakdownSchema.optional(),
+  storiesNeedApproval: z.boolean().optional(),
 });
 
 async function visibleProject(auth: Authed, key: string) {
@@ -146,8 +149,10 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         colour: colourSchema.optional(),
         workflowId: z.string().min(1).optional(),
         disabledTypes: z.array(z.string().trim().min(1)).optional(),
-      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined || value.disabledTypes !== undefined, {
-        message: 'Send a name, a colour, a workflow or the types to update.',
+        workBreakdown: workBreakdownSchema.optional(),
+        storiesNeedApproval: z.boolean().optional(),
+      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined || value.disabledTypes !== undefined || value.workBreakdown !== undefined || value.storiesNeedApproval !== undefined, {
+        message: 'Send a name, a colour, a workflow, types or work breakdown to update.',
       }).safeParse(req.body);
       if (!parsed.success) throw validation(parsed.error.issues[0]?.message ?? 'Check the name, colour and workflow.');
       const project = await visibleProject(auth, key);
@@ -169,10 +174,15 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           if (used > 0) throw validation(`Cannot switch off ${slug}: ${used} open task${used === 1 ? '' : 's'} still use it.`);
         }
       }
+      if (parsed.data.workBreakdown && parsed.data.workBreakdown !== 'off') {
+        await ensurePlanningTypes(auth.db, auth.tenantId);
+      }
       const data = {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
         ...(parsed.data.colour !== undefined ? { colour: normaliseColour(parsed.data.colour) } : {}),
         ...(parsed.data.disabledTypes !== undefined ? { disabledTypes: parsed.data.disabledTypes.join(',') } : {}),
+        ...(parsed.data.workBreakdown !== undefined ? { workBreakdown: parsed.data.workBreakdown } : {}),
+        ...(parsed.data.storiesNeedApproval !== undefined ? { storiesNeedApproval: parsed.data.storiesNeedApproval } : {}),
       };
       const updated = Object.keys(data).length
         ? await auth.db.project.update({ where: { id: project.id }, data })
@@ -182,6 +192,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         colour: updated.colour,
         workflowId,
         disabledTypes: updated.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
+        workBreakdown: updated.workBreakdown,
+        storiesNeedApproval: updated.storiesNeedApproval,
       };
     } catch (err) {
       return sendError(reply, err);
@@ -216,6 +228,9 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         if (named) workflowId = named.id;
       }
       if (!workflowId) throw validation('No workflow available.');
+      if (input.workBreakdown && input.workBreakdown !== 'off') {
+        await ensurePlanningTypes(auth.db, auth.tenantId);
+      }
       const project = await auth.db.project.create({
         data: {
           tenantId: auth.tenantId,
@@ -224,6 +239,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           colour: input.colour ? normaliseColour(input.colour) : '#178A5C',
           leadId: auth.userId,
           workflowId,
+          workBreakdown: input.workBreakdown ?? 'off',
+          storiesNeedApproval: input.storiesNeedApproval ?? true,
         },
       });
       const names = input.sections?.length ? input.sections : ['Inbox'];

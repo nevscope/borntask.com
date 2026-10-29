@@ -56,6 +56,8 @@ export const light: Palette = {
     bug: { bg: '#FDECEC', fg: '#B42323' },
     improvement: { bg: '#FDF3E2', fg: '#8A5A0B' },
     feature: { bg: '#EAF1FD', fg: '#1F55B8' },
+    story: { bg: '#E6F1F6', fg: '#0F4C6A' },
+    epic: { bg: '#F4ECF6', fg: '#6B3D7A' },
   },
   toneStyle: {
     neutral: { bg: '#F1F2EF', fg: '#3A3F38', dot: '#8A9086' },
@@ -108,6 +110,8 @@ export const dark: Palette = {
     bug: { bg: '#381C1C', fg: '#F28B8B' },
     improvement: { bg: '#33270F', fg: '#E8B75F' },
     feature: { bg: '#182846', fg: '#8FB5F6' },
+    story: { bg: '#143040', fg: '#8EC4DE' },
+    epic: { bg: '#2E2238', fg: '#D2B4DE' },
   },
   toneStyle: {
     neutral: { bg: '#252926', fg: '#C3C8BF', dot: '#8F968B' },
