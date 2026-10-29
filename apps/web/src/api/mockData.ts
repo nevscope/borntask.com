@@ -4,7 +4,7 @@
 import dayjs from 'dayjs';
 import { ApiError } from './http';
 import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
-import { isTaskDescriptionTooLong, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
+import { groupCommentReactions, isTaskDescriptionTooLong, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
@@ -185,15 +185,15 @@ const watchers: Record<string, string[]> = {
 
 const comments: Record<string, Comment[]> = {
   'WEB-142': [
-    { id: 'c_1', authorId: 'u_karl', body: 'Fixed the polyfill and deployed to staging. Moved to Testing.', via: 'app', createdAt: ago(2) },
-    { id: 'c_2', authorId: 'u_maria', body: '@Karl still failing when the card needs 3-D Secure.', via: 'app', createdAt: ago(0.6) },
-    { id: 'c_5', authorId: 'u_scope', body: 'I will look at the 3-D Secure failure next.', via: 'app', createdAt: ago(0.2) },
+    { id: 'c_1', authorId: 'u_karl', body: 'Fixed the polyfill and deployed to staging. Moved to Testing.', via: 'app', createdAt: ago(2), reactions: [{ emoji: 'yes', userIds: ['u_maria', 'u_scope'] }] },
+    { id: 'c_2', authorId: 'u_maria', body: '@Karl still failing when the card needs 3-D Secure.', via: 'app', createdAt: ago(0.6), reactions: [{ emoji: 'seen', userIds: ['u_karl'] }] },
+    { id: 'c_5', authorId: 'u_scope', body: 'I will look at the 3-D Secure failure next.', via: 'app', createdAt: ago(0.2), reactions: [] },
   ],
   'WEB-133': [
-    { id: 'c_3', authorId: 'u_karl', body: 'This also covers the checkout thumbnails, not only the hero.', via: 'app', createdAt: ago(8) },
+    { id: 'c_3', authorId: 'u_karl', body: 'This also covers the checkout thumbnails, not only the hero.', via: 'app', createdAt: ago(8), reactions: [] },
   ],
   'WEB-158': [
-    { id: 'c_4', authorId: 'u_maria', body: 'On iPhone SE it blocks the checkout button entirely.', via: 'app', createdAt: ago(5) },
+    { id: 'c_4', authorId: 'u_maria', body: 'On iPhone SE it blocks the checkout button entirely.', via: 'app', createdAt: ago(5), reactions: [] },
   ],
 };
 
@@ -579,7 +579,7 @@ export const mockApi: Api = {
     t.statusId = input.toStatusId;
     touch(t);
     if (input.comment?.trim()) {
-      (comments[key] ??= []).push({ id: uid('c'), authorId: me.user.id, body: input.comment.trim(), via: 'app', createdAt: t.updatedAt });
+      (comments[key] ??= []).push({ id: uid('c'), authorId: me.user.id, body: input.comment.trim(), via: 'app', createdAt: t.updatedAt, reactions: [] });
     }
     log(key, input.overrideReason ? `moved to ${to.name} (override: ${input.overrideReason})` : `moved to ${to.name}`);
     return clone(t);
@@ -672,7 +672,7 @@ export const mockApi: Api = {
       if (!parent) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
       if (parent.parentId) throw new ApiError(403, 'FORBIDDEN', 'Replies can only be one level deep.');
     }
-    const c: Comment = { id: uid('c'), authorId: me.user.id, parentId: parentId ?? null, body, via: 'app', createdAt: new Date().toISOString() };
+    const c: Comment = { id: uid('c'), authorId: me.user.id, parentId: parentId ?? null, body, via: 'app', createdAt: new Date().toISOString(), reactions: [] };
     (comments[key] ??= []).push(c);
     applyCommentHints(key);
     return clone(c);
@@ -701,6 +701,20 @@ export const mockApi: Api = {
       .filter((x) => x.id !== commentId)
       .map((x) => (x.parentId === commentId ? { ...x, parentId: null } : x));
     applyCommentHints(key);
+  },
+
+  async toggleCommentReaction(key, commentId, emoji) {
+    await wait();
+    findTask(key);
+    const c = (comments[key] ?? []).find((x) => x.id === commentId);
+    if (!c) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
+    const rows = (c.reactions ?? []).flatMap((group) => group.userIds.map((userId) => ({ emoji: group.emoji, userId })));
+    const already = rows.some((row) => row.emoji === emoji && row.userId === me.user.id);
+    const next = already
+      ? rows.filter((row) => !(row.emoji === emoji && row.userId === me.user.id))
+      : [...rows, { emoji, userId: me.user.id }];
+    c.reactions = groupCommentReactions(next);
+    return clone(c);
   },
 
   async addSubtask(key, title) {

@@ -83,6 +83,8 @@ export const httpApi: Api = {
   addComment: (key, body, parentId) => request('POST', `/tasks/${enc(key)}/comments`, CommentSchema, { body, parentId }),
   updateComment: (key, commentId, body) => request('PATCH', `/tasks/${enc(key)}/comments/${enc(commentId)}`, CommentSchema, { body }),
   deleteComment: (key, commentId) => request('DELETE', `/tasks/${enc(key)}/comments/${enc(commentId)}`, null),
+  toggleCommentReaction: (key, commentId, emoji) =>
+    request('POST', `/tasks/${enc(key)}/comments/${enc(commentId)}/reactions`, CommentSchema, { emoji }),
   addSubtask: (key, title) => request('POST', `/tasks/${enc(key)}/subtasks`, SubtaskSchema, { title }),
   setSubtaskDone: (key, id, done) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, { done }),
   deleteTask: (key) => request('DELETE', `/tasks/${enc(key)}`, null),

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { commentParentForClient, createTaskStartSlug, isTaskDescriptionTooLong, planningTypeAllowed, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
+import { COMMENT_REACTION_KINDS, createTaskStartSlug, isTaskDescriptionTooLong, planningTypeAllowed, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
@@ -15,7 +15,7 @@ import { moveTask } from '../lib/moveTask.js';
 import { moveTaskToProject } from '../lib/moveTaskToProject.js';
 import { publishTaskChange } from '../lib/live.js';
 import { notifyInApp } from '../lib/notifyInApp.js';
-import { postComment } from '../lib/postComment.js';
+import { mapComment, postComment } from '../lib/postComment.js';
 import {
   attachPendingToTask,
   mapAttachment,
@@ -192,6 +192,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const comments = await auth.db.comment.findMany({
         where: { taskId: row.id, deletedAt: null },
         orderBy: { createdAt: 'asc' },
+        include: { reactions: true },
       });
       const activity = await auth.db.activityLog.findMany({
         where: { taskId: row.id },
@@ -245,14 +246,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           githubActivity: ghActivity.map((a) => ({ when: a.at.toISOString(), text: a.action })),
         },
         subtasks: children.map((c) => ({ id: c.id, title: c.title, done: Boolean(c.completedAt) })),
-        comments: comments.map((c) => ({
-          id: c.id,
-          authorId: c.authorId,
-          parentId: commentParentForClient(comments, c),
-          body: c.body,
-          via: c.via === 'mcp' ? 'mcp' as const : 'app' as const,
-          createdAt: c.createdAt.toISOString(),
-        })),
+        comments: comments.map((c) => mapComment(c, c.reactions, comments)),
         activity: activity.map((a) => ({
           id: a.id,
           actorId: a.actorId ?? '',
@@ -655,9 +649,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
       if (!c) throw notFound('Comment not found.');
       if (c.authorId !== auth.userId) throw forbidden('You can only edit your own comments.');
-      const next = await auth.db.comment.update({ where: { id: c.id }, data: { body: body.body } });
+      const next = await auth.db.comment.update({ where: { id: c.id }, data: { body: body.body }, include: { reactions: true } });
       publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
-      return { id: next.id, authorId: next.authorId, parentId: next.parentId, body: next.body, via: auth.via === 'mcp' ? 'mcp' : 'app', createdAt: next.createdAt.toISOString() };
+      return mapComment(next, next.reactions);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -678,6 +672,35 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       await auth.db.comment.update({ where: { id: c.id }, data: { deletedAt: new Date() } });
       publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
       return reply.status(204).send();
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/comments/:id/reactions', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      const body = z.object({ emoji: z.enum(COMMENT_REACTION_KINDS) }).parse(req.body);
+      const row = await findTaskByKey(auth.db, key);
+      if (!row) throw notFound();
+      await requireOpenProjectWrite(auth, row.project.key);
+      const c = await auth.db.comment.findFirst({ where: { id, taskId: row.id, deletedAt: null } });
+      if (!c) throw notFound('Comment not found.');
+      const existing = await auth.db.commentReaction.findFirst({
+        where: { commentId: c.id, userId: auth.userId, emoji: body.emoji },
+      });
+      if (existing) {
+        await auth.db.commentReaction.delete({ where: { id: existing.id } });
+      } else {
+        await auth.db.commentReaction.create({
+          data: { tenantId: auth.tenantId, commentId: c.id, userId: auth.userId, emoji: body.emoji },
+        });
+      }
+      const fresh = await auth.db.comment.findFirst({ where: { id: c.id }, include: { reactions: true } });
+      if (!fresh) throw notFound('Comment not found.');
+      publishTaskChange(auth, { key: taskKey(row.project.key, row.number), projectKey: row.project.key }, 'comment');
+      return mapComment(fresh, fresh.reactions);
     } catch (err) {
       return sendError(reply, err);
     }

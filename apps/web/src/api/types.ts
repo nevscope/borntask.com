@@ -193,6 +193,15 @@ export type Task = z.infer<typeof TaskSchema>;
 export const SubtaskSchema = z.object({ id: z.string(), title: z.string(), done: z.boolean() });
 export type Subtask = z.infer<typeof SubtaskSchema>;
 
+export const CommentReactionKindSchema = z.enum(['like', 'love', 'yes', 'seen', 'celebrate']);
+export type CommentReactionKind = z.infer<typeof CommentReactionKindSchema>;
+
+export const CommentReactionGroupSchema = z.object({
+  emoji: CommentReactionKindSchema,
+  userIds: z.array(z.string()),
+});
+export type CommentReactionGroup = z.infer<typeof CommentReactionGroupSchema>;
+
 export const CommentSchema = z.object({
   id: z.string(),
   authorId: z.string(),
@@ -200,6 +209,7 @@ export const CommentSchema = z.object({
   body: z.string(),
   via: ActorViaSchema,
   createdAt: z.string(),
+  reactions: z.array(CommentReactionGroupSchema),
 });
 export type Comment = z.infer<typeof CommentSchema>;
 
@@ -406,6 +416,7 @@ export interface Api {
   addComment(key: string, body: string, parentId?: string): Promise<Comment>; // POST /tasks/:key/comments
   updateComment(key: string, commentId: string, body: string): Promise<Comment>; // PATCH /tasks/:key/comments/:id
   deleteComment(key: string, commentId: string): Promise<void>; // DELETE /tasks/:key/comments/:id
+  toggleCommentReaction(key: string, commentId: string, emoji: CommentReactionKind): Promise<Comment>; // POST /tasks/:key/comments/:id/reactions
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)

@@ -23,6 +23,7 @@ export const TENANT_SCOPED_MODELS = new Set<Prisma.ModelName>([
   'Label',
   'TaskLabel',
   'Comment',
+  'CommentReaction',
   'Attachment',
   'ActivityLog',
   'SavedView',

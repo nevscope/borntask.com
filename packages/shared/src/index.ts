@@ -12,3 +12,4 @@ export * from './github.js';
 export * from './automations.js';
 export * from './workspacePacks.js';
 export * from './projectKey.js';
+export * from './commentReactions.js';

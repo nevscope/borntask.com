@@ -1,6 +1,6 @@
 // Task detail (screen 4). Opens over any screen from ?task=KEY.
 // Everything edits in place and saves on its own; the header shows Saving… / Saved.
-import { Button, Checkbox, Drawer, Input, Select, Skeleton } from 'antd';
+import { Button, Checkbox, Drawer, Input, Popover, Select, Skeleton, Tooltip } from 'antd';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
@@ -10,6 +10,7 @@ import {
   useAddSubtask,
   useCopyTask,
   useDeleteComment,
+  useToggleCommentReaction,
   useDeleteTask,
   useMe,
   useProject,
@@ -23,13 +24,13 @@ import {
   useMoveTaskToProject,
   qk,
 } from '../api/queries';
-import type { ActorVia, Comment, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
+import type { ActorVia, Comment, CommentReactionKind, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
 import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
 import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
-import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
+import { COMMENT_REACTION_KINDS, COMMENT_REACTION_LABELS, isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { isEmptyDescription, persistDescription, readableDescriptionHtml } from '../lib/descriptionHtml';
 import { allowedTypeSlugs } from '../lib/taskFilters';
@@ -40,7 +41,7 @@ import { DescriptionEditor } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { MoveToProjectDialog } from './MoveToProjectDialog';
-import { Avatar, StatusPill, TypeTag } from './Chips';
+import { AddReactionIcon, Avatar, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, SeenReactionIcon, StatusPill, TypeTag, YesReactionIcon } from './Chips';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
@@ -906,6 +907,7 @@ function CommentRow({
   const toast = useStatusToast();
   const update = useUpdateComment();
   const remove = useDeleteComment();
+  const react = useToggleCommentReaction();
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(comment.body);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -981,6 +983,13 @@ function CommentRow({
         ) : (
           <>
             <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: readableDescriptionHtml(comment.body, people) }} />
+            <CommentReactions
+              groups={comment.reactions ?? []}
+              people={people}
+              meId={meId}
+              busy={react.isPending}
+              onToggle={(emoji) => react.mutate({ key: taskKey, commentId: comment.id, emoji })}
+            />
             <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
               {onReply && (
                 <button type="button" onClick={() => setReplying((open) => !open)} style={commentAction}>
@@ -1036,6 +1045,114 @@ function CommentRow({
       >
         This removes the comment from the task. You cannot undo this.
       </ConfirmDialog>
+    </div>
+  );
+}
+
+function reactionIcon(kind: CommentReactionKind, size = 14) {
+  if (kind === 'like') return <LikeReactionIcon size={size} />;
+  if (kind === 'love') return <LoveReactionIcon size={size} />;
+  if (kind === 'yes') return <YesReactionIcon size={size} />;
+  if (kind === 'seen') return <SeenReactionIcon size={size} />;
+  return <CelebrateReactionIcon size={size} />;
+}
+
+function CommentReactions({
+  groups,
+  people,
+  meId,
+  busy,
+  onToggle,
+}: {
+  groups: Comment['reactions'];
+  people: ProjectDetail['users'];
+  meId: string | undefined;
+  busy: boolean;
+  onToggle: (emoji: CommentReactionKind) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const namesOf = (userIds: string[]) =>
+    userIds
+      .map((id) => people.find((person) => person.id === id)?.name ?? 'Someone')
+      .join(', ');
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+      {groups.map((group) => {
+        const mine = Boolean(meId && group.userIds.includes(meId));
+        const label = COMMENT_REACTION_LABELS[group.emoji];
+        const tip = `${namesOf(group.userIds)} · ${label}`;
+        return (
+          <Tooltip key={group.emoji} title={tip}>
+            <button
+              type="button"
+              aria-pressed={mine}
+              aria-label={`${label}, ${group.userIds.length}`}
+              disabled={busy}
+              onClick={() => onToggle(group.emoji)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                height: 24,
+                padding: '0 8px',
+                borderRadius: 999,
+                border: `1px solid ${mine ? color.brandBorder : color.border}`,
+                background: mine ? color.brandTint : color.subtle,
+                color: mine ? color.brandStrong : color.ink2,
+                font: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {reactionIcon(group.emoji, 13)}
+              {group.userIds.length}
+            </button>
+          </Tooltip>
+        );
+      })}
+      <Popover
+        trigger="click"
+        open={open}
+        onOpenChange={setOpen}
+        placement="bottomLeft"
+        content={
+          <div role="menu" aria-label="Add a reaction" style={{ display: 'flex', gap: 4 }}>
+            {COMMENT_REACTION_KINDS.map((kind) => (
+              <Tooltip key={kind} title={COMMENT_REACTION_LABELS[kind]}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-label={COMMENT_REACTION_LABELS[kind]}
+                  disabled={busy}
+                  onClick={() => {
+                    onToggle(kind);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: 'grid',
+                    placeItems: 'center',
+                    border: 0,
+                    borderRadius: radius.sm,
+                    background: 'transparent',
+                    color: color.ink2,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {reactionIcon(kind, 16)}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+        }
+      >
+        <button type="button" aria-label="Add a reaction" style={{ ...commentAction, display: 'inline-flex', alignItems: 'center', height: 24 }}>
+          <AddReactionIcon size={14} />
+        </button>
+      </Popover>
     </div>
   );
 }

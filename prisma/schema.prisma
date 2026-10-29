@@ -131,6 +131,7 @@ model User {
   assignedTasks Task[]       @relation("TaskAssignee")
   reportedTasks Task[]       @relation("TaskReporter")
   comments      Comment[]
+  commentReactions CommentReaction[]
   watchers      TaskWatcher[]
   notifications Notification[]
   notificationsActed Notification[] @relation("NotificationActor")
@@ -187,6 +188,7 @@ model Workspace {
   sections         Section[]
   labels           Label[]
   comments         Comment[]
+  commentReactions CommentReaction[]
   attachments      Attachment[]
   watchers         TaskWatcher[]
   notifyPrefs      NotificationPreference[]
@@ -573,9 +575,26 @@ model Comment {
   author User      @relation(fields: [authorId], references: [id])
   parent Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies Comment[] @relation("CommentReplies")
+  reactions CommentReaction[]
 
   @@index([tenantId, taskId])
   @@index([parentId])
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  tenantId  String
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  comment Comment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+  @@index([tenantId, commentId])
 }
 
 model Attachment {

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -94,6 +94,7 @@ export const api: Api = {
   addComment: (key, body, parentId) => tasksApi().addComment(key, body, parentId),
   updateComment: (key, commentId, body) => tasksApi().updateComment(key, commentId, body),
   deleteComment: (key, commentId) => tasksApi().deleteComment(key, commentId),
+  toggleCommentReaction: (key, commentId, emoji) => tasksApi().toggleCommentReaction(key, commentId, emoji),
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
   deleteTask: (key) => tasksApi().deleteTask(key),
@@ -214,6 +215,8 @@ export function useInviteToProject(projectId: string | undefined, projectKey: st
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['invites'] });
+      void qc.invalidateQueries({ queryKey: qk.people });
+      void qc.invalidateQueries({ queryKey: qk.projects });
       if (projectKey) void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
     },
   });
@@ -435,6 +438,15 @@ export function useDeleteComment() {
   return useMutation({
     mutationFn: ({ key, commentId }: { key: string; commentId: string }) => api.deleteComment(key, commentId),
     onSuccess: (_d, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+  });
+}
+
+export function useToggleCommentReaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, commentId, emoji }: { key: string; commentId: string; emoji: CommentReactionKind }) =>
+      api.toggleCommentReaction(key, commentId, emoji),
+    onSuccess: (_c, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
   });
 }
 

@@ -1,4 +1,4 @@
-import { skipWatcherBecauseMentioned } from '@borntask/shared';
+import { commentParentForClient, groupCommentReactions, skipWatcherBecauseMentioned } from '@borntask/shared';
 import { persistDescription } from './descriptionHtml.js';
 import { actorName, enqueueChat, enqueuePersonalChat, mentionUserIds, taskUrl, workspacePeople } from './chatNotify.js';
 import { taskKey } from './loadProject.js';
@@ -110,12 +110,21 @@ export async function postComment(
     });
   }
   publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');
+  return mapComment(c, []);
+}
+
+export function mapComment(
+  c: { id: string; authorId: string; parentId: string | null; body: string; via: string; createdAt: Date },
+  reactions: { emoji: string; userId: string }[] = [],
+  siblings?: { id: string; parentId?: string | null }[],
+) {
   return {
     id: c.id,
     authorId: c.authorId,
-    parentId: c.parentId,
+    parentId: siblings ? commentParentForClient(siblings, c) : c.parentId,
     body: c.body,
-    via: auth.via === 'mcp' ? 'mcp' as const : 'app' as const,
+    via: c.via === 'mcp' ? 'mcp' as const : 'app' as const,
     createdAt: c.createdAt.toISOString(),
+    reactions: groupCommentReactions(reactions),
   };
 }
