@@ -31,6 +31,7 @@ import { ProjectStructureScreen } from './screens/ProjectStructureScreen';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { WorkspaceGeneralScreen } from './screens/WorkspaceGeneralScreen';
 import { AdminBillingScreen } from './screens/AdminBillingScreen';
+import { WorkspaceReportsScreen } from './screens/WorkspaceReportsScreen';
 import { ApiTokensScreen } from './screens/ApiTokensScreen';
 import { GitHubSettingsScreen } from './screens/GitHubSettingsScreen';
 import { GoogleChatScreen } from './screens/GoogleChatScreen';
@@ -39,6 +40,7 @@ import { McpConnectedScreen } from './screens/auth/McpConnectedScreen';
 import { McpConsentScreen } from './screens/auth/McpConsentScreen';
 import { PublicLegalScreen } from './screens/auth/PublicLegalScreen';
 import { LegalSettingsScreen } from './screens/LegalSettingsScreen';
+import { TimesheetsScreen } from './screens/TimesheetsScreen';
 
 const DEMO_SCREENS: Record<string, { path: string; task?: string; quickAdd?: boolean }> = {
   'my-tasks': { path: '/' },
@@ -100,6 +102,7 @@ function Shell() {
       <CommandPalette />
       <Routes>
         <Route path="/" element={<MyTasksScreen />} />
+        <Route path="/timesheets" element={<TimesheetsScreen />} />
         <Route path="/search" element={<SearchScreen />} />
         <Route path="/projects" element={<ProjectsScreen />} />
         <Route path="/projects/new" element={<CreateProjectScreen />} />
@@ -109,6 +112,7 @@ function Shell() {
         <Route path="/settings/defaults" element={<AdminDefaultsScreen />} />
         <Route path="/settings/workspace" element={<WorkspaceGeneralScreen />} />
         <Route path="/settings/billing" element={<AdminBillingScreen />} />
+        <Route path="/settings/reports" element={<WorkspaceReportsScreen />} />
         <Route path="/settings/profile" element={<ProfileSettingsScreen />} />
         <Route path="/settings/tokens" element={<ApiTokensScreen />} />
         <Route path="/settings/privacy" element={<LegalSettingsScreen key="privacy" kind="privacy" />} />

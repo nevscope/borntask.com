@@ -46,6 +46,18 @@ test('where tenantId: A is still clamped to B', async () => {
   expect(rows).toHaveLength(0);
 });
 
+test('scoped client for tenant B cannot list tenant A holidays or timesheets', async () => {
+  const clientB = createTenantClient(tenantB);
+  const [holidays, entries, daysOff] = await Promise.all([
+    clientB.workspaceHoliday.findMany(),
+    clientB.timesheetEntry.findMany(),
+    clientB.timesheetDayOff.findMany(),
+  ]);
+  expect(holidays.every((row) => row.tenantId === tenantB)).toBe(true);
+  expect(entries.every((row) => row.tenantId === tenantB)).toBe(true);
+  expect(daysOff.every((row) => row.tenantId === tenantB)).toBe(true);
+});
+
 test('create injects caller tenantId and cannot write into tenant A', async () => {
   const clientB = createTenantClient(tenantB);
   const project = await prisma.project.findFirstOrThrow({ where: { tenantId: tenantB } });

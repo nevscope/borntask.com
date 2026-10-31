@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Timesheets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <nav aria-label="Main" style="flex: 1 1 232px; max-width: 272px; box-sizing: border-box; padding: 16px 12px; background: #FFFFFF; border-right: 1px solid #E8EBE6; display: flex; flex-direction: column; gap: 2px;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 14px;">
+      <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span>
+    </div>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; height: 36px; margin: 0 0 10px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FAFBF9; font: inherit; font-size: 13px; color: #3A3F38; cursor: pointer;">Scope Cloud Solutions<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg><span style="flex: 1;">My tasks</span><span style="font-size: 12px; color: #5B6157;">7</span></a>
+    <a href="Timesheets.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Timesheets</a>
+    <a href="Search.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search</a>
+    <a href="Projects.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Projects</a>
+    <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Favourites</div>
+    <a href="ListView.dc.html" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #2F6FDB;"></span>Website relaunch</a>
+    <a href="ListView.dc.html" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #E0731F;"></span>Mobile app</a>
+    <a href="ListView.dc.html" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: #8E59D9;"></span>Client onboarding</a>
+    <div style="flex: 1; min-height: 24px;"></div>
+    <a href="AdminPeople.dc.html" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none; font-size: 13.5px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>Settings</a>
+  </nav>
+  <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+      <label style="flex: 1 1 280px; max-width: 520px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FAFBF9; color: #5B6157;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><input type="search" aria-label="Search tasks" placeholder="Search tasks or jump to WEB-142" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 13.5px; color: #121417; outline: none;"><kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; background: #FFFFFF; color: #5B6157;">/</kbd></label>
+      <div style="flex: 1;"></div>
+      <a href="QuickAdd.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; background: #178A5C; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 13.5px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New task<kbd style="font-family: inherit; font-size: 11px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,0.2); color: #FFFFFF;">Q</kbd></a>
+      <button type="button" aria-label="Notifications, 3 unread" style="position: relative; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; color: #3A3F38; cursor: pointer;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg><span style="position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: #E0731F;"></span></button>
+      <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+    </header>
+    <main style="padding: 32px 28px 56px;">
+      <div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px;">
+          <div>
+            <h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -0.03em;">Timesheets</h1>
+            <p style="margin: 6px 0 0; color: #5B6157; font-size: 13.5px;">Daily entries in hours, against projects · set by your workspace</p>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+            <span role="status" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #0F6B46;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Saved</span>
+            <button type="button" style="height: 36px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; color: #262A24; cursor: pointer;">Copy last week</button>
+            <div role="group" aria-label="Week" style="display: flex; align-items: center; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF;">
+              <button type="button" aria-label="Previous week" style="width: 36px; height: 34px; border: 0; background: transparent; color: #3A3F38; cursor: pointer; display: grid; place-items: center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button>
+              <span style="padding: 0 6px; font-size: 13px; font-weight: 600; white-space: nowrap;">26 Oct - 1 Nov 2026</span>
+              <button type="button" aria-label="Next week" style="width: 36px; height: 34px; border: 0; background: transparent; color: #3A3F38; cursor: pointer; display: grid; place-items: center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+            </div>
+            <button type="button" style="height: 36px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; color: #262A24; cursor: pointer;">This week</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+          <div style="flex: 1 1 180px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">This week</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{weekTotal}}</div></div>
+          <div style="flex: 1 1 180px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Today, Thu 29 Oct</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{todayTotal}}</div></div>
+          <div style="flex: 1 1 180px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Last week</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">38:00</div></div>
+          <div style="flex: 1 1 180px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Days logged so far</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{daysFilled}} <span style="font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: #5B6157;">of {{daysExpected}} expected</span></div></div>
+          <div style="flex: 1 1 180px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Days off this week</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{offCount}} <span style="font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: #5B6157;">{{offWhich}}</span></div></div>
+        </div>
+
+        <section aria-label="Time per project and day" style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow-x: auto;">
+          <div style="min-width: 860px;">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px; align-items: end; gap: 0; border-bottom: 1px solid #EEF0EC;">
+              <span style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Project</span>
+              <sc-for list="{{days}}" as="d" hint-placeholder-count="7">
+                <span style="position: relative; padding: 6px 4px; text-align: center; background: {{d.headBg}}; border-radius: 8px 8px 0 0;">
+                  <button type="button" onClick="{{d.toggleMenu}}" aria-haspopup="menu" aria-expanded="{{d.expanded}}" aria-label="Options for {{d.full}}" style="display: block; width: 100%; box-sizing: border-box; padding: 4px; border: 0; border-radius: 6px; background: transparent; font: inherit; cursor: pointer;"><span style="display: block; font-size: 12px; font-weight: 600; color: {{d.headFg}};">{{d.name}} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8A9086" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span style="display: block; font-size: 11.5px; color: #5B6157;">{{d.date}}</span></button>
+                  <sc-if value="{{d.showTag}}" hint-placeholder-val="{{false}}"><span style="display: inline-block; margin-top: 2px; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: {{d.tagBg}}; color: {{d.tagFg}};">{{d.tag}}</span></sc-if>
+                  <sc-if value="{{d.menuOpen}}" hint-placeholder-val="{{false}}">
+                    <span role="menu" aria-label="{{d.full}}" style="position: absolute; z-index: 5; top: 100%; left: 50%; transform: translateX(-50%); width: 240px; margin-top: 4px; padding: 6px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 10px; box-shadow: 0 18px 40px -16px rgba(18,20,23,.28); text-align: left; display: flex; flex-direction: column; gap: 2px;">
+                      <span style="padding: 6px 10px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">{{d.full}}</span>
+                      <sc-if value="{{d.canMark}}" hint-placeholder-val="{{true}}">
+                        <button type="button" role="menuitem" onClick="{{d.setLeave}}" style="display: block; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; font: inherit; font-size: 13px; color: #121417; text-align: left; cursor: pointer;">Mark as day off: Leave</button>
+                        <button type="button" role="menuitem" onClick="{{d.setOther}}" style="display: block; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; font: inherit; font-size: 13px; color: #121417; text-align: left; cursor: pointer;">Mark as day off: Other</button>
+                      </sc-if>
+                      <sc-if value="{{d.hasTime}}" hint-placeholder-val="{{false}}"><span style="padding: 6px 10px 8px; font-size: 12.5px; line-height: 1.45; color: #5B6157;">This day has time logged. Clear it first to mark the day off.</span></sc-if>
+                      <sc-if value="{{d.isUserOff}}" hint-placeholder-val="{{false}}"><button type="button" role="menuitem" onClick="{{d.clear}}" style="display: block; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; font: inherit; font-size: 13px; color: #121417; text-align: left; cursor: pointer;">Back to a working day</button></sc-if>
+                      <sc-if value="{{d.isWeekend}}" hint-placeholder-val="{{false}}"><span style="padding: 6px 10px 8px; font-size: 12.5px; line-height: 1.45; color: #5B6157;">Not a working day in this workspace. Log time here only if you worked.</span></sc-if>
+                    </span>
+                  </sc-if>
+                </span>
+              </sc-for>
+              <span style="padding: 12px 16px; text-align: right; font-size: 12px; font-weight: 600; color: #5B6157;">Total</span>
+            </div>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px; align-items: center; border-bottom: 1px solid #EEF0EC;">
+                <span style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; min-width: 0;"><span style="flex: none; width: 9px; height: 9px; border-radius: 3px; background: {{r.color}};"></span><span style="min-width: 0;"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.name}}</span><span style="display: block; font-size: 12px; color: #5B6157;">{{r.key}} · {{r.role}}</span></span></span>
+                <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="7">
+                  <span style="position: relative; padding: 6px 4px; background: {{c.bg}};">
+                    <sc-if value="{{c.off}}" hint-placeholder-val="{{false}}"><span aria-label="{{r.name}}, {{c.day}}: day off" style="display: grid; place-items: center; height: 38px; border-radius: 8px; background: #F1F2EF; font-size: 12px; font-weight: 500; color: #5B6157;">Off</span></sc-if>
+                    <sc-if value="{{c.editable}}" hint-placeholder-val="{{true}}"><input type="text" inputmode="decimal" value="{{c.val}}" onChange="{{c.onChange}}" placeholder="-" aria-label="{{r.name}}, {{c.day}}" style="width: 100%; box-sizing: border-box; height: 38px; padding: 0 6px; border: 1px solid {{c.border}}; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13.5px; text-align: center; font-variant-numeric: tabular-nums; color: #121417; outline-color: #178A5C;"></sc-if>
+                    <sc-if value="{{c.hasNote}}" hint-placeholder-val="{{false}}"><span title="Has a note" aria-label="Has a note" style="position: absolute; top: 9px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: #178A5C;"></span></sc-if>
+                  </span>
+                </sc-for>
+                <span style="padding: 0 16px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;">{{r.total}}</span>
+              </div>
+            </sc-for>
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px; align-items: center; background: #FAFBF9;">
+              <span style="padding: 14px 16px; font-size: 13px; font-weight: 600;">Day total</span>
+              <sc-for list="{{dayTotals}}" as="t" hint-placeholder-count="7">
+                <span style="padding: 14px 4px; text-align: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: {{t.color}};">{{t.val}}</span>
+              </sc-for>
+              <span style="padding: 14px 16px; text-align: right; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;">{{weekTotal}}</span>
+            </div>
+          </div>
+        </section>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: #5B6157;">
+          <span>Type <kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; background: #FFFFFF;">2:30</kbd> or <kbd style="font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #DDE1DA; border-radius: 5px; background: #FFFFFF;">2.5</kbd>. Tab moves to the next day. Changes save as you go. Click a filled cell again to add a note. Open a day's menu to mark it off.</span>
+          <button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: #0F6B46; font-weight: 600; cursor: pointer;">Show 2 more projects you're on</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      menu: null,
+      dayOff: { 4: 'Leave' },
+      cells: {
+        WEB: ['3:00', '2:30', '4:00', '1:30', '', '', ''],
+        MOB: ['2:00', '3:00', '1:00', '2:30', '', '', ''],
+        CLI: ['1:30', '1:00', '2:00', '3:00', '', '', ''],
+        OPS: ['1:00', '1:30', '0:30', '0:30', '', '', '']
+      }
+    };
+  }
+  mins(v) {
+    const s = String(v || '').trim();
+    if (!s) return 0;
+    if (s.indexOf(':') >= 0) { const p = s.split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
+    const n = parseFloat(s.replace(',', '.'));
+    return isNaN(n) ? 0 : Math.round(n * 60);
+  }
+  fmt(m) { return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+  renderVals() {
+    const projects = [
+      { key: 'WEB', name: 'Website relaunch', color: '#2F6FDB', role: 'Business, Tester' },
+      { key: 'MOB', name: 'Mobile app', color: '#E0731F', role: 'Business, Tester' },
+      { key: 'CLI', name: 'Client onboarding', color: '#8E59D9', role: 'Lead' },
+      { key: 'OPS', name: 'Internal ops', color: '#5B6157', role: 'Lead' }
+    ];
+    const days = [['Mon', '26 Oct'], ['Tue', '27 Oct'], ['Wed', '28 Oct'], ['Thu', '29 Oct'], ['Fri', '30 Oct'], ['Sat', '31 Oct'], ['Sun', '1 Nov']];
+    const today = 3;
+    const notes = { 'WEB-2': true, 'CLI-3': true };
+    const off = this.state.dayOff;
+    const dayMins = [0, 0, 0, 0, 0, 0, 0];
+    const rows = projects.map((p) => {
+      let total = 0;
+      const cells = this.state.cells[p.key].map((val, i) => {
+        const m = this.mins(val);
+        total += m; dayMins[i] += m;
+        return {
+          val, day: days[i][0] + ' ' + days[i][1], off: !!off[i], editable: !off[i],
+          hasNote: !!notes[p.key + '-' + i],
+          bg: i === today ? '#F3FAF6' : (i >= 5 ? '#FAFBF9' : 'transparent'),
+          border: i === today ? '#CFE7DA' : '#E8EBE6',
+          onChange: (e) => {
+            const next = { ...this.state.cells, [p.key]: this.state.cells[p.key].slice() };
+            next[p.key][i] = e.target.value;
+            this.setState({ cells: next });
+          }
+        };
+      });
+      return { ...p, cells, total: total ? this.fmt(total) : '-' };
+    });
+    const week = dayMins.reduce((a, b) => a + b, 0);
+    return {
+      rows,
+      days: days.map((d, i) => {
+        const isOff = !!off[i], weekend = i >= 5, hasTime = dayMins[i] > 0, open = this.state.menu === i;
+        const setOff = (kind) => () => this.setState({ dayOff: { ...off, [i]: kind }, menu: null });
+        return {
+          name: d[0], date: d[1], full: d[0] + ' ' + d[1],
+          headBg: i === today ? '#E9F5EF' : 'transparent', headFg: i === today ? '#0F6B46' : '#262A24',
+          showTag: isOff, tag: isOff ? 'Off: ' + off[i] : '', tagBg: '#F1F2EF', tagFg: '#3A3F38',
+          menuOpen: open, expanded: open ? 'true' : 'false',
+          toggleMenu: () => this.setState({ menu: open ? null : i }),
+          canMark: !isOff && !weekend && !hasTime, hasTime: !isOff && !weekend && hasTime, isUserOff: isOff, isWeekend: weekend,
+          setLeave: setOff('Leave'), setOther: setOff('Other'),
+          clear: () => { const next = { ...off }; delete next[i]; this.setState({ dayOff: next, menu: null }); }
+        };
+      }),
+      dayTotals: dayMins.map((m, i) => ({ val: off[i] ? off[i] : (m ? this.fmt(m) : '-'), color: off[i] ? '#5B6157' : (m ? '#121417' : (i <= today && i < 5 ? '#8A5A0B' : '#8A9086')) })),
+      weekTotal: this.fmt(week),
+      todayTotal: this.fmt(dayMins[today]),
+      daysFilled: dayMins.slice(0, today + 1).filter((m) => m > 0).length,
+      daysExpected: [0, 1, 2, 3].filter((i) => !off[i] && i <= today).length,
+      offCount: Object.keys(off).length,
+      offWhich: Object.keys(off).map((k) => days[k][0]).join(', ')
+    };
+  }
+}
+</script>
+</body>
+</html>

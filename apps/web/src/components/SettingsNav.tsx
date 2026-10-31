@@ -19,6 +19,7 @@ const workspaceLinks = (canAdmin: boolean, isOwner: boolean) => [
   { to: '/settings/defaults', label: 'Roles, types and workflows', show: canAdmin },
   { to: '/settings/workflow', label: 'Workflow editor', show: canAdmin },
   { to: '/settings/billing', label: 'Billing', show: isOwner || canAdmin },
+  { to: '/settings/reports', label: 'Reports', show: canAdmin },
 ];
 
 const youLinks = [

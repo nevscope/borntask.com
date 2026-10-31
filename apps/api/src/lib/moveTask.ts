@@ -1,4 +1,4 @@
-import { GITHUB_BLOCKED, isForwardGithubMove } from '@borntask/shared';
+import { completedAtForMove, GITHUB_BLOCKED, isForwardGithubMove } from '@borntask/shared';
 import type { Authed } from '../context.js';
 import { ApiError } from '../errors.js';
 import { actorName, enqueueChat, enqueuePersonalChat, eventsForStatus, taskUrl } from './chatNotify.js';
@@ -115,7 +115,7 @@ export async function moveTask(
     data: {
       statusId: toId,
       previousStatusId: toSlug === 'on_hold' ? row.statusId : previousStatusId,
-      completedAt: wf.statuses.find((s) => s.id === toSlug)?.category === 'done' ? new Date() : null,
+      completedAt: completedAtForMove(wf.statuses.find((s) => s.id === toSlug)?.category ?? ''),
     },
     include: {
       type: true,

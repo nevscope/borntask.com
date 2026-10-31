@@ -27,6 +27,9 @@ import { githubRoutes } from './routes/github.js';
 import { automationRoutes } from './routes/automations.js';
 import { streamRoutes } from './routes/stream.js';
 import { inboundMailRoutes } from './routes/inboundMail.js';
+import { timesheetRoutes } from './routes/timesheets.js';
+import { holidayRoutes } from './routes/holidays.js';
+import { reportRoutes } from './routes/reports.js';
 
 async function main() {
   const app = Fastify({ logger: true, trustProxy: true });
@@ -72,6 +75,9 @@ async function main() {
   await app.register(automationRoutes);
   await app.register(streamRoutes);
   await app.register(inboundMailRoutes);
+  await app.register(timesheetRoutes);
+  await app.register(holidayRoutes);
+  await app.register(reportRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

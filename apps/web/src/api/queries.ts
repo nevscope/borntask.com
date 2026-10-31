@@ -137,6 +137,10 @@ export const qk = {
   task: (key: string) => ['tasks', key] as const,
   notifications: ['me', 'notifications'] as const,
   people: ['people'] as const,
+  workspaceSettings: ['workspace-settings'] as const,
+  workspaceHolidays: (year: number) => ['workspace-holidays', year] as const,
+  timesheets: (from: string, to: string, userId?: string) => ['timesheets', from, to, userId ?? 'me'] as const,
+  reports: (from: string, to: string, projectId?: string) => ['reports', from, to, projectId ?? 'all'] as const,
 };
 
 // ---------- reads ----------
@@ -830,6 +834,472 @@ const ChatAppStatusSchema = z.object({
 });
 
 export type ChatAppStatus = z.infer<typeof ChatAppStatusSchema>;
+
+export type WorkspaceSettings = {
+  name: string;
+  slug: string;
+  timeZone: string;
+  weekStart: 'monday' | 'sunday';
+  defaultWorkflowId: string | null;
+  bugsStartIn: 'approved' | 'idea';
+  allowGoogle: boolean;
+  allowMicrosoft: boolean;
+  membersCanInviteGuests: boolean;
+  timesheetPeriod: 'daily' | 'weekly';
+  timesheetUnit: 'time' | 'percent';
+  workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
+  logo?: boolean;
+  workflows: { id: string; name: string; slug: string }[];
+};
+
+export type WorkspaceHoliday = { date: string; name: string };
+
+export function useWorkspaceSettings() {
+  return useQuery({
+    queryKey: qk.workspaceSettings,
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
+      if (!res.ok) {
+        if (USE_MOCKS) {
+          return {
+            name: 'Scope Cloud Solutions',
+            slug: 'scope',
+            timeZone: 'Europe/Malta',
+            weekStart: 'monday',
+            defaultWorkflowId: null,
+            bugsStartIn: 'approved',
+            allowGoogle: true,
+            allowMicrosoft: true,
+            membersCanInviteGuests: true,
+            timesheetPeriod: 'daily',
+            timesheetUnit: 'time',
+            workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+            workflows: [],
+          } satisfies WorkspaceSettings;
+        }
+        throw new Error('Sign in to load workspace settings.');
+      }
+      return (await res.json()) as WorkspaceSettings;
+    },
+  });
+}
+
+const TimesheetEntrySchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  periodKind: z.enum(['daily', 'weekly']),
+  periodStart: z.string(),
+  unit: z.enum(['time', 'percent']),
+  minutes: z.number().nullable(),
+  percent: z.number().nullable(),
+  note: z.string().nullable(),
+});
+
+const TimesheetDayOffSchema = z.object({
+  date: z.string(),
+  label: z.literal('Off').optional(),
+  kind: z.enum(['leave', 'other']).nullable().optional(),
+  note: z.string().nullable().optional(),
+});
+
+export const TimesheetRangeSchema = z.object({
+  userId: z.string(),
+  entries: z.array(TimesheetEntrySchema),
+  daysOff: z.array(TimesheetDayOffSchema),
+  holidays: z.array(z.object({ date: z.string(), name: z.string() })),
+});
+
+export type TimesheetRange = z.infer<typeof TimesheetRangeSchema>;
+export type TimesheetEntryWrite = {
+  projectId: string;
+  periodKind: 'daily' | 'weekly';
+  periodStart: string;
+  unit: 'time' | 'percent';
+  minutes?: number | null;
+  percent?: number | null;
+  note?: string | null;
+  clear?: boolean;
+};
+
+const MOCK_TIMESHEETS: TimesheetRange = {
+  userId: 'me',
+  entries: [
+    { id: 'e1', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-26', unit: 'time', minutes: 180, percent: null, note: null },
+    { id: 'e2', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-27', unit: 'time', minutes: 150, percent: null, note: 'Checkout and Safari fixes' },
+    { id: 'e3', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-28', unit: 'time', minutes: 240, percent: null, note: 'Checkout fixes with Karl, then retest on Safari 17.' },
+    { id: 'e4', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-29', unit: 'time', minutes: 90, percent: null, note: null },
+    { id: 'e5', projectId: 'p_mob', periodKind: 'daily', periodStart: '2026-10-26', unit: 'time', minutes: 120, percent: null, note: null },
+    { id: 'e6', projectId: 'p_mob', periodKind: 'daily', periodStart: '2026-10-27', unit: 'time', minutes: 180, percent: null, note: null },
+    { id: 'e7', projectId: 'p_mob', periodKind: 'daily', periodStart: '2026-10-28', unit: 'time', minutes: 60, percent: null, note: null },
+    { id: 'e8', projectId: 'p_mob', periodKind: 'daily', periodStart: '2026-10-29', unit: 'time', minutes: 150, percent: null, note: null },
+    { id: 'e9', projectId: 'p_cli', periodKind: 'daily', periodStart: '2026-10-26', unit: 'time', minutes: 90, percent: null, note: null },
+    { id: 'e10', projectId: 'p_cli', periodKind: 'daily', periodStart: '2026-10-27', unit: 'time', minutes: 60, percent: null, note: null },
+    { id: 'e11', projectId: 'p_cli', periodKind: 'daily', periodStart: '2026-10-28', unit: 'time', minutes: 120, percent: null, note: null },
+    { id: 'e12', projectId: 'p_cli', periodKind: 'daily', periodStart: '2026-10-29', unit: 'time', minutes: 180, percent: null, note: 'Welcome emails' },
+  ],
+  daysOff: [{ date: '2026-10-30', kind: 'leave', note: null, label: 'Off' }],
+  holidays: [],
+};
+
+async function fetchTimesheets(from: string, to: string, userId?: string): Promise<TimesheetRange> {
+  const qs = new URLSearchParams({ from, to });
+  if (userId) qs.set('userId', userId);
+  try {
+    return await request('GET', `/timesheets?${qs}`, TimesheetRangeSchema);
+  } catch (err) {
+    if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+      return { ...MOCK_TIMESHEETS, userId: userId ?? MOCK_TIMESHEETS.userId };
+    }
+    throw err;
+  }
+}
+
+export function useTimesheets(from: string, to: string, userId?: string, enabled = true) {
+  return useQuery({
+    queryKey: qk.timesheets(from, to, userId),
+    enabled: enabled && Boolean(from && to),
+    queryFn: () => fetchTimesheets(from, to, userId),
+  });
+}
+
+export function useSaveTimesheets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entries: TimesheetEntryWrite[]) => {
+      const res = await fetch(`${BASE_URL}/timesheets`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries }),
+      });
+      const json = await res.json().catch(() => ({})) as { message?: string; saved?: number };
+      if (!res.ok) {
+        if (USE_MOCKS) return { saved: entries.length };
+        throw new ApiError(res.status, 'VALIDATION', json.message ?? 'Could not save the timesheet.');
+      }
+      return json;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['timesheets'] }),
+  });
+}
+
+export function useSaveDaysOff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      days?: Array<{ date: string; kind?: 'leave' | 'other'; note?: string | null; clear?: boolean }>;
+      week?: { weekStart: string; count: number; kind: 'leave' | 'other'; note?: string | null };
+    }) => {
+      const res = await fetch(`${BASE_URL}/timesheets/days-off`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({})) as { message?: string };
+      if (!res.ok) {
+        if (USE_MOCKS) return { ok: true };
+        throw new ApiError(res.status, 'VALIDATION', json.message ?? 'Could not update days off.');
+      }
+      return json;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['timesheets'] }),
+  });
+}
+
+export type WorkspaceReports = {
+  range: { from: string; to: string };
+  timeZone: string;
+  holidays: { date: string; name: string }[];
+  workingDaysSoFar: number;
+  tasks: {
+    opened: number;
+    closed: number;
+    closedHint: string;
+    open: number;
+    openHint: string;
+    overdue: number;
+    unscheduled: number | null;
+    closeDays: string;
+    closeHint: string;
+    startDays: string;
+    startHint: string;
+    byProject: Array<{
+      projectId: string;
+      key?: string;
+      name: string;
+      colour: string;
+      opened: number;
+      closed: number;
+      open: number;
+      flight: number;
+      overdue: number;
+      close: string;
+      start: string;
+    }>;
+    byPerson: Array<{
+      userId: string | null;
+      name: string;
+      initials: string;
+      open: number;
+      closed: number;
+      overdue: number;
+      close: string;
+    }>;
+    upcoming: Array<{
+      key: string;
+      title: string;
+      who: string;
+      status: string;
+      due: string;
+      dueTone: 'today' | 'normal';
+    }>;
+  };
+  timesheets: {
+    time: string;
+    peopleWithTime: number;
+    peopleTotal: number;
+    complete: number;
+    missingDays: number;
+    missingPeople: number;
+    daysOff: number;
+    daysOffPeople: number;
+    completeLabel: string;
+    projects: Array<{ id: string; name: string; colour: string }>;
+    people: Array<{
+      userId: string;
+      name: string;
+      initials: string;
+      byProject: Record<string, string>;
+      total: string;
+      off: number;
+      loggedDays: number;
+      expected: number;
+    }>;
+    byProject: Array<{
+      projectId: string;
+      name: string;
+      colour: string;
+      time: string;
+      people: number;
+      share: string;
+    }>;
+    projectTotals: { total: string; off: number } & Record<string, string | number>;
+    missing: Array<{
+      userId: string;
+      name: string;
+      initials: string;
+      detail: string;
+      count: string;
+      tone: 'danger' | 'warning';
+    }>;
+  };
+};
+
+function daysLabel(n: number | null | undefined): string {
+  if (n == null) return '-';
+  return `${n} days`;
+}
+
+function personInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function mapLiveReports(raw: {
+  range?: { from: string; to: string };
+  holidays?: { date: string; name: string }[];
+  tasks?: {
+    opened: number;
+    closed: number;
+    closedHint?: string;
+    open: number;
+    openHint?: string;
+    overdue: number;
+    unscheduled?: number | null;
+    inFlight?: number;
+    closeDays?: string;
+    closeHint?: string;
+    startDays?: string;
+    startHint?: string;
+    avgCloseDays?: number | null;
+    avgStartDays?: number | null;
+    byProject?: Array<{
+      projectId: string;
+      key?: string;
+      name: string;
+      colour: string;
+      opened: number;
+      closed: number;
+      open: number;
+      flight: number;
+      overdue: number;
+      close?: string;
+      start?: string;
+    }>;
+    byPerson?: WorkspaceReports['tasks']['byPerson'];
+    upcoming?: WorkspaceReports['tasks']['upcoming'];
+  };
+  timesheets?: {
+    time: string;
+    peopleWithTime: number;
+    peopleTotal?: number;
+    complete: number;
+    missingDays: number;
+    daysOff: number;
+    people?: Array<{
+      userId: string;
+      name: string;
+      time: string;
+      off: number;
+      loggedDays: number;
+      expected: number;
+      missing: number;
+      complete: boolean;
+      byProject: Record<string, string>;
+    }>;
+    byProject?: Array<{
+      projectId: string;
+      name: string;
+      colour: string;
+      time: string;
+      people: number;
+      share: string;
+    }>;
+    missing?: Array<{ userId: string; name: string; missing: number; off: number; detail?: string }>;
+  };
+  timeZone?: string;
+  workingDaysSoFar?: number;
+}, from: string, to: string, timeZone: string): WorkspaceReports {
+  const people = raw.timesheets?.people ?? [];
+  const complete = people.filter((p) => p.complete).length;
+  const partial = people.filter((p) => !p.complete && p.loggedDays > 0).length;
+  const none = people.filter((p) => p.loggedDays === 0).length;
+  const missingPeople = people.filter((p) => p.missing > 0).length;
+  const daysOffPeople = people.filter((p) => p.off > 0).length;
+  const projects = (raw.timesheets?.byProject ?? []).map((p) => ({ id: p.projectId, name: p.name, colour: p.colour }));
+  const totals: WorkspaceReports['timesheets']['projectTotals'] = {
+    total: raw.timesheets?.time ?? '0:00',
+    off: raw.timesheets?.daysOff ?? 0,
+  };
+  for (const row of raw.timesheets?.byProject ?? []) totals[row.projectId] = row.time;
+
+  return {
+    range: raw.range ?? { from, to },
+    timeZone: raw.timeZone ?? timeZone,
+    holidays: raw.holidays ?? [],
+    workingDaysSoFar: raw.workingDaysSoFar ?? 0,
+    tasks: {
+      opened: raw.tasks?.opened ?? 0,
+      closed: raw.tasks?.closed ?? 0,
+      closedHint: raw.tasks?.closedHint ?? '',
+      open: raw.tasks?.open ?? 0,
+      openHint: raw.tasks?.openHint ?? (raw.tasks?.inFlight != null ? `${raw.tasks.inFlight} in flight` : ''),
+      overdue: raw.tasks?.overdue ?? 0,
+      unscheduled: raw.tasks?.unscheduled ?? null,
+      closeDays: raw.tasks?.closeDays ?? daysLabel(raw.tasks?.avgCloseDays),
+      closeHint: raw.tasks?.closeHint ?? (raw.tasks?.avgCloseDays != null ? 'average' : ''),
+      startDays: raw.tasks?.startDays ?? daysLabel(raw.tasks?.avgStartDays),
+      startHint: raw.tasks?.startHint ?? (raw.tasks?.avgStartDays != null ? 'average · to first move into WIP or review' : ''),
+      byProject: (raw.tasks?.byProject ?? []).map((row) => ({
+        ...row,
+        close: row.close ?? '-',
+        start: row.start ?? '-',
+      })),
+      byPerson: raw.tasks?.byPerson ?? [],
+      upcoming: raw.tasks?.upcoming ?? [],
+    },
+    timesheets: {
+      time: raw.timesheets?.time ?? '0:00',
+      peopleWithTime: raw.timesheets?.peopleWithTime ?? 0,
+      peopleTotal: raw.timesheets?.peopleTotal ?? people.length,
+      complete: raw.timesheets?.complete ?? complete,
+      missingDays: raw.timesheets?.missingDays ?? 0,
+      missingPeople,
+      daysOff: raw.timesheets?.daysOff ?? 0,
+      daysOffPeople,
+      completeLabel: `${complete} complete · ${partial} partial · ${none} none`,
+      projects,
+      people: people.map((p) => ({
+        userId: p.userId,
+        name: p.name,
+        initials: personInitials(p.name),
+        byProject: p.byProject,
+        total: p.time,
+        off: p.off,
+        loggedDays: p.loggedDays,
+        expected: p.expected,
+      })),
+      byProject: raw.timesheets?.byProject ?? [],
+      projectTotals: totals,
+      missing: (raw.timesheets?.missing ?? []).map((m) => ({
+        userId: m.userId,
+        name: m.name,
+        initials: personInitials(m.name),
+        detail: m.detail
+          ?? (m.off
+            ? `Expected days with no time · ${m.off} days off`
+            : m.missing === 0
+              ? 'No time and no days off this period'
+              : 'Expected working days with no time and no day off'),
+        count: m.missing === 1 ? '1 day' : `${m.missing} days`,
+        tone: m.missing >= 10 ? 'danger' : 'warning',
+      })),
+    },
+  };
+}
+
+export function useWorkspaceReports(
+  from: string,
+  to: string,
+  projectId: string | undefined,
+  enabled: boolean,
+  timeZone = 'UTC',
+) {
+  return useQuery({
+    queryKey: qk.reports(from, to, projectId),
+    enabled: enabled && Boolean(from && to),
+    queryFn: async (): Promise<WorkspaceReports> => {
+      const qs = new URLSearchParams({ from, to });
+      if (projectId) qs.set('projectId', projectId);
+      try {
+        const res = await fetch(`${BASE_URL}/reports/workspace?${qs}`, { credentials: 'include' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (USE_MOCKS) {
+            const { mockWorkspaceReports } = await import('./reportsMock');
+            return mockWorkspaceReports();
+          }
+          throw new ApiError(res.status, 'FORBIDDEN', (json as { message?: string }).message ?? 'Owners and admins only.');
+        }
+        return mapLiveReports(json, from, to, timeZone);
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          const { mockWorkspaceReports } = await import('./reportsMock');
+          return mockWorkspaceReports();
+        }
+        throw err;
+      }
+    },
+  });
+}
+
+export function useWorkspaceHolidays(year: number, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.workspaceHolidays(year),
+    enabled,
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/workspace/holidays?year=${year}`, { credentials: 'include' });
+      const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; message?: string };
+      if (!res.ok) throw new Error(json.message ?? 'Could not load public holidays.');
+      return { year, holidays: json.holidays ?? [] };
+    },
+  });
+}
 
 export function useChatAppStatus() {
   return useQuery({

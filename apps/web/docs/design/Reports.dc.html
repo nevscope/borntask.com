@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BornTask – Workspace reports</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=Sora:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0F6B46}a:hover{color:#0B5236}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F7F8F6; font-family: 'DM Sans', sans-serif; font-size: 14px; color: #121417;">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E8EBE6;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; color: #121417; text-decoration: none;"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13.5" fill="#178A5C"></rect><circle cx="8.75" cy="25.6" r="1.9" fill="#FFFFFF" fill-opacity="0.6"></circle><circle cx="16.05" cy="25.6" r="2.8" fill="#FFFFFF" fill-opacity="0.85"></circle><path d="M23.85 25.6 L28.25 30 L38.75 18" fill="none" stroke="#FFFFFF" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.035em;">borntask</span></a>
+    <span style="width: 1px; height: 20px; background: #E8EBE6;"></span>
+    <a href="Main.dc.html" style="flex: 1; color: #5B6157; text-decoration: none; font-size: 13.5px;">← Back to My tasks</a>
+    <span aria-label="Signed in as Scope" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #121417; color: #FFFFFF; font-size: 12px; font-weight: 600;">SC</span>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; padding: 28px; max-width: 1240px; margin: 0 auto;">
+    <nav aria-label="Settings" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px;">
+      <div style="padding: 0 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Website relaunch</div>
+      <a href="ProjectMembers.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Members</a>
+      <a href="ProjectStructure.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Sections, types and trash</a>
+      <a href="WorkflowEditor.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Workflow</a>
+      <a href="GoogleChat.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Google Chat</a>
+      <a href="GitHubSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">GitHub</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">Workspace</div>
+      <a href="WorkspaceGeneral.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">General</a>
+      <a href="AdminPeople.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">People and invitations</a>
+      <a href="AdminDefaults.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Roles, types and workflows</a>
+      <a href="AdminBilling.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Billing</a>
+      <a href="Reports.dc.html" aria-current="page" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; background: #E9F5EF; color: #0F6B46; font-weight: 600; text-decoration: none;">Reports</a>
+      <div style="padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #5B6157;">You</div>
+      <a href="ProfileSettings.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">Profile and notifications</a>
+      <a href="ApiTokens.dc.html" style="display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: 8px; color: #3A3F38; text-decoration: none;">API tokens and MCP</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px;">
+        <div style="flex: 1 1 300px;"><h1 style="margin: 0; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.03em;">Reports</h1><p style="margin: 6px 0 0; font-size: 13.5px; color: #5B6157;">Owners and admins only. Top-level tasks, Trash excluded. Project leads see time on their projects in Timesheets.</p></div>
+        <div role="group" aria-label="Period" style="display: flex; padding: 3px; border: 1px solid #E8EBE6; border-radius: 9px; background: #FFFFFF;">
+          <sc-for list="{{periods}}" as="p" hint-placeholder-count="4"><button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 6px; background: {{p.bg}}; color: {{p.fg}}; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">{{p.label}}</button></sc-for>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #3A3F38;">Project<select style="height: 36px; padding: 0 10px; border: 1px solid #E8EBE6; border-radius: 8px; font: inherit; font-size: 13px; background: #FFFFFF;"><option>All projects</option><option>Website relaunch</option><option>Mobile app</option><option>Client onboarding</option><option>Internal ops</option></select></label>
+      </div>
+      <p style="margin: -10px 0 0; font-size: 12.5px; color: #5B6157;">1-29 October 2026 · 21 working days so far, no public holidays · times in Europe/Malta</p>
+
+      <div><h2 style="margin: 0; font-size: 16px; font-weight: 600;">Tasks</h2></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Opened</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">48</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">created in the period</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Closed</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">41</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">33 deployed · 8 rejected</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Open now</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">63</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">21 in flight · 5 on hold</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Overdue</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #B42323;">7</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">past due, not closed</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Unscheduled</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">12</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">open, no due date</div></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Time to close</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">6.5 days</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">median · average 9.1 days</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Time to start</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">1.5 days</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">median · average 3.2 days · to first move into WIP or review</div></div>
+      </div>
+
+      <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow-x: auto;">
+        <div style="min-width: 760px;">
+          <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">By project</h3></div>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(70px, 1fr)); border-bottom: 1px solid #EEF0EC;"><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Project</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Opened</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Closed</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Open</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">In flight</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Overdue</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Median close</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Median start</span></div>
+          <sc-for list="{{byProject}}" as="r" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(70px, 1fr)); align-items: center; min-height: 46px; border-bottom: 1px solid #EEF0EC; font-size: 13.5px;">
+              <span style="display: flex; align-items: center; gap: 10px; padding: 0 16px;"><span style="width: 9px; height: 9px; border-radius: 3px; background: {{r.color}};"></span><a href="ListView.dc.html" style="color: #121417; text-decoration: none; font-weight: 500;">{{r.name}}</a></span>
+              <span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.opened}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.closed}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.open}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.flight}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{r.overdueColor}}; font-weight: {{r.overdueWeight}};">{{r.overdue}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.close}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{r.start}}</span>
+            </div>
+          </sc-for>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(7, minmax(70px, 1fr)); align-items: center; min-height: 44px; background: #FAFBF9; font-size: 13.5px; font-weight: 600;"><span style="padding: 0 16px;">Workspace</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">48</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">41</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">63</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">21</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: #B42323;">7</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">6.5 d</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">1.5 d</span></div>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <section style="flex: 1 1 440px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow-x: auto;">
+          <div style="min-width: 440px;">
+            <div style="padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">By person</h3></div>
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(4, minmax(80px, 1fr)); border-bottom: 1px solid #EEF0EC;"><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Assignee</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Open</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Closed</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Overdue</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Median close</span></div>
+            <sc-for list="{{byPerson}}" as="p" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(4, minmax(80px, 1fr)); align-items: center; min-height: 44px; border-bottom: 1px solid #EEF0EC; font-size: 13.5px;">
+                <span style="display: flex; align-items: center; gap: 10px; padding: 0 16px;"><span style="flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: {{p.bg}}; color: {{p.fg}}; border: {{p.ring}}; font-size: 10.5px; font-weight: 600; box-sizing: border-box;">{{p.ini}}</span>{{p.name}}</span>
+                <span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{p.open}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{p.closed}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{p.overdueColor}};">{{p.overdue}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{p.close}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        <section style="flex: 1 1 340px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+          <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="flex: 1; margin: 0; font-size: 14px; font-weight: 600;">Due in the next 7 days</h3><span style="font-size: 12.5px; color: #5B6157;">5 tasks</span></div>
+          <sc-for list="{{upcoming}}" as="u" hint-placeholder-count="5">
+            <a href="TaskDetail.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 16px; border-bottom: 1px solid #EEF0EC; color: #121417; text-decoration: none;">
+              <span style="width: 58px; font-size: 12.5px; color: #5B6157; font-variant-numeric: tabular-nums;">{{u.key}}</span>
+              <span style="flex: 1; min-width: 0;"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{u.title}}</span><span style="display: block; font-size: 12px; color: #5B6157;">{{u.who}} · {{u.status}}</span></span>
+              <span style="font-size: 12.5px; font-weight: {{u.weight}}; color: {{u.color}}; white-space: nowrap;">{{u.due}}</span>
+            </a>
+          </sc-for>
+        </section>
+      </div>
+
+      <div><h2 style="margin: 0; font-size: 16px; font-weight: 600;">Timesheets</h2><p style="margin: 4px 0 0; font-size: 13px; color: #5B6157;">Hours from everyone who fills timesheets. Guests and viewers are not counted.</p></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Time logged</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">659:30</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">hours and minutes</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">People with time</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">6 of 7</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">members who fill timesheets</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Complete</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">4</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">logged every expected day</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Missing days</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #8A5A0B;">25</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">expected days with no time, across 3 people</div></div>
+        <div style="flex: 1 1 150px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;"><div style="font-size: 12.5px; color: #5B6157;">Days off</div><div style="margin-top: 4px; font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #121417;">7</div><div style="margin-top: 2px; font-size: 12px; color: #5B6157;">leave and other, across 2 people</div></div>
+      </div>
+
+      <section style="background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow-x: auto;">
+        <div style="min-width: 900px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="flex: 1; margin: 0; font-size: 14px; font-weight: 600;">By person and project</h3><span style="font-size: 12.5px; color: #5B6157;">hh:mm · days logged out of days expected (working days minus days off and holidays)</span></div>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) repeat(4, minmax(76px, 1fr)) 84px 56px minmax(170px, 1.2fr); border-bottom: 1px solid #EEF0EC;"><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Person</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Website</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Mobile</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Onboarding</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Internal</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Total</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Off</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Logged / expected</span></div>
+          <sc-for list="{{timeRows}}" as="t" hint-placeholder-count="7">
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) repeat(4, minmax(76px, 1fr)) 84px 56px minmax(170px, 1.2fr); align-items: center; min-height: 46px; border-bottom: 1px solid #EEF0EC; font-size: 13.5px;">
+              <span style="display: flex; align-items: center; gap: 10px; padding: 0 16px;"><span style="flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: {{t.bg}}; color: {{t.fg}}; font-size: 10.5px; font-weight: 600;">{{t.ini}}</span>{{t.name}}</span>
+              <span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{t.c0}};">{{t.web}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{t.c1}};">{{t.mob}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{t.c2}};">{{t.cli}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{t.c3}};">{{t.ops}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;">{{t.total}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; color: {{t.offColor}};">{{t.off}}</span>
+              <span style="display: flex; align-items: center; gap: 8px; padding: 0 16px;"><span aria-hidden="true" style="flex: 1; height: 6px; border-radius: 3px; background: #EEF0EC; overflow: hidden;"><span style="display: block; width: {{t.pct}}; height: 6px; background: {{t.barColor}};"></span></span><span style="width: 60px; font-size: 12.5px; font-variant-numeric: tabular-nums; color: {{t.daysColor}}; font-weight: {{t.daysWeight}};">{{t.days}}</span></span>
+            </div>
+          </sc-for>
+          <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) repeat(4, minmax(76px, 1fr)) 84px 56px minmax(170px, 1.2fr); align-items: center; min-height: 44px; background: #FAFBF9; font-size: 13.5px; font-weight: 600;"><span style="padding: 0 16px;">Total</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">278:30</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">176:00</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">136:30</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">68:30</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">659:30</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">7</span><span style="padding: 0 16px; font-weight: 400; font-size: 12.5px; color: #5B6157;">4 complete · 2 partial · 1 none</span></div>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+        <section style="flex: 1 1 440px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px; overflow-x: auto;">
+          <div style="min-width: 440px;">
+            <div style="padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">By project</h3></div>
+            <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr); border-bottom: 1px solid #EEF0EC;"><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Project</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">Time</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157; text-align: right; font-variant-numeric: tabular-nums;">People</span><span style="padding: 10px 16px; font-size: 12px; font-weight: 600; color: #5B6157;">Share of time logged</span></div>
+            <sc-for list="{{timeByProject}}" as="p" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr); align-items: center; min-height: 46px; border-bottom: 1px solid #EEF0EC; font-size: 13.5px;">
+                <span style="display: flex; align-items: center; gap: 10px; padding: 0 16px;"><span style="width: 9px; height: 9px; border-radius: 3px; background: {{p.color}};"></span>{{p.name}}</span>
+                <span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;">{{p.time}}</span><span style="padding: 0 16px; text-align: right; font-variant-numeric: tabular-nums;">{{p.people}}</span>
+                <span style="display: flex; align-items: center; gap: 8px; padding: 0 16px;"><span aria-hidden="true" style="flex: 1; height: 8px; border-radius: 4px; background: #EEF0EC; overflow: hidden;"><span style="display: block; width: {{p.share}}; height: 8px; background: {{p.color}};"></span></span><span style="width: 46px; font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums;">{{p.share}}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        <section style="flex: 1 1 340px; background: #FFFFFF; border: 1px solid #E8EBE6; border-radius: 12px;">
+          <div style="padding: 14px 16px; border-bottom: 1px solid #EEF0EC;"><h3 style="margin: 0; font-size: 14px; font-weight: 600;">Missing timesheets</h3><p style="margin: 4px 0 0; font-size: 12.5px; color: #5B6157;">Expected working days with no time and no day off.</p></div>
+          <sc-for list="{{missing}}" as="m" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 16px; border-bottom: 1px solid #EEF0EC;">
+              <span style="flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: {{m.bg}}; color: {{m.fg}}; font-size: 10.5px; font-weight: 600;">{{m.ini}}</span>
+              <span style="flex: 1; min-width: 0;"><span style="display: block; font-weight: 500;">{{m.name}}</span><span style="display: block; font-size: 12px; color: #5B6157;">{{m.detail}}</span></span>
+              <span style="font-size: 12.5px; font-weight: 600; color: {{m.color}}; white-space: nowrap;">{{m.count}}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2120}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { period: 'month' }; }
+  renderVals() {
+    const per = [['week', 'This week'], ['month', 'This month'], ['last', 'Last month'], ['custom', 'Custom…']];
+    const av = { SC: ['#121417', '#FFFFFF'], MB: ['#D8EAF8', '#1F55B8'], LC: ['#F7E3D7', '#A04A0C'], DV: ['#EDE4FA', '#5B3FC4'], KF: ['#E1F1E8', '#0F6B46'], EG: ['#FDF3E2', '#8A5A0B'], MC: ['#FFF0E5', '#A04A0C'] };
+    const red = (n) => (n > 0 ? '#B42323' : '#5B6157');
+    const person = (ini, name, open, closed, overdue, close) => ({ ini, name, open, closed, overdue, close, bg: av[ini] ? av[ini][0] : 'transparent', fg: av[ini] ? av[ini][1] : '#5B6157', ring: av[ini] ? '0' : '1.5px dashed #AEB4AA', overdueColor: red(overdue) });
+    const time = (ini, name, w, m, c, o, total, logged, off) => {
+      const expected = 21 - off, full = logged === expected, none = logged === 0;
+      return { ini, name, web: w, mob: m, cli: c, ops: o, total, off: off ? String(off) : '-', offColor: off ? '#3A3F38' : '#8A9086', days: logged + ' / ' + expected,
+        c0: w === '-' ? '#8A9086' : '#121417', c1: m === '-' ? '#8A9086' : '#121417', c2: c === '-' ? '#8A9086' : '#121417', c3: o === '-' ? '#8A9086' : '#121417',
+        bg: av[ini][0], fg: av[ini][1], pct: Math.round((logged / expected) * 100) + '%',
+        barColor: full ? '#178A5C' : '#C98A1A', daysColor: none ? '#B42323' : (full ? '#0F6B46' : '#8A5A0B'), daysWeight: full ? 400 : 600 };
+    };
+    return {
+      periods: per.map(([id, label]) => ({ label, on: this.state.period === id ? 'true' : 'false', bg: this.state.period === id ? '#121417' : 'transparent', fg: this.state.period === id ? '#FFFFFF' : '#3A3F38', pick: () => this.setState({ period: id }) })),
+      byProject: [
+        { name: 'Website relaunch', color: '#2F6FDB', opened: 22, closed: 19, open: 28, flight: 9, overdue: 3, close: '5.5 d', start: '1.5 d' },
+        { name: 'Mobile app', color: '#E0731F', opened: 14, closed: 11, open: 19, flight: 6, overdue: 2, close: '8.0 d', start: '2.0 d' },
+        { name: 'Client onboarding', color: '#8E59D9', opened: 9, closed: 8, open: 11, flight: 4, overdue: 2, close: '7.0 d', start: '1.0 d' },
+        { name: 'Internal ops', color: '#5B6157', opened: 3, closed: 3, open: 5, flight: 2, overdue: 0, close: '3.0 d', start: '0.5 d' }
+      ].map((r) => ({ ...r, overdueColor: red(r.overdue), overdueWeight: r.overdue ? 600 : 400 })),
+      byPerson: [
+        person('KF', 'Karl Farrugia', 13, 9, 1, '5.5 d'),
+        person('LC', 'Luke Camilleri', 12, 10, 1, '5.0 d'),
+        person('MB', 'Maria Borg', 11, 8, 2, '7.5 d'),
+        person('SC', 'Scope', 9, 5, 1, '6.0 d'),
+        person('DV', 'Daniela Vella', 8, 6, 1, '8.0 d'),
+        person('EG', 'Elena Grech', 6, 3, 1, '9.0 d'),
+        person('MC', 'Mark Calleja', 2, 0, 0, '-'),
+        person('', 'Unassigned', 2, 0, 0, '-')
+      ],
+      upcoming: [
+        { key: 'MOB-27', title: 'Review push notification copy', who: 'Scope', status: 'Ready for testing', due: 'Today', color: '#0F6B46', weight: 600 },
+        { key: 'WEB-133', title: 'Lazy-load hero and product images', who: 'Karl Farrugia', status: 'Ready for testing', due: 'Fri 30 Oct', color: '#3A3F38', weight: 400 },
+        { key: 'CLI-12', title: 'Welcome email sequence for new clients', who: 'Scope', status: 'WIP', due: 'Mon 2 Nov', color: '#3A3F38', weight: 400 },
+        { key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', who: 'Maria Borg', status: 'Approved', due: 'Tue 3 Nov', color: '#3A3F38', weight: 400 },
+        { key: 'WEB-147', title: 'Rate-limit the login endpoint', who: 'Karl Farrugia', status: 'WIP', due: 'Wed 4 Nov', color: '#3A3F38', weight: 400 }
+      ],
+      timeRows: [
+        time('KF', 'Karl Farrugia', '70:00', '52:30', '-', '8:00', '130:30', 21, 0),
+        time('LC', 'Luke Camilleri', '88:30', '12:00', '24:00', '4:00', '128:30', 21, 0),
+        time('SC', 'Scope', '38:00', '31:30', '29:00', '18:30', '117:00', 20, 0),
+        time('MB', 'Maria Borg', '62:00', '44:00', '-', '6:00', '112:00', 21, 0),
+        time('DV', 'Daniela Vella', '20:00', '-', '71:30', '10:00', '101:30', 19, 2),
+        time('EG', 'Elena Grech', '-', '36:00', '12:00', '22:00', '70:00', 13, 5),
+        time('MC', 'Mark Calleja', '-', '-', '-', '-', '0:00', 0, 0)
+      ],
+      timeByProject: [
+        { name: 'Website relaunch', color: '#2F6FDB', time: '278:30', people: 5, share: '42%' },
+        { name: 'Mobile app', color: '#E0731F', time: '176:00', people: 5, share: '27%' },
+        { name: 'Client onboarding', color: '#8E59D9', time: '136:30', people: 4, share: '21%' },
+        { name: 'Internal ops', color: '#5B6157', time: '68:30', people: 6, share: '10%' }
+      ],
+      missing: [
+        { ini: 'MC', name: 'Mark Calleja', detail: 'No time and no days off this period', count: '21 days', color: '#B42323', bg: av.MC[0], fg: av.MC[1] },
+        { ini: 'EG', name: 'Elena Grech', detail: 'Missing Mon 26 - Wed 28 Oct · on leave 12-16 Oct', count: '3 days', color: '#8A5A0B', bg: av.EG[0], fg: av.EG[1] },
+        { ini: 'SC', name: 'Scope', detail: 'Missing Fri 16 Oct', count: '1 day', color: '#8A5A0B', bg: av.SC[0], fg: av.SC[1] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

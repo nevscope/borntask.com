@@ -6,6 +6,7 @@ import { prisma } from '../db.js';
 import { requireAuth, setSession, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
+import { parseWorkingDays, patchWorkspaceTimesheetSchema } from '@borntask/shared';
 import { colourSchema, deleteRole, deleteType, deleteWorkflow, patchRole, patchType, uniqueSlug } from '../lib/adminCatalog.js';
 import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
@@ -36,6 +37,9 @@ async function workspaceSettings(auth: Authed) {
     membersCanInviteGuests: ws.membersCanInviteGuests,
     allowedDomains: ws.allowedDomains,
     isInternal: ws.isInternal,
+    timesheetPeriod: ws.timesheetPeriod,
+    timesheetUnit: ws.timesheetUnit,
+    workingDays: parseWorkingDays(ws.workingDays),
     logo: Boolean(ws.logo),
     workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
     roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
@@ -70,6 +74,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           membersCanInviteGuests: z.boolean().optional(),
           allowedDomains: z.array(z.string().trim().min(1)).optional(),
         })
+        .merge(patchWorkspaceTimesheetSchema)
         .parse(req.body);
       if (body.slug) {
         const clash = await prisma.workspace.findFirst({ where: { slug: body.slug, NOT: { id: auth.tenantId } } });

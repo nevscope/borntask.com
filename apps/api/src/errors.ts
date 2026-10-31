@@ -97,3 +97,4 @@ export const unauthorized = (message = 'Sign in to continue.') => new ApiError(4
 export const forbidden = (message = 'You cannot do that.') => new ApiError(403, 'FORBIDDEN', message);
 export const notFound = (message = 'Not found.') => new ApiError(404, 'NOT_FOUND', message);
 export const validation = (message: string) => new ApiError(400, 'VALIDATION', message);
+export const conflict = (message: string) => new ApiError(409, 'CONFLICT', message);

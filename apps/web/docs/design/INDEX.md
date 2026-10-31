@@ -7,6 +7,7 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | File | Screen | Status in `apps/web` |
 |---|---|---|
 | `Main.dc.html` | My tasks | Built → `src/screens/MyTasksScreen.tsx` |
+| `Timesheets.dc.html` | Timesheets | Built → `src/screens/TimesheetsScreen.tsx` |
 | `ListView.dc.html` | Project · List view | Built → `src/screens/ProjectListScreen.tsx` |
 | `BoardView.dc.html` | Project · Board view | Built → `src/screens/ProjectBoardScreen.tsx` |
 | `TaskDetail.dc.html` | Task detail drawer | Built → `src/components/TaskDrawer.tsx` |
@@ -24,6 +25,7 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `AdminDefaults.dc.html` | Admin · Roles, types, workflows | Built → `src/screens/AdminDefaultsScreen.tsx` |
 | `ApiTokens.dc.html` | Profile · API tokens & MCP | Built → `src/screens/ApiTokensScreen.tsx` |
 | `AdminBilling.dc.html` | Admin · Billing | Built → `src/screens/AdminBillingScreen.tsx` |
+| `Reports.dc.html` | Admin · Reports | To build |
 | `SignIn.dc.html` | Sign in | Built → `src/screens/auth/SignInScreen.tsx` |
 | `AcceptInvite.dc.html` | Accept invitation | Built → `src/screens/auth/AcceptInviteScreen.tsx` |
 | `WelcomeGuest.dc.html` | After accepting · Guest lands in their project | Built → `src/screens/auth/WelcomeGuestScreen.tsx` |
@@ -36,6 +38,7 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetWorkflow.dc.html` | Sheet · Workflow editor dialogs | To build |
 | `SheetStates.dc.html` | Sheet · Empty, loading, error states | To build |
 | `SheetImport.dc.html` | Sheet · Import preview, progress, result | To build |
+| `SheetTimesheets.dc.html` | Sheet · Timesheet variants and states | Built into `/timesheets` |
 | `SheetEmails.dc.html` | Sheet · Emails | To build |
 | `SheetMobile.dc.html` | Sheet · Phone width | Built → `src/components/AppShell.tsx`, `src/components/InstallPrompt.tsx` |
 | `McpConsent.dc.html` | MCP · Allow Claude to connect | To build |
@@ -46,6 +49,6 @@ Files use a canvas wrapper (`<x-dc>`, `support.js`), so read them as markup; the
 | `SheetApprovals.dc.html` | Sheet · Idea approval | To build |
 | `SheetDragDrop.dc.html` | Sheet · Drag and drop | To build |
 | `ProfileSettings.dc.html` | Profile and notifications | Built → `src/screens/ProfileSettingsScreen.tsx` |
-| `WorkspaceGeneral.dc.html` | Admin · Workspace general | Built → `src/screens/WorkspaceGeneralScreen.tsx` |
+| `WorkspaceGeneral.dc.html` | Admin · Workspace general (timesheets, working days, public holidays) | Built → `src/screens/WorkspaceGeneralScreen.tsx`; Timesheets section to build |
 | `CreateWorkspace.dc.html` | New client · Create a workspace | Built → `src/screens/auth/CreateWorkspaceScreen.tsx` |
 | `SheetBillingStates.dc.html` | Sheet · Trial, payment and seat states | To build |

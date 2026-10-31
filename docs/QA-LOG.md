@@ -200,3 +200,20 @@ Gates (fresh this pass):
 Brand pass: no em dash in new UI copy (hyphens in "Off - a flat list"). Brand green `#178A5C` on Website. New type tokens exist in light, dark, and system dark. Create-project checkbox is the main UI inconsistency.
 
 Still N: XLSX, Stripe, Chat DMs, 14-day trial, deploy. Prisma migrate path is in repo; prod still needs a deploy to run it.
+
+## Timesheets / Reports pending
+
+- 31 Oct 2026, chat 1 (API only): Reports fixture totals (48 opened, 41 closed, 63 open, 7 overdue, 659:30) are covered by `CANVAS_REPORTS_FIXTURE` in unit tests. The live seed workspace does not contain that canvas sample, so `/reports/workspace` will not return those tiles until a later chat seeds or imports them. Completeness formula matches `TIMESHEETS-REPORTS.md`.
+  - **wont-fix (chat 5):** Live seed is not the canvas sample. Unit tests keep the fixture numbers. Do not invent a second seed dataset in this pass.
+- 31 Oct 2026, chat 4 (Reports screen): Live `GET /reports/workspace` does not return task-by-person, upcoming dues, unscheduled count, deployed/rejected split, on-hold split, or medians. The mock fixture shows those from Reports.dc.html. Missing-list detail on live is a count summary, not dated ranges. Custom period label is "Custom" (ASCII) rather than the mock ellipsis.
+  - **done (chat 5):** API now returns unscheduled, deployed/rejected and on-hold hints, medians plus averages, by-person, upcoming dues, per-project median close/start, and missing-list date spans. Period chip is `Custom...` (three ASCII dots; no ellipsis character).
+- 31 Oct 2026, chat 2 (Workspace general): `WorkspaceGeneral.dc.html` Timesheets list shows 14 Malta holidays and a always-visible Show all. Seed workspace starts empty; Show all only appears when some dates are already past. Did not seed canvas holidays.
+  - **done (chat 5):** Show all is visible whenever the year has any holidays. **wont-fix:** 14 Malta holidays stay owner-entered; not seeded.
+- 31 Oct 2026, chat 2 (Workspace general): Mock order is identity, Timesheets, Security, Delete. Shipped still has the existing Google Chat card after Timesheets. Period/unit use Ant Design radios (token-styled cards), not the canvas native inputs.
+  - **done (chat 5):** Section order is identity, Timesheets, Security, Delete, then the existing Google Chat card (not in the mock). **wont-fix:** period/unit stay Ant Design radios; native canvas inputs are out of kit.
+- 31 Oct 2026, chat 3 (Timesheets): Live workspace is weekly + hours, so `/timesheets` ships the weekly grid and days-off count. The daily week grid, day-header Leave/Other menu, locked Off cells, weekend copy, holiday column, and cell-note popover were not clicked on this workspace. They render when `timesheetPeriod` is daily.
+  - **done (chat 5):** Daily grid, Leave/Other header menu, Off lock, weekend copy, holiday column and notes are in `TimesheetsScreen`. Switching period in General settings is enough to use them. No extra daily-only route.
+- 31 Oct 2026, chat 3 (Timesheets): Guest/viewer empty state and "no projects" empty state were not signed in as those roles. Sidebar hides Timesheets for guest and viewer. Who-sees-what table from SheetTimesheets is not a live page (spec only).
+  - **done (chat 5):** Guest/viewer copy and no-projects empty state are in the screen; sidebar omits Timesheets for guest and viewer. **wont-fix:** who-sees-what stays a spec table, not a live page.
+- 31 Oct 2026, chat 3 (Timesheets): Seed projects are Website / Test / Another test, not the canvas WEB/MOB/CLI/OPS sample. Last-week tile and days-logged numbers therefore do not match the 38:00 / 4 of 4 fixture.
+  - **wont-fix (chat 5):** Live tiles use live time. Canvas 38:00 / 4 of 4 is the mock fixture only.
