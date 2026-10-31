@@ -10,16 +10,11 @@ import type { ProjectRole, User, WorkspaceRole } from '../api/types';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { RemovableRoleChip, RoleTag } from '../components/Chips';
 import { EmailSuggestField } from '../components/InvitePeople';
-import { ProjectColourField } from '../components/ProjectColourField';
-import { color, font, parseProjectHex, projectSwatches, radius } from '../theme/tokens';
+import { ProjectColourField, defaultProjectColour } from '../components/ProjectColourField';
+import { color, font, parseProjectHex, radius } from '../theme/tokens';
 import { ProjectsScreen } from './ProjectsScreen';
 
 type Person = User & { workspaceRole: WorkspaceRole };
-
-function randomProjectColour(): string {
-  const pick = projectSwatches[Math.floor(Math.random() * projectSwatches.length)];
-  return pick?.hex ?? projectSwatches[0]!.hex;
-}
 
 export function CreateProjectScreen() {
   const navigate = useNavigate();
@@ -31,7 +26,7 @@ export function CreateProjectScreen() {
   const [name, setName] = useState('');
   const [key, setKey] = useState('');
   const [keyTouched, setKeyTouched] = useState(false);
-  const [colour, setColour] = useState<string>(() => randomProjectColour());
+  const [colour, setColour] = useState<string>(defaultProjectColour);
   const [hexDraft, setHexDraft] = useState(colour);
   const [workflow, setWorkflow] = useState<'delivery' | 'simple'>('delivery');
   const [workBreakdown, setWorkBreakdown] = useState<WorkBreakdown>('off');

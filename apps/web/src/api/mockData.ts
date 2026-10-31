@@ -571,7 +571,7 @@ export const mockApi: Api = {
       const mayOverride = canOverride(me.workspaceRole, roles) && !!input.overrideReason?.trim();
       if (!mayOverride) throw new ApiError(403, 'TRANSITION_NOT_ALLOWED', check.reason, check.transition.roles);
     }
-    if (check.transition.requireComment && !input.comment?.trim() && !input.overrideReason) {
+    if (check.kind === 'allowed' && check.transition.requireComment && !input.comment?.trim() && !input.overrideReason) {
       throw new ApiError(422, 'COMMENT_REQUIRED', 'This move needs a comment');
     }
     const to = statusById(deliveryWorkflow, input.toStatusId)!;

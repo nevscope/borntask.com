@@ -1,5 +1,5 @@
 import { workspacePackById, workspacePacks, type WorkspacePack, type WorkspacePackId } from '@borntask/shared';
-import { Button, Checkbox, Form, Input } from 'antd';
+import { Button, Form, Input } from 'antd';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '../../api/http';
@@ -18,6 +18,15 @@ type Draft = {
   firstProjectName: string;
 };
 
+function slugFromName(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
 export function CreateWorkspaceScreen() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -27,6 +36,9 @@ export function CreateWorkspaceScreen() {
   const [hasWorkspace, setHasWorkspace] = useState(false);
   const [slugNote, setSlugNote] = useState<string | null>(null);
   const [inviteDraft, setInviteDraft] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [joinDomain, setJoinDomain] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [values, setValues] = useState<Draft>({
     name: '',
     slug: '',
@@ -93,12 +105,12 @@ export function CreateWorkspaceScreen() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: nextValues.name,
-          slug: nextValues.slug || undefined,
+          name: nextValues.name.trim(),
+          slug: nextValues.slug.trim() || undefined,
           pack: nextValues.pack,
-          allowedDomain: nextValues.allowedDomain || undefined,
+          allowedDomain: joinDomain && domain ? domain.toLowerCase() : undefined,
           inviteEmails: nextValues.inviteEmails.split(/[,;\s]+/).filter(Boolean),
-          firstProjectName: nextValues.firstProjectName || undefined,
+          firstProjectName: nextValues.firstProjectName.trim() || undefined,
         }),
       });
       const json = await res.json() as { message?: string; url?: string };
@@ -153,34 +165,69 @@ export function CreateWorkspaceScreen() {
         <section style={{ flex: '999 1 520px', background: color.surface, border: `1px solid ${color.border}`, borderRadius: 16, padding: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
           {error && <p style={{ color: color.danger, margin: 0 }}>{error}</p>}
           {step === 0 && (
-            <Form
-              layout="vertical"
-              style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
-              initialValues={{ ...values, joinDomain: Boolean(values.allowedDomain) }}
-              onFinish={(v: Draft & { joinDomain?: boolean }) => next({
-                name: v.name,
-                slug: v.slug,
-                allowedDomain: v.joinDomain && domain ? domain : '',
-              })}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <h1 className="bt-h1">Set up your workspace</h1>
               <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>A workspace holds your team, projects and settings. You can change all of this later.</p>
-              <Form.Item name="name" label="Company or team name" rules={[{ required: true }]} style={{ marginBottom: 0 }}>
-                <Input style={{ height: 42, fontSize: 15 }} />
-              </Form.Item>
-              <Form.Item name="slug" label="Web address" extra={slugNote} style={{ marginBottom: 0 }}>
-                <Input className="bt-domain" addonAfter=".borntask.com" placeholder="acme" onBlur={(e) => void checkSlug(e.target.value)} styles={{ input: { height: 42, fontSize: 15 } }} />
-              </Form.Item>
-              {domain && (
-                <Form.Item name="joinDomain" valuePropName="checked" style={{ marginBottom: 0 }}>
-                  <Checkbox className="bt-check-row" style={{ gap: 10 }}>Let anyone with an @{domain} Google or Microsoft account join without an invitation</Checkbox>
+              <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onFinish={() => undefined}>
+                <Form.Item label="Company or team name" required validateStatus={nameError ? 'error' : undefined} help={nameError} style={{ marginBottom: 0 }}>
+                  <Input
+                    value={values.name}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setNameError(null);
+                      setValues((v) => ({ ...v, name, slug: slugEdited ? v.slug : slugFromName(name) }));
+                    }}
+                    style={{ height: 42, fontSize: 15 }}
+                  />
                 </Form.Item>
-              )}
+                <Form.Item label="Web address" extra={slugNote} style={{ marginBottom: 0 }}>
+                  <Input
+                    className="bt-domain"
+                    value={values.slug}
+                    placeholder="acme"
+                    addonAfter=".borntask.com"
+                    onChange={(e) => {
+                      setSlugEdited(true);
+                      setValues((v) => ({ ...v, slug: e.target.value }));
+                    }}
+                    onBlur={(e) => void checkSlug(e.target.value)}
+                    styles={{ input: { height: 42, fontSize: 15 } }}
+                  />
+                </Form.Item>
+                {domain && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13.5, color: color.ink, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={joinDomain}
+                      onChange={(e) => setJoinDomain(e.target.checked)}
+                      style={{ width: 16, height: 16, marginTop: 2, accentColor: color.brand, flex: 'none' }}
+                    />
+                    <span>Let anyone with an @{domain} Google or Microsoft account join without an invitation</span>
+                  </label>
+                )}
+              </Form>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <Button htmlType="button" onClick={cancel} style={{ height: 42, borderRadius: 10, fontSize: 14 }}>Cancel</Button>
-                <Button type="primary" htmlType="submit" style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Continue</Button>
+                <Button
+                  type="primary"
+                  htmlType="button"
+                  style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}
+                  onClick={() => {
+                    if (values.name.trim().length < 2) {
+                      setNameError('Enter a company or team name');
+                      return;
+                    }
+                    next({
+                      name: values.name.trim(),
+                      slug: values.slug.trim() || slugFromName(values.name),
+                      allowedDomain: joinDomain && domain ? domain : '',
+                    });
+                  }}
+                >
+                  Continue
+                </Button>
               </div>
-            </Form>
+            </div>
           )}
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -227,47 +274,66 @@ export function CreateWorkspaceScreen() {
             </div>
           )}
           {step === 2 && (
-            <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onFinish={() => {
-              const extra = inviteDraft.includes('@') ? inviteDraft.trim().toLowerCase() : '';
-              const list = [...values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean), extra].filter(Boolean);
-              next({ inviteEmails: [...new Set(list)].join(', ') });
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <h1 className="bt-h1">Invite your team</h1>
               <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>Optional. An email outside your domain is invited as a guest.</p>
-              <Form.Item label="Add people by email" style={{ marginBottom: 0 }}>
-                <EmailSuggestField
-                  emails={values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)}
-                  draft={inviteDraft}
-                  people={[]}
-                  placeholder="name@company.com"
-                  ownDomain={domain || undefined}
-                  onDraft={setInviteDraft}
-                  onEmails={(next) => setValues((prev) => ({ ...prev, inviteEmails: next.join(', ') }))}
-                />
-              </Form.Item>
+              <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onFinish={() => undefined}>
+                <Form.Item label="Add people by email" style={{ marginBottom: 0 }}>
+                  <EmailSuggestField
+                    emails={values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)}
+                    draft={inviteDraft}
+                    people={[]}
+                    placeholder="name@company.com"
+                    ownDomain={domain || undefined}
+                    onDraft={setInviteDraft}
+                    onEmails={(nextEmails) => setValues((prev) => ({ ...prev, inviteEmails: nextEmails.join(', ') }))}
+                  />
+                </Form.Item>
+              </Form>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => setStep(1)}>Back</Button>
-                <Button type="primary" htmlType="submit" style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Continue</Button>
+                <Button htmlType="button" onClick={() => setStep(1)}>Back</Button>
+                <Button
+                  type="primary"
+                  htmlType="button"
+                  style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}
+                  onClick={() => {
+                    const extra = inviteDraft.includes('@') ? inviteDraft.trim().toLowerCase() : '';
+                    const list = [...values.inviteEmails.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean), extra].filter(Boolean);
+                    next({ inviteEmails: [...new Set(list)].join(', ') });
+                  }}
+                >
+                  Continue
+                </Button>
               </div>
-            </Form>
+            </div>
           )}
           {step === 3 && (
-            <Form
-              layout="vertical"
-              style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
-              initialValues={{ firstProjectName: values.firstProjectName }}
-              onFinish={(v: { firstProjectName?: string }) => void create({ firstProjectName: v.firstProjectName ?? '' })}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <h1 className="bt-h1">First project</h1>
               <p style={{ margin: 0, fontSize: 14, color: color.ink3 }}>Optional. After create you land on roles, types and workflows so you can amend the {pack.title.toLowerCase()} template.</p>
-              <Form.Item name="firstProjectName" label="Project name (optional)" style={{ marginBottom: 0 }}>
-                <Input placeholder="Website" style={{ height: 42, fontSize: 15 }} />
-              </Form.Item>
+              <Form layout="vertical" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onFinish={() => undefined}>
+                <Form.Item label="Project name (optional)" style={{ marginBottom: 0 }}>
+                  <Input
+                    value={values.firstProjectName}
+                    onChange={(e) => setValues((v) => ({ ...v, firstProjectName: e.target.value }))}
+                    placeholder="Website"
+                    style={{ height: 42, fontSize: 15 }}
+                  />
+                </Form.Item>
+              </Form>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => setStep(2)}>Back</Button>
-                <Button type="primary" htmlType="submit" loading={busy} style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}>Create workspace</Button>
+                <Button htmlType="button" onClick={() => setStep(2)}>Back</Button>
+                <Button
+                  type="primary"
+                  htmlType="button"
+                  loading={busy}
+                  style={{ height: 42, borderRadius: 10, fontSize: 14, fontWeight: 600 }}
+                  onClick={() => void create({ firstProjectName: values.firstProjectName.trim() })}
+                >
+                  Create workspace
+                </Button>
               </div>
-            </Form>
+            </div>
           )}
         </section>
       </div>

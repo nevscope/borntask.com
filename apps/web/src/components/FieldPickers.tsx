@@ -296,7 +296,6 @@ export function StatusMenu({
           items={options.map((option) => ({
             id: option.status.id,
             text: option.status.name,
-            disabled: option.check.kind !== 'allowed',
             node: (
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
                 <StatusDot status={option.status} />
@@ -305,7 +304,7 @@ export function StatusMenu({
                   {option.check.kind === 'allowed'
                     ? option.check.transition.label ?? ''
                     : option.check.kind === 'not-allowed'
-                      ? <><LockIcon /> {rolesLabel(option.check.transition.roles)}</>
+                      ? <><LockIcon /> {option.check.transition.roles.length ? rolesLabel(option.check.transition.roles) : 'Not next step'}</>
                       : ''}
                 </span>
               </span>

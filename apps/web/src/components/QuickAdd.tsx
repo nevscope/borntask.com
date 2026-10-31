@@ -32,6 +32,7 @@ import { useMentionInvite } from './useMentionInvite';
 import { Avatar } from './Chips';
 import { AssigneePicker, DuePicker, MenuPicker, PriorityPicker, StatusMenu } from './FieldPickers';
 import { useStatusToast } from './StatusToast';
+import { useTaskParam } from './useTaskParam';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useBackLayer } from '../lib/backLayer';
 
@@ -94,6 +95,7 @@ function projectKeyFromPath(pathname: string) {
 function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => void }) {
   const toast = useStatusToast();
   const navigate = useNavigate();
+  const { openTask } = useTaskParam();
   const { pathname } = useLocation();
   const me = useMe().data;
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
@@ -195,7 +197,8 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const statusOptions = detail && startStatus
     ? [
         { status: startStatus, check: { kind: 'allowed' as const, transition: { from: startStatus.id, to: startStatus.id, roles: [] as ProjectRole[], requireComment: false, label: 'Start here' } } },
-        ...moveOptions(detail.workflow, { statusId: startStatus.id, previousStatusId: null }, myRoles),
+        ...moveOptions(detail.workflow, { statusId: startStatus.id, previousStatusId: null }, myRoles)
+          .filter((option) => option.check.kind === 'allowed'),
       ]
     : [];
 
@@ -296,7 +299,14 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   function finish(taskKey: string, taskProjectKey: string, openAfter: boolean) {
     toast.show({ text: <><strong>{taskKey}</strong> created</> });
     onClose();
-    if (openAfter) navigate(`/p/${taskProjectKey}/list?task=${taskKey}`);
+    if (!openAfter) return;
+    // Wait until Quick Add releases its history layer. Navigating to ?task= in the
+    // same turn is popped by history.back() and the drawer never opens.
+    window.setTimeout(() => {
+      const dest = `/p/${taskProjectKey}/list`;
+      if (window.location.pathname === dest) openTask(taskKey);
+      else navigate(`${dest}?task=${taskKey}`);
+    }, 0);
   }
 
   function submit(openAfter: boolean) {

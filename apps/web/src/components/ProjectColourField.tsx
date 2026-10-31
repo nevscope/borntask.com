@@ -3,6 +3,8 @@ import { chipSwatchFor, color, font, parseProjectHex, projectSwatches } from '..
 
 type Swatch = { id: string; label: string; hex: string; bg?: string; fg?: string };
 
+export const defaultProjectColour = projectSwatches.find((s) => s.id === 'green')?.hex ?? projectSwatches[0]!.hex;
+
 export function ColourSwatchRow({
   colour,
   onColour,

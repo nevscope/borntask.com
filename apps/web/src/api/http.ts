@@ -44,6 +44,7 @@ export function emitUnauthorized() {
 export async function request<T>(method: string, path: string, schema: z.ZodType<T> | null, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
+    cache: 'no-store',
     credentials: 'include', // Fastify secure session cookie
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),

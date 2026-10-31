@@ -22,6 +22,9 @@ export const CHECKS = [
   { name: '20261028213000_comment_replies_email_per_task', kind: 'column', table: 'Comment', column: 'parentId' },
   { name: '20261028220000_comment_via', kind: 'column', table: 'Comment', column: 'via' },
   { name: '20261029150000_work_breakdown', kind: 'column', table: 'Project', column: 'workBreakdown' },
+  { name: '20261029230000_comment_reactions', kind: 'table', table: 'CommentReaction' },
+  { name: '20261031140000_timesheets_reports', kind: 'table', table: 'TimesheetEntry' },
+  { name: '20261031160000_timesheet_edit_days', kind: 'column', table: 'Workspace', column: 'timesheetEditDays' },
 ];
 
 function prisma(args) {

@@ -17,6 +17,21 @@ function canOverride(role: Authed['workspaceRole'], projectRoles: string[]): boo
   return role === 'owner' || role === 'admin' || projectRoles.includes('lead');
 }
 
+function rolesForBlockedMove(
+  transitions: { from: string; to: string; roles: string[] }[],
+  fromSlug: string,
+  toSlug: string,
+): string[] {
+  const listed = transitions.find((t) => t.to === toSlug && (t.from === fromSlug || t.from === '*'));
+  if (listed?.roles.length) return listed.roles;
+  const incoming = new Set<string>();
+  for (const row of transitions) {
+    if (row.to !== toSlug || row.from === '*') continue;
+    for (const role of row.roles) incoming.add(role);
+  }
+  return [...incoming];
+}
+
 export async function moveTask(
   auth: Authed,
   key: string,
@@ -95,9 +110,8 @@ export async function moveTask(
     if (input.overrideReason && canOverride(auth.workspaceRole, myRoles)) {
       allowed = true;
     } else {
-      const match = wf.transitions.find((t) => t.to === toSlug && (t.from === fromSlug || t.from === '*'));
       throw new ApiError(403, 'TRANSITION_NOT_ALLOWED', 'Only certain roles can make this move.', {
-        allowedRoles: match?.roles ?? [],
+        allowedRoles: rolesForBlockedMove(wf.transitions, fromSlug, toSlug),
       });
     }
   }

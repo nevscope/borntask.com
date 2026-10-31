@@ -344,11 +344,25 @@ export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?:
   if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
 }
 
+function upsertProjectTask(qc: QueryClient, task: Task) {
+  const queryKey = qk.projectTasks(task.projectKey);
+  const previous = qc.getQueryData<Task[]>(queryKey);
+  if (!previous) {
+    qc.setQueryData<Task[]>(queryKey, [task]);
+    return;
+  }
+  if (previous.some((row) => row.key === task.key)) {
+    qc.setQueryData<Task[]>(queryKey, previous.map((row) => (row.key === task.key ? { ...row, ...task } : row)));
+    return;
+  }
+  qc.setQueryData<Task[]>(queryKey, [task, ...previous]);
+}
+
 function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectKey'>) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(task.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
   void qc.invalidateQueries({ queryKey: qk.task(task.key) });
-  void qc.invalidateQueries({ queryKey: qk.projects });
+  void qc.invalidateQueries({ queryKey: qk.projects, exact: true });
 }
 
 /** Optimistically patch a task in its project list so drags and edits feel instant. */
@@ -366,7 +380,11 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateTaskInput) => api.createTask(input),
-    onSuccess: (task) => invalidateTaskViews(qc, task),
+    onSuccess: (task) => {
+      upsertProjectTask(qc, task);
+      void qc.prefetchQuery({ queryKey: qk.task(task.key), queryFn: () => api.getTask(task.key) });
+      invalidateTaskViews(qc, task);
+    },
   });
 }
 
@@ -374,7 +392,11 @@ export function useCopyTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (key: string) => api.copyTask(key),
-    onSuccess: (task) => invalidateTaskViews(qc, task),
+    onSuccess: (task) => {
+      upsertProjectTask(qc, task);
+      void qc.prefetchQuery({ queryKey: qk.task(task.key), queryFn: () => api.getTask(task.key) });
+      invalidateTaskViews(qc, task);
+    },
   });
 }
 

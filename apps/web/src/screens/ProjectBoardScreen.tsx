@@ -216,7 +216,10 @@ export function ProjectBoardScreen() {
 
 function reasonFor(d: ProjectDetail, task: Task, toId: string, roles: Parameters<typeof checkMove>[3]) {
   const result = checkMove(d.workflow, task, toId, roles);
-  return result.kind === 'not-allowed' ? `${rolesLabel(result.transition.roles)} only` : result.kind === 'no-path' ? 'Not the next step' : null;
+  if (result.kind === 'not-allowed') {
+    return result.transition.roles.length ? `${rolesLabel(result.transition.roles)} only` : 'Not the next step';
+  }
+  return result.kind === 'no-path' ? 'Not the next step' : null;
 }
 
 type DragState = 'origin' | 'allowed' | 'not-allowed' | 'no-path' | null;
@@ -286,9 +289,11 @@ function Column({ status, detail, tasks, dragState, blockedReason, droppable = t
     <section ref={setNodeRef} aria-label={status.name} className={cls} style={isOver && dragState === 'allowed' ? { boxShadow: `inset 0 0 0 2px ${color.brand}` } : undefined}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 4px', fontSize: 13, fontWeight: 600 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: toneStyle[status.tone].dot }} />
-        {status.name}
-        <span style={{ fontWeight: 500, color: over ? color.danger : color.muted }}>
-          {status.wipLimit !== null ? `${tasks.length} / ${status.wipLimit}` : tasks.length}
+        <span>
+          {status.name}{' '}
+          <span style={{ fontWeight: 500, color: over ? color.danger : color.muted }}>
+            {status.wipLimit !== null ? `${tasks.length} / ${status.wipLimit}` : tasks.length}
+          </span>
         </span>
       </div>
       {blockedReason && (

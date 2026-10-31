@@ -89,25 +89,29 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
       return;
     }
     if (check.kind === 'not-allowed') {
+      const roles = check.transition.roles;
+      const ask = roles.length
+        ? { label: `Ask ${rolesLabel(roles).toLowerCase()}`, onClick: () => askPeople(task, roles, to?.name ?? '') }
+        : null;
+      const override = mayOverride
+        ? { label: 'Override…', onClick: () => { setText(''); setPending({ task, toStatusId, mode: 'override', title: `Override: move ${task.key} to ${to?.name}` }); } }
+        : null;
       if (options?.board) {
         setBlocked({
           task,
           toStatusId,
           fromName: from?.name ?? 'its current stage',
           toName: to?.name ?? 'that stage',
-          roles: check.transition.roles,
+          roles,
         });
         return;
       }
       toast.show({
         kind: 'plain',
-        text: `${task.key} stays in ${from?.name}. Only ${rolesLabel(check.transition.roles)} can move tasks to ${to?.name}.`,
-        actions: [
-          { label: `Ask ${rolesLabel(check.transition.roles).toLowerCase()}`, onClick: () => askPeople(task, check.transition.roles, to?.name ?? '') },
-          ...(mayOverride
-            ? [{ label: 'Override…', onClick: () => { setText(''); setPending({ task, toStatusId, mode: 'override', title: `Override: move ${task.key} to ${to?.name}` }); } }]
-            : []),
-        ],
+        text: roles.length
+          ? `${task.key} stays in ${from?.name}. Only ${rolesLabel(roles)} can move tasks to ${to?.name}.`
+          : `${task.key} stays in ${from?.name}. That is not the next step.`,
+        actions: [ask, override].filter((row): row is NonNullable<typeof row> => Boolean(row)),
         durationMs: 10000,
       });
       return;
@@ -143,11 +147,17 @@ export function useMoveFlow(detail: ProjectDetail | undefined, options?: { board
     {options?.board && blocked && (
       <div role="status" className="bt-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <strong>{blocked.task.key} stays in {blocked.fromName}.</strong>
-        <span style={{ fontSize: 13.5, color: color.ink3 }}>Only {rolesLabel(blocked.roles)} can move tasks to {blocked.toName}.</span>
+        <span style={{ fontSize: 13.5, color: color.ink3 }}>
+          {blocked.roles.length
+            ? `Only ${rolesLabel(blocked.roles)} can move tasks to ${blocked.toName}.`
+            : `That is not the next step for ${blocked.task.key}.`}
+        </span>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {blocked.roles.length > 0 && (
           <Button size="small" type="primary" onClick={() => { const current = blocked; setBlocked(null); askPeople(current.task, current.roles, current.toName); }}>
             Ask {rolesLabel(blocked.roles).toLowerCase()}
           </Button>
+          )}
           {mayOverride && (
             <Button size="small" onClick={() => { setText(''); setPending({ task: blocked.task, toStatusId: blocked.toStatusId, mode: 'override', title: `Override: move ${blocked.task.key} to ${blocked.toName}` }); setBlocked(null); }}>
               Override…

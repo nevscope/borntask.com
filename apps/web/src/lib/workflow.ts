@@ -65,19 +65,35 @@ export function rolesLabel(roles: ProjectRole[]): string {
   return roles.map((r) => (r in roleStyle ? roleStyle[r as BuiltinProjectRole].label : r)).join(' or ');
 }
 
-export function checkMove(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string, myRoles: ProjectRole[]): MoveCheck {
-  const t = findTransition(wf, task, toId);
-  if (!t) return { kind: 'no-path', reason: 'Not a step in this workflow' };
-  if (t.roles.length === 0 || t.roles.some((r) => myRoles.includes(r))) return { kind: 'allowed', transition: t };
-  return { kind: 'not-allowed', transition: t, reason: `${rolesLabel(t.roles)} only` };
+/** Roles on the listed edge, or roles that normally move a task into the target. */
+export function rolesForBlockedMove(wf: Workflow, fromId: string, toId: string): ProjectRole[] {
+  const listed = wf.transitions.find((t) => t.to === toId && (t.from === fromId || t.from === '*'));
+  if (listed?.roles.length) return listed.roles;
+  const incoming = new Set<ProjectRole>();
+  for (const row of wf.transitions) {
+    if (row.to !== toId || row.from === '*') continue;
+    for (const role of row.roles) incoming.add(role);
+  }
+  return [...incoming];
 }
 
-/** Every status the task could go to next, with whether *I* may make the move. */
+export function checkMove(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string, myRoles: ProjectRole[]): MoveCheck {
+  const t = findTransition(wf, task, toId);
+  if (t) {
+    if (t.roles.length === 0 || t.roles.some((r) => myRoles.includes(r))) return { kind: 'allowed', transition: t };
+    return { kind: 'not-allowed', transition: t, reason: `${rolesLabel(t.roles)} only` };
+  }
+  if (!statusById(wf, toId)) return { kind: 'no-path', reason: 'Not a step in this workflow' };
+  const roles = rolesForBlockedMove(wf, task.statusId, toId);
+  const transition: Transition = { from: task.statusId, to: toId, roles, requireComment: false, label: null };
+  return { kind: 'not-allowed', transition, reason: roles.length ? `${rolesLabel(roles)} only` : 'Not a step in this workflow' };
+}
+
+/** Every other status, including blocked skip-ahead moves (Ask / Override). */
 export function moveOptions(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, myRoles: ProjectRole[]) {
   return wf.statuses
     .filter((s) => s.id !== task.statusId)
-    .map((status) => ({ status, check: checkMove(wf, task, status.id, myRoles) }))
-    .filter((o) => o.check.kind !== 'no-path');
+    .map((status) => ({ status, check: checkMove(wf, task, status.id, myRoles) }));
 }
 
 export function canOverride(workspaceRole: WorkspaceRole, myRoles: ProjectRole[]): boolean {

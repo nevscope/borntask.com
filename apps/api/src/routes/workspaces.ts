@@ -21,9 +21,15 @@ const createSchema = z.object({
   workflow: z.enum(['delivery', 'simple']).optional(),
   pack: z.enum(workspacePackIds).optional(),
   allowedDomain: z.string().trim().optional(),
-  inviteEmails: z.array(z.string().email()).optional(),
+  inviteEmails: z.array(z.string()).optional(),
   firstProjectName: z.string().trim().max(80).optional(),
 });
+
+function normaliseAllowedDomain(raw?: string) {
+  const domain = (raw ?? '').trim().replace(/^@/, '').toLowerCase();
+  if (!domain || domain.includes(' ') || !domain.includes('.')) return null;
+  return domain;
+}
 
 export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.post('/workspaces', async (req, reply) => {
@@ -35,11 +41,13 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       const clash = await prisma.workspace.findUnique({ where: { slug } });
       if (clash) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
 
+      const allowedDomain = normaliseAllowedDomain(input.allowedDomain);
+      const allowedDomains = allowedDomain ? [allowedDomain] : [];
       const workspace = await prisma.workspace.create({
         data: {
           name: input.name,
           slug,
-          allowedDomains: input.allowedDomain ? [input.allowedDomain.toLowerCase()] : undefined,
+          allowedDomains,
         },
       });
 
@@ -51,20 +59,25 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       const packId = resolveWorkspacePackId({ pack: input.pack, workflow: input.workflow });
       const defaults = await bootstrapWorkspaceDefaults(db, workspace.id, packId);
       if (!defaults.deliveryId) throw validation('That template has no workflow.');
-      const workflow = await db.workflow.findFirstOrThrow({
-        where: { id: defaults.deliveryId },
-      });
+      if (allowedDomains.length) {
+        await db.workspace.update({
+          where: { id: workspace.id },
+          data: { allowedDomains },
+        });
+      }
 
-      if (input.firstProjectName) {
-        const key = projectKeyFromName(input.firstProjectName, []);
+      const firstProjectName = input.firstProjectName?.trim();
+      if (firstProjectName) {
+        const existing = await db.project.findMany({ select: { key: true } });
+        const key = projectKeyFromName(firstProjectName, existing.map((row) => row.key));
         const project = await db.project.create({
           data: {
             tenantId: workspace.id,
-            name: input.firstProjectName,
+            name: firstProjectName,
             key,
             colour: '#178A5C',
             leadId: user.id,
-            workflowId: workflow.id,
+            workflowId: defaults.deliveryId,
           },
         });
         await db.section.create({ data: { tenantId: workspace.id, projectId: project.id, name: 'Inbox', position: 'a0000' } });
@@ -76,9 +89,10 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      const domains = internalDomains(input.allowedDomain ? [input.allowedDomain] : [], user.email);
+      const domains = internalDomains(allowedDomains, user.email);
       for (const emailRaw of input.inviteEmails ?? []) {
-        const email = emailRaw.toLowerCase();
+        const email = emailRaw.trim().toLowerCase();
+        if (!email.includes('@') || !email.includes('.')) continue;
         if (email === user.email.toLowerCase()) continue;
         const tenantRole = roleForInvite(email, 'member', domains);
         const { token, hash } = newInviteToken();
