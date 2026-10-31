@@ -13,7 +13,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { color, parseProjectHex } from '../theme/tokens';
 
 type WorkflowOption = { id: string; name: string; statuses?: { name: string; side?: boolean }[] };
-type SavedProject = { name: string; colour: string; workflowId: string; workBreakdown: WorkBreakdown; storiesNeedApproval: boolean };
+type SavedProject = { name: string; colour: string; workflowId: string; workBreakdown: WorkBreakdown; storiesNeedApproval: boolean; acceptsTimesheets: boolean };
 
 function workflowLabel(workflow: WorkflowOption) {
   const stages = (workflow.statuses ?? []).filter((stage) => !stage.side).map((stage) => stage.name);
@@ -34,6 +34,7 @@ export function ProjectDetailsScreen() {
   const [workflowId, setWorkflowId] = useState('');
   const [workBreakdown, setWorkBreakdown] = useState<WorkBreakdown>('off');
   const [storiesNeedApproval, setStoriesNeedApproval] = useState(true);
+  const [acceptsTimesheets, setAcceptsTimesheets] = useState(false);
   const [readyKey, setReadyKey] = useState('');
   const [saved, setSaved] = useState<SavedProject | null>(null);
   const [saving, setSaving] = useState(false);
@@ -65,7 +66,9 @@ export function ProjectDetailsScreen() {
     const approval = detail.data?.storiesNeedApproval !== false;
     setWorkBreakdown(breakdown);
     setStoriesNeedApproval(approval);
-    setSaved({ name: project.name, colour: next, workflowId: project.workflowId, workBreakdown: breakdown, storiesNeedApproval: approval });
+    const timesheets = project.acceptsTimesheets === true;
+    setAcceptsTimesheets(timesheets);
+    setSaved({ name: project.name, colour: next, workflowId: project.workflowId, workBreakdown: breakdown, storiesNeedApproval: approval, acceptsTimesheets: timesheets });
     setReadyKey(projectKey);
     setError(null);
   }, [project, projectKey, readyKey]);
@@ -81,6 +84,7 @@ export function ProjectDetailsScreen() {
       || workflowChanged
       || workBreakdown !== saved.workBreakdown
       || storiesNeedApproval !== saved.storiesNeedApproval
+      || acceptsTimesheets !== saved.acceptsTimesheets
     ),
   );
   const unsaved = useUnsavedChanges(dirty);
@@ -94,9 +98,9 @@ export function ProjectDetailsScreen() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), colour, workflowId, workBreakdown, storiesNeedApproval }),
+        body: JSON.stringify({ name: name.trim(), colour, workflowId, workBreakdown, storiesNeedApproval, acceptsTimesheets }),
       });
-      const json = await res.json().catch(() => ({})) as { message?: string; colour?: string; name?: string; workflowId?: string; workBreakdown?: WorkBreakdown; storiesNeedApproval?: boolean };
+      const json = await res.json().catch(() => ({})) as { message?: string; colour?: string; name?: string; workflowId?: string; workBreakdown?: WorkBreakdown; storiesNeedApproval?: boolean; acceptsTimesheets?: boolean };
       if (!res.ok) throw new Error(json.message ?? 'Could not save the project.');
       const nextName = json.name ?? name.trim();
       const next = parseProjectHex(json.colour ?? colour) ?? colour;
@@ -107,9 +111,11 @@ export function ProjectDetailsScreen() {
       setWorkflowId(nextWorkflow);
       const nextBreakdown = json.workBreakdown ?? workBreakdown;
       const nextApproval = json.storiesNeedApproval ?? storiesNeedApproval;
+      const nextTimesheets = json.acceptsTimesheets ?? acceptsTimesheets;
       setWorkBreakdown(nextBreakdown);
       setStoriesNeedApproval(nextApproval);
-      setSaved({ name: nextName, colour: next, workflowId: nextWorkflow, workBreakdown: nextBreakdown, storiesNeedApproval: nextApproval });
+      setAcceptsTimesheets(nextTimesheets);
+      setSaved({ name: nextName, colour: next, workflowId: nextWorkflow, workBreakdown: nextBreakdown, storiesNeedApproval: nextApproval, acceptsTimesheets: nextTimesheets });
       setConfirmWorkflow(false);
       void qc.invalidateQueries({ queryKey: qk.projects });
       void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
@@ -117,6 +123,8 @@ export function ProjectDetailsScreen() {
       void qc.invalidateQueries({ queryKey: qk.myTasks });
       void qc.invalidateQueries({ queryKey: ['search'] });
       void qc.invalidateQueries({ queryKey: ['workflows'] });
+      void qc.invalidateQueries({ queryKey: qk.workspaceSettings });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
     } catch (err) {
       setConfirmWorkflow(false);
       setError(err instanceof Error ? err.message : 'Could not save the project.');
@@ -224,6 +232,13 @@ export function ProjectDetailsScreen() {
               Stories and epics start in Idea
             </label>
           )}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, fontWeight: 500 }}>
+            <Switch checked={acceptsTimesheets} disabled={!canManage} onChange={setAcceptsTimesheets} />
+            <span>
+              Accept timesheets
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 400, color: color.muted }}>People can log time against this project. Turn this off for onboarding or admin projects that should not appear in Reports.</span>
+            </span>
+          </label>
           <div>
             <Button
               type="primary"

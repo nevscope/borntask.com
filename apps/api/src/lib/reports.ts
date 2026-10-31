@@ -121,6 +121,7 @@ export async function workspaceReports(
     auth.db.timesheetEntry.findMany({
       where: {
         periodStart: { gte: from, lte: to },
+        project: { acceptsTimesheets: true },
         ...(range.projectId ? { projectId: range.projectId } : {}),
         ...(selfOnly ? { userId: auth.userId } : {}),
       },
@@ -132,7 +133,11 @@ export async function workspaceReports(
       },
     }),
     auth.db.project.findMany({
-      where: range.projectId ? { id: range.projectId } : {},
+      where: {
+        acceptsTimesheets: true,
+        archivedAt: null,
+        ...(range.projectId ? { id: range.projectId } : {}),
+      },
       select: { id: true, name: true, colour: true, key: true },
     }),
   ]);
@@ -272,6 +277,7 @@ export async function workspaceReports(
         workingDays: settings.workingDays,
         holidays: holidaySet,
         today,
+        startOn: settings.timesheetsStartOn,
       })) {
         set.add(formatYmd(date));
       }
@@ -289,6 +295,7 @@ export async function workspaceReports(
       holidays: holidaySet,
       daysOff: offByUser.get(m.userId) ?? [],
       today,
+      startOn: settings.timesheetsStartOn,
     });
     const projectMins = minutesByUserProject.get(m.userId) ?? new Map();
     const projectWeight = weightByUserProject.get(m.userId) ?? new Map();
@@ -300,6 +307,7 @@ export async function workspaceReports(
       workingDays: settings.workingDays,
       holidays: holidaySet,
       today,
+      startOn: settings.timesheetsStartOn,
     }).filter((date) => !(offByUser.get(m.userId)?.has(formatYmd(date)) ?? false));
     const logged = timeByUserDay.get(m.userId) ?? new Set<string>();
     const missingDates = expectedDates.filter((date) => !logged.has(formatYmd(date)));
@@ -362,6 +370,7 @@ export async function workspaceReports(
     workingDays: settings.workingDays,
     holidays: holidaySet,
     today,
+    startOn: settings.timesheetsStartOn,
   });
 
   const upcoming = open

@@ -263,6 +263,27 @@ export function WorkspaceMark({
   );
 }
 
+export function NewFeatureTag() {
+  return (
+    <span
+      className="bt-sidebar-label"
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '0.03em',
+        textTransform: 'uppercase',
+        padding: '1px 5px',
+        borderRadius: 4,
+        background: color.brandTint,
+        color: color.brandStrong,
+        lineHeight: '14px',
+      }}
+    >
+      New
+    </span>
+  );
+}
+
 export function Avatar({ user, size = 24, fontSize }: { user: User | null | undefined; size?: number; fontSize?: number }) {
   if (!user) {
     return <span title="Unassigned" style={{ width: size, height: size, borderRadius: '50%', border: `1.5px dashed ${color.faint}`, boxSizing: 'border-box', flex: 'none', display: 'inline-block' }} />;

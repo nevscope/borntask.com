@@ -151,7 +151,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         disabledTypes: z.array(z.string().trim().min(1)).optional(),
         workBreakdown: workBreakdownSchema.optional(),
         storiesNeedApproval: z.boolean().optional(),
-      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined || value.disabledTypes !== undefined || value.workBreakdown !== undefined || value.storiesNeedApproval !== undefined, {
+        acceptsTimesheets: z.boolean().optional(),
+      }).refine((value) => value.name !== undefined || value.colour !== undefined || value.workflowId !== undefined || value.disabledTypes !== undefined || value.workBreakdown !== undefined || value.storiesNeedApproval !== undefined || value.acceptsTimesheets !== undefined, {
         message: 'Send a name, a colour, a workflow, types or work breakdown to update.',
       }).safeParse(req.body);
       if (!parsed.success) throw validation(parsed.error.issues[0]?.message ?? 'Check the name, colour and workflow.');
@@ -183,6 +184,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         ...(parsed.data.disabledTypes !== undefined ? { disabledTypes: parsed.data.disabledTypes.join(',') } : {}),
         ...(parsed.data.workBreakdown !== undefined ? { workBreakdown: parsed.data.workBreakdown } : {}),
         ...(parsed.data.storiesNeedApproval !== undefined ? { storiesNeedApproval: parsed.data.storiesNeedApproval } : {}),
+        ...(parsed.data.acceptsTimesheets !== undefined ? { acceptsTimesheets: parsed.data.acceptsTimesheets } : {}),
       };
       const updated = Object.keys(data).length
         ? await auth.db.project.update({ where: { id: project.id }, data })
@@ -194,6 +196,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         disabledTypes: updated.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
         workBreakdown: updated.workBreakdown,
         storiesNeedApproval: updated.storiesNeedApproval,
+        acceptsTimesheets: updated.acceptsTimesheets,
       };
     } catch (err) {
       return sendError(reply, err);

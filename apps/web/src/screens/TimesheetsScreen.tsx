@@ -65,11 +65,12 @@ function cellKey(projectId: string, periodStart: string) {
 export function TimesheetsScreen() {
   const me = useMe().data;
   const settings = useWorkspaceSettings();
-  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
+  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false && p.acceptsTimesheets);
   const people = usePeople();
   const weekStartSetting = settings.data?.weekStart ?? 'monday';
   const workingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
   const editDays = settings.data?.timesheetEditDays ?? 7;
+  const timesheetsStartOn = settings.data?.timesheetsStartOn ? parseYmd(settings.data.timesheetsStartOn) : null;
   const guest = me?.workspaceRole === 'guest' || me?.workspaceRole === 'viewer';
 
   const [anchor, setAnchor] = useState(() => utcToday());
@@ -280,6 +281,7 @@ export function TimesheetsScreen() {
     holidays: holidaySet,
     daysOff: offSet,
     today,
+    startOn: timesheetsStartOn,
   });
   const daysFilled = days.filter((date) => {
     const ymd = formatYmd(date);
@@ -339,7 +341,7 @@ export function TimesheetsScreen() {
           <path d="M12 7v5l3 2" />
         </svg>
         <strong style={{ display: 'block', marginTop: 12, fontSize: 15 }}>No projects to log time against</strong>
-        <p style={{ margin: '8px 0 0', color: color.muted, fontSize: 13 }}>Once a project lead adds you to a project, it shows up here.</p>
+        <p style={{ margin: '8px 0 0', color: color.muted, fontSize: 13 }}>An owner or admin chooses which projects accept timesheets in Workspace settings. You also need a seat on the project.</p>
         <Link to="/projects" style={{ display: 'inline-block', marginTop: 12, fontWeight: 600 }}>See projects</Link>
       </div>
     );

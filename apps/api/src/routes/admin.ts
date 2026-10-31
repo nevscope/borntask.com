@@ -6,7 +6,8 @@ import { prisma } from '../db.js';
 import { requireAuth, setSession, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { isIanaTimeZone, parseWorkingDays, patchWorkspaceTimesheetSchema } from '@borntask/shared';
+import { isIanaTimeZone, parseWorkingDays, parseYmd, patchWorkspaceTimesheetSchema } from '@borntask/shared';
+import { ymdOf } from '../lib/timesheets.js';
 import { slugify } from '../lib/tokens.js';
 import { parseWorkspaceSlug } from '../lib/workspaceSlug.js';
 import { originForSlug } from '../lib/workspaceHost.js';
@@ -43,7 +44,13 @@ async function workspaceSettings(auth: Authed) {
     timesheetPeriod: ws.timesheetPeriod,
     timesheetUnit: ws.timesheetUnit,
     timesheetEditDays: ws.timesheetEditDays,
+    timesheetsStartOn: ws.timesheetsStartOn ? ymdOf(ws.timesheetsStartOn) : null,
     workingDays: parseWorkingDays(ws.workingDays),
+    timesheetProjects: (await auth.db.project.findMany({
+      where: { archivedAt: null },
+      select: { id: true, name: true, acceptsTimesheets: true },
+      orderBy: { name: 'asc' },
+    })),
     logo: Boolean(ws.logo),
     workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
     roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
@@ -96,7 +103,28 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           if (clash) throw forbidden('That web address is already taken.');
         }
       }
-      await auth.db.workspace.update({ where: { id: auth.tenantId }, data: body });
+      const timesheetProjectIds = body.timesheetProjectIds;
+      delete body.timesheetProjectIds;
+      const timesheetsStartOn = body.timesheetsStartOn;
+      delete body.timesheetsStartOn;
+      await auth.db.workspace.update({
+        where: { id: auth.tenantId },
+        data: {
+          ...body,
+          ...(timesheetsStartOn !== undefined
+            ? { timesheetsStartOn: timesheetsStartOn ? parseYmd(timesheetsStartOn) : null }
+            : {}),
+        },
+      });
+      if (timesheetProjectIds) {
+        const known = await auth.db.project.findMany({ select: { id: true } });
+        const allowed = new Set(known.map((row) => row.id));
+        const ids = timesheetProjectIds.filter((id) => allowed.has(id));
+        await auth.db.project.updateMany({ data: { acceptsTimesheets: false } });
+        if (ids.length) {
+          await auth.db.project.updateMany({ where: { id: { in: ids } }, data: { acceptsTimesheets: true } });
+        }
+      }
       const settings = await workspaceSettings(auth);
       return { ...settings, url: `${originForSlug(settings.slug)}/settings/workspace` };
     } catch (err) {

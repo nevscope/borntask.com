@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import type { Me } from '../api/types';
 import { color } from '../theme/tokens';
-import { Avatar } from './Chips';
+import { Avatar, NewFeatureTag } from './Chips';
 
 export function AccountMenu({
   me,
@@ -37,10 +37,16 @@ export function AccountMenu({
         </span>
       </div>
       {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
-        <MenuLink phone={phone} onClick={() => go('/timesheets')}>Timesheets</MenuLink>
+        <MenuLink phone={phone} onClick={() => go('/timesheets')}>
+          <span style={{ flex: 1 }}>Timesheets</span>
+          <NewFeatureTag />
+        </MenuLink>
       )}
       {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
-        <MenuLink phone={phone} onClick={() => go('/reports')}>Reports</MenuLink>
+        <MenuLink phone={phone} onClick={() => go('/reports')}>
+          <span style={{ flex: 1 }}>Reports</span>
+          <NewFeatureTag />
+        </MenuLink>
       )}
       <MenuLink phone={phone} onClick={() => go('/settings/profile')}>Profile and notifications</MenuLink>
       <MenuLink phone={phone} onClick={() => go('/settings/tokens')}>Connected apps and tokens</MenuLink>

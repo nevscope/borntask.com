@@ -25,6 +25,8 @@ export const patchWorkspaceTimesheetSchema = z.object({
   timesheetPeriod: timesheetPeriodSchema.optional(),
   timesheetUnit: timesheetUnitSchema.optional(),
   timesheetEditDays: timesheetEditDaysSchema.optional(),
+  timesheetsStartOn: ymdSchema.nullable().optional(),
+  timesheetProjectIds: z.array(z.string().min(1)).optional(),
   workingDays: workingDaysSchema.optional(),
 });
 
@@ -147,16 +149,25 @@ export function eachDate(from: Date, to: Date): Date[] {
   return out;
 }
 
+export function clipTimesheetFrom(from: Date, startOn?: Date | null): Date {
+  if (!startOn) return from;
+  return startOn.getTime() > from.getTime() ? startOn : from;
+}
+
 export function workingDatesInRange(input: {
   from: Date;
   to: Date;
   workingDays: string[];
   holidays?: Iterable<string>;
   today?: Date;
+  startOn?: Date | null;
 }): Date[] {
+  const from = clipTimesheetFrom(input.from, input.startOn);
+  if (from.getTime() > input.to.getTime()) return [];
   const cap = input.today && input.today.getTime() < input.to.getTime() ? input.today : input.to;
+  if (from.getTime() > cap.getTime()) return [];
   const holidaySet = new Set(input.holidays ?? []);
-  return eachDate(input.from, cap).filter((date) => {
+  return eachDate(from, cap).filter((date) => {
     const ymd = formatYmd(date);
     return isWorkingDay(date, input.workingDays) && !holidaySet.has(ymd);
   });
@@ -169,6 +180,7 @@ export function expectedDays(input: {
   holidays?: Iterable<string>;
   daysOff?: Iterable<string>;
   today?: Date;
+  startOn?: Date | null;
 }): number {
   const off = new Set(input.daysOff ?? []);
   return workingDatesInRange(input).filter((date) => !off.has(formatYmd(date))).length;

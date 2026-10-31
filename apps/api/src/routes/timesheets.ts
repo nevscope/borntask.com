@@ -80,6 +80,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         await assertTimeAllowed(auth, auth.userId, entry.periodKind, entry.periodStart);
         const project = await auth.db.project.findFirst({ where: { id: entry.projectId } });
         if (!project) throw validation('That project is not in this workspace.');
+        if (!project.acceptsTimesheets) throw validation('This project does not accept timesheets.');
         const where = {
           tenantId_userId_projectId_periodStart_periodKind: {
             tenantId: auth.tenantId,

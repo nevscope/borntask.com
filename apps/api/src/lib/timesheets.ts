@@ -35,6 +35,7 @@ export async function workspaceTimesheetSettings(auth: Authed) {
     timesheetPeriod: ws.timesheetPeriod,
     timesheetUnit: ws.timesheetUnit,
     timesheetEditDays: ws.timesheetEditDays,
+    timesheetsStartOn: ws.timesheetsStartOn,
     workingDays: parseWorkingDays(ws.workingDays),
     weekStart: ws.weekStart,
     timeZone: ws.timeZone,

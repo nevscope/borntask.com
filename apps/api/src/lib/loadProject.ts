@@ -34,7 +34,7 @@ export async function workflowView(db: TenantClient, workflowId: string) {
 export async function mapProjectCards(
   db: TenantClient,
   userId: string,
-  rows: { id: string; key: string; name: string; colour: string; leadId: string | null; workflowId: string; updatedAt: Date; archivedAt?: Date | null }[],
+  rows: { id: string; key: string; name: string; colour: string; leadId: string | null; workflowId: string; updatedAt: Date; archivedAt?: Date | null; acceptsTimesheets?: boolean }[],
 ) {
   if (!rows.length) return [];
   const ids = rows.map((p) => p.id);
@@ -84,6 +84,7 @@ export async function mapProjectCards(
       guestCount,
       updatedAt: p.updatedAt.toISOString(),
       archived: Boolean(p.archivedAt),
+      acceptsTimesheets: Boolean(p.acceptsTimesheets),
       canOpen: true,
       accessRequested: false,
     };

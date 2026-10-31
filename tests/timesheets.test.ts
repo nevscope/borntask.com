@@ -4,6 +4,7 @@ import {
   completedAtForMove,
   countsAsClosed,
   dayOffKindSchema,
+  clipTimesheetFrom,
   expectedDays,
   formatMinutes,
   isTimesheetLocked,
@@ -73,6 +74,25 @@ describe('days off rules', () => {
     const err = conflict('That date is not a working day.');
     expect(err.status).toBe(409);
     expect(err.message).toBe('That date is not a working day.');
+  });
+});
+
+describe('timesheet start date', () => {
+  test('expected days ignore dates before timesheets start', () => {
+    expect(
+      expectedDays({
+        from: parseYmd('2026-10-01'),
+        to: parseYmd('2026-11-06'),
+        workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        today: parseYmd('2026-11-06'),
+        startOn: parseYmd('2026-11-02'),
+      }),
+    ).toBe(5);
+  });
+
+  test('clipTimesheetFrom raises the range start', () => {
+    expect(clipTimesheetFrom(parseYmd('2026-10-01'), parseYmd('2026-11-02')).toISOString().slice(0, 10)).toBe('2026-11-02');
+    expect(clipTimesheetFrom(parseYmd('2026-11-09'), parseYmd('2026-11-02')).toISOString().slice(0, 10)).toBe('2026-11-09');
   });
 });
 

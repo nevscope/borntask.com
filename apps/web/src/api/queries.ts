@@ -870,6 +870,9 @@ export type WorkspaceSettings = {
   timesheetPeriod: 'daily' | 'weekly';
   timesheetUnit: 'time' | 'percent';
   timesheetEditDays: number;
+  timesheetsStartOn: string | null;
+  timesheetProjectIds: string[];
+  timesheetProjects: Array<{ id: string; name: string; acceptsTimesheets: boolean }>;
   workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
@@ -890,6 +893,14 @@ const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
   timesheetPeriod: 'weekly',
   timesheetUnit: 'time',
   timesheetEditDays: 7,
+  timesheetsStartOn: '2026-11-02',
+  timesheetProjectIds: ['p_web', 'p_mob', 'p_cli', 'p_ops'],
+  timesheetProjects: [
+    { id: 'p_web', name: 'Website relaunch', acceptsTimesheets: true },
+    { id: 'p_mob', name: 'Mobile app', acceptsTimesheets: true },
+    { id: 'p_cli', name: 'Client onboarding', acceptsTimesheets: true },
+    { id: 'p_ops', name: 'Internal ops', acceptsTimesheets: true },
+  ],
   workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
   workflows: [],
 };
@@ -908,7 +919,14 @@ export function useWorkspaceSettings() {
         if (USE_MOCKS) return { ...MOCK_WORKSPACE_SETTINGS };
         throw new Error('Sign in to load workspace settings.');
       }
-      return (await res.json()) as WorkspaceSettings;
+      const json = (await res.json()) as WorkspaceSettings;
+      const projects = json.timesheetProjects ?? [];
+      return {
+        ...json,
+        timesheetsStartOn: json.timesheetsStartOn ?? null,
+        timesheetProjects: projects,
+        timesheetProjectIds: json.timesheetProjectIds ?? projects.filter((p) => p.acceptsTimesheets).map((p) => p.id),
+      };
     },
   });
 }

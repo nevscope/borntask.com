@@ -7,7 +7,7 @@ import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProject
 import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs';
 import { readWelcome } from '../lib/welcome';
 import { color, font, radius } from '../theme/tokens';
-import { Avatar, WorkspaceMark } from './Chips';
+import { Avatar, NewFeatureTag, WorkspaceMark } from './Chips';
 import { ProjectStar } from './ProjectStar';
 import { Logo, LogoMark } from './Logo';
 import { useQuickAdd } from './QuickAdd';
@@ -292,13 +292,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         {!guest && !viewer && (
           <NavLink to="/timesheets" className="bt-nav-link" title="Timesheets">
             <span className="bt-nav-icon"><NavIcon kind="timesheets" /></span>
-            <span className="bt-sidebar-label">Timesheets</span>
+            <span className="bt-sidebar-label" style={{ flex: 1 }}>Timesheets</span>
+            <NewFeatureTag />
           </NavLink>
         )}
         {!guest && !viewer && (
           <NavLink to="/reports" className="bt-nav-link" title="Reports">
             <span className="bt-nav-icon"><NavIcon kind="reports" /></span>
-            <span className="bt-sidebar-label">Reports</span>
+            <span className="bt-sidebar-label" style={{ flex: 1 }}>Reports</span>
+            <NewFeatureTag />
           </NavLink>
         )}
         <NavLink to="/search" className="bt-nav-link" title="Search">

@@ -183,6 +183,7 @@ model Workspace {
   timesheetPeriod         TimesheetPeriod @default(weekly)
   timesheetUnit           TimesheetUnit   @default(time)
   timesheetEditDays       Int             @default(7)
+  timesheetsStartOn       DateTime?
   workingDays             Json            @default("[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]")
   deletedAt               DateTime?
   createdAt               DateTime     @default(now())
@@ -313,6 +314,7 @@ model Project {
   /** Optional Jira-style planning: stories, or epics and stories. Off leaves the project as a flat task list. */
   workBreakdown WorkBreakdown @default(off)
   storiesNeedApproval Boolean @default(true)
+  acceptsTimesheets Boolean @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

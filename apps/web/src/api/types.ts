@@ -130,6 +130,7 @@ export const ProjectSchema = z.object({
   guestCount: z.number().int().optional(),
   updatedAt: z.string().optional(),
   archived: z.boolean().optional(),
+  acceptsTimesheets: z.boolean().optional(),
   /** False when an admin can see the project but has not been given a seat. */
   canOpen: z.boolean().optional(),
   accessRequested: z.boolean().optional(),
