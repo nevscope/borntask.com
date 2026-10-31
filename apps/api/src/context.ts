@@ -1,8 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, createTenantClient } from './db.js';
-import { forbidden, unauthorized } from './errors.js';
+import { forbidden, notFound, unauthorized } from './errors.js';
 import { hashToken } from './lib/tokens.js';
 import { tokenAllows } from './lib/tokenPolicy.js';
+import { workspaceSlugFromRequest } from './lib/workspaceHost.js';
 
 export type Authed = {
   userId: string;
@@ -76,6 +77,21 @@ export async function requireAuth(req: FastifyRequest): Promise<Authed> {
   }
 
   const user = await requireUser(req);
+  const hostSlug = workspaceSlugFromRequest(req);
+  if (hostSlug) {
+    const workspace = await prisma.workspace.findUnique({ where: { slug: hostSlug } });
+    if (!workspace || workspace.deletedAt) throw notFound('This workspace address was not found.');
+    const membership = await membershipFor(user.id, workspace.id);
+    return {
+      userId: user.id,
+      tenantId: workspace.id,
+      workspaceRole: membership.tenantRole,
+      db: createTenantClient(workspace.id),
+      via: 'app',
+      actorType: 'user',
+      tokenScope: 'session',
+    };
+  }
   const tenantId = sessionTenantId(req);
   if (!tenantId) throw unauthorized();
   const membership = await membershipFor(user.id, tenantId);

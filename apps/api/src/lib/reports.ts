@@ -84,7 +84,10 @@ export async function workspaceReports(
   auth: Authed,
   range: { from: string; to: string; projectId?: string; today?: Date },
 ) {
-  if (!isOwnerAdmin(auth.workspaceRole)) throw forbidden('Owners and admins only.');
+  if (auth.workspaceRole === 'guest' || auth.workspaceRole === 'viewer') {
+    throw forbidden('Guests and viewers cannot view reports.');
+  }
+  const selfOnly = !isOwnerAdmin(auth.workspaceRole);
   const from = parseYmd(range.from);
   const to = parseYmd(range.to);
   const today = range.today ?? new Date();
@@ -95,6 +98,7 @@ export async function workspaceReports(
   const taskWhere = {
     deletedAt: null,
     ...(range.projectId ? { projectId: range.projectId } : {}),
+    ...(selfOnly ? { assigneeId: auth.userId } : {}),
   };
 
   const [tasks, members, entries, daysOff, projects] = await Promise.all([
@@ -107,17 +111,25 @@ export async function workspaceReports(
       },
     }),
     auth.db.tenantMember.findMany({
-      where: { isActive: true, tenantRole: { notIn: ['guest', 'viewer'] } },
+      where: {
+        isActive: true,
+        tenantRole: { notIn: ['guest', 'viewer'] },
+        ...(selfOnly ? { userId: auth.userId } : {}),
+      },
       include: { user: { select: { id: true, name: true } } },
     }),
     auth.db.timesheetEntry.findMany({
       where: {
         periodStart: { gte: from, lte: to },
         ...(range.projectId ? { projectId: range.projectId } : {}),
+        ...(selfOnly ? { userId: auth.userId } : {}),
       },
     }),
     auth.db.timesheetDayOff.findMany({
-      where: { date: { gte: from, lte: to } },
+      where: {
+        date: { gte: from, lte: to },
+        ...(selfOnly ? { userId: auth.userId } : {}),
+      },
     }),
     auth.db.project.findMany({
       where: range.projectId ? { id: range.projectId } : {},
@@ -231,15 +243,22 @@ export async function workspaceReports(
   }
   const timeByUserDay = new Map<string, Set<string>>();
   const minutesByUserProject = new Map<string, Map<string, number>>();
+  const weightByUserProject = new Map<string, Map<string, number>>();
   let minutesTotal = 0;
+  let weightTotal = 0;
   const peopleWithTime = new Set<string>();
   for (const entry of entries) {
     const mins = entry.unit === 'time' ? entry.minutes ?? 0 : 0;
+    const weight = entry.unit === 'percent' ? entry.percent ?? 0 : mins;
     minutesTotal += mins;
+    weightTotal += weight;
     if ((entry.minutes ?? 0) > 0 || (entry.percent ?? 0) > 0) peopleWithTime.add(entry.userId);
     const byProjectMins = minutesByUserProject.get(entry.userId) ?? new Map<string, number>();
     byProjectMins.set(entry.projectId, (byProjectMins.get(entry.projectId) ?? 0) + mins);
     minutesByUserProject.set(entry.userId, byProjectMins);
+    const byProjectWeight = weightByUserProject.get(entry.userId) ?? new Map<string, number>();
+    byProjectWeight.set(entry.projectId, (byProjectWeight.get(entry.projectId) ?? 0) + weight);
+    weightByUserProject.set(entry.userId, byProjectWeight);
     if (entry.periodKind === 'daily' && ((entry.minutes ?? 0) > 0 || (entry.percent ?? 0) > 0)) {
       const set = timeByUserDay.get(entry.userId) ?? new Set<string>();
       set.add(ymdOf(entry.periodStart));
@@ -272,7 +291,9 @@ export async function workspaceReports(
       today,
     });
     const projectMins = minutesByUserProject.get(m.userId) ?? new Map();
+    const projectWeight = weightByUserProject.get(m.userId) ?? new Map();
     const minutes = [...projectMins.values()].reduce((a, b) => a + b, 0);
+    const weight = [...projectWeight.values()].reduce((a, b) => a + b, 0);
     const expectedDates = workingDatesInRange({
       from,
       to,
@@ -288,6 +309,7 @@ export async function workspaceReports(
       userId: m.userId,
       name: m.user.name,
       minutes,
+      weight,
       time: formatMinutes(minutes),
       off: daysOffCount,
       loggedDays,
@@ -295,6 +317,8 @@ export async function workspaceReports(
       missing,
       complete: loggedDays === expected,
       byProject: Object.fromEntries([...projectMins.entries()].map(([id, mins]) => [id, formatMinutes(mins)])),
+      byProjectMinutes: Object.fromEntries(projectMins.entries()),
+      byProjectWeight: Object.fromEntries(projectWeight.entries()),
       missingDetail: missingDetail(missingDates, leaveDates),
     };
   });
@@ -305,20 +329,26 @@ export async function workspaceReports(
 
   const timeByProject = projects.map((project) => {
     let minutes = 0;
+    let weight = 0;
     const who = new Set<string>();
     for (const entry of entries) {
       if (entry.projectId !== project.id) continue;
-      minutes += entry.unit === 'time' ? entry.minutes ?? 0 : 0;
+      const mins = entry.unit === 'time' ? entry.minutes ?? 0 : 0;
+      minutes += mins;
+      weight += entry.unit === 'percent' ? entry.percent ?? 0 : mins;
       if ((entry.minutes ?? 0) > 0 || (entry.percent ?? 0) > 0) who.add(entry.userId);
     }
+    const shareOf = minutesTotal || weightTotal;
+    const shareN = shareOf ? (minutesTotal ? minutes : weight) : 0;
     return {
       projectId: project.id,
       name: project.name,
       colour: project.colour,
       minutes,
+      weight,
       time: formatMinutes(minutes),
       people: who.size,
-      share: minutesTotal ? `${Math.round((minutes / minutesTotal) * 100)}%` : '0%',
+      share: shareOf ? `${Math.round((shareN / shareOf) * 100)}%` : '0%',
     };
   });
 
@@ -353,6 +383,7 @@ export async function workspaceReports(
 
   void statusById;
   return {
+    scope: selfOnly ? 'self' : 'workspace',
     range: { from: range.from, to: range.to },
     timeZone: settings.timeZone,
     workingDaysSoFar,
@@ -374,7 +405,9 @@ export async function workspaceReports(
       avgStartDays: avgStart,
       medianCloseDays: medianClose,
       medianStartDays: medianStart,
-      byProject: [...byProject.entries()].map(([projectId, row]) => ({
+      byProject: [...byProject.entries()]
+        .filter(([, row]) => !selfOnly || row.opened + row.closed + row.open > 0)
+        .map(([projectId, row]) => ({
         projectId,
         ...row,
         close: daysPhrase(medianDays(closeDaysByProject.get(projectId) ?? []), 'd'),
@@ -393,6 +426,7 @@ export async function workspaceReports(
     },
     timesheets: {
       minutes: minutesTotal,
+      weight: weightTotal,
       time: formatMinutes(minutesTotal),
       peopleWithTime: peopleWithTime.size,
       peopleTotal: members.length,
@@ -400,7 +434,7 @@ export async function workspaceReports(
       missingDays: missingDayCount,
       daysOff: daysOffCount,
       people,
-      byProject: timeByProject,
+      byProject: selfOnly ? timeByProject.filter((p) => p.minutes > 0 || p.weight > 0) : timeByProject,
       missing: people
         .filter((p) => p.missing > 0)
         .map((p) => ({

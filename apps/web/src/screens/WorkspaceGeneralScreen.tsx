@@ -5,7 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { BASE_URL } from '../api/http';
 import {
+  applyMockWorkspaceSettings,
   qk,
+  USE_MOCKS,
   useChatAppStatus,
   useMe,
   useWorkspaceHolidays,
@@ -16,12 +18,13 @@ import {
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
+import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { holidayCountryOptions, timeZoneSelectOptions } from '@borntask/shared';
 import { color, radius } from '../theme/tokens';
 
 const SAVED_FIELDS = [
   'name',
-  'slug',
   'timeZone',
   'weekStart',
   'defaultWorkflowId',
@@ -31,6 +34,7 @@ const SAVED_FIELDS = [
   'membersCanInviteGuests',
   'timesheetPeriod',
   'timesheetUnit',
+  'timesheetEditDays',
   'workingDays',
 ] as const;
 
@@ -62,6 +66,7 @@ function withDefaults(data: WorkspaceSettings): WorkspaceSettings {
     ...data,
     timesheetPeriod: data.timesheetPeriod ?? 'weekly',
     timesheetUnit: data.timesheetUnit ?? 'time',
+    timesheetEditDays: data.timesheetEditDays ?? 7,
     workingDays: data.workingDays?.length ? data.workingDays : [...DEFAULT_WORKING_DAYS],
   };
 }
@@ -87,6 +92,11 @@ export function WorkspaceGeneralScreen() {
   const qc = useQueryClient();
   const [form] = Form.useForm();
   const [logoVersion, setLogoVersion] = useState(0);
+  const [slugOpen, setSlugOpen] = useState(false);
+  const [slugDraft, setSlugDraft] = useState('');
+  const [slugNote, setSlugNote] = useState<string | null>(null);
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [slugBusy, setSlugBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -97,22 +107,39 @@ export function WorkspaceGeneralScreen() {
   const [holidayYear, setHolidayYear] = useState(() => dayjs().year());
   const [showAllHolidays, setShowAllHolidays] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCountry, setImportCountry] = useState('MT');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [countries, setCountries] = useState(() => holidayCountryOptions());
   const [addDate, setAddDate] = useState('');
   const [addName, setAddName] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [holidayBusy, setHolidayBusy] = useState(false);
   const toast = useStatusToast();
+  const phone = useIsPhone();
+  const twoCol = { display: 'grid', gridTemplateColumns: phone ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 14 } as const;
   const isOwner = me?.workspaceRole === 'owner';
   const ws = useWorkspaceSettings();
   const holidaysQ = useWorkspaceHolidays(holidayYear, canAdmin);
   const draft = Form.useWatch([], form) as Partial<WorkspaceSettings> | undefined;
-  const dirty = Boolean(ws.data && draft && settingsSnapshot(draft) !== settingsSnapshot(withDefaults(ws.data)));
+  const hydrated = typeof draft?.name === 'string';
+  const dirty = Boolean(ws.data && hydrated && settingsSnapshot(draft) !== settingsSnapshot(withDefaults(ws.data)));
   const unsaved = useUnsavedChanges(dirty);
 
   useEffect(() => {
     if (!ws.data || dirty) return;
     form.setFieldsValue(withDefaults(ws.data));
   }, [ws.data, form, dirty]);
+  useEffect(() => {
+    if (!canAdmin) return;
+    void fetch(`${BASE_URL}/workspace/holidays/countries`, { credentials: 'include' })
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({})) as { countries?: { code: string; name: string }[] };
+        if (!res.ok || !json.countries?.length) return;
+        setCountries(holidayCountryOptions(json.countries));
+      })
+      .catch(() => undefined);
+  }, [canAdmin]);
   const weekStart = (draft?.weekStart ?? ws.data?.weekStart ?? 'monday') === 'sunday' ? 'Sunday' : 'Monday';
   const workingDays = (draft?.workingDays ?? ws.data?.workingDays ?? DEFAULT_WORKING_DAYS) as WorkspaceSettings['workingDays'];
   const period = draft?.timesheetPeriod ?? ws.data?.timesheetPeriod ?? 'weekly';
@@ -224,6 +251,78 @@ export function WorkspaceGeneralScreen() {
     }
   };
 
+  const checkSlugDraft = async (raw: string) => {
+    const slug = raw.trim();
+    if (slug.length < 2 || slug === ws.data?.slug) {
+      setSlugNote(null);
+      return;
+    }
+    const res = await fetch(`${BASE_URL}/workspaces/slug-available?slug=${encodeURIComponent(slug)}`, { credentials: 'include' });
+    const json = await res.json() as { available?: boolean; message?: string };
+    if (!res.ok) {
+      setSlugNote(json.message ?? null);
+      return;
+    }
+    setSlugNote(json.available ? 'Available' : (json.message ?? 'That address is taken.'));
+  };
+
+  const changeSlug = async () => {
+    const next = slugDraft.trim();
+    if (!next || next === ws.data?.slug) return;
+    setSlugBusy(true);
+    setSlugError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/workspace`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: next, confirmSlugChange: true }),
+      });
+      const json = await res.json().catch(() => ({})) as WorkspaceSettings & { message?: string; url?: string };
+      if (!res.ok) {
+        if (USE_MOCKS && (res.status === 401 || res.status === 404)) {
+          const saved = applyMockWorkspaceSettings({ slug: next });
+          qc.setQueryData(qk.workspaceSettings, saved);
+          form.setFieldsValue(withDefaults(saved));
+          setSlugOpen(false);
+          toast.show('Web address updated.');
+          return;
+        }
+        setSlugError(json.message ?? 'Could not change the web address.');
+        return;
+      }
+      applyMockWorkspaceSettings(json);
+      qc.setQueryData(qk.workspaceSettings, json);
+      form.setFieldsValue(withDefaults(json));
+      setSlugOpen(false);
+      toast.show('Web address updated.');
+      void qc.invalidateQueries({ queryKey: qk.me });
+      if (json.url) {
+        try {
+          const dest = new URL(json.url, window.location.origin);
+          if (dest.origin !== window.location.origin) {
+            window.location.assign(dest.href);
+            return;
+          }
+        } catch {
+          /* stay on this page */
+        }
+      }
+    } catch {
+      if (USE_MOCKS) {
+        const saved = applyMockWorkspaceSettings({ slug: next });
+        qc.setQueryData(qk.workspaceSettings, saved);
+        form.setFieldsValue(withDefaults(saved));
+        setSlugOpen(false);
+        toast.show('Web address updated.');
+        return;
+      }
+      setSlugError('Could not change the web address.');
+    } finally {
+      setSlugBusy(false);
+    }
+  };
+
   const weekHint = useMemo(
     () => `One line per project per week. Weeks start on ${weekStart}, as set above.`,
     [weekStart],
@@ -252,6 +351,7 @@ export function WorkspaceGeneralScreen() {
         form={form}
         layout="vertical"
         disabled={!canAdmin}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
         onValuesChange={() => {
           setSaved(false);
           setSaveError(null);
@@ -260,15 +360,14 @@ export function WorkspaceGeneralScreen() {
           setSaveError(null);
           setSaved(false);
           setBusy(true);
+          const days = values.workingDays?.length ? values.workingDays : [...DEFAULT_WORKING_DAYS];
           try {
-            const days = values.workingDays?.length ? values.workingDays : [...DEFAULT_WORKING_DAYS];
             const res = await fetch(`${BASE_URL}/workspace`, {
               method: 'PATCH',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 name: values.name,
-                slug: values.slug,
                 timeZone: values.timeZone,
                 weekStart: values.weekStart,
                 defaultWorkflowId: values.defaultWorkflowId ?? null,
@@ -278,20 +377,41 @@ export function WorkspaceGeneralScreen() {
                 membersCanInviteGuests: values.membersCanInviteGuests,
                 timesheetPeriod: values.timesheetPeriod,
                 timesheetUnit: values.timesheetUnit,
+                timesheetEditDays: values.timesheetEditDays,
                 workingDays: days,
               }),
             });
             const json = await res.json().catch(() => ({})) as WorkspaceSettings & { message?: string };
             if (!res.ok) {
+              if (USE_MOCKS && (res.status === 401 || res.status === 404)) {
+                const next = applyMockWorkspaceSettings({ ...values, workingDays: days });
+                qc.setQueryData(qk.workspaceSettings, next);
+                form.setFieldsValue(withDefaults(next));
+                setSaved(true);
+                toast.show('Workspace saved.');
+                void qc.invalidateQueries({ queryKey: ['timesheets'] });
+                return;
+              }
               setSaveError(json.message ?? 'Could not save workspace settings.');
               return;
             }
+            applyMockWorkspaceSettings(json);
             qc.setQueryData(qk.workspaceSettings, json);
             form.setFieldsValue(withDefaults(json));
             setSaved(true);
             toast.show('Workspace saved.');
             void qc.invalidateQueries({ queryKey: qk.me });
+            void qc.invalidateQueries({ queryKey: ['timesheets'] });
           } catch {
+            if (USE_MOCKS) {
+              const next = applyMockWorkspaceSettings({ ...values, workingDays: days });
+              qc.setQueryData(qk.workspaceSettings, next);
+              form.setFieldsValue(withDefaults(next));
+              setSaved(true);
+              toast.show('Workspace saved.');
+              void qc.invalidateQueries({ queryKey: ['timesheets'] });
+              return;
+            }
             setSaveError('Could not save workspace settings.');
           } finally {
             setBusy(false);
@@ -329,11 +449,41 @@ export function WorkspaceGeneralScreen() {
               />
             </label>
           </div>
-          <div style={{ flex: '1 1 360px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <Form.Item name="name" label="Workspace name" style={{ marginBottom: 0 }}><Input /></Form.Item>
-            <Form.Item name="slug" label="Web address" style={{ marginBottom: 0 }}><Input addonAfter=".borntask.com" /></Form.Item>
+          <div style={{ flex: '1 1 360px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14, alignItems: 'end' }}>
+            <Form.Item name="name" label="Name" style={{ marginBottom: 0 }}><Input /></Form.Item>
+            <div>
+              <div style={{ marginBottom: 8, fontSize: 14 }}>Web address</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 32 }}>
+                <span style={{ fontSize: 14 }}>{ws.data?.slug ?? '—'}.borntask.com</span>
+                {canAdmin && (
+                  <Button
+                    htmlType="button"
+                    onClick={() => {
+                      setSlugDraft(ws.data?.slug ?? '');
+                      setSlugNote(null);
+                      setSlugError(null);
+                      setSlugOpen(true);
+                    }}
+                  >
+                    Change
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Defaults</h2>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>Used for new projects and for how dates are shown.</p>
+          </div>
+          <div style={twoCol}>
             <Form.Item name="timeZone" label="Default time zone" style={{ marginBottom: 0 }}>
-              <Select options={['Europe/Malta', 'Europe/London', 'UTC'].map((v) => ({ value: v, label: v }))} />
+              <Select
+                showSearch
+                optionFilterProp="label"
+                options={timeZoneSelectOptions()}
+              />
             </Form.Item>
             <Form.Item name="weekStart" label="Week starts on" style={{ marginBottom: 0 }}>
               <Select options={[{ value: 'monday', label: 'Monday' }, { value: 'sunday', label: 'Sunday' }]} />
@@ -350,11 +500,13 @@ export function WorkspaceGeneralScreen() {
             </Form.Item>
           </div>
         </section>
-        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Timesheets</h2>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>Members log their time against projects. Guests and viewers don't fill timesheets.</p>
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink2 }}>How people log</h3>
           <Form.Item name="timesheetPeriod" label="Each entry covers" style={{ marginBottom: 0 }}>
             <Radio.Group style={{ display: 'flex', flexWrap: 'wrap', gap: 10, width: '100%' }}>
               <Radio value="daily" style={radioCard(period === 'daily')}>
@@ -387,6 +539,27 @@ export function WorkspaceGeneralScreen() {
               </Radio>
             </Radio.Group>
           </Form.Item>
+          <Form.Item
+            name="timesheetEditDays"
+            label="How far back people can fix a timesheet"
+            style={{ marginBottom: 0 }}
+            extra="After that the period is locked so reports don't change. Widen this only if someone needs a genuine correction."
+          >
+            <Select
+              style={{ maxWidth: 280 }}
+              options={[
+                { value: 0, label: 'Today only' },
+                { value: 3, label: '3 days' },
+                { value: 7, label: '1 week' },
+                { value: 14, label: '2 weeks' },
+                { value: 30, label: '1 month' },
+                { value: -1, label: 'Never lock' },
+              ]}
+            />
+          </Form.Item>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink2 }}>Working calendar</h3>
           <Form.Item name="workingDays" label="Working days" style={{ marginBottom: 0 }}>
             <Checkbox.Group style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {DAY_CHIPS.map((day) => {
@@ -434,6 +607,16 @@ export function WorkspaceGeneralScreen() {
                   disabled={!canAdmin}
                 />
               </label>
+              <Button
+                htmlType="button"
+                disabled={!canAdmin || holidayBusy || holidaysQ.isLoading}
+                onClick={() => {
+                  setImportError(null);
+                  setImportOpen(true);
+                }}
+              >
+                Import from country
+              </Button>
               <Button htmlType="button" disabled={!canAdmin || holidayBusy || holidaysQ.isLoading} onClick={() => { setAddError(null); setAddDate(`${holidayYear}-01-01`); setAddName(''); setAddOpen(true); }}>
                 + Add holiday
               </Button>
@@ -493,13 +676,14 @@ export function WorkspaceGeneralScreen() {
               </div>
             </div>
           </div>
+          </div>
           <p style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: radius.md, background: color.subtle, fontSize: 12.5, lineHeight: 1.5, color: color.ink2 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" style={{ flex: 'none', marginTop: 2, color: color.muted }}>
               <circle cx="12" cy="12" r="9" />
               <path d="M12 11v5M12 8h.01" />
             </svg>
             <span>
-              Changing these doesn't change saved timesheets. Each entry keeps the period and unit it was saved with, so older weeks still read correctly. People mark their own days off (Leave or Other) on the Timesheets page. Owners and admins see totals in <Link to="/reports">Reports</Link>.
+              Changing period or unit doesn't change saved timesheets. Each entry keeps the period and unit it was saved with. Once a period is older than the lock window, nobody can edit it - that keeps <Link to="/reports">Reports</Link> stable. People mark their own days off (Leave or Other) on the Timesheets page.
             </span>
           </p>
         </section>
@@ -533,6 +717,84 @@ export function WorkspaceGeneralScreen() {
               : 'The Chat app is not configured on this server yet. Space webhooks still work.'}
         </p>
       </section>
+      <ConfirmDialog
+        open={slugOpen}
+        title="Change web address"
+        confirmLabel="Change address"
+        tone="primary"
+        confirmDisabled={!slugDraft.trim() || slugDraft.trim() === (ws.data?.slug ?? '')}
+        busy={slugBusy}
+        onCancel={() => setSlugOpen(false)}
+        onConfirm={() => void changeSlug()}
+      >
+        <p style={{ marginTop: 0 }}>
+          The workspace will move to a new URL. The old address stops working. Bookmarks, invite links and email sign-in links that use the old address will fail. Someone else may then claim the old address.
+        </p>
+        {slugError && <Alert type="error" message={slugError} style={{ marginBottom: 12 }} />}
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+          New address
+          <Input
+            value={slugDraft}
+            addonAfter=".borntask.com"
+            maxLength={40}
+            onChange={(e) => {
+              setSlugDraft(e.target.value);
+              setSlugNote(null);
+            }}
+            onBlur={() => void checkSlugDraft(slugDraft)}
+            aria-label="New web address"
+          />
+        </label>
+        {slugNote && <p style={{ margin: '8px 0 0', fontSize: 13, color: color.muted }}>{slugNote}</p>}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={importOpen}
+        title={`Import public holidays for ${holidayYear}`}
+        confirmLabel="Import holidays"
+        tone="primary"
+        confirmDisabled={!importCountry}
+        busy={holidayBusy}
+        onCancel={() => setImportOpen(false)}
+        onConfirm={() => {
+          setHolidayBusy(true);
+          setImportError(null);
+          void fetch(`${BASE_URL}/workspace/holidays/import`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year: holidayYear, countryCode: importCountry }),
+          }).then(async (res) => {
+            const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; added?: number; updated?: number; message?: string };
+            setHolidayBusy(false);
+            if (!res.ok) {
+              setImportError(json.message ?? 'Could not import public holidays.');
+              return;
+            }
+            storeHolidays(holidayYear, json.holidays ?? []);
+            setImportOpen(false);
+            toast.show(`Imported ${(json.added ?? 0) + (json.updated ?? 0)} holidays.`);
+          }).catch(() => {
+            setHolidayBusy(false);
+            setImportError('Could not import public holidays.');
+          });
+        }}
+      >
+        <p style={{ marginTop: 0 }}>
+          Loads the official public holiday list for that country from Nager Date. Existing dates in {holidayYear} keep their place; matching dates are updated. You can still add or remove days afterwards.
+        </p>
+        {importError && <Alert type="error" message={importError} style={{ marginBottom: 12 }} />}
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+          Country
+          <Select
+            showSearch
+            optionFilterProp="label"
+            value={importCountry}
+            onChange={setImportCountry}
+            options={holidayCountryOptions(countries).map((row) => ({ value: row.code, label: `${row.name} (${row.code})` }))}
+            placeholder="Choose a country"
+          />
+        </label>
+      </ConfirmDialog>
       <ConfirmDialog
         open={addOpen}
         title="Add holiday"

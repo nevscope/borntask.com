@@ -10,6 +10,7 @@ import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
 import { useThemePreference } from '../theme/ThemeProvider';
+import { timeZoneSelectOptions } from '@borntask/shared';
 import { color } from '../theme/tokens';
 
 const EVENTS = [
@@ -47,7 +48,6 @@ function chatMessageOf(err: unknown): string {
   return 'Could not reach Google Chat. Check the URL and try again.';
 }
 
-const ZONES = ['Europe/Malta', 'Europe/London', 'UTC'] as const;
 const NAME_MAX = 80;
 
 function nameFieldError(value: string): string | null {
@@ -260,7 +260,9 @@ export function ProfileSettingsScreen() {
               value={timeZone}
               onChange={(value) => { setTimeZone(value); setSaved(false); }}
               style={{ height: 38, padding: '0 12px' }}
-              options={ZONES.map((value) => ({ value, label: value }))}
+              showSearch
+              optionFilterProp="label"
+              options={timeZoneSelectOptions()}
             />
           </label>
         </div>

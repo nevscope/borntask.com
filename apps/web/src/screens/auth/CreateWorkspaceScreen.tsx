@@ -101,7 +101,7 @@ export function CreateWorkspaceScreen() {
           firstProjectName: nextValues.firstProjectName || undefined,
         }),
       });
-      const json = await res.json() as { message?: string };
+      const json = await res.json() as { message?: string; url?: string };
       if (!res.ok) {
         if (res.status === 401) {
           navigate('/sign-in');
@@ -109,7 +109,7 @@ export function CreateWorkspaceScreen() {
         }
         throw new Error(json.message ?? 'Could not create workspace');
       }
-      window.location.href = '/settings/defaults';
+      window.location.href = json.url ?? '/settings/defaults';
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create workspace');
       setBusy(false);

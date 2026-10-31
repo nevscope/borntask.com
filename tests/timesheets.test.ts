@@ -6,6 +6,7 @@ import {
   dayOffKindSchema,
   expectedDays,
   formatMinutes,
+  isTimesheetLocked,
   parseYmd,
   placeWeeklyDaysOff,
   rollupCompleteness,
@@ -31,6 +32,25 @@ describe('timesheet dates and week start', () => {
         holidays: ['2026-10-28'],
       }),
     ).toEqual(['2026-10-26', '2026-10-27']);
+  });
+});
+
+describe('timesheet lock window', () => {
+  const today = parseYmd('2026-10-31');
+
+  test('default week still allows last week and locks the week before', () => {
+    expect(isTimesheetLocked({ periodStart: parseYmd('2026-10-26'), periodKind: 'weekly', editDays: 7, today })).toBe(false);
+    expect(isTimesheetLocked({ periodStart: parseYmd('2026-10-19'), periodKind: 'weekly', editDays: 7, today })).toBe(false);
+    expect(isTimesheetLocked({ periodStart: parseYmd('2026-10-12'), periodKind: 'weekly', editDays: 7, today })).toBe(true);
+  });
+
+  test('daily cells lock once they are older than the window', () => {
+    expect(isTimesheetLocked({ periodStart: parseYmd('2026-10-24'), periodKind: 'daily', editDays: 7, today })).toBe(false);
+    expect(isTimesheetLocked({ periodStart: parseYmd('2026-10-23'), periodKind: 'daily', editDays: 7, today })).toBe(true);
+  });
+
+  test('never lock when editDays is -1', () => {
+    expect(isTimesheetLocked({ periodStart: parseYmd('2020-01-01'), periodKind: 'daily', editDays: -1, today })).toBe(false);
   });
 });
 

@@ -39,7 +39,7 @@ export function AccountMenu({
       {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
         <MenuLink phone={phone} onClick={() => go('/timesheets')}>Timesheets</MenuLink>
       )}
-      {(me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin') && (
+      {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
         <MenuLink phone={phone} onClick={() => go('/reports')}>Reports</MenuLink>
       )}
       <MenuLink phone={phone} onClick={() => go('/settings/profile')}>Profile and notifications</MenuLink>

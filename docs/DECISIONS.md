@@ -34,9 +34,10 @@ One line per locked call. Spec overrides live in REQUIREMENT-CHANGES.md. Open it
 | 2026-10-13 | Activity `via`: `app`, `mcp`, `github`, `import`, `automation`. |
 | 2026-10-13 | Local auth: `ALLOW_DEV_LOGIN` when Google/Microsoft client secrets are empty. Invite URLs log to the API console (no Resend yet). |
 | 2026-10-13 | First deploy uses path-based workspace switcher, not `<slug>.borntask.com` routing. |
+| 2026-10-31 | Workspace web addresses are live hosts: `<slug>.borntask.com` for login and the app. `app.borntask.com` stays the hub. Needs wildcard DNS and TLS. |
 
 ## Still open (not blocking dogfood schema)
 
 - Exact email provider account and DNS.
 - Whether to keep a stub billing settings route with no provider.
-- Workspace subdomain routing vs path-based workspace switcher for first deploy.
+- Wildcard DNS / TLS for `*.borntask.com` on Plesk (app code is ready).

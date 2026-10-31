@@ -6,7 +6,7 @@ import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useNotifications,
 import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
 import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs';
 import { readWelcome } from '../lib/welcome';
-import { color, radius } from '../theme/tokens';
+import { color, font, radius } from '../theme/tokens';
 import { Avatar, WorkspaceMark } from './Chips';
 import { ProjectStar } from './ProjectStar';
 import { Logo, LogoMark } from './Logo';
@@ -48,7 +48,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
-  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
   const favourites = projects.filter((p) => p.starred);
@@ -66,6 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pinned = guest ? projects : favourites;
 
   useEffect(() => {
+    if (me?.host?.kind === 'workspace' && !me.host.allowed) return;
     if (me?.workspaces && me.workspaces.length === 0) {
       navigate('/create-workspace', { replace: true });
     }
@@ -184,6 +184,34 @@ export function AppShell({ children }: { children: ReactNode }) {
     </div>
   );
 
+  if (me?.host?.kind === 'workspace' && !me.host.allowed) {
+    return (
+      <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: color.canvas, padding: 24 }}>
+        <div className="bt-card" style={{ maxWidth: 420, padding: 24, display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center' }}>
+          <h1 style={{ margin: 0, fontFamily: font.display, fontSize: 22, fontWeight: 600 }}>
+            {me.host.exists ? 'You do not have access to this workspace' : 'This workspace address was not found'}
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, color: color.muted, lineHeight: 1.5 }}>
+            {me.host.exists
+              ? `${me.host.name ?? me.host.slug} is a BornTask workspace, but this account is not a member.`
+              : `${me.host.slug}.borntask.com is not a workspace yet.`}
+          </p>
+          {workspaces.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {workspaces.map((w) => (
+                <a key={w.id} href={w.url ?? '/'} style={{ fontSize: 14, fontWeight: 600, color: color.brandStrong }}>
+                  Open {w.name}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <a href="/create-workspace" style={{ fontSize: 14, fontWeight: 600, color: color.brandStrong }}>Create a workspace</a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`bt-shell${isPhone ? ' is-phone' : ''}`}>
       <OfflineBanner />
@@ -233,7 +261,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceId: key }),
-              }).then(() => window.location.reload());
+              }).then(async (res) => {
+                const json = await res.json().catch(() => null) as { url?: string } | null;
+                if (json?.url && new URL(json.url, window.location.origin).origin !== window.location.origin) {
+                  window.location.assign(json.url);
+                  return;
+                }
+                window.location.reload();
+              });
             },
           }}
         >
@@ -260,7 +295,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="bt-sidebar-label">Timesheets</span>
           </NavLink>
         )}
-        {canAdmin && (
+        {!guest && !viewer && (
           <NavLink to="/reports" className="bt-nav-link" title="Reports">
             <span className="bt-nav-icon"><NavIcon kind="reports" /></span>
             <span className="bt-sidebar-label">Reports</span>

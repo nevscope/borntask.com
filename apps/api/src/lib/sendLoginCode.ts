@@ -3,8 +3,8 @@ import { loginLinkUrl, renderLoginCodeMail } from './emailLogin.js';
 
 const FROM = { email: 'notify@borntask.com', name: 'BornTask' };
 
-export async function sendLoginCodeEmail(to: string, code: string, linkToken: string): Promise<void> {
-  const linkUrl = loginLinkUrl(linkToken);
+export async function sendLoginCodeEmail(to: string, code: string, linkToken: string, origin?: string): Promise<void> {
+  const linkUrl = loginLinkUrl(linkToken, origin);
   const rendered = renderLoginCodeMail(code, linkUrl);
   const key = process.env.SENDGRID_API_KEY?.trim();
   if (!key) {

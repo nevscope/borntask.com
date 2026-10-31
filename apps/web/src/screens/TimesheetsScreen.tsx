@@ -3,9 +3,11 @@ import {
   expectedDays,
   formatMinutes,
   formatYmd,
+  isTimesheetLocked,
   isWorkingDay,
   parseTimeToMinutes,
   parseYmd,
+  timesheetLockLabel,
   weekStartFor,
 } from '@borntask/shared';
 import { Alert, Button, Dropdown, Input, Popover, Select, Skeleton } from 'antd';
@@ -66,9 +68,8 @@ export function TimesheetsScreen() {
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const people = usePeople();
   const weekStartSetting = settings.data?.weekStart ?? 'monday';
-  const period = settings.data?.timesheetPeriod ?? 'weekly';
-  const unit = settings.data?.timesheetUnit ?? 'time';
   const workingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const editDays = settings.data?.timesheetEditDays ?? 7;
   const guest = me?.workspaceRole === 'guest' || me?.workspaceRole === 'viewer';
 
   const [anchor, setAnchor] = useState(() => utcToday());
@@ -87,6 +88,8 @@ export function TimesheetsScreen() {
 
   const sheet = useTimesheets(from, to, viewUserId, !guest);
   const lastWeek = useTimesheets(lastFrom, lastTo, viewUserId, !guest);
+  const period = sheet.data?.timesheetPeriod ?? settings.data?.timesheetPeriod ?? 'weekly';
+  const unit = sheet.data?.timesheetUnit ?? settings.data?.timesheetUnit ?? 'time';
   const saveEntries = useSaveTimesheets();
   const saveDaysOff = useSaveDaysOff();
 
@@ -106,6 +109,10 @@ export function TimesheetsScreen() {
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addUtcDays(weekStart, i)), [weekStart]);
   const today = utcToday();
+  const weekLocked = isTimesheetLocked({ periodStart: weekStart, periodKind: 'weekly', editDays, today });
+  const dayLocked = (ymd: string) =>
+    isTimesheetLocked({ periodStart: parseYmd(ymd), periodKind: 'daily', editDays, today });
+  const periodLocked = period === 'weekly' ? weekLocked : days.every((d) => dayLocked(formatYmd(d)));
   const holidayByDate = useMemo(() => new Map((sheet.data?.holidays ?? []).map((h) => [h.date, h.name])), [sheet.data]);
   const offByDate = useMemo(() => new Map((sheet.data?.daysOff ?? []).map((d) => [d.date, d])), [sheet.data]);
 
@@ -127,12 +134,13 @@ export function TimesheetsScreen() {
   const queueSave = useCallback(
     (entry: TimesheetEntryWrite) => {
       if (readOnly) return;
+      if (isTimesheetLocked({ periodStart: parseYmd(entry.periodStart), periodKind: entry.periodKind, editDays, today: utcToday() })) return;
       pending.current.set(`${entry.projectId}:${entry.periodStart}`, entry);
       setSaveState('saving');
       window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => void flush(), 450);
     },
-    [flush, readOnly],
+    [editDays, flush, readOnly],
   );
 
   const entryOf = (projectId: string, periodStart: string) =>
@@ -148,6 +156,7 @@ export function TimesheetsScreen() {
   };
 
   const setCell = (projectId: string, periodStart: string, next: Partial<CellDraft>) => {
+    if (isTimesheetLocked({ periodStart: parseYmd(periodStart), periodKind: period, editDays, today })) return;
     const current = displayCell(projectId, periodStart);
     const merged = { ...current, ...next };
     setDrafts((prev) => ({ ...prev, [cellKey(projectId, periodStart)]: merged }));
@@ -193,7 +202,7 @@ export function TimesheetsScreen() {
   };
 
   const markOff = async (ymd: string, kind: 'leave' | 'other' | null) => {
-    if (readOnly) return;
+    if (readOnly || dayLocked(ymd)) return;
     try {
       setSaveState('saving');
       await saveDaysOff.mutateAsync(
@@ -208,7 +217,7 @@ export function TimesheetsScreen() {
   };
 
   const copyLastWeek = async () => {
-    if (readOnly) return;
+    if (readOnly || weekLocked) return;
     const rows = lastWeek.data?.entries ?? [];
     const writes: TimesheetEntryWrite[] = rows.map((row) => {
       const start = formatYmd(addUtcDays(parseYmd(row.periodStart), 7));
@@ -367,7 +376,7 @@ export function TimesheetsScreen() {
           <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: saveState === 'error' ? color.danger : color.brandStrong }}>
             {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Could not save' : saveState === 'saved' ? 'Saved' : ''}
           </span>
-          {!readOnly && <Button onClick={() => void copyLastWeek()}>Copy last week</Button>}
+          {!readOnly && !weekLocked && <Button onClick={() => void copyLastWeek()}>Copy last week</Button>}
           <div role="group" aria-label="Week" style={{ display: 'flex', alignItems: 'center', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.surface }}>
             <Button type="text" aria-label="Previous week" onClick={() => setAnchor(addUtcDays(weekStart, -7))} style={{ width: 36 }}>‹</Button>
             <span style={{ padding: '0 6px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{weekRangeLabel(weekStart)}</span>
@@ -378,6 +387,13 @@ export function TimesheetsScreen() {
       </div>
 
       {saveError && <Alert type="error" showIcon message={saveError} />}
+      {!readOnly && periodLocked && editDays >= 0 && (
+        <Alert
+          type="info"
+          showIcon
+          message={`This week is locked. People can only change timesheets for ${timesheetLockLabel(editDays)} so reports stay stable.`}
+        />
+      )}
       {mixedUnits && (
         <Alert
           type="info"
@@ -413,7 +429,7 @@ export function TimesheetsScreen() {
         />
       </div>
 
-      {period === 'weekly' && !readOnly && (
+      {period === 'weekly' && !readOnly && !weekLocked && (
         <section style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px' }}>
             <span style={{ flex: 1, fontWeight: 600 }}>Week of {dayLabel(weekStart)}</span>
@@ -468,7 +484,7 @@ export function TimesheetsScreen() {
           from={from}
           displayCell={displayCell}
           setCell={setCell}
-          readOnly={readOnly}
+          readOnly={readOnly || weekLocked}
           weekTotal={weekTotal}
         />
       ) : (
@@ -483,6 +499,7 @@ export function TimesheetsScreen() {
           displayCell={displayCell}
           setCell={setCell}
           readOnly={readOnly}
+          dayLocked={dayLocked}
           dayHasTime={dayHasTime}
           markOff={markOff}
           dayTotals={dayTotals}
@@ -633,6 +650,7 @@ function DailyGrid({
   displayCell,
   setCell,
   readOnly,
+  dayLocked,
   dayHasTime,
   markOff,
   dayTotals,
@@ -654,6 +672,7 @@ function DailyGrid({
   displayCell: (projectId: string, periodStart: string) => CellDraft;
   setCell: (projectId: string, periodStart: string, next: Partial<CellDraft>) => void;
   readOnly: boolean;
+  dayLocked: (ymd: string) => boolean;
   dayHasTime: (ymd: string) => boolean;
   markOff: (ymd: string, kind: 'leave' | 'other' | null) => void;
   dayTotals: Array<{ kind: 'off' | 'sum'; label: string; value: number }>;
@@ -679,6 +698,7 @@ function DailyGrid({
             const off = offByDate.get(ymd);
             const weekend = !isWorkingDay(date, workingDays);
             const hasTime = dayHasTime(ymd);
+            const locked = readOnly || dayLocked(ymd);
             const full = `${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}`;
             const items = off
               ? [{ key: 'clear', label: 'Back to a working day', onClick: () => markOff(ymd, null) }]
@@ -694,7 +714,7 @@ function DailyGrid({
               <span key={ymd} style={{ position: 'relative', padding: '6px 4px', textAlign: 'center', background: holiday ? color.infoTint : isToday ? color.brandTint : 'transparent', borderRadius: '8px 8px 0 0' }}>
                 <Dropdown
                   trigger={['click']}
-                  disabled={readOnly}
+                  disabled={locked}
                   popupRender={() => (
                     <div role="menu" aria-label={full} style={{ width: 240, padding: 6, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, boxShadow: `0 18px 40px -16px ${color.shadow}` }}>
                       <div style={{ padding: '6px 10px 4px', fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted }}>{full}</div>
@@ -714,7 +734,7 @@ function DailyGrid({
                     </div>
                   )}
                 >
-                  <button type="button" aria-haspopup="menu" aria-label={`Options for ${full}`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 4, border: 0, borderRadius: 6, background: 'transparent', font: 'inherit', cursor: readOnly ? 'default' : 'pointer' }}>
+                  <button type="button" aria-haspopup="menu" aria-label={`Options for ${full}`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 4, border: 0, borderRadius: 6, background: 'transparent', font: 'inherit', cursor: locked ? 'default' : 'pointer' }}>
                     <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: holiday ? color.info : isToday ? color.brandStrong : color.ink2 }}>
                       {DAY_SHORT[date.getUTCDay()]} ▾
                     </span>
@@ -750,7 +770,7 @@ function DailyGrid({
                   <span key={ymd} style={{ position: 'relative', padding: '6px 4px', background: holiday ? color.infoTint : isToday ? color.brandTint : weekend ? color.subtle : 'transparent' }}>
                     {off ? (
                       <span aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]}: day off`} style={{ display: 'grid', placeItems: 'center', height: 38, borderRadius: 8, background: color.chip, fontSize: 12, fontWeight: 500, color: color.muted }}>Off</span>
-                    ) : readOnly ? (
+                    ) : readOnly || dayLocked(ymd) ? (
                       <span style={{ display: 'grid', placeItems: 'center', height: 38, fontVariantNumeric: 'tabular-nums', color: filled ? color.ink : color.faint }}>
                         {filled ? (unit === 'percent' ? `${cell.text}%` : cell.text) : holiday ? 'Holiday' : '-'}
                       </span>
@@ -766,19 +786,21 @@ function DailyGrid({
                         trigger="click"
                         title={undefined}
                         content={
-                          <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                               <span style={{ flex: 'none', width: 9, height: 9, borderRadius: 3, background: p.color }} />
-                              <span style={{ flex: 1, fontWeight: 600 }}>{p.name} · {DAY_SHORT[date.getUTCDay()]} {dayLabel(date)}</span>
-                              <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{cell.text || '-'}</span>
+                              <span style={{ flex: 1, minWidth: 0, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.name} · {DAY_SHORT[date.getUTCDay()]} {dayLabel(date)}
+                              </span>
+                              <span style={{ flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{cell.text || '-'}</span>
                             </div>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 500, color: color.ink3 }}>
                               Note
                               <Input.TextArea rows={3} value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
                             </label>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'nowrap' }}>
                               <Button type="text" danger onClick={() => { setCell(p.id, ymd, { text: '', note: '' }); setNoteCell(null); }}>Clear this cell</Button>
-                              <span style={{ display: 'flex', gap: 8 }}>
+                              <span style={{ display: 'flex', flex: 'none', gap: 8 }}>
                                 <Button onClick={() => setNoteCell(null)}>Cancel</Button>
                                 <Button type="primary" onClick={() => { setCell(p.id, ymd, { note: noteDraft }); setNoteCell(null); }}>Save note</Button>
                               </span>

@@ -14,3 +14,6 @@ export * from './workspacePacks.js';
 export * from './projectKey.js';
 export * from './commentReactions.js';
 export * from './timesheets.js';
+export * from './workspaceHost.js';
+export * from './timeZones.js';
+export * from './holidayCountries.js';

@@ -4,13 +4,17 @@ import { prisma } from '../db.js';
 import { setSession } from '../context.js';
 import { normaliseDomain } from './inviteRole.js';
 import { hashToken } from './tokens.js';
+import { workspaceSlugFromRequest } from './workspaceHost.js';
+
+export type LoginResult = { path: string; tenantSlug: string | null };
 
 /** Signs the user in and returns the web path they should open next. */
 export async function finishLogin(
   req: FastifyRequest,
   reply: FastifyReply,
   profile: { email: string; name: string; providerId?: string; provider?: AuthProvider },
-): Promise<string> {
+  opts: { preferredSlug?: string | null } = {},
+): Promise<LoginResult> {
   const email = profile.email.toLowerCase();
   const emailOnly = profile.provider === 'email';
   const user = await prisma.user.upsert({
@@ -39,9 +43,12 @@ export async function finishLogin(
     orderBy: { createdAt: 'asc' },
   });
 
-  let tenantId = memberships[0]?.tenantId;
+  const hostSlug = opts.preferredSlug || workspaceSlugFromRequest(req);
+  const hostMember = hostSlug ? memberships.find((m) => m.tenant.slug === hostSlug) : undefined;
+
+  let tenantId = hostMember?.tenantId ?? memberships[0]?.tenantId;
   const existingTenant = req.session.get('tenantId') as string | undefined;
-  if (existingTenant && memberships.some((m) => m.tenantId === existingTenant)) {
+  if (!hostMember && existingTenant && memberships.some((m) => m.tenantId === existingTenant)) {
     tenantId = existingTenant;
   }
 
@@ -49,7 +56,7 @@ export async function finishLogin(
     const domain = email.split('@')[1] ?? '';
     const open = await prisma.workspace.findMany({
       where: { deletedAt: null },
-      select: { id: true, allowedDomains: true },
+      select: { id: true, slug: true, allowedDomains: true },
       orderBy: { createdAt: 'asc' },
     });
     const match = open.find((w) => Array.isArray(w.allowedDomains) && w.allowedDomains.some((d) => typeof d === 'string' && normaliseDomain(d) === domain));
@@ -68,13 +75,19 @@ export async function finishLogin(
 
   setSession(req, reply, { userId: user.id, tenantId });
 
+  const tenantSlug = tenantId
+    ? (memberships.find((m) => m.tenantId === tenantId)?.tenant.slug
+      ?? (await prisma.workspace.findUnique({ where: { id: tenantId }, select: { slug: true } }))?.slug
+      ?? null)
+    : null;
+
   if (inviteToken) {
     const invite = await prisma.invitation.findFirst({ where: { tokenHash: hashToken(inviteToken) } });
     if (invite && invite.email.toLowerCase() !== email) {
-      return `/invite/${inviteToken}/wrong-account`;
+      return { path: `/invite/${inviteToken}/wrong-account`, tenantSlug: null };
     }
-    return `/invite/${inviteToken}`;
+    return { path: `/invite/${inviteToken}`, tenantSlug: null };
   }
-  if (!tenantId) return '/create-workspace';
-  return '/';
+  if (!tenantId) return { path: '/create-workspace', tenantSlug: null };
+  return { path: '/', tenantSlug };
 }

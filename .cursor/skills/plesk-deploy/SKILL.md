@@ -51,7 +51,7 @@ If domain exec cannot use Docker, dispatch GitHub Actions workflow `Plesk deploy
 
 - Bind or restart kerd Compose.
 - Commit `.env`.
-- Issue a wildcard certificate or `*.borntask.com` DNS.
+- Issue a wildcard certificate or `*.borntask.com` DNS unless the user asked to turn on workspace hosts (`<slug>.borntask.com`).
 - Deploy from this skill without an explicit user go-ahead.
 - Start a second deploy while one is running.
 - Treat the 30s panel timeout as a failed deploy.

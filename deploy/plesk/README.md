@@ -21,3 +21,14 @@ bash /var/www/vhosts/borntask.com/repo/deploy/plesk/deploy.sh
 ```
 
 Nginx extra directives: paste `app.borntask.com.nginx.conf` into Additional nginx directives. App profile (api + worker) is gated behind `--profile app`.
+
+## Workspace subdomains
+
+The app treats `https://<slug>.borntask.com` as that workspace's sign-in and home. This is not created per workspace in DNS.
+
+1. DNS: `A`/`AAAA` for `*.borntask.com` to the same host as `app.borntask.com`.
+2. Plesk: wildcard alias or subdomain `*.borntask.com` serving the same SPA document root, same nginx `/api` proxy.
+3. TLS: a wildcard certificate for `*.borntask.com`.
+4. Env on the API: `APP_BASE_DOMAIN=borntask.com` and `SESSION_COOKIE_DOMAIN=.borntask.com`.
+
+`app`, `www`, `mail`, `notify`, `mcp` and similar labels stay reserved and cannot be workspace slugs.

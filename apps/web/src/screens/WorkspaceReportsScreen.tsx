@@ -5,7 +5,27 @@ import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { color, font } from '../theme/tokens';
-import { expectedDays, parseWorkingDays, parseYmd } from '@borntask/shared';
+import { expectedDays, parseTimeToMinutes, parseWorkingDays, parseYmd } from '@borntask/shared';
+
+type SheetView = 'time' | 'percent';
+
+function viewAmount(minutes: number | undefined, weight: number | undefined, timeLabel: string | undefined) {
+  const fromTime = timeLabel ? parseTimeToMinutes(timeLabel) : null;
+  return {
+    minutes: minutes ?? fromTime ?? 0,
+    weight: weight ?? minutes ?? fromTime ?? 0,
+  };
+}
+
+function pctLabel(part: number, whole: number) {
+  if (!part || !whole) return '-';
+  return `${Math.round((part / whole) * 100)}%`;
+}
+
+function sheetValue(view: SheetView, part: number, whole: number, timeLabel: string) {
+  if (view === 'percent') return pctLabel(part, whole);
+  return part || timeLabel !== '0:00' ? timeLabel : '-';
+}
 
 type Period = 'week' | 'month' | 'last' | 'custom';
 
@@ -92,15 +112,18 @@ function initialsOf(name: string, fallback: string) {
 export function WorkspaceReportsScreen() {
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const canSeeReports = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
   const settings = useWorkspaceSettings();
   const projects = useProjects();
   const [period, setPeriod] = useState<Period>('month');
   const [custom, setCustom] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs()]);
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [sheetView, setSheetView] = useState<SheetView | null>(null);
   const weekStart = settings.data?.weekStart ?? 'monday';
   const range = rangeFor(period, custom, weekStart);
-  const reports = useWorkspaceReports(range.from, range.to, projectId, canAdmin, settings.data?.timeZone ?? 'UTC');
+  const reports = useWorkspaceReports(range.from, range.to, projectId, canSeeReports, settings.data?.timeZone ?? 'UTC');
   const data = reports.data;
+  const selfOnly = data?.scope === 'self' || (!canAdmin && canSeeReports);
 
   const workingDaysSoFar = useMemo(() => {
     if (!data) return 0;
@@ -120,10 +143,12 @@ export function WorkspaceReportsScreen() {
         <div style={{ flex: '1 1 300px' }}>
           <h1 className="bt-h1">Reports</h1>
           <p style={{ margin: '6px 0 0', fontSize: 13.5, color: color.muted }}>
-            Owners and admins only. Top-level tasks, Trash excluded. Project leads see time on their projects in Timesheets.
+            {selfOnly
+              ? 'Your assigned tasks and your time only. Trash excluded.'
+              : 'Everyone\'s tasks and time. Trash excluded. Members see only their own numbers.'}
           </p>
         </div>
-        {canAdmin && (
+        {canSeeReports && (
           <>
             <div role="group" aria-label="Period" style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
               {PERIODS.map((p) => {
@@ -179,22 +204,25 @@ export function WorkspaceReportsScreen() {
         )}
       </div>
 
-      {!canAdmin && (
+      {!canSeeReports && (
         <p style={{ margin: 0, fontSize: 13.5, color: color.muted }}>
-          Reports are for workspace owners and admins. Ask an admin if you need these numbers.
+          Guests and viewers do not have reports. Ask an admin if you need these numbers.
         </p>
       )}
 
-      {canAdmin && reports.isError && (
-        <p style={{ margin: 0, color: color.danger }}>Could not load reports. Sign in as an owner or admin and try again.</p>
+      {canSeeReports && reports.isError && (
+        <p style={{ margin: 0, color: color.danger }}>Could not load reports. Try again in a moment.</p>
       )}
 
-      {canAdmin && data && (
+      {canSeeReports && data && (
         <ReportsBody
           data={data}
           workingDaysSoFar={workingDaysSoFar}
           timeZone={settings.data?.timeZone ?? data.timeZone}
           projectKeys={Object.fromEntries((projects.data ?? []).map((p) => [p.id, p.key]))}
+          selfOnly={data.scope === 'self'}
+          sheetView={sheetView ?? settings.data?.timesheetUnit ?? 'time'}
+          onSheetView={setSheetView}
         />
       )}
     </div>
@@ -206,14 +234,22 @@ function ReportsBody({
   workingDaysSoFar,
   timeZone,
   projectKeys,
+  selfOnly,
+  sheetView,
+  onSheetView,
 }: {
   data: WorkspaceReports;
   workingDaysSoFar: number;
   timeZone: string;
   projectKeys: Record<string, string>;
+  selfOnly: boolean;
+  sheetView: SheetView;
+  onSheetView: (view: SheetView) => void;
 }) {
   const t = data.tasks;
   const ts = data.timesheets;
+  const sheetBasis = ts.minutes || ts.weight;
+  const loggedLabel = sheetView === 'percent' ? (sheetBasis ? '100%' : '-') : ts.time;
   return (
     <>
       <p style={{ margin: '-4px 0 0', fontSize: 12.5, color: color.muted }}>
@@ -258,7 +294,7 @@ function ReportsBody({
             );
           })}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.6fr) repeat(7, minmax(70px, 1fr))', alignItems: 'center', minHeight: 44, background: color.subtle, fontSize: 13.5, fontWeight: 600 }}>
-            <span style={{ padding: '0 16px' }}>Workspace</span>
+            <span style={{ padding: '0 16px' }}>{selfOnly ? 'Your total' : 'Workspace'}</span>
             <Num>{t.opened}</Num>
             <Num>{t.closed}</Num>
             <Num>{t.open}</Num>
@@ -319,25 +355,74 @@ function ReportsBody({
         </div>
       )}
 
-      <div>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Timesheets</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>Hours from everyone who fills timesheets. Guests and viewers are not counted.</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 }}>
+        <div style={{ flex: '1 1 280px' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Timesheets</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>
+            {selfOnly
+              ? sheetView === 'percent'
+                ? 'Your share of time and days off. Guests and viewers are not counted.'
+                : 'Your hours and days off. Guests and viewers are not counted.'
+              : sheetView === 'percent'
+                ? 'Share of time from everyone who fills timesheets. Guests and viewers are not counted.'
+                : 'Hours from everyone who fills timesheets. Guests and viewers are not counted.'}
+          </p>
+        </div>
+        <div role="group" aria-label="Show timesheets as" style={{ display: 'flex', flexWrap: 'nowrap', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
+          {([
+            { id: 'time' as const, label: 'Time' },
+            { id: 'percent' as const, label: '%' },
+          ]).map((opt) => {
+            const on = sheetView === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onSheetView(opt.id)}
+                style={{
+                  height: 30,
+                  padding: '0 12px',
+                  border: 0,
+                  borderRadius: 6,
+                  background: on ? color.brandFill : 'transparent',
+                  color: on ? color.inverseFg : color.ink2,
+                  font: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Tile label="Time logged" value={ts.time} hint="hours and minutes" />
-        <Tile label="People with time" value={`${ts.peopleWithTime} of ${ts.peopleTotal}`} hint="members who fill timesheets" />
-        <Tile label="Complete" value={String(ts.complete)} hint="logged every expected day" />
-        <Tile label="Missing days" value={String(ts.missingDays)} hint={`expected days with no time, across ${peoplePhrase(ts.missingPeople)}`} valueColor={ts.missingDays > 0 ? color.warning : color.ink} />
-        <Tile label="Days off" value={String(ts.daysOff)} hint={`leave and other, across ${peoplePhrase(ts.daysOffPeople)}`} />
+        <Tile
+          label={sheetView === 'percent' ? 'Share logged' : 'Time logged'}
+          value={loggedLabel}
+          hint={sheetView === 'percent' ? 'of time logged in this period' : 'hours and minutes'}
+        />
+        {!selfOnly && <Tile label="People with time" value={`${ts.peopleWithTime} of ${ts.peopleTotal}`} hint="members who fill timesheets" />}
+        <Tile label="Complete" value={selfOnly ? (ts.complete ? 'Yes' : 'No') : String(ts.complete)} hint="logged every expected day" />
+        <Tile label="Missing days" value={String(ts.missingDays)} hint={selfOnly ? 'expected days with no time' : `expected days with no time, across ${peoplePhrase(ts.missingPeople)}`} valueColor={ts.missingDays > 0 ? color.warning : color.ink} />
+        <Tile label="Days off" value={String(ts.daysOff)} hint={selfOnly ? 'leave and other' : `leave and other, across ${peoplePhrase(ts.daysOffPeople)}`} />
       </div>
 
       <section className="bt-card" style={{ padding: 0, overflowX: 'auto' }}>
         <div style={{ minWidth: 900 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>By person and project</h3>
-            <span style={{ fontSize: 12.5, color: color.muted }}>hh:mm · days logged out of days expected (working days minus days off and holidays)</span>
+            <span style={{ fontSize: 12.5, color: color.muted }}>
+              {sheetView === 'percent'
+                ? '% of each person\'s logged time · days logged out of days expected (working days minus days off and holidays)'
+                : 'hh:mm · days logged out of days expected (working days minus days off and holidays)'}
+            </span>
           </div>
-          <PersonProjectTable data={ts} />
+          <PersonProjectTable data={ts} view={sheetView} />
         </div>
       </section>
 
@@ -347,8 +432,10 @@ function ReportsBody({
             <div style={{ padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
               <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>By project</h3>
             </div>
-            <GridHead cols="minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr)" cells={['Project', 'Time', 'People', 'Share of time logged']} />
+            <GridHead cols="minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr)" cells={['Project', sheetView === 'percent' ? 'Share' : 'Time', 'People', 'Share of time logged']} />
             {ts.byProject.map((p) => {
+              const amount = viewAmount(p.minutes, p.weight, p.time);
+              const part = sheetBasis === ts.minutes ? amount.minutes : amount.weight;
               const pct = Number.parseInt(p.share, 10) || 0;
               return (
                 <div key={p.projectId} style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr)', alignItems: 'center', minHeight: 46, borderBottom: `1px solid ${color.divider}`, fontSize: 13.5 }}>
@@ -356,7 +443,7 @@ function ReportsBody({
                     <span style={{ width: 9, height: 9, borderRadius: 3, background: p.colour }} />
                     {p.name}
                   </span>
-                  <Num weight={600}>{p.time}</Num>
+                  <Num weight={600}>{sheetValue(sheetView, part, sheetBasis, p.time)}</Num>
                   <Num>{p.people}</Num>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px' }}>
                     <CssBar pct={pct} fill={p.colour} height={8} />
@@ -388,7 +475,8 @@ function ReportsBody({
   );
 }
 
-function PersonProjectTable({ data }: { data: WorkspaceReports['timesheets'] }) {
+function PersonProjectTable({ data, view }: { data: WorkspaceReports['timesheets']; view: SheetView }) {
+  const sheetBasis = data.minutes || data.weight;
   const cols = `minmax(200px, 1.4fr) repeat(${data.projects.length}, minmax(76px, 1fr)) 84px 56px minmax(170px, 1.2fr)`;
   return (
     <>
@@ -414,9 +502,13 @@ function PersonProjectTable({ data }: { data: WorkspaceReports['timesheets'] }) 
             </span>
             {data.projects.map((p) => {
               const cell = row.byProject[p.id];
-              return <Num key={p.id} color={cell ? color.ink : color.faint}>{cell ?? '-'}</Num>;
+              const amount = viewAmount(row.byProjectMinutes[p.id], row.byProjectWeight[p.id], cell);
+              const personWhole = row.minutes || row.weight;
+              const part = personWhole === row.minutes ? amount.minutes : amount.weight;
+              const shown = sheetValue(view, part, personWhole, cell ?? '0:00');
+              return <Num key={p.id} color={shown !== '-' ? color.ink : color.faint}>{shown}</Num>;
             })}
-            <Num weight={600}>{row.total}</Num>
+            <Num weight={600}>{sheetValue(view, row.minutes || row.weight, row.minutes || row.weight, row.total)}</Num>
             <Num color={row.off ? color.ink2 : color.faint}>{row.off ? row.off : '-'}</Num>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px' }}>
               <CssBar pct={pct} fill={full ? color.brand : color.warning} />
@@ -429,10 +521,14 @@ function PersonProjectTable({ data }: { data: WorkspaceReports['timesheets'] }) 
       })}
       <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 44, background: color.subtle, fontSize: 13.5, fontWeight: 600 }}>
         <span style={{ padding: '0 16px' }}>Total</span>
-        {data.projects.map((p) => (
-          <Num key={p.id}>{String(data.projectTotals[p.id] ?? '0:00')}</Num>
-        ))}
-        <Num>{data.projectTotals.total}</Num>
+        {data.projects.map((p) => {
+          const timeLabel = String(data.projectTotals[p.id] ?? '0:00');
+          const project = data.byProject.find((row) => row.projectId === p.id);
+          const amount = viewAmount(project?.minutes, project?.weight, timeLabel);
+          const part = sheetBasis === data.minutes ? amount.minutes : amount.weight;
+          return <Num key={p.id}>{sheetValue(view, part, sheetBasis, timeLabel)}</Num>;
+        })}
+        <Num>{sheetValue(view, sheetBasis, sheetBasis, String(data.projectTotals.total))}</Num>
         <Num>{data.projectTotals.off}</Num>
         <span style={{ padding: '0 16px', fontWeight: 400, fontSize: 12.5, color: color.muted }}>{data.completeLabel}</span>
       </div>

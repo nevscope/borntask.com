@@ -30,12 +30,15 @@ import { inboundMailRoutes } from './routes/inboundMail.js';
 import { timesheetRoutes } from './routes/timesheets.js';
 import { holidayRoutes } from './routes/holidays.js';
 import { reportRoutes } from './routes/reports.js';
+import { allowedRequestOrigin } from './lib/workspaceHost.js';
 
 async function main() {
   const app = Fastify({ logger: true, trustProxy: true });
 
   await app.register(cors, {
-    origin: [config.publicUrl, 'http://localhost:5174', 'http://127.0.0.1:5174'],
+    origin: (origin, cb) => {
+      cb(null, allowedRequestOrigin(origin));
+    },
     credentials: true,
   });
   await app.register(cookie);
@@ -47,6 +50,7 @@ async function main() {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
+      domain: config.sessionCookieDomain,
       maxAge: config.sessionMaxAgeSeconds,
     },
   });

@@ -109,8 +109,8 @@ async function consume(row: { challengeId: string; email: string; nextPath: stri
   };
 }
 
-export function loginLinkUrl(linkToken: string): string {
-  const base = config.publicUrl.replace(/\/$/, '');
+export function loginLinkUrl(linkToken: string, origin?: string): string {
+  const base = (origin || config.publicUrl).replace(/\/$/, '');
   return `${base}/sign-in/email?token=${encodeURIComponent(linkToken)}`;
 }
 

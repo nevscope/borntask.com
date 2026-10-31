@@ -190,7 +190,7 @@ export function ProjectDetailsScreen() {
             onColour={setColour}
             onHexDraft={setHexDraft}
           />
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500, maxWidth: 520 }}>
+          <label className="bt-label-max" style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
             Workflow
             <Select
               value={workflowId || undefined}

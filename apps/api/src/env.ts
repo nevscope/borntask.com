@@ -1,4 +1,4 @@
-import { parseChatServiceAccount } from '@borntask/shared';
+import { inferAppBaseDomain, parseChatServiceAccount } from '@borntask/shared';
 
 export function env(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
@@ -12,11 +12,20 @@ export function boolEnv(name: string, fallback = false): boolean {
   return raw === '1' || raw.toLowerCase() === 'true';
 }
 
+const publicUrl = env('PUBLIC_URL', 'http://localhost:5174');
+const appBaseDomain = (process.env.APP_BASE_DOMAIN?.trim() || inferAppBaseDomain(publicUrl)) ?? null;
+const sessionCookieDomain =
+  process.env.SESSION_COOKIE_DOMAIN?.trim()
+  || (process.env.NODE_ENV === 'production' && appBaseDomain ? `.${appBaseDomain}` : undefined);
+
 export const config = {
   host: env('API_HOST', '0.0.0.0'),
   port: Number(env('API_PORT', '3010')),
-  publicUrl: env('PUBLIC_URL', 'http://localhost:5174'),
+  publicUrl,
   apiPublicUrl: env('API_PUBLIC_URL', 'http://localhost:3010'),
+  /** Registrable domain for `<slug>.borntask.com`. Empty in local dev (path-based workspaces). */
+  appBaseDomain,
+  sessionCookieDomain,
   sessionSecret: env('SESSION_SECRET', 'borntask-local-dev-session-secret-change-me'),
   /** Chrome caps cookies at about 400 days. Rolling touch keeps an active user signed in. */
   sessionMaxAgeSeconds: 400 * 24 * 60 * 60,

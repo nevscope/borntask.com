@@ -1,4 +1,19 @@
+import { parseTimeToMinutes } from '@borntask/shared';
 import type { WorkspaceReports } from './queries';
+
+function mins(label: string) {
+  return parseTimeToMinutes(label) ?? 0;
+}
+
+function personRow(
+  row: Omit<WorkspaceReports['timesheets']['people'][number], 'minutes' | 'weight' | 'byProjectMinutes' | 'byProjectWeight'>,
+): WorkspaceReports['timesheets']['people'][number] {
+  const byProjectMinutes = Object.fromEntries(
+    Object.entries(row.byProject).map(([id, time]) => [id, mins(time)]),
+  );
+  const minutes = mins(row.total);
+  return { ...row, minutes, weight: minutes, byProjectMinutes, byProjectWeight: byProjectMinutes };
+}
 
 const WEB = { id: 'p_web', projectId: 'p_web', key: 'WEB', name: 'Website relaunch', colour: 'var(--bt-cat-active)' };
 const MOB = { id: 'p_mob', projectId: 'p_mob', key: 'MOB', name: 'Mobile app', colour: 'var(--bt-warning)' };
@@ -8,6 +23,7 @@ const OPS = { id: 'p_ops', projectId: 'p_ops', key: 'OPS', name: 'Internal ops',
 /** Canvas fixture from Reports.dc.html / Chat 1. */
 export function mockWorkspaceReports(): WorkspaceReports {
   return {
+    scope: 'workspace',
     range: { from: '2026-10-01', to: '2026-10-29' },
     timeZone: 'Europe/Malta',
     holidays: [],
@@ -50,6 +66,8 @@ export function mockWorkspaceReports(): WorkspaceReports {
     },
     timesheets: {
       time: '659:30',
+      minutes: 39570,
+      weight: 39570,
       peopleWithTime: 6,
       peopleTotal: 7,
       complete: 4,
@@ -60,19 +78,19 @@ export function mockWorkspaceReports(): WorkspaceReports {
       completeLabel: '4 complete · 2 partial · 1 none',
       projects: [WEB, MOB, CLI, OPS],
       people: [
-        { userId: 'u_karl', name: 'Karl Farrugia', initials: 'KF', byProject: { p_web: '70:00', p_mob: '52:30', p_ops: '8:00' }, total: '130:30', off: 0, loggedDays: 21, expected: 21 },
-        { userId: 'u_luke', name: 'Luke Camilleri', initials: 'LC', byProject: { p_web: '88:30', p_mob: '12:00', p_cli: '24:00', p_ops: '4:00' }, total: '128:30', off: 0, loggedDays: 21, expected: 21 },
-        { userId: 'u_scope', name: 'Scope', initials: 'SC', byProject: { p_web: '38:00', p_mob: '31:30', p_cli: '29:00', p_ops: '18:30' }, total: '117:00', off: 0, loggedDays: 20, expected: 21 },
-        { userId: 'u_maria', name: 'Maria Borg', initials: 'MB', byProject: { p_web: '62:00', p_mob: '44:00', p_ops: '6:00' }, total: '112:00', off: 0, loggedDays: 21, expected: 21 },
-        { userId: 'u_daniela', name: 'Daniela Vella', initials: 'DV', byProject: { p_web: '20:00', p_cli: '71:30', p_ops: '10:00' }, total: '101:30', off: 2, loggedDays: 19, expected: 19 },
-        { userId: 'u_elena', name: 'Elena Grech', initials: 'EG', byProject: { p_mob: '36:00', p_cli: '12:00', p_ops: '22:00' }, total: '70:00', off: 5, loggedDays: 13, expected: 16 },
-        { userId: 'u_mark', name: 'Mark Calleja', initials: 'MC', byProject: {}, total: '0:00', off: 0, loggedDays: 0, expected: 21 },
+        personRow({ userId: 'u_karl', name: 'Karl Farrugia', initials: 'KF', byProject: { p_web: '70:00', p_mob: '52:30', p_ops: '8:00' }, total: '130:30', off: 0, loggedDays: 21, expected: 21 }),
+        personRow({ userId: 'u_luke', name: 'Luke Camilleri', initials: 'LC', byProject: { p_web: '88:30', p_mob: '12:00', p_cli: '24:00', p_ops: '4:00' }, total: '128:30', off: 0, loggedDays: 21, expected: 21 }),
+        personRow({ userId: 'u_scope', name: 'Scope', initials: 'SC', byProject: { p_web: '38:00', p_mob: '31:30', p_cli: '29:00', p_ops: '18:30' }, total: '117:00', off: 0, loggedDays: 20, expected: 21 }),
+        personRow({ userId: 'u_maria', name: 'Maria Borg', initials: 'MB', byProject: { p_web: '62:00', p_mob: '44:00', p_ops: '6:00' }, total: '112:00', off: 0, loggedDays: 21, expected: 21 }),
+        personRow({ userId: 'u_daniela', name: 'Daniela Vella', initials: 'DV', byProject: { p_web: '20:00', p_cli: '71:30', p_ops: '10:00' }, total: '101:30', off: 2, loggedDays: 19, expected: 19 }),
+        personRow({ userId: 'u_elena', name: 'Elena Grech', initials: 'EG', byProject: { p_mob: '36:00', p_cli: '12:00', p_ops: '22:00' }, total: '70:00', off: 5, loggedDays: 13, expected: 16 }),
+        personRow({ userId: 'u_mark', name: 'Mark Calleja', initials: 'MC', byProject: {}, total: '0:00', off: 0, loggedDays: 0, expected: 21 }),
       ],
       byProject: [
-        { projectId: 'p_web', name: 'Website relaunch', colour: WEB.colour, time: '278:30', people: 5, share: '42%' },
-        { projectId: 'p_mob', name: 'Mobile app', colour: MOB.colour, time: '176:00', people: 5, share: '27%' },
-        { projectId: 'p_cli', name: 'Client onboarding', colour: CLI.colour, time: '136:30', people: 4, share: '21%' },
-        { projectId: 'p_ops', name: 'Internal ops', colour: OPS.colour, time: '68:30', people: 6, share: '10%' },
+        { projectId: 'p_web', name: 'Website relaunch', colour: WEB.colour, time: '278:30', minutes: mins('278:30'), weight: mins('278:30'), people: 5, share: '42%' },
+        { projectId: 'p_mob', name: 'Mobile app', colour: MOB.colour, time: '176:00', minutes: mins('176:00'), weight: mins('176:00'), people: 5, share: '27%' },
+        { projectId: 'p_cli', name: 'Client onboarding', colour: CLI.colour, time: '136:30', minutes: mins('136:30'), weight: mins('136:30'), people: 4, share: '21%' },
+        { projectId: 'p_ops', name: 'Internal ops', colour: OPS.colour, time: '68:30', minutes: mins('68:30'), weight: mins('68:30'), people: 6, share: '10%' },
       ],
       projectTotals: { p_web: '278:30', p_mob: '176:00', p_cli: '136:30', p_ops: '68:30', total: '659:30', off: 7 },
       missing: [

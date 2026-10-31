@@ -182,6 +182,7 @@ model Workspace {
   isInternal              Boolean      @default(false)
   timesheetPeriod         TimesheetPeriod @default(weekly)
   timesheetUnit           TimesheetUnit   @default(time)
+  timesheetEditDays       Int             @default(7)
   workingDays             Json            @default("[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]")
   deletedAt               DateTime?
   createdAt               DateTime     @default(now())

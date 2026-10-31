@@ -11,6 +11,7 @@ import {
   applyWeekDaysOff,
   assertDayOffAllowed,
   assertTimeAllowed,
+  assertTimesheetEditable,
   canReadTimesheet,
   holidaysInRange,
   mapDayOff,
@@ -29,7 +30,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       if (!access.ok) throw forbidden('You can only read timesheets for projects you lead.');
       const from = parseYmd(query.from);
       const to = parseYmd(query.to);
-      const [entries, daysOff, holidays] = await Promise.all([
+      const [entries, daysOff, holidays, settings] = await Promise.all([
         auth.db.timesheetEntry.findMany({
           where: {
             userId,
@@ -43,9 +44,12 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
           orderBy: { date: 'asc' },
         }),
         holidaysInRange(auth, from, to),
+        workspaceTimesheetSettings(auth),
       ]);
       return {
         userId,
+        timesheetPeriod: settings.timesheetPeriod,
+        timesheetUnit: settings.timesheetUnit,
         entries: entries.map((row) => ({
           id: row.id,
           projectId: row.projectId,
@@ -69,8 +73,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       requireTimesheetWrite(auth.workspaceRole);
       const body = putTimesheetsSchema.parse(req.body);
+      const settings = await workspaceTimesheetSettings(auth);
       const saved = [];
       for (const entry of body.entries) {
+        assertTimesheetEditable(entry.periodStart, entry.periodKind, settings.timesheetEditDays);
         await assertTimeAllowed(auth, auth.userId, entry.periodKind, entry.periodStart);
         const project = await auth.db.project.findFirst({ where: { id: entry.projectId } });
         if (!project) throw validation('That project is not in this workspace.');
@@ -134,10 +140,18 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const holidayRows = await auth.db.workspaceHoliday.findMany();
       const holidaySet = new Set(holidayRows.map((row) => ymdOf(row.date)));
       if (body.week) {
-        const placed = await applyWeekDaysOff(auth, auth.userId, body.week, settings.workingDays, settings.weekStart);
+        const placed = await applyWeekDaysOff(
+          auth,
+          auth.userId,
+          body.week,
+          settings.workingDays,
+          settings.weekStart,
+          settings.timesheetEditDays,
+        );
         return { placed };
       }
       for (const day of body.days ?? []) {
+        assertTimesheetEditable(day.date, 'daily', settings.timesheetEditDays);
         const date = parseYmd(day.date);
         if (day.clear) {
           await auth.db.timesheetDayOff.deleteMany({ where: { userId: auth.userId, date } });

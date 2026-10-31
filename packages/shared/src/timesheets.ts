@@ -18,9 +18,13 @@ export const workingDaysSchema = z
     }
   });
 
+/** Days after a period ends that people may still edit. -1 means never lock. Default 7. */
+export const timesheetEditDaysSchema = z.number().int().min(-1).max(365);
+
 export const patchWorkspaceTimesheetSchema = z.object({
   timesheetPeriod: timesheetPeriodSchema.optional(),
   timesheetUnit: timesheetUnitSchema.optional(),
+  timesheetEditDays: timesheetEditDaysSchema.optional(),
   workingDays: workingDaysSchema.optional(),
 });
 
@@ -38,6 +42,11 @@ export const addHolidaySchema = holidayItemSchema;
 export const copyHolidaysSchema = z.object({
   from: z.number().int().min(2000).max(2100),
   to: z.number().int().min(2000).max(2100),
+});
+
+export const importHolidaysSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  countryCode: z.string().trim().length(2).transform((code) => code.toUpperCase()),
 });
 
 export const timesheetRangeQuerySchema = z.object({
@@ -167,6 +176,37 @@ export function expectedDays(input: {
 
 export function missingDays(expected: number, daysWithTime: number): number {
   return Math.max(0, expected - daysWithTime);
+}
+
+export function utcDay(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+export function timesheetPeriodEnd(periodStart: Date, periodKind: 'daily' | 'weekly'): Date {
+  return periodKind === 'weekly' ? addUtcDays(periodStart, 6) : periodStart;
+}
+
+/** Locked once the period's last day is older than `editDays` before today. `-1` never locks. */
+export function isTimesheetLocked(input: {
+  periodStart: Date;
+  periodKind: 'daily' | 'weekly';
+  editDays: number;
+  today?: Date;
+}): boolean {
+  if (input.editDays < 0) return false;
+  const last = timesheetPeriodEnd(input.periodStart, input.periodKind);
+  const cutoff = addUtcDays(input.today ?? utcDay(), -input.editDays);
+  return last.getTime() < cutoff.getTime();
+}
+
+export function timesheetLockLabel(editDays: number): string {
+  if (editDays < 0) return 'never';
+  if (editDays === 0) return 'the current day only';
+  if (editDays === 1) return 'the last day';
+  if (editDays === 7) return 'the last week';
+  if (editDays === 14) return 'the last 2 weeks';
+  if (editDays === 30) return 'the last month';
+  return `the last ${editDays} days`;
 }
 
 export function formatMinutes(minutes: number): string {

@@ -6,7 +6,10 @@ import { prisma } from '../db.js';
 import { requireAuth, setSession, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { parseWorkingDays, patchWorkspaceTimesheetSchema } from '@borntask/shared';
+import { isIanaTimeZone, parseWorkingDays, patchWorkspaceTimesheetSchema } from '@borntask/shared';
+import { slugify } from '../lib/tokens.js';
+import { parseWorkspaceSlug } from '../lib/workspaceSlug.js';
+import { originForSlug } from '../lib/workspaceHost.js';
 import { colourSchema, deleteRole, deleteType, deleteWorkflow, patchRole, patchType, uniqueSlug } from '../lib/adminCatalog.js';
 import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
@@ -39,6 +42,7 @@ async function workspaceSettings(auth: Authed) {
     isInternal: ws.isInternal,
     timesheetPeriod: ws.timesheetPeriod,
     timesheetUnit: ws.timesheetUnit,
+    timesheetEditDays: ws.timesheetEditDays,
     workingDays: parseWorkingDays(ws.workingDays),
     logo: Boolean(ws.logo),
     workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
@@ -65,7 +69,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         .object({
           name: z.string().trim().min(2).max(80).optional(),
           slug: z.string().trim().min(2).max(40).optional(),
-          timeZone: z.string().min(1).optional(),
+          confirmSlugChange: z.boolean().optional(),
+          timeZone: z.string().trim().min(1).refine((zone) => !zone || isIanaTimeZone(zone), 'Choose a valid time zone.').optional(),
           weekStart: z.enum(['monday', 'sunday']).optional(),
           defaultWorkflowId: z.string().min(1).nullable().optional(),
           bugsStartIn: z.enum(['approved', 'idea']).optional(),
@@ -76,12 +81,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         })
         .merge(patchWorkspaceTimesheetSchema)
         .parse(req.body);
+      const current = await auth.db.workspace.findUnique({ where: { id: auth.tenantId }, select: { slug: true } });
+      if (!current) throw notFound();
+      const confirmSlugChange = body.confirmSlugChange === true;
+      delete body.confirmSlugChange;
       if (body.slug) {
-        const clash = await prisma.workspace.findFirst({ where: { slug: body.slug, NOT: { id: auth.tenantId } } });
-        if (clash) throw forbidden('That web address is already taken.');
+        const next = slugify(body.slug);
+        if (next === current.slug) {
+          delete body.slug;
+        } else {
+          if (!confirmSlugChange) throw validation('Confirm the web address change. The old address will stop working.');
+          body.slug = parseWorkspaceSlug(body.slug);
+          const clash = await prisma.workspace.findFirst({ where: { slug: body.slug, NOT: { id: auth.tenantId } } });
+          if (clash) throw forbidden('That web address is already taken.');
+        }
       }
       await auth.db.workspace.update({ where: { id: auth.tenantId }, data: body });
-      return await workspaceSettings(auth);
+      const settings = await workspaceSettings(auth);
+      return { ...settings, url: `${originForSlug(settings.slug)}/settings/workspace` };
     } catch (err) {
       if (err instanceof ZodError) return sendError(reply, validation('Check the workspace fields and try again.'));
       return sendError(reply, err);

@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { addHolidaySchema, copyHolidaysSchema, isMovableHolidayName, parseYmd, putHolidaysSchema, ymdSchema } from '@borntask/shared';
+import { addHolidaySchema, copyHolidaysSchema, importHolidaysSchema, isMovableHolidayName, parseYmd, putHolidaysSchema, ymdSchema } from '@borntask/shared';
 import { z } from 'zod';
 import { requireAuth } from '../context.js';
-import { sendError, validation } from '../errors.js';
+import { ApiError, sendError, validation } from '../errors.js';
+import { listHolidayCountries, listPublicHolidays } from '../lib/publicHolidays.js';
 import { requireOwnerAdmin, ymdOf } from '../lib/timesheets.js';
 
 function yearBounds(year: number) {
@@ -93,6 +94,57 @@ export const holidayRoutes: FastifyPluginAsync = async (app) => {
       }
       return { year, holidays: body.holidays };
     } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/workspace/holidays/countries', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      return { countries: await listHolidayCountries() };
+    } catch (err) {
+      if (err instanceof ApiError) return sendError(reply, err);
+      return sendError(reply, validation('Could not load the country list. Try again in a minute.'));
+    }
+  });
+
+  app.post('/workspace/holidays/import', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const body = importHolidaysSchema.parse(req.body);
+      const incoming = await listPublicHolidays(body.year, body.countryCode);
+      if (incoming.length === 0) throw validation('That country has no public holidays for this year.');
+      let added = 0;
+      let updated = 0;
+      for (const row of incoming) {
+        const existing = await auth.db.workspaceHoliday.findUnique({
+          where: { tenantId_date: { tenantId: auth.tenantId, date: parseYmd(row.date) } },
+        });
+        await auth.db.workspaceHoliday.upsert({
+          where: { tenantId_date: { tenantId: auth.tenantId, date: parseYmd(row.date) } },
+          create: { tenantId: auth.tenantId, date: parseYmd(row.date), name: row.name },
+          update: { name: row.name },
+        });
+        if (existing) updated += 1;
+        else added += 1;
+      }
+      const { from, to } = yearBounds(body.year);
+      const rows = await auth.db.workspaceHoliday.findMany({
+        where: { date: { gte: from, lte: to } },
+        orderBy: { date: 'asc' },
+      });
+      return {
+        year: body.year,
+        added,
+        updated,
+        holidays: rows.map((item) => ({ date: ymdOf(item.date), name: item.name })),
+      };
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('holidays_api_')) {
+        return sendError(reply, validation('Could not load public holidays just now. Try again in a minute.'));
+      }
       return sendError(reply, err);
     }
   });

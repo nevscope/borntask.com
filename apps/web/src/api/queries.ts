@@ -847,6 +847,7 @@ export type WorkspaceSettings = {
   membersCanInviteGuests: boolean;
   timesheetPeriod: 'daily' | 'weekly';
   timesheetUnit: 'time' | 'percent';
+  timesheetEditDays: number;
   workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
@@ -854,29 +855,35 @@ export type WorkspaceSettings = {
 
 export type WorkspaceHoliday = { date: string; name: string };
 
+const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
+  name: 'Scope Cloud Solutions',
+  slug: 'scope',
+  timeZone: 'Europe/Malta',
+  weekStart: 'monday',
+  defaultWorkflowId: null,
+  bugsStartIn: 'approved',
+  allowGoogle: true,
+  allowMicrosoft: true,
+  membersCanInviteGuests: true,
+  timesheetPeriod: 'weekly',
+  timesheetUnit: 'time',
+  timesheetEditDays: 7,
+  workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  workflows: [],
+};
+
+export function applyMockWorkspaceSettings(patch: Partial<WorkspaceSettings>): WorkspaceSettings {
+  Object.assign(MOCK_WORKSPACE_SETTINGS, patch);
+  return { ...MOCK_WORKSPACE_SETTINGS };
+}
+
 export function useWorkspaceSettings() {
   return useQuery({
     queryKey: qk.workspaceSettings,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
       if (!res.ok) {
-        if (USE_MOCKS) {
-          return {
-            name: 'Scope Cloud Solutions',
-            slug: 'scope',
-            timeZone: 'Europe/Malta',
-            weekStart: 'monday',
-            defaultWorkflowId: null,
-            bugsStartIn: 'approved',
-            allowGoogle: true,
-            allowMicrosoft: true,
-            membersCanInviteGuests: true,
-            timesheetPeriod: 'daily',
-            timesheetUnit: 'time',
-            workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
-            workflows: [],
-          } satisfies WorkspaceSettings;
-        }
+        if (USE_MOCKS) return { ...MOCK_WORKSPACE_SETTINGS };
         throw new Error('Sign in to load workspace settings.');
       }
       return (await res.json()) as WorkspaceSettings;
@@ -904,6 +911,8 @@ const TimesheetDayOffSchema = z.object({
 
 export const TimesheetRangeSchema = z.object({
   userId: z.string(),
+  timesheetPeriod: z.enum(['daily', 'weekly']).optional(),
+  timesheetUnit: z.enum(['time', 'percent']).optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string() })),
@@ -923,6 +932,8 @@ export type TimesheetEntryWrite = {
 
 const MOCK_TIMESHEETS: TimesheetRange = {
   userId: 'me',
+  timesheetPeriod: 'weekly',
+  timesheetUnit: 'time',
   entries: [
     { id: 'e1', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-26', unit: 'time', minutes: 180, percent: null, note: null },
     { id: 'e2', projectId: 'p_web', periodKind: 'daily', periodStart: '2026-10-27', unit: 'time', minutes: 150, percent: null, note: 'Checkout and Safari fixes' },
@@ -1008,6 +1019,7 @@ export function useSaveDaysOff() {
 }
 
 export type WorkspaceReports = {
+  scope: 'self' | 'workspace';
   range: { from: string; to: string };
   timeZone: string;
   holidays: { date: string; name: string }[];
@@ -1057,6 +1069,8 @@ export type WorkspaceReports = {
   };
   timesheets: {
     time: string;
+    minutes: number;
+    weight: number;
     peopleWithTime: number;
     peopleTotal: number;
     complete: number;
@@ -1071,7 +1085,11 @@ export type WorkspaceReports = {
       name: string;
       initials: string;
       byProject: Record<string, string>;
+      byProjectMinutes: Record<string, number>;
+      byProjectWeight: Record<string, number>;
       total: string;
+      minutes: number;
+      weight: number;
       off: number;
       loggedDays: number;
       expected: number;
@@ -1081,6 +1099,8 @@ export type WorkspaceReports = {
       name: string;
       colour: string;
       time: string;
+      minutes: number;
+      weight: number;
       people: number;
       share: string;
     }>;
@@ -1111,6 +1131,7 @@ function personInitials(name: string): string {
 }
 
 function mapLiveReports(raw: {
+  scope?: 'self' | 'workspace';
   range?: { from: string; to: string };
   holidays?: { date: string; name: string }[];
   tasks?: {
@@ -1146,6 +1167,8 @@ function mapLiveReports(raw: {
   };
   timesheets?: {
     time: string;
+    minutes?: number;
+    weight?: number;
     peopleWithTime: number;
     peopleTotal?: number;
     complete: number;
@@ -1155,18 +1178,24 @@ function mapLiveReports(raw: {
       userId: string;
       name: string;
       time: string;
+      minutes?: number;
+      weight?: number;
       off: number;
       loggedDays: number;
       expected: number;
       missing: number;
       complete: boolean;
       byProject: Record<string, string>;
+      byProjectMinutes?: Record<string, number>;
+      byProjectWeight?: Record<string, number>;
     }>;
     byProject?: Array<{
       projectId: string;
       name: string;
       colour: string;
       time: string;
+      minutes?: number;
+      weight?: number;
       people: number;
       share: string;
     }>;
@@ -1187,8 +1216,11 @@ function mapLiveReports(raw: {
     off: raw.timesheets?.daysOff ?? 0,
   };
   for (const row of raw.timesheets?.byProject ?? []) totals[row.projectId] = row.time;
+  const minutesTotal = raw.timesheets?.minutes ?? 0;
+  const weightTotal = raw.timesheets?.weight ?? minutesTotal;
 
   return {
+    scope: raw.scope === 'self' ? 'self' : 'workspace',
     range: raw.range ?? { from, to },
     timeZone: raw.timeZone ?? timeZone,
     holidays: raw.holidays ?? [],
@@ -1215,6 +1247,8 @@ function mapLiveReports(raw: {
     },
     timesheets: {
       time: raw.timesheets?.time ?? '0:00',
+      minutes: minutesTotal,
+      weight: weightTotal,
       peopleWithTime: raw.timesheets?.peopleWithTime ?? 0,
       peopleTotal: raw.timesheets?.peopleTotal ?? people.length,
       complete: raw.timesheets?.complete ?? complete,
@@ -1229,12 +1263,20 @@ function mapLiveReports(raw: {
         name: p.name,
         initials: personInitials(p.name),
         byProject: p.byProject,
+        byProjectMinutes: p.byProjectMinutes ?? {},
+        byProjectWeight: p.byProjectWeight ?? {},
         total: p.time,
+        minutes: p.minutes ?? 0,
+        weight: p.weight ?? p.minutes ?? 0,
         off: p.off,
         loggedDays: p.loggedDays,
         expected: p.expected,
       })),
-      byProject: raw.timesheets?.byProject ?? [],
+      byProject: (raw.timesheets?.byProject ?? []).map((p) => ({
+        ...p,
+        minutes: p.minutes ?? 0,
+        weight: p.weight ?? p.minutes ?? 0,
+      })),
       projectTotals: totals,
       missing: (raw.timesheets?.missing ?? []).map((m) => ({
         userId: m.userId,
@@ -1274,7 +1316,7 @@ export function useWorkspaceReports(
             const { mockWorkspaceReports } = await import('./reportsMock');
             return mockWorkspaceReports();
           }
-          throw new ApiError(res.status, 'FORBIDDEN', (json as { message?: string }).message ?? 'Owners and admins only.');
+          throw new ApiError(res.status, 'FORBIDDEN', (json as { message?: string }).message ?? 'You cannot view reports.');
         }
         return mapLiveReports(json, from, to, timeZone);
       } catch (err) {

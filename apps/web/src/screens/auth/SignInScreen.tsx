@@ -18,6 +18,7 @@ export function SignInScreen() {
   const next = safeNext(params.get('next'));
   const [form] = Form.useForm<{ name: string; email: string }>();
   const [providers, setProviders] = useState<Providers>({ google: false, microsoft: false, devLogin: import.meta.env.DEV });
+  const [hostName, setHostName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +26,12 @@ export function SignInScreen() {
     void fetch(`${BASE_URL}/auth/providers`, { credentials: 'include' })
       .then((r) => r.json())
       .then((p: Providers) => setProviders(p))
+      .catch(() => undefined);
+    void fetch(`${BASE_URL}/auth/host`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((h: { kind?: string; name?: string | null; exists?: boolean }) => {
+        if (h.kind === 'workspace' && h.exists && h.name) setHostName(h.name);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -80,8 +87,14 @@ export function SignInScreen() {
       <section style={{ flex: '1 1 420px', boxSizing: 'border-box', padding: '48px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
-            <h2 style={{ margin: 0, fontFamily: font.display, fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em' }}>Sign in</h2>
-            <p style={{ margin: '8px 0 0', fontSize: 14, color: color.muted }}>Continue with Google, Microsoft or an email code. A new account sets up a workspace next.</p>
+            <h2 style={{ margin: 0, fontFamily: font.display, fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em' }}>
+              {hostName ? `Sign in to ${hostName}` : 'Sign in'}
+            </h2>
+            <p style={{ margin: '8px 0 0', fontSize: 14, color: color.muted }}>
+              {hostName
+                ? 'Continue with Google, Microsoft or an email code to open this workspace.'
+                : 'Continue with Google, Microsoft or an email code. A new account sets up a workspace next.'}
+            </p>
           </div>
           <OauthButton mark="G" disabled={!providers.google} onClick={() => start('/auth/google')}>Continue with Google</OauthButton>
           <OauthButton mark="M" disabled={!providers.microsoft} onClick={() => start('/auth/microsoft')}>Continue with Microsoft</OauthButton>

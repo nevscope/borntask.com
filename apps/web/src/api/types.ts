@@ -47,6 +47,15 @@ export const MeSchema = z.object({
   user: UserSchema,
   workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional(), logo: z.boolean().optional() }),
   workspaceRole: WorkspaceRoleSchema,
+  host: z
+    .object({
+      kind: z.enum(['app', 'workspace']),
+      slug: z.string().nullable(),
+      exists: z.boolean(),
+      allowed: z.boolean(),
+      name: z.string().nullable().optional(),
+    })
+    .optional(),
   workspaces: z
     .array(
       z.object({
@@ -55,6 +64,7 @@ export const MeSchema = z.object({
         slug: z.string(),
         role: WorkspaceRoleSchema,
         logo: z.boolean().optional(),
+        url: z.string().optional(),
       }),
     )
     .optional(),

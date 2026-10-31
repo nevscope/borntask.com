@@ -2,6 +2,7 @@
 :root {
   --bt-display: 'Sora', 'DM Sans', system-ui, sans-serif;
   --bt-mono: ui-monospace, Menlo, monospace;
+  --bt-label-max: 520px;
 }
 
 * { box-sizing: border-box; }
@@ -101,7 +102,12 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 
 .bt-kbd { font-family: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--bt-kbd-border); border-radius: 5px; background: var(--bt-surface); color: var(--bt-muted); }
 .ant-btn-primary { font-weight: 600; }
-.ant-form-item-label > label { font-weight: 500; }
+.ant-form-item { max-width: var(--bt-label-max); }
+.ant-form-item-label { max-width: var(--bt-label-max); }
+.ant-form-item-label > label { font-weight: 500; height: auto; white-space: normal; }
+.ant-form-item-extra,
+.ant-form-item-explain { max-width: var(--bt-label-max); }
+.bt-label-max { max-width: var(--bt-label-max); }
 .ant-segmented-item-selected { font-weight: 500; }
 .bt-domain .ant-input-group-addon,
 .ant-input-group-wrapper:has(.bt-domain) .ant-input-group-addon { height: 42px; font-size: 13.5px; padding: 0 12px; background: var(--bt-subtle); color: var(--bt-ink3); }

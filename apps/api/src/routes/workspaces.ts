@@ -11,6 +11,9 @@ import { bootstrapWorkspaceDefaults } from '../lib/bootstrapWorkspace.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { newInviteToken, projectKeyFromName, slugify } from '../lib/tokens.js';
+import { parseWorkspaceSlug } from '../lib/workspaceSlug.js';
+import { originForSlug } from '../lib/workspaceHost.js';
+import { isReservedWorkspaceSlug } from '@borntask/shared';
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -27,7 +30,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     try {
       const user = await requireUser(req);
       const input = createSchema.parse(req.body);
-      let slug = slugify(input.slug ?? input.name);
+      let slug = input.slug ? parseWorkspaceSlug(input.slug) : slugify(input.name);
+      if (!input.slug && (slug.length < 2 || isReservedWorkspaceSlug(slug))) slug = `${slug || 'workspace'}-team`;
       const clash = await prisma.workspace.findUnique({ where: { slug } });
       if (clash) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -89,7 +93,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
             expiresAt,
           },
         });
-        const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
+        const url = `${originForSlug(workspace.slug)}/invite/${token}`;
         await enqueueMail({
           kind: 'invite',
           to: email,
@@ -103,7 +107,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       }
 
       setSession(req, reply, { userId: user.id, tenantId: workspace.id });
-      return { id: workspace.id, name: workspace.name, slug: workspace.slug };
+      return { id: workspace.id, name: workspace.name, slug: workspace.slug, url: `${originForSlug(workspace.slug)}/settings/defaults` };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -130,8 +134,10 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/workspaces/slug-available', async (req, reply) => {
     try {
-      const slug = slugify(String((req.query as { slug?: string }).slug ?? ''));
+      const raw = String((req.query as { slug?: string }).slug ?? '');
+      const slug = slugify(raw);
       if (slug.length < 2) throw validation('Choose a longer web address.');
+      if (isReservedWorkspaceSlug(slug)) return { slug, available: false, message: 'That address is reserved.' };
       const existing = await prisma.workspace.findUnique({ where: { slug } });
       return { slug, available: !existing };
     } catch (err) {

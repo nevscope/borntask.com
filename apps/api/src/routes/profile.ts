@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { isIanaTimeZone } from '@borntask/shared';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { initialsOf, requireAuth } from '../context.js';
@@ -14,7 +15,6 @@ export const PROFILE_EVENTS = [
   'digest_ready',
 ] as const;
 
-const TIME_ZONES = ['Europe/Malta', 'Europe/London', 'UTC'] as const;
 const CHANNELS = ['in_app', 'email'] as const;
 
 const prefSchema = z.object({
@@ -25,7 +25,7 @@ const prefSchema = z.object({
 
 const saveSchema = z.object({
   name: z.string().trim().min(1, 'Enter a display name.').max(80, 'Display name must be 80 characters or fewer.'),
-  timeZone: z.enum(TIME_ZONES),
+  timeZone: z.string().trim().min(1).refine(isIanaTimeZone, 'Choose a valid time zone.'),
   digestMode: z.enum(['workdays', 'daily', 'off']),
   emailPerTask: z.boolean().optional(),
   prefs: z.array(prefSchema).length(PROFILE_EVENTS.length),
@@ -71,7 +71,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       return {
         name: user.name,
         email: user.email,
-        timeZone: TIME_ZONES.includes(user.timeZone as (typeof TIME_ZONES)[number]) ? user.timeZone : 'Europe/Malta',
+        timeZone: isIanaTimeZone(user.timeZone) ? user.timeZone : 'Europe/Malta',
         digestMode: user.digestMode,
         emailPerTask: user.emailPerTask,
         prefs: presentPrefs(rows, user.emailPerTask, user.digestMode),

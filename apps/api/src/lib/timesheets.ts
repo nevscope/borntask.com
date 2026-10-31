@@ -1,10 +1,12 @@
 import {
   expectedDays,
   formatYmd,
+  isTimesheetLocked,
   isWorkingDay,
   parseWorkingDays,
   parseYmd,
   placeWeeklyDaysOff,
+  timesheetLockLabel,
   weekStartFor,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
@@ -32,10 +34,23 @@ export async function workspaceTimesheetSettings(auth: Authed) {
   return {
     timesheetPeriod: ws.timesheetPeriod,
     timesheetUnit: ws.timesheetUnit,
+    timesheetEditDays: ws.timesheetEditDays,
     workingDays: parseWorkingDays(ws.workingDays),
     weekStart: ws.weekStart,
     timeZone: ws.timeZone,
   };
+}
+
+export function assertTimesheetEditable(
+  periodStart: string,
+  periodKind: 'daily' | 'weekly',
+  editDays: number,
+) {
+  if (isTimesheetLocked({ periodStart: parseYmd(periodStart), periodKind, editDays })) {
+    throw conflict(
+      `This timesheet is locked. Your workspace only allows changes to ${timesheetLockLabel(editDays)} so reports stay stable.`,
+    );
+  }
 }
 
 export async function ledProjectIds(auth: Authed): Promise<string[]> {
@@ -123,8 +138,10 @@ export async function applyWeekDaysOff(
   week: { weekStart: string; count: number; kind: 'leave' | 'other'; note?: string | null },
   workingDays: string[],
   weekStartSetting: 'monday' | 'sunday',
+  editDays: number,
 ) {
   const start = weekStartFor(parseYmd(week.weekStart), weekStartSetting);
+  assertTimesheetEditable(formatYmd(start), 'weekly', editDays);
   const weekEnd = new Date(start);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
   const holidays = await holidaysInRange(auth, start, weekEnd);

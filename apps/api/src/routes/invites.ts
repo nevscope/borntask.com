@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma, createTenantClient } from '../db.js';
-import { config } from '../env.js';
+import { originForSlug } from '../lib/workspaceHost.js';
 import { requireAuth, requireUser, setSession, type Authed } from '../context.js';
 import { forbidden as forbid, notFound as nf, sendError as send, validation as val } from '../errors.js';
 import { remapRoleSlug } from '../lib/mappers.js';
@@ -64,7 +64,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
             expiresAt,
           },
         });
-        const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
+        const url = `${originForSlug(ws.slug)}/invite/${token}`;
         created.push({ email, url, tenantRole });
         let seatedExisting = false;
         if (input.projectId) {
@@ -198,8 +198,8 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         where: { id: invite.id },
         data: { tokenHash: hash, expiresAt },
       });
-      const url = `${config.publicUrl.replace(/\/$/, '')}/invite/${token}`;
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
+      const url = `${originForSlug(ws?.slug)}/invite/${token}`;
       const actor = await prisma.user.findUnique({ where: { id: auth.userId } });
       const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
       const role = roleIds[0] ? await auth.db.projectRole.findFirst({ where: { id: roleIds[0] } }) : null;
@@ -260,7 +260,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
           requesterEmail: user.email,
           invitedEmail: invite.email,
           workspaceName: ws?.name ?? 'the workspace',
-          peopleUrl: `${config.publicUrl.replace(/\/$/, '')}/settings/people`,
+          peopleUrl: `${originForSlug(ws?.slug)}/settings/people`,
         });
       }
       return { ok: true };

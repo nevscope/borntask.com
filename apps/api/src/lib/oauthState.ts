@@ -8,14 +8,19 @@ function sign(payload: string): string {
 }
 
 /** Signed OAuth `state` so Google callback does not depend on the session cookie surviving a cross-site redirect. */
-export function createOauthState(invite = ''): string {
+export function createOauthState(invite = '', returnSlug = ''): string {
   const payload = Buffer.from(
-    JSON.stringify({ n: randomBytes(16).toString('hex'), t: Date.now(), invite: invite || undefined }),
+    JSON.stringify({
+      n: randomBytes(16).toString('hex'),
+      t: Date.now(),
+      invite: invite || undefined,
+      slug: returnSlug || undefined,
+    }),
   ).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-export function parseOauthState(state: string | undefined): { invite?: string } | null {
+export function parseOauthState(state: string | undefined): { invite?: string; returnSlug?: string } | null {
   if (!state) return null;
   const dot = state.lastIndexOf('.');
   if (dot < 1) return null;
@@ -26,9 +31,9 @@ export function parseOauthState(state: string | undefined): { invite?: string } 
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { t?: number; invite?: string };
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { t?: number; invite?: string; slug?: string };
     if (typeof data.t !== 'number' || Date.now() - data.t > MAX_AGE_MS) return null;
-    return { invite: data.invite };
+    return { invite: data.invite, returnSlug: data.slug };
   } catch {
     return null;
   }

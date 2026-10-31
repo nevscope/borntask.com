@@ -35,7 +35,10 @@ export function AdminDefaultsScreen() {
     enabled: canAdmin,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/admin/defaults`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Owners and admins only.');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(json.message ?? (res.status === 403 ? 'Owners and admins only.' : 'Could not load workspace defaults. Is the API running?'));
+      }
       return (await res.json()) as Defaults;
     },
   });
