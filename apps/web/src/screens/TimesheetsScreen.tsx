@@ -174,6 +174,24 @@ export function TimesheetsScreen() {
       return (parseTimeToMinutes(cell.text) ?? 0) > 0;
     });
 
+  const dayTimeLabel = (ymd: string) => {
+    let minutes = 0;
+    let percent = 0;
+    let usedPercent = false;
+    for (const p of projects) {
+      const cell = displayCell(p.id, ymd);
+      if (cell.unit === 'percent') {
+        usedPercent = true;
+        percent += Number(cell.text) || 0;
+      } else {
+        minutes += parseTimeToMinutes(cell.text) ?? 0;
+      }
+    }
+    if (usedPercent && minutes === 0) return `${percent}%`;
+    if (minutes > 0) return formatMinutes(minutes);
+    return '';
+  };
+
   const markOff = async (ymd: string, kind: 'leave' | 'other' | null) => {
     if (readOnly) return;
     try {
@@ -336,7 +354,9 @@ export function TimesheetsScreen() {
                 onChange={(id) => setViewUserId(id === me?.user.id ? undefined : id)}
                 options={[
                   { value: me?.user.id ?? 'me', label: 'Me' },
-                  ...(people.data ?? []).filter((p) => p.id !== me?.user.id).map((p) => ({ value: p.id, label: p.name })),
+                  ...(people.data ?? [])
+                    .filter((p) => p.id !== me?.user.id && p.workspaceRole !== 'guest' && p.workspaceRole !== 'viewer')
+                    .map((p) => ({ value: p.id, label: p.name })),
                 ]}
               />
             </label>
@@ -432,7 +452,7 @@ export function TimesheetsScreen() {
           </div>
           <p style={{ margin: 0, padding: '10px 16px', borderTop: `1px solid ${color.divider}`, background: color.subtle, fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
             Expected this week: {days.filter((d) => isWorkingDay(d, workingDays)).length} working days
-            {holidayByDate.size ? `, minus ${holidayByDate.size} holiday` : ''}
+            {holidayByDate.size ? `, minus ${holidayByDate.size} holiday${holidayByDate.size === 1 ? '' : 's'}` : ''}
             {weekOffCount ? `, minus ${weekOffCount} days off` : ''}
             {' = '}
             {daysExpected} days. The count can't go above the working days left after holidays ({maxWeeklyOff} here).
@@ -472,13 +492,14 @@ export function TimesheetsScreen() {
           noteDraft={noteDraft}
           setNoteDraft={setNoteDraft}
           viewingOther={viewingOther}
+          dayTimeLabel={dayTimeLabel}
         />
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 12.5, color: color.muted }}>
         <span>
           {unit === 'time' ? (
-            <>Type <kbd className="bt-kbd">2:30</kbd> or <kbd className="bt-kbd">2.5</kbd>. Tab moves to the next day. Changes save as you go. Click a filled cell again to add a note. Open a day's menu to mark it off.</>
+            <>Type <kbd className="bt-kbd">2:30</kbd> or <kbd className="bt-kbd">2.5</kbd>. Tab moves to the next {period === 'daily' ? 'day' : 'project'}. Changes save as you go. Click a filled cell again to add a note.{period === 'daily' ? ' Open a day\'s menu to mark it off.' : ''}</>
           ) : (
             <>Type a percentage. Changes save as you go. Weeks and days usually add up to 100%, but short totals still save.</>
           )}
@@ -621,6 +642,7 @@ function DailyGrid({
   noteDraft,
   setNoteDraft,
   viewingOther,
+  dayTimeLabel,
 }: {
   projects: { id: string; name: string; key: string; color: string; leadId: string }[];
   days: Date[];
@@ -641,7 +663,9 @@ function DailyGrid({
   noteDraft: string;
   setNoteDraft: (v: string) => void;
   viewingOther: boolean;
+  dayTimeLabel: (ymd: string) => string;
 }) {
+  const [holidayEdit, setHolidayEdit] = useState<string | null>(null);
   const cols = `minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px`;
   return (
     <section aria-label="Time per project and day" style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflowX: 'auto' }}>
@@ -680,7 +704,9 @@ function DailyGrid({
                         </button>
                       ))}
                       {!off && !weekend && hasTime && (
-                        <div style={{ padding: '6px 10px 8px', fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>This day has time logged. Clear it first to mark the day off.</div>
+                        <div style={{ padding: '6px 10px 8px', fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
+                          This day has {dayTimeLabel(ymd) || 'time'} logged. Clear it first to mark the day off.
+                        </div>
                       )}
                       {weekend && (
                         <div style={{ padding: '6px 10px 8px', fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>Not a working day in this workspace. Log time here only if you worked.</div>
@@ -760,14 +786,27 @@ function DailyGrid({
                           </div>
                         }
                       >
+                        {holiday && !filled && holidayEdit !== `${p.id}:${ymd}` ? (
+                          <button
+                            type="button"
+                            aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}: public holiday. Click to log extra time.`}
+                            onClick={() => setHolidayEdit(`${p.id}:${ymd}`)}
+                            style={{ display: 'grid', placeItems: 'center', width: '100%', height: 38, border: `1px solid ${color.border}`, borderRadius: 8, background: color.infoTint, font: 'inherit', fontSize: 12, fontWeight: 500, color: color.info, cursor: 'pointer' }}
+                          >
+                            Holiday
+                          </button>
+                        ) : (
                         <Input
                           inputMode="decimal"
                           value={cell.text}
                           placeholder={holiday && !filled ? 'Holiday' : '-'}
                           aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}`}
+                          autoFocus={holidayEdit === `${p.id}:${ymd}`}
                           onChange={(e) => setCell(p.id, ymd, { text: e.target.value })}
+                          onBlur={() => { if (!displayCell(p.id, ymd).text.trim()) setHolidayEdit(null); }}
                           style={{ height: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderColor: isToday ? color.brandBorder : color.border, background: holiday && !filled ? color.infoTint : color.surface }}
                         />
+                        )}
                       </Popover>
                     )}
                     {cell.note && !off && (

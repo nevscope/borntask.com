@@ -8,7 +8,7 @@ These are the mocks for the "Workspace reports page" plan (`workspace_reports_pa
 |---|---|---|
 | `Timesheets.dc.html` | `apps/web/src/screens/TimesheetsScreen.tsx`, route `/timesheets`, sidebar link under My tasks | screen-timesheets, **days-off** |
 | `SheetTimesheets.dc.html` | Variants and states of the same screen (not a separate page) | screen-timesheets, days-off, tests-gates |
-| `Reports.dc.html` | `WorkspaceReportsScreen`, route `/settings/reports`, **Reports** in `SettingsNav` after Billing (`show: canAdmin`) | screen-reports, queries-nav |
+| `Reports.dc.html` | `WorkspaceReportsScreen`, route `/reports`, sidebar under Timesheets (`canAdmin` only). `/settings/reports` redirects here. | screen-reports, queries-nav |
 | `WorkspaceGeneral.dc.html` | The **Timesheets** section in `WorkspaceGeneralScreen.tsx`: period, unit, **working days**, **public holidays** | schema-settings, **holidays** |
 
 ## How to read a `.dc.html`

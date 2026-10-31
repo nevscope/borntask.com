@@ -36,6 +36,9 @@ export function antdThemeFor(mode: ThemeMode): ThemeConfig {
         contentFontSize: 13.5,
         fontWeight: 400,
         primaryShadow: 'none',
+        colorPrimary: c.brandFill,
+        colorPrimaryHover: c.brand,
+        colorPrimaryActive: c.brandText,
       },
       Input: {
         controlHeight: 38,

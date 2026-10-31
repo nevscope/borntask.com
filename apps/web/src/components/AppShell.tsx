@@ -48,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
   const favourites = projects.filter((p) => p.starred);
@@ -156,6 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const phoneTitle = (() => {
     if (pathname === '/') return 'My tasks';
     if (pathname.startsWith('/timesheets')) return 'Timesheets';
+    if (pathname.startsWith('/reports')) return 'Reports';
     if (pathname.startsWith('/search')) return 'Search';
     if (pathname.startsWith('/projects')) return 'Projects';
     const projectKey = pathname.match(/^\/p\/([^/]+)/)?.[1];
@@ -256,6 +258,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/timesheets" className="bt-nav-link" title="Timesheets">
             <span className="bt-nav-icon"><NavIcon kind="timesheets" /></span>
             <span className="bt-sidebar-label">Timesheets</span>
+          </NavLink>
+        )}
+        {canAdmin && (
+          <NavLink to="/reports" className="bt-nav-link" title="Reports">
+            <span className="bt-nav-icon"><NavIcon kind="reports" /></span>
+            <span className="bt-sidebar-label">Reports</span>
           </NavLink>
         )}
         <NavLink to="/search" className="bt-nav-link" title="Search">
@@ -465,13 +473,14 @@ function PhoneIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'plus' | 
   );
 }
 
-function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' | 'timesheets' }) {
+function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' | 'timesheets' | 'reports' }) {
   const path = {
     tasks: 'M4 7.5h8M4 11h5.5M4.8 4.4 6.2 5.8 8.8 3.2',
     search: 'M10.6 10.6 13.2 13.2M7.2 11.2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z',
     projects: 'M3.5 4.2h4.1v4.1H3.5zM8.4 4.2h4.1v4.1H8.4zM3.5 9.1h4.1v4.1H3.5zM8.4 9.1h4.1v4.1H8.4z',
     settings: 'M8 10.2A2.2 2.2 0 1 0 8 5.8a2.2 2.2 0 0 0 0 4.4zM8 2.6v1.4M8 12v1.4M3.8 4.4l1 1M11.2 10.6l1 1M2.6 8h1.4M12 8h1.4M3.8 11.6l1-1M11.2 5.4l1-1',
     timesheets: 'M8 3.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6zM8 5.2v3l2 1.2',
+    reports: 'M3.2 12.4V8.6M6.4 12.4V5.2M9.6 12.4V7.2M2.4 13.2h8.8',
   }[kind];
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

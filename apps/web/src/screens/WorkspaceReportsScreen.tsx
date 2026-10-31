@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
-import { SettingsFrame } from '../components/SettingsNav';
 import { color, font } from '../theme/tokens';
 import { expectedDays, parseWorkingDays, parseYmd } from '@borntask/shared';
 
@@ -48,11 +47,11 @@ function formatRangeCopy(from: string, to: string, working: number, holidays: { 
       : `${start.format('D MMMM')} - ${end.format('D MMMM YYYY')}`;
   const hol =
     holidays.length === 0
-      ? 'no public holidays'
+      ? 'no public holidays to subtract'
       : holidays.length === 1
-        ? `including ${holidays[0]!.name}`
-        : `${holidays.length} public holidays`;
-  return `${dates} · ${working} working days so far, ${hol} · times in ${tz}`;
+        ? `after subtracting ${holidays[0]!.name}`
+        : `after subtracting ${holidays.length} public holidays`;
+  return `${dates} · ${working} expected working days so far (${hol}; days off come off each person) · times in ${tz}`;
 }
 
 function Tile({
@@ -116,7 +115,7 @@ export function WorkspaceReportsScreen() {
   }, [data, settings.data?.workingDays]);
 
   return (
-    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
+    <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 }}>
         <div style={{ flex: '1 1 300px' }}>
           <h1 className="bt-h1">Reports</h1>
@@ -126,7 +125,7 @@ export function WorkspaceReportsScreen() {
         </div>
         {canAdmin && (
           <>
-            <div role="group" aria-label="Period" style={{ display: 'flex', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
+            <div role="group" aria-label="Period" style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
               {PERIODS.map((p) => {
                 const on = period === p.id;
                 return (
@@ -140,12 +139,14 @@ export function WorkspaceReportsScreen() {
                       padding: '0 12px',
                       border: 0,
                       borderRadius: 6,
-                      background: on ? color.ink : 'transparent',
-                      color: on ? color.surface : color.ink2,
+                      background: on ? color.brandFill : 'transparent',
+                      color: on ? color.inverseFg : color.ink2,
                       font: 'inherit',
                       fontSize: 13,
                       fontWeight: 500,
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flex: 'none',
                     }}
                   >
                     {p.label}
@@ -196,7 +197,7 @@ export function WorkspaceReportsScreen() {
           projectKeys={Object.fromEntries((projects.data ?? []).map((p) => [p.id, p.key]))}
         />
       )}
-    </SettingsFrame>
+    </div>
   );
 }
 

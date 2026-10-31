@@ -191,8 +191,8 @@ export function usePeople() {
     queryKey: qk.people,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/people`, { credentials: 'include' });
-      if (!res.ok) return [] as { id: string; name: string; email: string; initials: string }[];
-      return (await res.json()) as { id: string; name: string; email: string; initials: string }[];
+      if (!res.ok) return [] as { id: string; name: string; email: string; initials: string; workspaceRole?: string }[];
+      return (await res.json()) as { id: string; name: string; email: string; initials: string; workspaceRole?: string }[];
     },
     staleTime: 60_000,
   });

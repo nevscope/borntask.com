@@ -103,6 +103,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<MyTasksScreen />} />
         <Route path="/timesheets" element={<TimesheetsScreen />} />
+        <Route path="/reports" element={<WorkspaceReportsScreen />} />
         <Route path="/search" element={<SearchScreen />} />
         <Route path="/projects" element={<ProjectsScreen />} />
         <Route path="/projects/new" element={<CreateProjectScreen />} />
@@ -112,7 +113,7 @@ function Shell() {
         <Route path="/settings/defaults" element={<AdminDefaultsScreen />} />
         <Route path="/settings/workspace" element={<WorkspaceGeneralScreen />} />
         <Route path="/settings/billing" element={<AdminBillingScreen />} />
-        <Route path="/settings/reports" element={<WorkspaceReportsScreen />} />
+        <Route path="/settings/reports" element={<Navigate to="/reports" replace />} />
         <Route path="/settings/profile" element={<ProfileSettingsScreen />} />
         <Route path="/settings/tokens" element={<ApiTokensScreen />} />
         <Route path="/settings/privacy" element={<LegalSettingsScreen key="privacy" kind="privacy" />} />

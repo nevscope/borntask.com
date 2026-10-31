@@ -33,6 +33,8 @@ export const putHolidaysSchema = z.object({
   holidays: z.array(holidayItemSchema),
 });
 
+export const addHolidaySchema = holidayItemSchema;
+
 export const copyHolidaysSchema = z.object({
   from: z.number().int().min(2000).max(2100),
   to: z.number().int().min(2000).max(2100),

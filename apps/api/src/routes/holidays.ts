@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { copyHolidaysSchema, isMovableHolidayName, parseYmd, putHolidaysSchema, ymdSchema } from '@borntask/shared';
+import { addHolidaySchema, copyHolidaysSchema, isMovableHolidayName, parseYmd, putHolidaysSchema, ymdSchema } from '@borntask/shared';
 import { z } from 'zod';
 import { requireAuth } from '../context.js';
 import { sendError, validation } from '../errors.js';
@@ -23,6 +23,49 @@ export const holidayRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { date: 'asc' },
       });
       return { year, holidays: rows.map((row) => ({ date: ymdOf(row.date), name: row.name })) };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/workspace/holidays', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const row = addHolidaySchema.parse(req.body);
+      const year = Number(row.date.slice(0, 4));
+      const existing = await auth.db.workspaceHoliday.findUnique({
+        where: { tenantId_date: { tenantId: auth.tenantId, date: parseYmd(row.date) } },
+      });
+      if (existing) throw validation('That date already has a holiday.');
+      await auth.db.workspaceHoliday.create({
+        data: { tenantId: auth.tenantId, date: parseYmd(row.date), name: row.name },
+      });
+      const { from, to } = yearBounds(year);
+      const rows = await auth.db.workspaceHoliday.findMany({
+        where: { date: { gte: from, lte: to } },
+        orderBy: { date: 'asc' },
+      });
+      return { year, holidays: rows.map((item) => ({ date: ymdOf(item.date), name: item.name })) };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/workspace/holidays', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const date = ymdSchema.parse((req.query as { date?: string }).date);
+      const year = Number(date.slice(0, 4));
+      const result = await auth.db.workspaceHoliday.deleteMany({ where: { date: parseYmd(date) } });
+      if (result.count === 0) throw validation('That holiday is not on the list.');
+      const { from, to } = yearBounds(year);
+      const rows = await auth.db.workspaceHoliday.findMany({
+        where: { date: { gte: from, lte: to } },
+        orderBy: { date: 'asc' },
+      });
+      return { year, holidays: rows.map((item) => ({ date: ymdOf(item.date), name: item.name })) };
     } catch (err) {
       return sendError(reply, err);
     }

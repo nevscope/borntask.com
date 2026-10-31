@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useProjects, useSearch } from '../api/queries';
+import { useMe, useProjects, useSearch } from '../api/queries';
 import { useQuickAdd } from './QuickAdd';
 import { highlightParts } from '../lib/search';
 import { color } from '../theme/tokens';
@@ -11,6 +11,9 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const [projectKey, setProjectKey] = useState<string | null>(null);
   const { pathname } = useLocation();
+  const me = useMe().data;
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const canTimesheets = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const search = useSearch(q.trim().length >= 2 ? q.trim() : '');
   const navigate = useNavigate();
@@ -37,7 +40,8 @@ export function CommandPalette() {
       { id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', hint: 'Q', kind: 'action' as const, run: () => quickAdd.open() },
       { id: 'new-project', label: 'New project', hint: '', kind: 'action' as const, run: () => navigate('/projects/new') },
       { id: 'my', label: 'Go to My tasks', hint: 'G then M', kind: 'action' as const, run: () => navigate('/') },
-      { id: 'timesheets', label: 'Go to Timesheets', hint: '', kind: 'action' as const, run: () => navigate('/timesheets') },
+      ...(canTimesheets ? [{ id: 'timesheets', label: 'Go to Timesheets', hint: '', kind: 'action' as const, run: () => navigate('/timesheets') }] : []),
+      ...(canAdmin ? [{ id: 'reports', label: 'Go to Reports', hint: '', kind: 'action' as const, run: () => navigate('/reports') }] : []),
       { id: 'board', label: 'Switch to board view', hint: 'V', kind: 'action' as const, run: () => { if (boardKey) navigate(`/p/${boardKey}/board`); } },
       { id: 'search', label: 'Search', hint: '', kind: 'action' as const, run: () => navigate(q.trim() ? `/search?q=${encodeURIComponent(q)}` : '/search') },
       { id: 'projects', label: 'Go to Projects', hint: '', kind: 'action' as const, run: () => navigate('/projects') },
@@ -51,7 +55,7 @@ export function CommandPalette() {
         run: () => navigate(`/p/${p.key}/list`),
       })),
     ];
-  }, [q, projects, projectKey, navigate, quickAdd, pathname]);
+  }, [q, projects, projectKey, navigate, quickAdd, pathname, canAdmin, canTimesheets]);
 
   const project = projects.find((p) => p.key === projectKey) ?? null;
   const tasks = (search.data?.hits ?? []).filter((t) => !projectKey || t.projectKey === projectKey).slice(0, 6);

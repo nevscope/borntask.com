@@ -105,14 +105,14 @@ export function WorkspaceGeneralScreen() {
   const isOwner = me?.workspaceRole === 'owner';
   const ws = useWorkspaceSettings();
   const holidaysQ = useWorkspaceHolidays(holidayYear, canAdmin);
-
-  useEffect(() => {
-    if (ws.data) form.setFieldsValue(withDefaults(ws.data));
-  }, [ws.data, form]);
-
   const draft = Form.useWatch([], form) as Partial<WorkspaceSettings> | undefined;
   const dirty = Boolean(ws.data && draft && settingsSnapshot(draft) !== settingsSnapshot(withDefaults(ws.data)));
   const unsaved = useUnsavedChanges(dirty);
+
+  useEffect(() => {
+    if (!ws.data || dirty) return;
+    form.setFieldsValue(withDefaults(ws.data));
+  }, [ws.data, form, dirty]);
   const weekStart = (draft?.weekStart ?? ws.data?.weekStart ?? 'monday') === 'sunday' ? 'Sunday' : 'Monday';
   const workingDays = (draft?.workingDays ?? ws.data?.workingDays ?? DEFAULT_WORKING_DAYS) as WorkspaceSettings['workingDays'];
   const period = draft?.timesheetPeriod ?? ws.data?.timesheetPeriod ?? 'weekly';
@@ -133,26 +133,8 @@ export function WorkspaceGeneralScreen() {
     .slice(0, 2)
     .toUpperCase();
 
-  const saveHolidays = async (next: WorkspaceHoliday[], message: string) => {
-    setHolidayBusy(true);
-    try {
-      const res = await fetch(`${BASE_URL}/workspace/holidays?year=${holidayYear}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ holidays: next }),
-      });
-      const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; message?: string };
-      if (!res.ok) {
-        toast.show(json.message ?? 'Could not save public holidays.');
-        return false;
-      }
-      qc.setQueryData(qk.workspaceHolidays(holidayYear), { year: holidayYear, holidays: json.holidays ?? next });
-      toast.show(message);
-      return true;
-    } finally {
-      setHolidayBusy(false);
-    }
+  const storeHolidays = (year: number, rows: WorkspaceHoliday[]) => {
+    qc.setQueryData(qk.workspaceHolidays(year), { year, holidays: rows });
   };
 
   const addHoliday = async () => {
@@ -170,14 +152,46 @@ export function WorkspaceGeneralScreen() {
       setAddError('That date already has a holiday.');
       return;
     }
-    const ok = await saveHolidays(
-      [...holidays, { date: addDate, name }].sort((a, b) => a.date.localeCompare(b.date)),
-      'Holiday added.',
-    );
-    if (ok) {
+    setHolidayBusy(true);
+    try {
+      const res = await fetch(`${BASE_URL}/workspace/holidays`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: addDate, name }),
+      });
+      const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; message?: string };
+      if (!res.ok) {
+        setAddError(json.message ?? 'Could not save public holidays.');
+        return;
+      }
+      storeHolidays(holidayYear, json.holidays ?? []);
+      toast.show('Holiday added.');
+      if (addDate < todayYmd) setShowAllHolidays(true);
       setAddOpen(false);
       setAddDate('');
       setAddName('');
+    } finally {
+      setHolidayBusy(false);
+    }
+  };
+
+  const removeHoliday = async (date: string) => {
+    setHolidayBusy(true);
+    try {
+      const res = await fetch(`${BASE_URL}/workspace/holidays?date=${encodeURIComponent(date)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; message?: string };
+      if (!res.ok) {
+        toast.show(json.message ?? 'Could not save public holidays.');
+        return;
+      }
+      storeHolidays(holidayYear, json.holidays ?? []);
+      toast.show('Holiday removed.');
+    } finally {
+      setHolidayBusy(false);
     }
   };
 
@@ -420,7 +434,7 @@ export function WorkspaceGeneralScreen() {
                   disabled={!canAdmin}
                 />
               </label>
-              <Button htmlType="button" disabled={!canAdmin || holidayBusy} onClick={() => { setAddError(null); setAddDate(`${holidayYear}-01-01`); setAddName(''); setAddOpen(true); }}>
+              <Button htmlType="button" disabled={!canAdmin || holidayBusy || holidaysQ.isLoading} onClick={() => { setAddError(null); setAddDate(`${holidayYear}-01-01`); setAddName(''); setAddOpen(true); }}>
                 + Add holiday
               </Button>
             </div>
@@ -464,7 +478,7 @@ export function WorkspaceGeneralScreen() {
                       danger
                       disabled={!canAdmin || holidayBusy}
                       aria-label={`Remove ${row.name}`}
-                      onClick={() => void saveHolidays(holidays.filter((item) => item.date !== row.date), 'Holiday removed.')}
+                      onClick={() => void removeHoliday(row.date)}
                     >
                       Remove
                     </Button>
@@ -485,7 +499,7 @@ export function WorkspaceGeneralScreen() {
               <path d="M12 11v5M12 8h.01" />
             </svg>
             <span>
-              Changing these doesn't change saved timesheets. Each entry keeps the period and unit it was saved with, so older weeks still read correctly. People mark their own days off (Leave or Other) on the Timesheets page. Owners and admins see totals in <Link to="/settings/reports">Reports</Link>.
+              Changing these doesn't change saved timesheets. Each entry keeps the period and unit it was saved with, so older weeks still read correctly. People mark their own days off (Leave or Other) on the Timesheets page. Owners and admins see totals in <Link to="/reports">Reports</Link>.
             </span>
           </p>
         </section>
