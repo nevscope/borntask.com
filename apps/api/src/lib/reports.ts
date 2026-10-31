@@ -6,6 +6,7 @@ import {
   formatYmd,
   missingDays,
   parseYmd,
+  timesheetPersonStart,
   workingDatesInRange,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
@@ -270,6 +271,7 @@ export async function workspaceReports(
       timeByUserDay.set(entry.userId, set);
     }
     if (entry.periodKind === 'weekly' && ((entry.minutes ?? 0) > 0 || (entry.percent ?? 0) > 0)) {
+      const member = members.find((row) => row.userId === entry.userId);
       const set = timeByUserDay.get(entry.userId) ?? new Set<string>();
       for (const date of workingDatesInRange({
         from: entry.periodStart,
@@ -277,7 +279,7 @@ export async function workspaceReports(
         workingDays: settings.workingDays,
         holidays: holidaySet,
         today,
-        startOn: settings.timesheetsStartOn,
+        startOn: timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt),
       })) {
         set.add(formatYmd(date));
       }
@@ -286,6 +288,7 @@ export async function workspaceReports(
   }
 
   const people = members.map((m) => {
+    const personStart = timesheetPersonStart(settings.timesheetsStartOn, m.createdAt);
     const daysOffCount = offByUser.get(m.userId)?.size ?? 0;
     const loggedDays = timeByUserDay.get(m.userId)?.size ?? 0;
     const expected = expectedDays({
@@ -295,7 +298,7 @@ export async function workspaceReports(
       holidays: holidaySet,
       daysOff: offByUser.get(m.userId) ?? [],
       today,
-      startOn: settings.timesheetsStartOn,
+      startOn: personStart,
     });
     const projectMins = minutesByUserProject.get(m.userId) ?? new Map();
     const projectWeight = weightByUserProject.get(m.userId) ?? new Map();
@@ -307,7 +310,7 @@ export async function workspaceReports(
       workingDays: settings.workingDays,
       holidays: holidaySet,
       today,
-      startOn: settings.timesheetsStartOn,
+      startOn: personStart,
     }).filter((date) => !(offByUser.get(m.userId)?.has(formatYmd(date)) ?? false));
     const logged = timeByUserDay.get(m.userId) ?? new Set<string>();
     const missingDates = expectedDates.filter((date) => !logged.has(formatYmd(date)));

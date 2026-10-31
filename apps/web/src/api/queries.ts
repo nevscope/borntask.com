@@ -871,8 +871,6 @@ export type WorkspaceSettings = {
   timesheetUnit: 'time' | 'percent';
   timesheetEditDays: number;
   timesheetsStartOn: string | null;
-  timesheetProjectIds: string[];
-  timesheetProjects: Array<{ id: string; name: string; acceptsTimesheets: boolean }>;
   workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
@@ -894,13 +892,6 @@ const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
   timesheetUnit: 'time',
   timesheetEditDays: 7,
   timesheetsStartOn: '2026-11-02',
-  timesheetProjectIds: ['p_web', 'p_mob', 'p_cli', 'p_ops'],
-  timesheetProjects: [
-    { id: 'p_web', name: 'Website relaunch', acceptsTimesheets: true },
-    { id: 'p_mob', name: 'Mobile app', acceptsTimesheets: true },
-    { id: 'p_cli', name: 'Client onboarding', acceptsTimesheets: true },
-    { id: 'p_ops', name: 'Internal ops', acceptsTimesheets: true },
-  ],
   workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
   workflows: [],
 };
@@ -920,12 +911,9 @@ export function useWorkspaceSettings() {
         throw new Error('Sign in to load workspace settings.');
       }
       const json = (await res.json()) as WorkspaceSettings;
-      const projects = json.timesheetProjects ?? [];
       return {
         ...json,
         timesheetsStartOn: json.timesheetsStartOn ?? null,
-        timesheetProjects: projects,
-        timesheetProjectIds: json.timesheetProjectIds ?? projects.filter((p) => p.acceptsTimesheets).map((p) => p.id),
       };
     },
   });
@@ -953,6 +941,9 @@ export const TimesheetRangeSchema = z.object({
   userId: z.string(),
   timesheetPeriod: z.enum(['daily', 'weekly']).optional(),
   timesheetUnit: z.enum(['time', 'percent']).optional(),
+  memberSince: z.string().nullable().optional(),
+  timesheetsStartOn: z.string().nullable().optional(),
+  expectedFrom: z.string().nullable().optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string() })),

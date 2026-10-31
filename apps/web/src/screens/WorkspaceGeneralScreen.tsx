@@ -36,7 +36,6 @@ const SAVED_FIELDS = [
   'timesheetUnit',
   'timesheetEditDays',
   'timesheetsStartOn',
-  'timesheetProjectIds',
   'workingDays',
 ] as const;
 
@@ -58,7 +57,6 @@ function settingsSnapshot(values: Partial<WorkspaceSettings> | undefined) {
     SAVED_FIELDS.map((key) => {
       const value = values[key];
       if (key === 'workingDays' && Array.isArray(value)) return [...value].sort();
-      if (key === 'timesheetProjectIds' && Array.isArray(value)) return [...value].sort();
       return value ?? null;
     }),
   );
@@ -71,8 +69,6 @@ function withDefaults(data: WorkspaceSettings): WorkspaceSettings {
     timesheetUnit: data.timesheetUnit ?? 'time',
     timesheetEditDays: data.timesheetEditDays ?? 7,
     timesheetsStartOn: data.timesheetsStartOn ?? '',
-    timesheetProjectIds: data.timesheetProjectIds ?? data.timesheetProjects?.filter((p) => p.acceptsTimesheets).map((p) => p.id) ?? [],
-    timesheetProjects: data.timesheetProjects ?? [],
     workingDays: data.workingDays?.length ? data.workingDays : [...DEFAULT_WORKING_DAYS],
   };
 }
@@ -385,7 +381,6 @@ export function WorkspaceGeneralScreen() {
                 timesheetUnit: values.timesheetUnit,
                 timesheetEditDays: values.timesheetEditDays,
                 timesheetsStartOn: values.timesheetsStartOn || null,
-                timesheetProjectIds: values.timesheetProjectIds ?? [],
                 workingDays: days,
               }),
             });
@@ -575,27 +570,13 @@ export function WorkspaceGeneralScreen() {
             name="timesheetsStartOn"
             label="Timesheets start on"
             style={{ marginBottom: 0 }}
-            extra="Expected days and missing timesheets only count from this date. Use this when the workspace started logging later than the rest of the calendar. Leave empty if every working day counts."
+            extra="Expected days and missing timesheets only count from this date, and never before the day that person joined the workspace. Leave empty to use each person's join date only."
           >
             <Input type="date" style={{ maxWidth: 200 }} />
           </Form.Item>
-          <Form.Item
-            name="timesheetProjectIds"
-            label="Projects that accept timesheets"
-            style={{ marginBottom: 0 }}
-            extra="Only these projects appear on Timesheets and in the person-by-project report. Leave a project off if it is onboarding, admin, or otherwise not billable time."
-          >
-            <Checkbox.Group style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(ws.data?.timesheetProjects ?? []).map((project) => (
-                <Checkbox key={project.id} value={project.id} style={{ margin: 0 }}>
-                  {project.name}
-                </Checkbox>
-              ))}
-            </Checkbox.Group>
-          </Form.Item>
-          {(ws.data?.timesheetProjects ?? []).length === 0 && (
-            <span style={{ fontSize: 12.5, color: color.muted, marginTop: -8 }}>No active projects yet.</span>
-          )}
+          <p style={{ margin: 0, fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
+            Which projects accept timesheets is set on each project, under Name, colour and workflow.
+          </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: color.ink2 }}>Working calendar</h3>

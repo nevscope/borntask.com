@@ -3,6 +3,7 @@ import {
   parseYmd,
   putDaysOffSchema,
   putTimesheetsSchema,
+  timesheetPersonStart,
   timesheetRangeQuerySchema,
 } from '@borntask/shared';
 import { requireAuth } from '../context.js';
@@ -30,11 +31,12 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       if (!access.ok) throw forbidden('You can only read timesheets for projects you lead.');
       const from = parseYmd(query.from);
       const to = parseYmd(query.to);
-      const [entries, daysOff, holidays, settings] = await Promise.all([
+      const [entries, daysOff, holidays, settings, member] = await Promise.all([
         auth.db.timesheetEntry.findMany({
           where: {
             userId,
             periodStart: { gte: from, lte: to },
+            project: { acceptsTimesheets: true },
             ...(access.projectIds ? { projectId: { in: access.projectIds } } : {}),
           },
           orderBy: { periodStart: 'asc' },
@@ -45,11 +47,16 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         }),
         holidaysInRange(auth, from, to),
         workspaceTimesheetSettings(auth),
+        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true } }),
       ]);
+      const startOn = timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt);
       return {
         userId,
         timesheetPeriod: settings.timesheetPeriod,
         timesheetUnit: settings.timesheetUnit,
+        memberSince: member ? ymdOf(member.createdAt) : null,
+        timesheetsStartOn: settings.timesheetsStartOn ? ymdOf(settings.timesheetsStartOn) : null,
+        expectedFrom: startOn ? ymdOf(startOn) : null,
         entries: entries.map((row) => ({
           id: row.id,
           projectId: row.projectId,

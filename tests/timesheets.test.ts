@@ -6,6 +6,7 @@ import {
   dayOffKindSchema,
   clipTimesheetFrom,
   expectedDays,
+  timesheetPersonStart,
   formatMinutes,
   isTimesheetLocked,
   parseYmd,
@@ -93,6 +94,12 @@ describe('timesheet start date', () => {
   test('clipTimesheetFrom raises the range start', () => {
     expect(clipTimesheetFrom(parseYmd('2026-10-01'), parseYmd('2026-11-02')).toISOString().slice(0, 10)).toBe('2026-11-02');
     expect(clipTimesheetFrom(parseYmd('2026-11-09'), parseYmd('2026-11-02')).toISOString().slice(0, 10)).toBe('2026-11-09');
+  });
+
+  test('person start is the later of workspace start and join date', () => {
+    expect(timesheetPersonStart(parseYmd('2026-11-02'), parseYmd('2026-09-01'))?.toISOString().slice(0, 10)).toBe('2026-11-02');
+    expect(timesheetPersonStart(parseYmd('2026-11-02'), parseYmd('2026-11-16'))?.toISOString().slice(0, 10)).toBe('2026-11-16');
+    expect(timesheetPersonStart(null, parseYmd('2026-11-16'))?.toISOString().slice(0, 10)).toBe('2026-11-16');
   });
 });
 

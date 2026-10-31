@@ -26,7 +26,6 @@ export const patchWorkspaceTimesheetSchema = z.object({
   timesheetUnit: timesheetUnitSchema.optional(),
   timesheetEditDays: timesheetEditDaysSchema.optional(),
   timesheetsStartOn: ymdSchema.nullable().optional(),
-  timesheetProjectIds: z.array(z.string().min(1)).optional(),
   workingDays: workingDaysSchema.optional(),
 });
 
@@ -149,9 +148,20 @@ export function eachDate(from: Date, to: Date): Date[] {
   return out;
 }
 
+export function utcDateOnly(value: Date): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+}
+
 export function clipTimesheetFrom(from: Date, startOn?: Date | null): Date {
   if (!startOn) return from;
   return startOn.getTime() > from.getTime() ? startOn : from;
+}
+
+/** Later of the workspace timesheet start and the day the person joined. */
+export function timesheetPersonStart(workspaceStart?: Date | null, joinedAt?: Date | null): Date | null {
+  const dates = [workspaceStart, joinedAt ? utcDateOnly(joinedAt) : null].filter((date): date is Date => Boolean(date));
+  if (dates.length === 0) return null;
+  return dates.reduce((latest, date) => (date.getTime() > latest.getTime() ? date : latest));
 }
 
 export function workingDatesInRange(input: {

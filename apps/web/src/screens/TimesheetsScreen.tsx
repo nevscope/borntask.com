@@ -70,7 +70,6 @@ export function TimesheetsScreen() {
   const weekStartSetting = settings.data?.weekStart ?? 'monday';
   const workingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
   const editDays = settings.data?.timesheetEditDays ?? 7;
-  const timesheetsStartOn = settings.data?.timesheetsStartOn ? parseYmd(settings.data.timesheetsStartOn) : null;
   const guest = me?.workspaceRole === 'guest' || me?.workspaceRole === 'viewer';
 
   const [anchor, setAnchor] = useState(() => utcToday());
@@ -89,6 +88,11 @@ export function TimesheetsScreen() {
 
   const sheet = useTimesheets(from, to, viewUserId, !guest);
   const lastWeek = useTimesheets(lastFrom, lastTo, viewUserId, !guest);
+  const timesheetsStartOn = sheet.data?.expectedFrom
+    ? parseYmd(sheet.data.expectedFrom)
+    : settings.data?.timesheetsStartOn
+      ? parseYmd(settings.data.timesheetsStartOn)
+      : null;
   const period = sheet.data?.timesheetPeriod ?? settings.data?.timesheetPeriod ?? 'weekly';
   const unit = sheet.data?.timesheetUnit ?? settings.data?.timesheetUnit ?? 'time';
   const saveEntries = useSaveTimesheets();
@@ -341,7 +345,7 @@ export function TimesheetsScreen() {
           <path d="M12 7v5l3 2" />
         </svg>
         <strong style={{ display: 'block', marginTop: 12, fontSize: 15 }}>No projects to log time against</strong>
-        <p style={{ margin: '8px 0 0', color: color.muted, fontSize: 13 }}>An owner or admin chooses which projects accept timesheets in Workspace settings. You also need a seat on the project.</p>
+        <p style={{ margin: '8px 0 0', color: color.muted, fontSize: 13 }}>A project lead or admin turns on Accept timesheets on the project. You also need a seat on that project.</p>
         <Link to="/projects" style={{ display: 'inline-block', marginTop: 12, fontWeight: 600 }}>See projects</Link>
       </div>
     );
