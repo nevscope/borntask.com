@@ -1,0 +1,15 @@
+/** MCP tools shipped to assistants. Keep in sync with `apps/mcp/src/tools.ts`. */
+export const MCP_TOOL_NAMES = [
+  'search_tasks',
+  'get_task',
+  'list_projects',
+  'list_my_tasks',
+  'create_task',
+  'update_task',
+  'move_task',
+  'move_task_to_project',
+  'add_comment',
+  'get_attachment',
+] as const;
+
+export type McpToolName = (typeof MCP_TOOL_NAMES)[number];

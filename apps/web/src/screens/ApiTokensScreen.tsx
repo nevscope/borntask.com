@@ -5,9 +5,8 @@ import { useApiTokens, useCreateToken, useMe, useRevokeGrant, useRevokeToken, ty
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SettingsFrame } from '../components/SettingsNav';
 import { formatWhen } from '../lib/relativeTime';
+import { MCP_TOOL_NAMES } from '@borntask/shared';
 import { color, font } from '../theme/tokens';
-
-const TOOLS = ['search_tasks', 'get_task', 'create_task', 'update_task', 'move_task', 'add_comment', 'list_projects', 'list_my_tasks'];
 const MCP_URL = import.meta.env.VITE_MCP_URL ?? 'http://localhost:3011/mcp';
 
 function scopeChips(scopes: string[]): string[] {
@@ -100,7 +99,7 @@ export function ApiTokensScreen() {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           <span style={{ fontSize: 12.5, color: color.muted, marginRight: 4 }}>Tools available:</span>
-          {TOOLS.map((tool) => (
+          {MCP_TOOL_NAMES.map((tool) => (
             <code key={tool} style={{ fontFamily: font.mono, fontSize: 12, padding: '2px 8px', borderRadius: 6, background: color.chip, color: color.ink3 }}>{tool}</code>
           ))}
         </div>

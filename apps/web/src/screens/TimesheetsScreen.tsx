@@ -10,10 +10,11 @@ import {
   timesheetLockLabel,
   weekStartFor,
 } from '@borntask/shared';
-import { Alert, Button, Dropdown, Input, Popover, Select, Skeleton } from 'antd';
+import { Alert, App, Button, Dropdown, Input, Popover, Select, Skeleton } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api/http';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   useMe,
   usePeople,
@@ -63,6 +64,7 @@ function cellKey(projectId: string, periodStart: string) {
 }
 
 export function TimesheetsScreen() {
+  const { message } = App.useApp();
   const me = useMe().data;
   const settings = useWorkspaceSettings();
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false && p.acceptsTimesheets);
@@ -84,7 +86,9 @@ export function TimesheetsScreen() {
   const canViewOthers = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin' || leadsProjects.length > 0;
   const [viewUserId, setViewUserId] = useState<string | undefined>();
   const viewingOther = Boolean(viewUserId && viewUserId !== me?.user.id);
-  const readOnly = viewingOther;
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const readOnly = viewingOther && !canAdmin;
+  const sheetUserId = viewUserId && viewUserId !== me?.user.id ? viewUserId : undefined;
 
   const sheet = useTimesheets(from, to, viewUserId, !guest);
   const lastWeek = useTimesheets(lastFrom, lastTo, viewUserId, !guest);
@@ -99,17 +103,24 @@ export function TimesheetsScreen() {
   const saveDaysOff = useSaveDaysOff();
 
   const [drafts, setDrafts] = useState<Record<string, CellDraft>>({});
+  const [invalidCells, setInvalidCells] = useState<Record<string, boolean>>({});
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [extraOpen, setExtraOpen] = useState(false);
   const [noteCell, setNoteCell] = useState<{ projectId: string; periodStart: string } | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
+  const [sessionShownIds, setSessionShownIds] = useState<string[] | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<Map<string, TimesheetEntryWrite>>(new Map());
 
   useEffect(() => {
     setDrafts({});
+    setInvalidCells({});
     setNoteCell(null);
+    setExtraOpen(false);
+    setSessionShownIds(null);
+    setCopyConfirmOpen(false);
   }, [from, viewUserId]);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addUtcDays(weekStart, i)), [weekStart]);
@@ -127,14 +138,14 @@ export function TimesheetsScreen() {
     if (batch.length === 0 || readOnly) return;
     setSaveState('saving');
     try {
-      await saveEntries.mutateAsync(batch);
+      await saveEntries.mutateAsync({ entries: batch, userId: sheetUserId });
       setSaveState('saved');
       setSaveError(null);
     } catch (err) {
       setSaveState('error');
       setSaveError(err instanceof ApiError ? err.message : 'Could not save the timesheet.');
     }
-  }, [readOnly, saveEntries]);
+  }, [readOnly, saveEntries, sheetUserId]);
 
   const queueSave = useCallback(
     (entry: TimesheetEntryWrite) => {
@@ -160,22 +171,115 @@ export function TimesheetsScreen() {
     return { text: row.minutes ? formatMinutes(row.minutes) : '', note: row.note ?? '', unit: 'time' };
   };
 
+  const markCellInvalid = (key: string, message: string) => {
+    setInvalidCells((prev) => ({ ...prev, [key]: true }));
+    setSaveState('error');
+    setSaveError(message);
+  };
+
+  const clearCellInvalid = (key: string) => {
+    setInvalidCells((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const dayMinutesExcluding = (projectId: string, periodStart: string) =>
+    projects.reduce((acc, p) => {
+      if (p.id === projectId) return acc;
+      const cell = displayCell(p.id, periodStart);
+      if (cell.unit === 'percent') return acc;
+      return acc + (parseTimeToMinutes(cell.text) ?? 0);
+    }, 0);
+
+  const commitCell = (projectId: string, periodStart: string) => {
+    if (readOnly) return;
+    if (isTimesheetLocked({ periodStart: parseYmd(periodStart), periodKind: period, editDays, today })) return;
+    const key = cellKey(projectId, periodStart);
+    const merged = displayCell(projectId, periodStart);
+    const empty = !merged.text.trim() && !merged.note.trim();
+    if (merged.unit === 'time') {
+      if (!merged.text.trim()) {
+        clearCellInvalid(key);
+        queueSave({
+          projectId,
+          periodKind: period,
+          periodStart,
+          unit: 'time',
+          minutes: 0,
+          percent: null,
+          note: merged.note || null,
+          clear: empty,
+        });
+        return;
+      }
+      const minutes = parseTimeToMinutes(merged.text);
+      if (minutes == null) {
+        markCellInvalid(key, 'Use 2:30 or 2.5.');
+        return;
+      }
+      if (period === 'daily' && dayMinutesExcluding(projectId, periodStart) + minutes > 24 * 60) {
+        markCellInvalid(key, 'A day cannot exceed 24:00.');
+        return;
+      }
+      const formatted = minutes === 0 ? '' : formatMinutes(minutes);
+      setDrafts((prev) => ({ ...prev, [key]: { ...merged, text: formatted, unit: 'time' } }));
+      clearCellInvalid(key);
+      if (saveState === 'error' && Object.keys(invalidCells).every((k) => k === key || !invalidCells[k])) {
+        setSaveError(null);
+      }
+      queueSave({
+        projectId,
+        periodKind: period,
+        periodStart,
+        unit: 'time',
+        minutes,
+        percent: null,
+        note: merged.note || null,
+        clear: empty,
+      });
+      return;
+    }
+    const percent = merged.text.trim() === '' ? 0 : Number.parseInt(merged.text, 10);
+    if (merged.text.trim() && (Number.isNaN(percent) || percent < 0 || percent > 100)) {
+      markCellInvalid(key, 'Use a percentage from 0 to 100.');
+      return;
+    }
+    clearCellInvalid(key);
+    queueSave({
+      projectId,
+      periodKind: period,
+      periodStart,
+      unit: 'percent',
+      minutes: null,
+      percent: Number.isNaN(percent) ? 0 : percent,
+      note: merged.note || null,
+      clear: empty,
+    });
+  };
+
   const setCell = (projectId: string, periodStart: string, next: Partial<CellDraft>) => {
     if (isTimesheetLocked({ periodStart: parseYmd(periodStart), periodKind: period, editDays, today })) return;
     const current = displayCell(projectId, periodStart);
     const merged = { ...current, ...next };
     setDrafts((prev) => ({ ...prev, [cellKey(projectId, periodStart)]: merged }));
-    const cellUnit = merged.unit;
-    const minutes = cellUnit === 'time' ? parseTimeToMinutes(merged.text) : null;
-    const percent = cellUnit === 'percent' ? (merged.text.trim() === '' ? 0 : Number.parseInt(merged.text, 10) || 0) : null;
+    if (next.text !== undefined) return;
+    const key = cellKey(projectId, periodStart);
     const empty = !merged.text.trim() && !merged.note.trim();
+    if (merged.unit === 'time' && merged.text.trim() && parseTimeToMinutes(merged.text) == null) {
+      markCellInvalid(key, 'Use 2:30 or 2.5.');
+      return;
+    }
+    clearCellInvalid(key);
     queueSave({
       projectId,
       periodKind: period,
       periodStart,
-      unit: cellUnit,
-      minutes: cellUnit === 'time' ? minutes ?? 0 : null,
-      percent: cellUnit === 'percent' ? percent : null,
+      unit: merged.unit,
+      minutes: merged.unit === 'time' ? parseTimeToMinutes(merged.text) ?? 0 : null,
+      percent: merged.unit === 'percent' ? (merged.text.trim() === '' ? 0 : Number.parseInt(merged.text, 10) || 0) : null,
       note: merged.note || null,
       clear: empty,
     });
@@ -211,7 +315,9 @@ export function TimesheetsScreen() {
     try {
       setSaveState('saving');
       await saveDaysOff.mutateAsync(
-        kind ? { days: [{ date: ymd, kind }] } : { days: [{ date: ymd, clear: true }] },
+        kind
+          ? { userId: sheetUserId, days: [{ date: ymd, kind }] }
+          : { userId: sheetUserId, days: [{ date: ymd, clear: true }] },
       );
       setSaveState('saved');
       setSaveError(null);
@@ -221,30 +327,72 @@ export function TimesheetsScreen() {
     }
   };
 
-  const copyLastWeek = async () => {
-    if (readOnly || weekLocked) return;
-    const rows = lastWeek.data?.entries ?? [];
-    const writes: TimesheetEntryWrite[] = rows.map((row) => {
-      const start = formatYmd(addUtcDays(parseYmd(row.periodStart), 7));
-      return {
-        projectId: row.projectId,
-        periodKind: row.periodKind,
-        periodStart: start,
-        unit: row.unit,
-        minutes: row.minutes,
-        percent: row.percent,
-        note: row.note,
-      };
-    }).filter((row) => !offByDate.has(row.periodStart));
-    if (writes.length === 0) return;
+  const weekDays = period === 'daily' ? days : [weekStart];
+  const periodStarts = weekDays.map(formatYmd);
+
+  const copyWrites = (): TimesheetEntryWrite[] =>
+    (lastWeek.data?.entries ?? [])
+      .map((row) => {
+        const start = formatYmd(addUtcDays(parseYmd(row.periodStart), 7));
+        return {
+          projectId: row.projectId,
+          periodKind: row.periodKind,
+          periodStart: start,
+          unit: row.unit,
+          minutes: row.minutes,
+          percent: row.percent,
+          note: row.note,
+        };
+      })
+      .filter((row) => !offByDate.has(row.periodStart) && !dayLocked(row.periodStart));
+
+  const applyCopiedDrafts = (writes: TimesheetEntryWrite[]) => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const row of writes) {
+        const text =
+          row.unit === 'percent'
+            ? row.percent
+              ? String(row.percent)
+              : ''
+            : row.minutes
+              ? formatMinutes(row.minutes)
+              : '';
+        next[cellKey(row.projectId, row.periodStart)] = { text, note: row.note ?? '', unit: row.unit };
+      }
+      return next;
+    });
+  };
+
+  const runCopyLastWeek = async (writes: TimesheetEntryWrite[]) => {
     setSaveState('saving');
     try {
-      await saveEntries.mutateAsync(writes);
+      await saveEntries.mutateAsync({ entries: writes, userId: sheetUserId });
+      applyCopiedDrafts(writes);
       setSaveState('saved');
+      setSaveError(null);
+      message.success(
+        `Copied ${writes.length} ${writes.length === 1 ? 'entry' : 'entries'} from last week. Cells that already had time were replaced.`,
+      );
     } catch (err) {
       setSaveState('error');
       setSaveError(err instanceof ApiError ? err.message : 'Could not copy last week.');
     }
+  };
+
+  const copyLastWeek = async (force = false) => {
+    if (readOnly || weekLocked) return;
+    const writes = copyWrites();
+    if (writes.length === 0) {
+      message.info('Last week has no entries to copy.');
+      return;
+    }
+    const weekHasTime = periodStarts.some((ymd) => dayHasTime(ymd));
+    if (weekHasTime && !force) {
+      setCopyConfirmOpen(true);
+      return;
+    }
+    await runCopyLastWeek(writes);
   };
 
   const valueOf = (projectId: string, ymd: string) => {
@@ -252,9 +400,6 @@ export function TimesheetsScreen() {
     if (cell.unit === 'percent') return Number(cell.text) || 0;
     return parseTimeToMinutes(cell.text) ?? 0;
   };
-
-  const weekDays = period === 'daily' ? days : [weekStart];
-  const periodStarts = weekDays.map(formatYmd);
 
   const dayTotals = days.map((date) => {
     const ymd = formatYmd(date);
@@ -297,11 +442,39 @@ export function TimesheetsScreen() {
   const offWhich = days.filter((d) => offByDate.has(formatYmd(d))).map((d) => DAY_SHORT[d.getUTCDay()]).join(', ');
 
   const mixedUnits = (sheet.data?.entries ?? []).some((e) => e.unit !== unit);
-  const openable = projects;
-  const withTime = openable.filter((p) => periodStarts.some((ymd) => valueOf(p.id, ymd) > 0 || displayCell(p.id, ymd).note));
-  const extras = openable.filter((p) => !withTime.includes(p));
-  const shown = extraOpen ? openable : [...withTime, ...extras].slice(0, Math.max(4, withTime.length));
+  const openable = useMemo(
+    () => [...projects].sort((a, b) => a.name.localeCompare(b.name, 'en-GB')),
+    [projects],
+  );
+
+  useEffect(() => {
+    if (sessionShownIds || !sheet.data) return;
+    const hasSaved = (projectId: string) =>
+      (sheet.data?.entries ?? []).some((row) => {
+        if (row.projectId !== projectId) return false;
+        return (row.minutes ?? 0) > 0 || (row.percent ?? 0) > 0 || Boolean(row.note);
+      });
+    const mustIds = openable.filter((p) => hasSaved(p.id)).map((p) => p.id);
+    const extraIds = openable.filter((p) => !mustIds.includes(p.id)).map((p) => p.id);
+    const keep = new Set([...mustIds, ...extraIds.slice(0, Math.max(0, 4 - mustIds.length))]);
+    setSessionShownIds(openable.filter((p) => keep.has(p.id)).map((p) => p.id));
+  }, [openable, sessionShownIds, sheet.data]);
+
+  const shown = extraOpen
+    ? openable
+    : openable.filter((p) => (sessionShownIds ?? openable.slice(0, 4).map((row) => row.id)).includes(p.id));
   const hiddenCount = Math.max(0, openable.length - shown.length);
+
+  const lockedDays = days.filter((d) => dayLocked(formatYmd(d)));
+  const openDays = days.filter((d) => !dayLocked(formatYmd(d)));
+  const partialLock = period === 'daily' && !periodLocked && lockedDays.length > 0 && openDays.length > 0 && editDays >= 0;
+  const firstOpen = openDays[0];
+  const openDayNames = openDays.map((d) => DAY_SHORT[d.getUTCDay()]).join(', ');
+  const partialLockMessage = firstOpen
+    ? `Days before ${DAY_SHORT[firstOpen.getUTCDay()]} ${dayLabel(firstOpen)} are locked. ${openDayNames} ${openDays.length === 1 ? 'is' : 'are'} still open.`
+    : '';
+  const hideCopy = readOnly || weekLocked;
+  const hideHint = readOnly || periodLocked;
 
   const viewingName = people.data?.find((p) => p.id === viewUserId)?.name;
   const maxWeeklyOff = days.filter((d) => isWorkingDay(d, workingDays) && !holidayByDate.has(formatYmd(d))).length;
@@ -376,13 +549,17 @@ export function TimesheetsScreen() {
               />
             </label>
           )}
-          {readOnly && (
-            <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: color.chip, color: color.ink3 }}>Read-only</span>
+          {viewingOther && (
+            <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: color.chip, color: color.ink3 }}>
+              {canAdmin ? `Editing ${viewingName ?? 'this person'}` : 'Read-only'}
+            </span>
           )}
           <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: saveState === 'error' ? color.danger : color.brandStrong }}>
             {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Could not save' : saveState === 'saved' ? 'Saved' : ''}
           </span>
-          {!readOnly && !weekLocked && <Button onClick={() => void copyLastWeek()}>Copy last week</Button>}
+          <span style={{ visibility: hideCopy ? 'hidden' : 'visible', pointerEvents: hideCopy ? 'none' : 'auto' }}>
+            <Button onClick={() => void copyLastWeek()}>Copy last week</Button>
+          </span>
           <div role="group" aria-label="Week" style={{ display: 'flex', alignItems: 'center', border: `1px solid ${color.border}`, borderRadius: radius.md, background: color.surface }}>
             <Button type="text" aria-label="Previous week" onClick={() => setAnchor(addUtcDays(weekStart, -7))} style={{ width: 36 }}>‹</Button>
             <span style={{ padding: '0 6px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{weekRangeLabel(weekStart)}</span>
@@ -399,6 +576,9 @@ export function TimesheetsScreen() {
           showIcon
           message={`This week is locked. People can only change timesheets for ${timesheetLockLabel(editDays)} so reports stay stable.`}
         />
+      )}
+      {!readOnly && partialLock && (
+        <Alert type="info" showIcon message={partialLockMessage} />
       )}
       {mixedUnits && (
         <Alert
@@ -445,13 +625,13 @@ export function TimesheetsScreen() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '12px 16px', borderTop: `1px solid ${color.divider}` }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500 }}>
-              My days off
+              {viewingOther ? 'Days off' : 'My days off'}
               <Select
                 aria-label="My days off"
                 value={weekOffCount}
                 style={{ width: 72 }}
                 options={Array.from({ length: maxWeeklyOff + 1 }, (_, n) => ({ value: n, label: String(n) }))}
-                onChange={(count) => void saveDaysOff.mutateAsync({ week: { weekStart: from, count, kind: weekOffKind, note: weekOffNote || null } })}
+                onChange={(count) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count, kind: weekOffKind, note: weekOffNote || null } })}
               />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500 }}>
@@ -461,7 +641,7 @@ export function TimesheetsScreen() {
                 value={weekOffKind}
                 style={{ width: 120 }}
                 options={[{ value: 'leave', label: 'Leave' }, { value: 'other', label: 'Other' }]}
-                onChange={(kind) => void saveDaysOff.mutateAsync({ week: { weekStart: from, count: weekOffCount, kind, note: weekOffNote || null } })}
+                onChange={(kind) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind, note: weekOffNote || null } })}
               />
             </label>
             <Input
@@ -469,7 +649,7 @@ export function TimesheetsScreen() {
               aria-label="Days off note"
               style={{ flex: '1 1 140px', maxWidth: 280 }}
               defaultValue={weekOffNote}
-              onBlur={(e) => void saveDaysOff.mutateAsync({ week: { weekStart: from, count: weekOffCount, kind: weekOffKind, note: e.target.value || null } })}
+              onBlur={(e) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind: weekOffKind, note: e.target.value || null } })}
             />
           </div>
           <p style={{ margin: 0, padding: '10px 16px', borderTop: `1px solid ${color.divider}`, background: color.subtle, fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
@@ -490,6 +670,8 @@ export function TimesheetsScreen() {
           from={from}
           displayCell={displayCell}
           setCell={setCell}
+          commitCell={commitCell}
+          invalidCells={invalidCells}
           readOnly={readOnly || weekLocked}
           weekTotal={weekTotal}
         />
@@ -504,6 +686,8 @@ export function TimesheetsScreen() {
           workingDays={workingDays}
           displayCell={displayCell}
           setCell={setCell}
+          commitCell={commitCell}
+          invalidCells={invalidCells}
           readOnly={readOnly}
           dayLocked={dayLocked}
           dayHasTime={dayHasTime}
@@ -514,14 +698,14 @@ export function TimesheetsScreen() {
           setNoteCell={setNoteCell}
           noteDraft={noteDraft}
           setNoteDraft={setNoteDraft}
-          viewingOther={viewingOther}
+          hideOffKind={viewingOther && !canAdmin}
           dayTimeLabel={dayTimeLabel}
         />
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 12.5, color: color.muted }}>
         <span>
-          {unit === 'time' ? (
+          {hideHint ? null : unit === 'time' ? (
             <>Type <kbd className="bt-kbd">2:30</kbd> or <kbd className="bt-kbd">2.5</kbd>. Tab moves to the next {period === 'daily' ? 'day' : 'project'}. Changes save as you go. Click a filled cell again to add a note.{period === 'daily' ? ' Open a day\'s menu to mark it off.' : ''}</>
           ) : (
             <>Type a percentage. Changes save as you go. Weeks and days usually add up to 100%, but short totals still save.</>
@@ -534,12 +718,27 @@ export function TimesheetsScreen() {
         )}
       </div>
 
-      {readOnly && viewingName && (
+      {viewingOther && viewingName && (
         <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>
-          You lead {leadsProjects.map((p) => p.name).join(' and ') || 'these projects'}, so you only see {viewingName}'s time on those.
-          Days off show as "Off"; the type and note stay private to {viewingName}, owners and admins.
+          {canAdmin
+            ? 'You can see this because you are an owner/admin.'
+            : `You lead ${leadsProjects.map((p) => p.name).join(' and ') || 'these projects'}, so you only see ${viewingName}'s time on those. Days off show as "Off"; the type and note stay private to ${viewingName}, owners and admins.`}
         </p>
       )}
+
+      <ConfirmDialog
+        open={copyConfirmOpen}
+        title="Replace filled cells with last week?"
+        confirmLabel="Replace"
+        tone="primary"
+        onCancel={() => setCopyConfirmOpen(false)}
+        onConfirm={() => {
+          setCopyConfirmOpen(false);
+          void copyLastWeek(true);
+        }}
+      >
+        Copied cells replace time already entered this week.
+      </ConfirmDialog>
     </div>
   );
 }
@@ -572,6 +771,8 @@ function WeeklyGrid({
   from,
   displayCell,
   setCell,
+  commitCell,
+  invalidCells,
   readOnly,
   weekTotal,
 }: {
@@ -581,6 +782,8 @@ function WeeklyGrid({
   from: string;
   displayCell: (projectId: string, periodStart: string) => CellDraft;
   setCell: (projectId: string, periodStart: string, next: Partial<CellDraft>) => void;
+  commitCell: (projectId: string, periodStart: string) => void;
+  invalidCells: Record<string, boolean>;
   readOnly: boolean;
   weekTotal: number;
 }) {
@@ -593,6 +796,7 @@ function WeeklyGrid({
       </div>
       {projects.map((p) => {
         const cell = displayCell(p.id, from);
+        const invalid = Boolean(invalidCells[cellKey(p.id, from)]);
         const n = unit === 'percent' ? Number(cell.text) || 0 : 0;
         return (
           <div key={p.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, minHeight: 48, padding: '6px 16px', borderTop: `1px solid ${color.divider}` }}>
@@ -618,8 +822,14 @@ function WeeklyGrid({
                 value={cell.text}
                 disabled={readOnly}
                 inputMode="decimal"
+                status={invalid ? 'error' : undefined}
+                aria-invalid={invalid}
                 aria-label={`${p.name}, week of ${dayLabel(weekStart)}`}
                 onChange={(e) => setCell(p.id, from, { text: e.target.value })}
+                onBlur={() => commitCell(p.id, from)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' || e.key === 'Enter') commitCell(p.id, from);
+                }}
                 style={{ width: unit === 'percent' ? 64 : 76, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
               />
               {unit === 'percent' && <span style={{ fontSize: 13, color: color.muted }}>%</span>}
@@ -655,6 +865,8 @@ function DailyGrid({
   workingDays,
   displayCell,
   setCell,
+  commitCell,
+  invalidCells,
   readOnly,
   dayLocked,
   dayHasTime,
@@ -665,7 +877,7 @@ function DailyGrid({
   setNoteCell,
   noteDraft,
   setNoteDraft,
-  viewingOther,
+  hideOffKind,
   dayTimeLabel,
 }: {
   projects: { id: string; name: string; key: string; color: string; leadId: string }[];
@@ -677,6 +889,8 @@ function DailyGrid({
   workingDays: string[];
   displayCell: (projectId: string, periodStart: string) => CellDraft;
   setCell: (projectId: string, periodStart: string, next: Partial<CellDraft>) => void;
+  commitCell: (projectId: string, periodStart: string) => void;
+  invalidCells: Record<string, boolean>;
   readOnly: boolean;
   dayLocked: (ymd: string) => boolean;
   dayHasTime: (ymd: string) => boolean;
@@ -687,7 +901,7 @@ function DailyGrid({
   setNoteCell: (v: { projectId: string; periodStart: string } | null) => void;
   noteDraft: string;
   setNoteDraft: (v: string) => void;
-  viewingOther: boolean;
+  hideOffKind: boolean;
   dayTimeLabel: (ymd: string) => string;
 }) {
   const [holidayEdit, setHolidayEdit] = useState<string | null>(null);
@@ -750,7 +964,7 @@ function DailyGrid({
                 </Dropdown>
                 {off && (
                   <span style={{ display: 'inline-block', marginTop: 2, fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: color.chip, color: color.ink3 }}>
-                    {viewingOther || !off.kind ? 'Off' : `Off: ${kindLabel(off.kind)}`}
+                    {hideOffKind || !off.kind ? 'Off' : `Off: ${kindLabel(off.kind)}`}
                   </span>
                 )}
               </span>
@@ -783,6 +997,7 @@ function DailyGrid({
                     ) : (
                       <Popover
                         open={open}
+                        getPopupContainer={(node) => node.parentElement ?? node}
                         onOpenChange={(next) => {
                           if (next && filled && !readOnly) {
                             setNoteCell({ projectId: p.id, periodStart: ymd });
@@ -828,11 +1043,19 @@ function DailyGrid({
                           inputMode="decimal"
                           value={cell.text}
                           placeholder={holiday && !filled ? 'Holiday' : '-'}
+                          status={invalidCells[cellKey(p.id, ymd)] ? 'error' : undefined}
+                          aria-invalid={Boolean(invalidCells[cellKey(p.id, ymd)])}
                           aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}`}
                           autoFocus={holidayEdit === `${p.id}:${ymd}`}
                           onChange={(e) => setCell(p.id, ymd, { text: e.target.value })}
-                          onBlur={() => { if (!displayCell(p.id, ymd).text.trim()) setHolidayEdit(null); }}
-                          style={{ height: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderColor: isToday ? color.brandBorder : color.border, background: holiday && !filled ? color.infoTint : color.surface }}
+                          onBlur={() => {
+                            commitCell(p.id, ymd);
+                            if (!displayCell(p.id, ymd).text.trim()) setHolidayEdit(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' || e.key === 'Enter') commitCell(p.id, ymd);
+                          }}
+                          style={{ height: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderColor: invalidCells[cellKey(p.id, ymd)] ? color.danger : isToday ? color.brandBorder : color.border, background: holiday && !filled ? color.infoTint : color.surface }}
                         />
                         )}
                       </Popover>

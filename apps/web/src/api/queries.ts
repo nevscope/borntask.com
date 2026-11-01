@@ -1007,16 +1007,16 @@ export function useTimesheets(from: string, to: string, userId?: string, enabled
 export function useSaveTimesheets() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (entries: TimesheetEntryWrite[]) => {
+    mutationFn: async (input: { entries: TimesheetEntryWrite[]; userId?: string }) => {
       const res = await fetch(`${BASE_URL}/timesheets`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries }),
+        body: JSON.stringify(input),
       });
       const json = await res.json().catch(() => ({})) as { message?: string; saved?: number };
       if (!res.ok) {
-        if (USE_MOCKS) return { saved: entries.length };
+        if (USE_MOCKS) return { saved: input.entries.length };
         throw new ApiError(res.status, 'VALIDATION', json.message ?? 'Could not save the timesheet.');
       }
       return json;
@@ -1029,6 +1029,7 @@ export function useSaveDaysOff() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
+      userId?: string;
       days?: Array<{ date: string; kind?: 'leave' | 'other'; note?: string | null; clear?: boolean }>;
       week?: { weekStart: string; count: number; kind: 'leave' | 'other'; note?: string | null };
     }) => {
@@ -1062,6 +1063,7 @@ export type WorkspaceReports = {
     open: number;
     openHint: string;
     overdue: number;
+    overdueHint?: string;
     unscheduled: number | null;
     closeDays: string;
     closeHint: string;
@@ -1172,6 +1174,7 @@ function mapLiveReports(raw: {
     open: number;
     openHint?: string;
     overdue: number;
+    overdueHint?: string;
     unscheduled?: number | null;
     inFlight?: number;
     closeDays?: string;
@@ -1236,9 +1239,12 @@ function mapLiveReports(raw: {
   workingDaysSoFar?: number;
 }, from: string, to: string, timeZone: string): WorkspaceReports {
   const people = raw.timesheets?.people ?? [];
-  const complete = people.filter((p) => p.complete).length;
-  const partial = people.filter((p) => !p.complete && p.loggedDays > 0).length;
-  const none = people.filter((p) => p.loggedDays === 0).length;
+  const isExtra = (p: { expected: number; loggedDays: number; minutes?: number; weight?: number }) =>
+    p.expected === 0 && (p.loggedDays > 0 || (p.minutes ?? 0) > 0 || (p.weight ?? 0) > 0);
+  const complete = people.filter((p) => p.expected > 0 && p.complete).length;
+  const extra = people.filter(isExtra).length;
+  const none = people.filter((p) => !isExtra(p) && p.loggedDays === 0).length;
+  const partial = people.filter((p) => p.expected > 0 && !p.complete && p.loggedDays > 0).length;
   const missingPeople = people.filter((p) => p.missing > 0).length;
   const daysOffPeople = people.filter((p) => p.off > 0).length;
   const projects = (raw.timesheets?.byProject ?? []).map((p) => ({ id: p.projectId, name: p.name, colour: p.colour }));
@@ -1263,6 +1269,7 @@ function mapLiveReports(raw: {
       open: raw.tasks?.open ?? 0,
       openHint: raw.tasks?.openHint ?? (raw.tasks?.inFlight != null ? `${raw.tasks.inFlight} in flight` : ''),
       overdue: raw.tasks?.overdue ?? 0,
+      overdueHint: raw.tasks?.overdueHint,
       unscheduled: raw.tasks?.unscheduled ?? null,
       closeDays: raw.tasks?.closeDays ?? daysLabel(raw.tasks?.avgCloseDays),
       closeHint: raw.tasks?.closeHint ?? (raw.tasks?.avgCloseDays != null ? 'average' : ''),
@@ -1287,7 +1294,9 @@ function mapLiveReports(raw: {
       missingPeople,
       daysOff: raw.timesheets?.daysOff ?? 0,
       daysOffPeople,
-      completeLabel: `${complete} complete · ${partial} partial · ${none} none`,
+      completeLabel: extra > 0
+        ? `${complete} complete · ${partial} partial · ${extra} extra · ${none} none`
+        : `${complete} complete · ${partial} partial · ${none} none`,
       projects,
       people: people.map((p) => ({
         userId: p.userId,
@@ -1345,7 +1354,7 @@ export function useWorkspaceReports(
         if (!res.ok) {
           if (USE_MOCKS) {
             const { mockWorkspaceReports } = await import('./reportsMock');
-            return mockWorkspaceReports();
+            return mockWorkspaceReports(projectId);
           }
           throw new ApiError(res.status, 'FORBIDDEN', (json as { message?: string }).message ?? 'You cannot view reports.');
         }
@@ -1353,7 +1362,7 @@ export function useWorkspaceReports(
       } catch (err) {
         if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
           const { mockWorkspaceReports } = await import('./reportsMock');
-          return mockWorkspaceReports();
+          return mockWorkspaceReports(projectId);
         }
         throw err;
       }

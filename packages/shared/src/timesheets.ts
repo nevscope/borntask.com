@@ -61,13 +61,14 @@ export const timesheetEntryWriteSchema = z.object({
   periodKind: timesheetPeriodSchema,
   periodStart: ymdSchema,
   unit: timesheetUnitSchema,
-  minutes: z.number().int().min(0).max(24 * 60 * 14).nullable().optional(),
+  minutes: z.number().int().min(0).max(24 * 60).nullable().optional(),
   percent: z.number().int().min(0).max(100).nullable().optional(),
   note: z.string().trim().max(2000).nullable().optional(),
   clear: z.boolean().optional(),
 });
 
 export const putTimesheetsSchema = z.object({
+  userId: z.string().min(1).optional(),
   entries: z.array(timesheetEntryWriteSchema),
 });
 
@@ -86,6 +87,7 @@ export const weekDaysOffSchema = z.object({
 });
 
 export const putDaysOffSchema = z.object({
+  userId: z.string().min(1).optional(),
   days: z.array(dayOffWriteSchema).optional(),
   week: weekDaysOffSchema.optional(),
 });
@@ -238,13 +240,32 @@ export function formatMinutes(minutes: number): string {
   return `${hours}:${String(mins).padStart(2, '0')}`;
 }
 
+const MINUTES_PER_CELL = 24 * 60;
+
 export function parseTimeToMinutes(value: string): number | null {
   const trimmed = value.trim();
+  if (!trimmed) return null;
   const colon = trimmed.match(/^(\d+):(\d{1,2})$/);
-  if (colon) return Number(colon[1]) * 60 + Number(colon[2]);
-  const decimal = trimmed.match(/^(\d+)(?:\.(\d+))?$/);
-  if (decimal) return Math.round(Number(trimmed) * 60);
+  if (colon) {
+    const hours = Number(colon[1]);
+    const mins = Number(colon[2]);
+    if (mins >= 60) return null;
+    const total = hours * 60 + mins;
+    if (total > MINUTES_PER_CELL) return null;
+    return total;
+  }
+  const decimal = trimmed.replace(',', '.').match(/^\d+(?:\.\d+)?$/);
+  if (decimal) {
+    const total = Math.round(Number(decimal[0]) * 60);
+    if (total > MINUTES_PER_CELL) return null;
+    return total;
+  }
   return null;
+}
+
+export function loggedExpectedDays(logged: Iterable<string>, expectedDates: Date[]): number {
+  const set = new Set(logged);
+  return expectedDates.filter((date) => set.has(formatYmd(date))).length;
 }
 
 export function placeWeeklyDaysOff(input: {
@@ -281,26 +302,32 @@ export function rollupCompleteness(input: {
   workingDays: string[];
   holidays: Iterable<string>;
   today?: Date;
+  startOn?: Date | null;
   people: CompletenessPerson[];
-}): { complete: number; missingDays: number; daysOff: number; expectedBase: number } {
+}): { complete: number; missingDays: number; daysOff: number; expectedBase: number; extra: number; none: number } {
   const expectedBase = workingDatesInRange({
     from: input.from,
     to: input.to,
     workingDays: input.workingDays,
     holidays: input.holidays,
     today: input.today,
+    startOn: input.startOn,
   }).length;
   let complete = 0;
   let missing = 0;
   let daysOff = 0;
+  let extra = 0;
+  let none = 0;
   for (const person of input.people) {
     const expected = Math.max(0, expectedBase - person.daysOff);
     const miss = missingDays(expected, person.daysWithTime);
-    if (person.daysWithTime === expected) complete += 1;
+    if (expected === 0 && person.daysWithTime > 0) extra += 1;
+    else if (expected === 0 || person.daysWithTime === 0) none += 1;
+    else if (person.daysWithTime === expected) complete += 1;
     missing += miss;
     daysOff += person.daysOff;
   }
-  return { complete, missingDays: missing, daysOff, expectedBase };
+  return { complete, missingDays: missing, daysOff, expectedBase, extra, none };
 }
 
 export const CANVAS_REPORTS_FIXTURE = {

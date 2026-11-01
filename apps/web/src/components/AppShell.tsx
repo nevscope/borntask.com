@@ -48,6 +48,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stored = welcome ? readWelcome() : null;
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const settingsTo = canAdmin ? '/settings/workspace' : '/settings/people';
   const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
   const favourites = projects.filter((p) => p.starred);
@@ -355,7 +357,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         {!guest && (
-          <NavLink to="/settings/people" className="bt-nav-link" title="Settings">
+          <NavLink to={settingsTo} className="bt-nav-link" title="Settings">
             <span className="bt-nav-icon"><NavIcon kind="settings" /></span>
             <span className="bt-sidebar-label">Settings</span>
           </NavLink>

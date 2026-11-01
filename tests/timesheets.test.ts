@@ -9,9 +9,14 @@ import {
   timesheetPersonStart,
   formatMinutes,
   isTimesheetLocked,
+  loggedExpectedDays,
+  parseTimeToMinutes,
   parseYmd,
   placeWeeklyDaysOff,
   rollupCompleteness,
+  putDaysOffSchema,
+  putTimesheetsSchema,
+  timesheetEntryWriteSchema,
   weekStartFor,
 } from '../packages/shared/src/timesheets.ts';
 import { ApiError, conflict } from '../apps/api/src/errors.ts';
@@ -78,7 +83,61 @@ describe('days off rules', () => {
   });
 });
 
+describe('parseTimeToMinutes and cell cap', () => {
+  test('accepts colon, decimal and comma hours, and formats H:MM', () => {
+    expect(parseTimeToMinutes('1:30')).toBe(90);
+    expect(parseTimeToMinutes('2.5')).toBe(150);
+    expect(parseTimeToMinutes('1,5')).toBe(90);
+    expect(parseTimeToMinutes('24:00')).toBe(24 * 60);
+    expect(formatMinutes(90)).toBe('1:30');
+  });
+
+  test('rejects junk, negatives, minutes of 60 or more, and more than 24:00', () => {
+    expect(parseTimeToMinutes('abc')).toBeNull();
+    expect(parseTimeToMinutes('-1')).toBeNull();
+    expect(parseTimeToMinutes('0:75')).toBeNull();
+    expect(parseTimeToMinutes('24:01')).toBeNull();
+    expect(parseTimeToMinutes('24.1')).toBeNull();
+    expect(parseTimeToMinutes('25')).toBeNull();
+  });
+
+  test('write schema minutes max is 24 hours per cell', () => {
+    expect(timesheetEntryWriteSchema.safeParse({
+      projectId: 'p1',
+      periodKind: 'daily',
+      periodStart: '2026-11-01',
+      unit: 'time',
+      minutes: 24 * 60,
+    }).success).toBe(true);
+    expect(timesheetEntryWriteSchema.safeParse({
+      projectId: 'p1',
+      periodKind: 'daily',
+      periodStart: '2026-11-01',
+      unit: 'time',
+      minutes: 24 * 60 + 1,
+    }).success).toBe(false);
+  });
+
+  test('put schemas accept an optional userId', () => {
+    expect(putTimesheetsSchema.safeParse({ entries: [] }).success).toBe(true);
+    expect(putTimesheetsSchema.safeParse({ userId: 'u1', entries: [] }).success).toBe(true);
+    expect(putDaysOffSchema.safeParse({ userId: 'u1', days: [] }).success).toBe(true);
+  });
+});
+
 describe('timesheet start date', () => {
+  test('1 Nov 2026 with a 2 Nov start has 0 expected working days so far', () => {
+    expect(
+      expectedDays({
+        from: parseYmd('2026-11-01'),
+        to: parseYmd('2026-11-30'),
+        workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        today: parseYmd('2026-11-01'),
+        startOn: parseYmd('2026-11-02'),
+      }),
+    ).toBe(0);
+  });
+
   test('expected days ignore dates before timesheets start', () => {
     expect(
       expectedDays({
@@ -133,6 +192,31 @@ describe('completeness and canvas fixture', () => {
     expect(CANVAS_REPORTS_FIXTURE.closed).toBe(41);
     expect(CANVAS_REPORTS_FIXTURE.open).toBe(63);
     expect(CANVAS_REPORTS_FIXTURE.overdue).toBe(7);
+  });
+
+  test('0 of 0 is none, not complete; expected 0 with time is extra', () => {
+    const empty = rollupCompleteness({
+      from: parseYmd('2026-11-01'),
+      to: parseYmd('2026-11-30'),
+      workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+      holidays: [],
+      today: parseYmd('2026-11-01'),
+      startOn: parseYmd('2026-11-02'),
+      people: [
+        { userId: 'a', daysWithTime: 0, daysOff: 0 },
+        { userId: 'b', daysWithTime: 1, daysOff: 0 },
+      ],
+    });
+    expect(empty.expectedBase).toBe(0);
+    expect(empty.complete).toBe(0);
+    expect(empty.none).toBe(1);
+    expect(empty.extra).toBe(1);
+  });
+
+  test('logged days against expected ignore Saturday unless it is a working day', () => {
+    const expected = [parseYmd('2026-10-30')];
+    expect(loggedExpectedDays(['2026-10-30', '2026-10-31'], expected)).toBe(1);
+    expect(loggedExpectedDays(['2026-10-31'], expected)).toBe(0);
   });
 });
 

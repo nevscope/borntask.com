@@ -1,9 +1,11 @@
+import { MCP_TOOL_NAMES, type McpToolName } from '@borntask/shared';
+
 function apiBase(): string {
   return (process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3010').replace(/\/$/, '');
 }
 
 type ToolDef = {
-  name: string;
+  name: McpToolName;
   description: string;
   inputSchema: Record<string, unknown>;
 };
@@ -127,6 +129,13 @@ export const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+const implemented = new Set(TOOLS.map((tool) => tool.name));
+for (const name of MCP_TOOL_NAMES) {
+  if (!implemented.has(name)) {
+    throw new Error(`MCP tool ${name} is listed in MCP_TOOL_NAMES but missing from TOOLS.`);
+  }
+}
 
 async function api(token: string, method: string, path: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${apiBase()}${path}`, {

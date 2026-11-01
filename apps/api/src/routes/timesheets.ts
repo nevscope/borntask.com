@@ -10,13 +10,16 @@ import { requireAuth } from '../context.js';
 import { forbidden, sendError, validation } from '../errors.js';
 import {
   applyWeekDaysOff,
+  assertDailyMinutesCap,
   assertDayOffAllowed,
   assertTimeAllowed,
   assertTimesheetEditable,
   canReadTimesheet,
   holidaysInRange,
+  logTimesheetCorrection,
   mapDayOff,
   requireTimesheetWrite,
+  resolveTimesheetWriteUserId,
   workspaceTimesheetSettings,
   ymdOf,
 } from '../lib/timesheets.js';
@@ -80,18 +83,23 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       requireTimesheetWrite(auth.workspaceRole);
       const body = putTimesheetsSchema.parse(req.body);
+      const userId = await resolveTimesheetWriteUserId(auth, body.userId);
       const settings = await workspaceTimesheetSettings(auth);
       const saved = [];
       for (const entry of body.entries) {
         assertTimesheetEditable(entry.periodStart, entry.periodKind, settings.timesheetEditDays);
-        await assertTimeAllowed(auth, auth.userId, entry.periodKind, entry.periodStart);
+        await assertTimeAllowed(auth, userId, entry.periodKind, entry.periodStart);
         const project = await auth.db.project.findFirst({ where: { id: entry.projectId } });
         if (!project) throw validation('That project is not in this workspace.');
         if (!project.acceptsTimesheets) throw validation('This project does not accept timesheets.');
+        const minutes = entry.unit === 'time' ? entry.minutes ?? 0 : 0;
+        if (entry.periodKind === 'daily' && entry.unit === 'time' && !entry.clear) {
+          await assertDailyMinutesCap(auth, userId, entry.periodStart, entry.projectId, minutes);
+        }
         const where = {
           tenantId_userId_projectId_periodStart_periodKind: {
             tenantId: auth.tenantId,
-            userId: auth.userId,
+            userId,
             projectId: entry.projectId,
             periodStart: parseYmd(entry.periodStart),
             periodKind: entry.periodKind,
@@ -103,7 +111,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         if (empty) {
           await auth.db.timesheetEntry.deleteMany({
             where: {
-              userId: auth.userId,
+              userId,
               projectId: entry.projectId,
               periodStart: parseYmd(entry.periodStart),
               periodKind: entry.periodKind,
@@ -115,7 +123,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
           where,
           create: {
             tenantId: auth.tenantId,
-            userId: auth.userId,
+            userId,
             projectId: entry.projectId,
             periodKind: entry.periodKind,
             periodStart: parseYmd(entry.periodStart),
@@ -133,6 +141,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         });
         saved.push(row);
       }
+      await logTimesheetCorrection(auth, userId, { kind: 'entries', saved: saved.length });
       return { saved: saved.length };
     } catch (err) {
       return sendError(reply, err);
@@ -144,34 +153,36 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       requireTimesheetWrite(auth.workspaceRole);
       const body = putDaysOffSchema.parse(req.body);
+      const userId = await resolveTimesheetWriteUserId(auth, body.userId);
       const settings = await workspaceTimesheetSettings(auth);
       const holidayRows = await auth.db.workspaceHoliday.findMany();
       const holidaySet = new Set(holidayRows.map((row) => ymdOf(row.date)));
       if (body.week) {
         const placed = await applyWeekDaysOff(
           auth,
-          auth.userId,
+          userId,
           body.week,
           settings.workingDays,
           settings.weekStart,
           settings.timesheetEditDays,
         );
+        await logTimesheetCorrection(auth, userId, { kind: 'daysOff', week: body.week.weekStart, count: placed.length });
         return { placed };
       }
       for (const day of body.days ?? []) {
         assertTimesheetEditable(day.date, 'daily', settings.timesheetEditDays);
         const date = parseYmd(day.date);
         if (day.clear) {
-          await auth.db.timesheetDayOff.deleteMany({ where: { userId: auth.userId, date } });
+          await auth.db.timesheetDayOff.deleteMany({ where: { userId, date } });
           continue;
         }
         if (!day.kind) throw validation('Choose Leave or Other.');
-        await assertDayOffAllowed(auth, auth.userId, day.date, settings.workingDays, holidaySet);
+        await assertDayOffAllowed(auth, userId, day.date, settings.workingDays, holidaySet);
         await auth.db.timesheetDayOff.upsert({
-          where: { tenantId_userId_date: { tenantId: auth.tenantId, userId: auth.userId, date } },
+          where: { tenantId_userId_date: { tenantId: auth.tenantId, userId, date } },
           create: {
             tenantId: auth.tenantId,
-            userId: auth.userId,
+            userId,
             date,
             kind: day.kind,
             note: day.note ?? null,
@@ -179,6 +190,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
           update: { kind: day.kind, note: day.note ?? null },
         });
       }
+      await logTimesheetCorrection(auth, userId, { kind: 'daysOff', days: (body.days ?? []).map((d) => d.date) });
       return { ok: true };
     } catch (err) {
       return sendError(reply, err);

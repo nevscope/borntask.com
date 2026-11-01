@@ -76,7 +76,7 @@ a{color:#0F6B46}a:hover{color:#0B5236}
           <code style="flex: 1 1 320px; display: flex; align-items: center; height: 38px; padding: 0 12px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FAFBF9; font-family: ui-monospace, Menlo, monospace; font-size: 13px;">https://[mcp-host].borntask.com/mcp</code>
           <button type="button" style="height: 38px; padding: 0 14px; border: 1px solid #E8EBE6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">Copy URL</button>
         </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"><span style="font-size: 12.5px; color: #5B6157; margin-right: 4px;">Tools available:</span><sc-for list="{{tools}}" as="x" hint-placeholder-count="8"><code style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F1F2EF; color: #3A3F38;">{{x}}</code></sc-for></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"><span style="font-size: 12.5px; color: #5B6157; margin-right: 4px;">Tools available:</span><sc-for list="{{tools}}" as="x" hint-placeholder-count="10"><code style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #F1F2EF; color: #3A3F38;">{{x}}</code></sc-for></div>
         <p style="margin: 0; font-size: 12.5px; color: #5B6157;">Moves made over MCP follow the same workflow rules as yours and appear in the activity log as "via MCP".</p>
       </section>
     </main>
@@ -92,7 +92,7 @@ class Component extends DCLogic {
         { name: 'Cursor', scopes: ['Read tasks'], used: '2 days ago', created: '1 Oct' },
         { name: 'Weekly report script', scopes: ['Read tasks'], used: 'Never', created: '28 Sep' }
       ],
-      tools: ['search_tasks', 'get_task', 'create_task', 'update_task', 'move_task', 'add_comment', 'list_projects', 'list_my_tasks']
+      tools: ['search_tasks', 'get_task', 'list_projects', 'list_my_tasks', 'create_task', 'update_task', 'move_task', 'move_task_to_project', 'add_comment', 'get_attachment']
     };
   }
 }

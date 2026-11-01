@@ -16,6 +16,67 @@ export function requireTimesheetWrite(role: Authed['workspaceRole']) {
   if (role === 'guest' || role === 'viewer') throw forbidden('Guests and viewers cannot log time.');
 }
 
+export async function resolveTimesheetWriteUserId(auth: Authed, requested?: string): Promise<string> {
+  const userId = requested ?? auth.userId;
+  if (userId === auth.userId) return auth.userId;
+  if (auth.via === 'mcp') throw forbidden('MCP cannot edit another person\'s timesheet.');
+  if (!isOwnerAdmin(auth.workspaceRole)) {
+    throw forbidden('Only an owner or admin can edit another person\'s timesheet.');
+  }
+  const member = await auth.db.tenantMember.findFirst({
+    where: { userId },
+    select: { tenantRole: true, isActive: true },
+  });
+  if (!member?.isActive) throw validation('That person is not in this workspace.');
+  if (member.tenantRole === 'guest' || member.tenantRole === 'viewer') {
+    throw forbidden('Guests and viewers cannot log time.');
+  }
+  return userId;
+}
+
+export async function assertDailyMinutesCap(
+  auth: Authed,
+  userId: string,
+  periodStart: string,
+  projectId: string,
+  minutes: number,
+) {
+  if (minutes <= 0) return;
+  const others = await auth.db.timesheetEntry.findMany({
+    where: {
+      userId,
+      periodKind: 'daily',
+      periodStart: parseYmd(periodStart),
+      projectId: { not: projectId },
+    },
+    select: { minutes: true },
+  });
+  const existing = others.reduce((sum, row) => sum + (row.minutes ?? 0), 0);
+  if (existing + minutes > 24 * 60) {
+    throw validation('A day cannot exceed 24:00.');
+  }
+}
+
+export async function logTimesheetCorrection(
+  auth: Authed,
+  sheetUserId: string,
+  detail: Record<string, unknown>,
+) {
+  if (sheetUserId === auth.userId) return;
+  await auth.db.activityLog.create({
+    data: {
+      tenantId: auth.tenantId,
+      taskId: null,
+      actorId: auth.userId,
+      actorType: 'user',
+      via: 'app',
+      action: 'updated timesheet',
+      fromJson: { sheetUserId },
+      toJson: detail,
+    },
+  });
+}
+
 export function requireOwnerAdmin(role: Authed['workspaceRole']) {
   if (role !== 'owner' && role !== 'admin') throw forbidden('Owners and admins only.');
 }

@@ -4,6 +4,7 @@ import {
   expectedDays,
   formatMinutes,
   formatYmd,
+  loggedExpectedDays,
   missingDays,
   parseYmd,
   timesheetPersonStart,
@@ -290,20 +291,6 @@ export async function workspaceReports(
   const people = members.map((m) => {
     const personStart = timesheetPersonStart(settings.timesheetsStartOn, m.createdAt);
     const daysOffCount = offByUser.get(m.userId)?.size ?? 0;
-    const loggedDays = timeByUserDay.get(m.userId)?.size ?? 0;
-    const expected = expectedDays({
-      from,
-      to,
-      workingDays: settings.workingDays,
-      holidays: holidaySet,
-      daysOff: offByUser.get(m.userId) ?? [],
-      today,
-      startOn: personStart,
-    });
-    const projectMins = minutesByUserProject.get(m.userId) ?? new Map();
-    const projectWeight = weightByUserProject.get(m.userId) ?? new Map();
-    const minutes = [...projectMins.values()].reduce((a, b) => a + b, 0);
-    const weight = [...projectWeight.values()].reduce((a, b) => a + b, 0);
     const expectedDates = workingDatesInRange({
       from,
       to,
@@ -313,9 +300,16 @@ export async function workspaceReports(
       startOn: personStart,
     }).filter((date) => !(offByUser.get(m.userId)?.has(formatYmd(date)) ?? false));
     const logged = timeByUserDay.get(m.userId) ?? new Set<string>();
+    const loggedDays = loggedExpectedDays(logged, expectedDates);
+    const expected = expectedDates.length;
+    const projectMins = minutesByUserProject.get(m.userId) ?? new Map();
+    const projectWeight = weightByUserProject.get(m.userId) ?? new Map();
+    const minutes = [...projectMins.values()].reduce((a, b) => a + b, 0);
+    const weight = [...projectWeight.values()].reduce((a, b) => a + b, 0);
     const missingDates = expectedDates.filter((date) => !logged.has(formatYmd(date)));
     const leaveDates = [...(offByUser.get(m.userId) ?? [])].map(parseYmd);
     const missing = missingDays(expected, loggedDays);
+    const extra = expected === 0 && (minutes > 0 || weight > 0 || logged.size > 0);
     return {
       userId: m.userId,
       name: m.user.name,
@@ -326,7 +320,8 @@ export async function workspaceReports(
       loggedDays,
       expected,
       missing,
-      complete: loggedDays === expected,
+      extra,
+      complete: expected > 0 && loggedDays === expected,
       byProject: Object.fromEntries([...projectMins.entries()].map(([id, mins]) => [id, formatMinutes(mins)])),
       byProjectMinutes: Object.fromEntries(projectMins.entries()),
       byProjectWeight: Object.fromEntries(projectWeight.entries()),
@@ -407,10 +402,19 @@ export async function workspaceReports(
       open: open.length,
       openHint: `${inFlight.length} in flight · ${onHold} on hold`,
       overdue: overdue.length,
+      overdueHint:
+        overdue.length === 0 && open.length > 0 && unscheduled * 2 > open.length
+          ? `0 because ${unscheduled} of ${open.length} open tasks have no due date`
+          : 'past due, not closed',
       unscheduled,
       inFlight: inFlight.length,
       closeDays: daysPhrase(medianClose, 'days'),
-      closeHint: avgClose != null ? `median · average ${avgClose} days` : '',
+      closeHint: [
+        avgClose != null ? `median · average ${avgClose} days` : medianClose != null ? 'median' : '',
+        range.projectId ? '' : 'across all projects',
+      ]
+        .filter(Boolean)
+        .join(' · '),
       startDays: daysPhrase(medianStart, 'days'),
       startHint: avgStart != null ? `median · average ${avgStart} days · to first move into WIP or review` : '',
       avgCloseDays: avgClose,

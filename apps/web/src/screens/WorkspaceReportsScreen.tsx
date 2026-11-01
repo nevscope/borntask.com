@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { color, font } from '../theme/tokens';
-import { expectedDays, parseTimeToMinutes, parseWorkingDays, parseYmd } from '@borntask/shared';
+import { expectedDays, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
 
 type SheetView = 'time' | 'percent';
 
@@ -52,6 +52,21 @@ function rangeFor(period: Period, custom: [Dayjs, Dayjs], weekStart: 'monday' | 
     return { from: start.format('YYYY-MM-DD'), to: start.add(6, 'day').format('YYYY-MM-DD') };
   }
   return { from: custom[0].format('YYYY-MM-DD'), to: custom[1].format('YYYY-MM-DD') };
+}
+
+function overdueTileHint(t: WorkspaceReports['tasks']) {
+  if (t.overdueHint) return t.overdueHint;
+  const none = t.unscheduled ?? 0;
+  if (t.overdue === 0 && t.open > 0 && none * 2 > t.open) {
+    return `0 because ${none} of ${t.open} open tasks have no due date`;
+  }
+  return 'past due, not closed';
+}
+
+function closeTileHint(hint: string, projectFiltered: boolean) {
+  if (projectFiltered) return hint.replace(/\s*·\s*across all projects/, '');
+  if (!hint) return 'across all projects';
+  return hint.includes('across all projects') ? hint : `${hint} · across all projects`;
 }
 
 function peoplePhrase(n: number) {
@@ -127,15 +142,18 @@ export function WorkspaceReportsScreen() {
 
   const workingDaysSoFar = useMemo(() => {
     if (!data) return 0;
-    if (data.workingDaysSoFar) return data.workingDaysSoFar;
+    if (data.workingDaysSoFar != null) return data.workingDaysSoFar;
     const workingDays = parseWorkingDays(settings.data?.workingDays);
+    const startOn = settings.data?.timesheetsStartOn ? parseYmd(settings.data.timesheetsStartOn) : null;
     return expectedDays({
       from: parseYmd(data.range.from),
       to: parseYmd(data.range.to),
       workingDays,
       holidays: data.holidays.map((h) => h.date),
+      today: utcDay(),
+      startOn,
     });
-  }, [data, settings.data?.workingDays]);
+  }, [data, settings.data?.timesheetsStartOn, settings.data?.workingDays]);
 
   return (
     <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>
@@ -221,6 +239,7 @@ export function WorkspaceReportsScreen() {
           timeZone={settings.data?.timeZone ?? data.timeZone}
           projectKeys={Object.fromEntries((projects.data ?? []).map((p) => [p.id, p.key]))}
           selfOnly={data.scope === 'self'}
+          projectFiltered={Boolean(projectId)}
           sheetView={sheetView ?? settings.data?.timesheetUnit ?? 'time'}
           onSheetView={setSheetView}
         />
@@ -235,6 +254,7 @@ function ReportsBody({
   timeZone,
   projectKeys,
   selfOnly,
+  projectFiltered,
   sheetView,
   onSheetView,
 }: {
@@ -243,6 +263,7 @@ function ReportsBody({
   timeZone: string;
   projectKeys: Record<string, string>;
   selfOnly: boolean;
+  projectFiltered: boolean;
   sheetView: SheetView;
   onSheetView: (view: SheetView) => void;
 }) {
@@ -250,6 +271,7 @@ function ReportsBody({
   const ts = data.timesheets;
   const sheetBasis = ts.minutes || ts.weight;
   const loggedLabel = sheetView === 'percent' ? (sheetBasis ? '100%' : '-') : ts.time;
+  const timesheetsNotStarted = workingDaysSoFar === 0 && (ts.people.length === 0 || ts.people.every((p) => p.expected === 0));
   return (
     <>
       <p style={{ margin: '-4px 0 0', fontSize: 12.5, color: color.muted }}>
@@ -261,11 +283,11 @@ function ReportsBody({
         <Tile label="Opened" value={String(t.opened)} hint="created in the period" />
         <Tile label="Closed" value={String(t.closed)} hint={t.closedHint || 'closed in the period'} />
         <Tile label="Open now" value={String(t.open)} hint={t.openHint || 'not closed'} />
-        <Tile label="Overdue" value={String(t.overdue)} hint="past due, not closed" valueColor={t.overdue > 0 ? color.danger : color.ink} />
+        <Tile label="Overdue" value={String(t.overdue)} hint={overdueTileHint(t)} valueColor={t.overdue > 0 ? color.danger : color.ink} />
         {t.unscheduled != null && <Tile label="Unscheduled" value={String(t.unscheduled)} hint="open, no due date" />}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Tile label="Time to close" value={t.closeDays} hint={t.closeHint} />
+        <Tile label="Time to close" value={t.closeDays} hint={closeTileHint(t.closeHint, projectFiltered)} />
         <Tile label="Time to start" value={t.startDays} hint={t.startHint} />
       </div>
 
@@ -406,9 +428,23 @@ function ReportsBody({
           value={loggedLabel}
           hint={sheetView === 'percent' ? 'of time logged in this period' : 'hours and minutes'}
         />
-        {!selfOnly && <Tile label="People with time" value={`${ts.peopleWithTime} of ${ts.peopleTotal}`} hint="members who fill timesheets" />}
-        <Tile label="Complete" value={selfOnly ? (ts.complete ? 'Yes' : 'No') : String(ts.complete)} hint="logged every expected day" />
-        <Tile label="Missing days" value={String(ts.missingDays)} hint={selfOnly ? 'expected days with no time' : `expected days with no time, across ${peoplePhrase(ts.missingPeople)}`} valueColor={ts.missingDays > 0 ? color.warning : color.ink} />
+        {!projectFiltered && !selfOnly && <Tile label="People with time" value={`${ts.peopleWithTime} of ${ts.peopleTotal}`} hint="members who fill timesheets" />}
+        {!projectFiltered && (
+          <Tile
+            label="Complete"
+            value={
+              timesheetsNotStarted
+                ? selfOnly
+                  ? '0 of 1 complete'
+                  : `0 of ${ts.peopleTotal} complete`
+                : selfOnly
+                  ? (ts.complete ? 'Yes' : 'No')
+                  : String(ts.complete)
+            }
+            hint={timesheetsNotStarted ? 'Timesheets have not started' : 'logged every expected day'}
+          />
+        )}
+        {!projectFiltered && <Tile label="Missing days" value={String(ts.missingDays)} hint={selfOnly ? 'expected days with no time' : `expected days with no time, across ${peoplePhrase(ts.missingPeople)}`} valueColor={ts.missingDays > 0 ? color.warning : color.ink} />}
         <Tile label="Days off" value={String(ts.daysOff)} hint={selfOnly ? 'leave and other' : `leave and other, across ${peoplePhrase(ts.daysOffPeople)}`} />
       </div>
 
@@ -490,10 +526,11 @@ function PersonProjectTable({ data, view }: { data: WorkspaceReports['timesheets
         <HeadCell align="left">Logged / expected</HeadCell>
       </div>
       {data.people.map((row) => {
+        const extra = row.expected === 0 && (row.loggedDays > 0 || row.minutes > 0 || row.weight > 0);
         const full = row.loggedDays === row.expected && row.expected > 0;
-        const none = row.loggedDays === 0;
+        const none = row.loggedDays === 0 && !extra;
         const pct = row.expected ? Math.round((row.loggedDays / row.expected) * 100) : 0;
-        const daysColor = none ? color.danger : full ? color.brandStrong : color.warning;
+        const daysColor = extra ? color.ink2 : none ? color.danger : full ? color.brandStrong : color.warning;
         return (
           <div key={row.userId} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 46, borderBottom: `1px solid ${color.divider}`, fontSize: 13.5 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px' }}>

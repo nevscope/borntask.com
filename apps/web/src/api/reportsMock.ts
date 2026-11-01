@@ -20,9 +20,60 @@ const MOB = { id: 'p_mob', projectId: 'p_mob', key: 'MOB', name: 'Mobile app', c
 const CLI = { id: 'p_cli', projectId: 'p_cli', key: 'CLI', name: 'Client onboarding', colour: 'var(--bt-role-lead-fg)' };
 const OPS = { id: 'p_ops', projectId: 'p_ops', key: 'OPS', name: 'Internal ops', colour: 'var(--bt-ink3)' };
 
-/** Canvas fixture from Reports.dc.html / Chat 1. */
-export function mockWorkspaceReports(): WorkspaceReports {
+function filterMockByProject(full: WorkspaceReports, projectId: string): WorkspaceReports {
+  const projectRow = full.tasks.byProject.find((row) => row.projectId === projectId);
+  const timeRow = full.timesheets.byProject.find((row) => row.projectId === projectId);
+  const project = full.timesheets.projects.find((row) => row.id === projectId);
+  if (!projectRow || !timeRow || !project) return full;
+
+  const prefix = `${projectRow.key ?? ''}-`;
+  const people = full.timesheets.people.map((row) => {
+    const time = row.byProject[projectId] ?? '0:00';
+    const minutes = row.byProjectMinutes[projectId] ?? 0;
+    const weight = row.byProjectWeight[projectId] ?? 0;
+    return {
+      ...row,
+      byProject: { [projectId]: time },
+      byProjectMinutes: { [projectId]: minutes },
+      byProjectWeight: { [projectId]: weight },
+      total: time,
+      minutes,
+      weight,
+    };
+  });
+
   return {
+    ...full,
+    tasks: {
+      ...full.tasks,
+      opened: projectRow.opened,
+      closed: projectRow.closed,
+      open: projectRow.open,
+      overdue: projectRow.overdue,
+      unscheduled: null,
+      closeDays: projectRow.close.replace(' d', ' days'),
+      closeHint: 'median',
+      startDays: projectRow.start.replace(' d', ' days'),
+      startHint: 'median · to first move into WIP or review',
+      byProject: [projectRow],
+      upcoming: full.tasks.upcoming.filter((row) => prefix && row.key.startsWith(prefix)),
+    },
+    timesheets: {
+      ...full.timesheets,
+      time: timeRow.time,
+      minutes: timeRow.minutes,
+      weight: timeRow.weight,
+      projects: [project],
+      people,
+      byProject: [{ ...timeRow, share: timeRow.minutes || timeRow.weight ? '100%' : '0%' }],
+      projectTotals: { [projectId]: timeRow.time, total: timeRow.time, off: full.timesheets.daysOff },
+    },
+  };
+}
+
+/** Canvas fixture from Reports.dc.html / Chat 1. */
+export function mockWorkspaceReports(projectId?: string): WorkspaceReports {
+  const full: WorkspaceReports = {
     scope: 'workspace',
     range: { from: '2026-10-01', to: '2026-10-29' },
     timeZone: 'Europe/Malta',
@@ -35,9 +86,10 @@ export function mockWorkspaceReports(): WorkspaceReports {
       open: 63,
       openHint: '21 in flight · 5 on hold',
       overdue: 7,
+      overdueHint: 'past due, not closed',
       unscheduled: 12,
       closeDays: '6.5 days',
-      closeHint: 'median · average 9.1 days',
+      closeHint: 'median · average 9.1 days · across all projects',
       startDays: '1.5 days',
       startHint: 'median · average 3.2 days · to first move into WIP or review',
       byProject: [
@@ -100,4 +152,5 @@ export function mockWorkspaceReports(): WorkspaceReports {
       ],
     },
   };
+  return projectId ? filterMockByProject(full, projectId) : full;
 }
