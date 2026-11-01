@@ -26,6 +26,22 @@ import {
 } from '../lib/attachments.js';
 import { canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite, requireProjectWrite } from '../lib/projectAccess.js';
 
+function mapSubtask(row: {
+  id: string;
+  title: string;
+  completedAt: Date | null;
+  assigneeId: string | null;
+  dueDate: Date | null;
+}) {
+  return {
+    id: row.id,
+    title: row.title,
+    done: Boolean(row.completedAt),
+    assigneeId: row.assigneeId,
+    dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+  };
+}
+
 const createTaskSchema = z.object({
   projectKey: z.string(),
   sectionId: z.string(),
@@ -245,7 +261,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           })),
           githubActivity: ghActivity.map((a) => ({ when: a.at.toISOString(), text: a.action })),
         },
-        subtasks: children.map((c) => ({ id: c.id, title: c.title, done: Boolean(c.completedAt) })),
+        subtasks: children.map(mapSubtask),
         comments: comments.map((c) => mapComment(c, c.reactions, comments)),
         activity: activity.map((a) => ({
           id: a.id,
@@ -730,7 +746,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         },
       });
       publishTaskChange(auth, { key, projectKey: row.project.key }, 'patch');
-      return { id: child.id, title: child.title, done: false };
+      return mapSubtask(child);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -740,17 +756,29 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const { id } = req.params as { id: string };
-      const body = z.object({ done: z.boolean() }).parse(req.body);
+      const body = z.object({
+        done: z.boolean().optional(),
+        assigneeId: z.string().nullable().optional(),
+        dueDate: z.string().nullable().optional(),
+      }).refine((value) => value.done !== undefined || value.assigneeId !== undefined || value.dueDate !== undefined, {
+        message: 'Nothing to update.',
+      }).parse(req.body);
       const parentKey = (req.params as { key: string }).key;
       const parent = await findTaskByKey(auth.db, parentKey);
       if (!parent) throw notFound();
       await requireOpenProjectWrite(auth, parent.project.key);
+      const existing = await auth.db.task.findFirst({ where: { id, parentId: parent.id, deletedAt: null } });
+      if (!existing) throw notFound('Subtask not found.');
       const child = await auth.db.task.update({
         where: { id },
-        data: { completedAt: body.done ? new Date() : null },
+        data: {
+          completedAt: body.done === undefined ? undefined : body.done ? new Date() : null,
+          assigneeId: body.assigneeId === undefined ? undefined : body.assigneeId,
+          dueDate: body.dueDate === undefined ? undefined : body.dueDate ? new Date(body.dueDate) : null,
+        },
       });
-      if (parent) publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
-      return { id: child.id, title: child.title, done: Boolean(child.completedAt) };
+      publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
+      return mapSubtask(child);
     } catch (err) {
       return sendError(reply, err);
     }

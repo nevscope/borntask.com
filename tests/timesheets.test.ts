@@ -10,8 +10,10 @@ import {
   formatMinutes,
   isTimesheetLocked,
   loggedExpectedDays,
+  parseOptionalWorkingDays,
   parseTimeToMinutes,
   parseYmd,
+  resolveMemberWorkingDays,
   placeWeeklyDaysOff,
   rollupCompleteness,
   putDaysOffSchema,
@@ -211,6 +213,44 @@ describe('completeness and canvas fixture', () => {
     expect(empty.complete).toBe(0);
     expect(empty.none).toBe(1);
     expect(empty.extra).toBe(1);
+  });
+
+  test('Tue+Thu pattern: logging both expected days is complete', () => {
+    const workingDays = ['tue', 'thu'];
+    const from = parseYmd('2026-10-26');
+    const to = parseYmd('2026-11-01');
+    const today = parseYmd('2026-11-01');
+    expect(
+      expectedDays({
+        from,
+        to,
+        workingDays,
+        today,
+      }),
+    ).toBe(2);
+    expect(
+      expectedDays({
+        from,
+        to,
+        workingDays,
+        holidays: ['2026-10-27'],
+        today,
+      }),
+    ).toBe(1);
+    expect(
+      expectedDays({
+        from,
+        to,
+        workingDays,
+        daysOff: ['2026-10-29'],
+        today,
+      }),
+    ).toBe(1);
+    const expectedDates = [parseYmd('2026-10-27'), parseYmd('2026-10-29')];
+    expect(loggedExpectedDays(['2026-10-27', '2026-10-29'], expectedDates)).toBe(2);
+    expect(resolveMemberWorkingDays(['tue', 'thu'], ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['tue', 'thu']);
+    expect(parseOptionalWorkingDays(null)).toBeNull();
+    expect(resolveMemberWorkingDays(null, ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
   });
 
   test('logged days against expected ignore Saturday unless it is a working day', () => {

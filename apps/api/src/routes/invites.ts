@@ -4,6 +4,8 @@ import { prisma, createTenantClient } from '../db.js';
 import { originForSlug } from '../lib/workspaceHost.js';
 import { requireAuth, requireUser, setSession, type Authed } from '../context.js';
 import { forbidden as forbid, notFound as nf, sendError as send, validation as val } from '../errors.js';
+import { hoursPerWeekSchema, hoursPerWeekToNumber, parseOptionalWorkingDays, workingDaysSchema } from '@borntask/shared';
+import { optionalJson } from '../lib/timesheets.js';
 import { remapRoleSlug } from '../lib/mappers.js';
 import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
@@ -24,7 +26,18 @@ const createInviteSchema = z.object({
   projectId: z.string().optional(),
   projectRoleSlugs: z.array(z.string()).optional(),
   message: z.string().max(1000).optional(),
+  workingDays: workingDaysSchema.nullable().optional(),
+  hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
 });
+
+const patchInviteSchema = z.object({
+  workingDays: workingDaysSchema.nullable().optional(),
+  hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
+});
+
+function canSetWorkingPattern(role: Authed['workspaceRole']) {
+  return role === 'owner' || role === 'admin';
+}
 
 async function assertCanManageInvitation(auth: Authed, invite: { projectId: string | null }) {
   if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin') return;
@@ -114,6 +127,12 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         }
         const { token, hash } = newInviteToken();
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const pattern = canSetWorkingPattern(auth.workspaceRole)
+          ? {
+              workingDays: optionalJson(input.workingDays ?? null),
+              hoursPerWeek: input.hoursPerWeek ?? null,
+            }
+          : {};
         await auth.db.invitation.create({
           data: {
             tenantId: auth.tenantId,
@@ -125,6 +144,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
             invitedById: auth.userId,
             message: input.message,
             expiresAt,
+            ...pattern,
           },
         });
         const url = `${originForSlug(ws.slug)}/invite/${token}`;
@@ -170,17 +190,24 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const db = createTenantClient(invite.tenantId);
-      const existing = await prisma.tenantMember.findUnique({
-        where: { tenantId_userId: { tenantId: invite.tenantId, userId: user.id } },
-      });
+      const existing = await db.tenantMember.findFirst({ where: { userId: user.id } });
+      const pattern = {
+        workingDays: optionalJson(invite.workingDays),
+        hoursPerWeek: invite.hoursPerWeek,
+      };
       if (!existing) {
-        await prisma.tenantMember.create({
-          data: { tenantId: invite.tenantId, userId: user.id, tenantRole: invite.tenantRole },
+        await db.tenantMember.create({
+          data: { tenantId: invite.tenantId, userId: user.id, tenantRole: invite.tenantRole, ...pattern },
         });
       } else if (!existing.isActive) {
-        await prisma.tenantMember.update({
+        await db.tenantMember.update({
           where: { id: existing.id },
-          data: { isActive: true, tenantRole: invite.tenantRole },
+          data: { isActive: true, tenantRole: invite.tenantRole, ...pattern },
+        });
+      } else if (invite.workingDays != null || invite.hoursPerWeek != null) {
+        await db.tenantMember.update({
+          where: { id: existing.id },
+          data: pattern,
         });
       }
 
@@ -220,6 +247,32 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         projectKey,
         projectName,
         projectRole,
+      };
+    } catch (err) {
+      return send(reply, err);
+    }
+  });
+
+  app.patch('/invites/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      if (!canSetWorkingPattern(auth.workspaceRole)) throw forbid('Only an owner or admin can set a working pattern.');
+      const id = (req.params as { id: string }).id;
+      const body = patchInviteSchema.parse(req.body);
+      const invite = await auth.db.invitation.findFirst({ where: { id } });
+      if (!invite) throw nf();
+      if (invite.acceptedAt || invite.revokedAt) throw val('This invitation is no longer pending.');
+      const next = await auth.db.invitation.update({
+        where: { id: invite.id },
+        data: {
+          ...(body.workingDays !== undefined ? { workingDays: optionalJson(body.workingDays) } : {}),
+          ...(body.hoursPerWeek !== undefined ? { hoursPerWeek: body.hoursPerWeek } : {}),
+        },
+      });
+      return {
+        id: next.id,
+        workingDays: parseOptionalWorkingDays(next.workingDays),
+        hoursPerWeek: hoursPerWeekToNumber(next.hoursPerWeek),
       };
     } catch (err) {
       return send(reply, err);

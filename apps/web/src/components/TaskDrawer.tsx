@@ -9,6 +9,7 @@ import {
   useAddComment,
   useAddSubtask,
   useCopyTask,
+  usePatchSubtask,
   useDeleteComment,
   useToggleCommentReaction,
   useDeleteTask,
@@ -626,7 +627,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           </div>
         </Section>
 
-        <Subtasks task={task} onDraftChange={setSubtaskDraft} />
+        <Subtasks task={task} detail={detail} onDraftChange={setSubtaskDraft} />
         {(task.type === 'story' || task.type === 'epic') && (
           <Section title={`In this ${task.type} ${task.planningChildCount?.done ?? 0}/${task.planningChildCount?.total ?? 0}`}>
             {(task.planningChildren ?? []).length === 0 && (
@@ -755,20 +756,39 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Subtasks({ task, onDraftChange }: { task: TaskDetail; onDraftChange: (value: string) => void }) {
+function Subtasks({ task, detail, onDraftChange }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void }) {
   const add = useAddSubtask();
   const setDone = useSetSubtaskDone();
+  const patch = usePatchSubtask();
+  const me = useMe().data;
   const [draft, setDraft] = useState('');
   const write = (value: string) => {
     setDraft(value);
     onDraftChange(value);
   };
+  const members = detail.users.filter((user) => detail.members.some((member) => member.userId === user.id));
   return (
     <Section title={`Subtasks ${task.subtaskCount.done}/${task.subtaskCount.total}`}>
       {task.subtasks.map((s) => (
-        <Checkbox key={s.id} checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
-          <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
-        </Checkbox>
+        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <Checkbox checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
+            <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
+          </Checkbox>
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+            <AssigneePicker
+              value={s.assigneeId ?? null}
+              users={members}
+              detail={detail}
+              meId={me?.user.id}
+              onChange={(assigneeId) => patch.mutate({ key: task.key, id: s.id, input: { assigneeId } })}
+              trigger={<Avatar user={members.find((user) => user.id === s.assigneeId)} size={22} fontSize={9} />}
+            />
+            <DuePicker
+              value={s.dueDate ?? null}
+              onChange={(dueDate) => patch.mutate({ key: task.key, id: s.id, input: { dueDate } })}
+            />
+          </span>
+        </div>
       ))}
       <Input
         value={draft}

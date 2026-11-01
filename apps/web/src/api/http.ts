@@ -88,6 +88,7 @@ export const httpApi: Api = {
     request('POST', `/tasks/${enc(key)}/comments/${enc(commentId)}/reactions`, CommentSchema, { emoji }),
   addSubtask: (key, title) => request('POST', `/tasks/${enc(key)}/subtasks`, SubtaskSchema, { title }),
   setSubtaskDone: (key, id, done) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, { done }),
+  patchSubtask: (key, id, input) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, input),
   deleteTask: (key) => request('DELETE', `/tasks/${enc(key)}`, null),
   restoreTask: (key) => request('POST', `/tasks/${enc(key)}/restore`, TaskSchema),
   setWatching: (key, watch) => request('POST', `/tasks/${enc(key)}/watchers`, z.object({ ok: z.boolean() }), { watch }),

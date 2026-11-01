@@ -25,7 +25,7 @@ import { rememberTaskAttachments } from '../lib/attachmentSession';
 import { uploadPendingFile } from '../lib/uploadAttachment';
 import { isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { isEmptyDescription, persistDescription } from '../lib/descriptionHtml';
-import { AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
+import { AttachmentPreview, AttachmentTiles, filesFromClipboard, itemsFromFiles, type AttachmentItem } from './AttachmentTiles';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DescriptionEditor } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
@@ -117,6 +117,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const [statusPick, setStatusPick] = useState<string | undefined>(undefined);
   const [moveComment, setMoveComment] = useState('');
   const [files, setFiles] = useState<AttachmentItem[]>([]);
+  const [preview, setPreview] = useState<AttachmentItem | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [caret, setCaret] = useState(0);
   const [suggestIndex, setSuggestIndex] = useState(0);
@@ -668,8 +669,14 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
           <AttachmentTiles
             items={files}
             onAdd={addFiles}
+            onOpen={(item) => setPreview(item)}
             onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
             onRemove={(id) => setFiles((prev) => prev.filter((x) => x.id !== id))}
+          />
+          <AttachmentPreview
+            item={preview}
+            src={preview?.previewUrl}
+            onClose={() => setPreview(null)}
           />
         </div>
         </div>

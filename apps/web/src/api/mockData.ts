@@ -720,18 +720,24 @@ export const mockApi: Api = {
   async addSubtask(key, title) {
     await wait();
     const t = findTask(key);
-    const s: Subtask = { id: uid('st'), title, done: false };
+    const s: Subtask = { id: uid('st'), title, done: false, assigneeId: null, dueDate: null };
     (subtasks[key] ??= []).push(s);
     t.subtaskCount = { done: t.subtaskCount.done, total: t.subtaskCount.total + 1 };
     return clone(s);
   },
 
   async setSubtaskDone(key, subtaskId, done) {
+    return this.patchSubtask(key, subtaskId, { done });
+  },
+
+  async patchSubtask(key, subtaskId, input) {
     await wait();
     const t = findTask(key);
     const s = subtasks[key]?.find((x) => x.id === subtaskId);
     if (!s) throw new ApiError(404, 'NOT_FOUND', 'Subtask not found');
-    s.done = done;
+    if (input.done !== undefined) s.done = input.done;
+    if (input.assigneeId !== undefined) s.assigneeId = input.assigneeId;
+    if (input.dueDate !== undefined) s.dueDate = input.dueDate;
     const list = subtasks[key] ?? [];
     t.subtaskCount = { done: list.filter((x) => x.done).length, total: list.length };
     return clone(s);

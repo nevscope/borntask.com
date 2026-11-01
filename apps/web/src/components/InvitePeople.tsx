@@ -6,6 +6,7 @@ import { qk, useMe, useProjects } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole, User } from '../api/types';
 import { RoleTag } from './Chips';
+import { WorkingPatternFields } from './WorkingPatternFields';
 import { inviteSentText, useStatusToast } from './StatusToast';
 import { categoryBar, color, font, radius, roleStyle } from '../theme/tokens';
 
@@ -258,6 +259,8 @@ export function InvitePeopleButton({
   const [projectRoles, setProjectRoles] = useState<ProjectRole[]>(['developer']);
   const [note, setNote] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [inviteWorkingDays, setInviteWorkingDays] = useState<string[] | null>(null);
+  const [inviteHours, setInviteHours] = useState<number | null>(null);
 
   const people = useQuery({
     queryKey: ['people'],
@@ -273,8 +276,8 @@ export function InvitePeopleButton({
     enabled: open,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
-      if (!res.ok) return { allowedDomains: [] as unknown };
-      return (await res.json()) as { allowedDomains: unknown };
+      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'] };
+      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[] };
     },
   });
   const allowedDomains = Array.isArray(workspace.data?.allowedDomains)
@@ -293,12 +296,18 @@ export function InvitePeopleButton({
     setProjectRoles(['developer']);
     setNote('');
     setFormError(null);
+    setInviteWorkingDays(null);
+    setInviteHours(null);
   }, [open, projectId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const count = emails.length;
   const sendLabel = count === 0 ? 'Send invitations' : count === 1 ? 'Send 1 invitation' : `Send ${count} invitations`;
   const canInvite = !!me && me.workspaceRole !== 'guest' && me.workspaceRole !== 'viewer';
+  const canSetPattern = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const workspaceDays = Array.isArray(workspace.data?.workingDays) && workspace.data.workingDays.length
+    ? workspace.data.workingDays
+    : ['mon', 'tue', 'wed', 'thu', 'fri'];
   const title = projectName ? `Share "${projectName}"` : 'Add member';
 
   function toggleRole(role: ProjectRole) {
@@ -325,6 +334,9 @@ export function InvitePeopleButton({
           projectId: selectedProjectId || undefined,
           projectRoleSlugs: selectedProjectId ? projectRoles : undefined,
           message: note.trim() || undefined,
+          ...(canSetPattern
+            ? { workingDays: inviteWorkingDays, hoursPerWeek: inviteHours }
+            : {}),
         }),
       });
       const json = await res.json() as { message?: string; invites?: { email: string; url: string; tenantRole: string }[] };
@@ -457,6 +469,17 @@ export function InvitePeopleButton({
               <div style={{ padding: '10px 12px', borderRadius: 10, background: color.warningTint, border: `1px solid ${color.warningBorder}`, fontSize: 13, lineHeight: 1.45, color: color.warning }}>
                 {guests.join(', ')} {guests.length === 1 ? 'is' : 'are'} outside your domain, so {guests.length === 1 ? 'it joins' : 'they join'} as a <strong>Guest</strong>: {selectedProject ? `${selectedProject.name} only` : 'invited projects only'}, no member directory.
               </div>
+            ) : null}
+            {canSetPattern ? (
+              <WorkingPatternFields
+                workingDays={inviteWorkingDays}
+                workspaceDays={workspaceDays}
+                hoursPerWeek={inviteHours}
+                onSave={(next) => {
+                  setInviteWorkingDays(next.workingDays);
+                  setInviteHours(next.hoursPerWeek);
+                }}
+              />
             ) : null}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
               <span>Message <span style={{ fontWeight: 400, color: color.muted }}>(optional, shown in the email)</span></span>

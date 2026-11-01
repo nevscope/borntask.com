@@ -6,7 +6,7 @@ export async function uploadPendingFile(file: File): Promise<AttachmentItem> {
   body.append('file', file, file.name);
   const res = await fetch(`${BASE_URL}/uploads`, { method: 'POST', credentials: 'include', body });
   const json = (await res.json().catch(() => ({}))) as { id?: string; name?: string; size?: number; mime?: string; message?: string };
-  if (!res.ok || !json.id) throw new Error(json.message ?? 'Could not upload that file.');
+  if (!res.ok || !json.id) throw new Error(`${file.name}: ${json.message ?? 'Could not upload that file.'}`);
   return {
     id: json.id,
     name: json.name ?? file.name,
@@ -33,7 +33,7 @@ export async function uploadTaskFile(taskKey: string, file: File): Promise<Attac
     url?: string;
     message?: string;
   };
-  if (!res.ok || !json.id) throw new Error(json.message ?? 'Could not attach that file.');
+  if (!res.ok || !json.id) throw new Error(`${file.name}: ${json.message ?? 'Could not attach that file.'}`);
   return {
     id: json.id,
     name: json.name ?? file.name,

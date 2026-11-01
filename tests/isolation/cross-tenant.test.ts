@@ -48,14 +48,16 @@ test('where tenantId: A is still clamped to B', async () => {
 
 test('scoped client for tenant B cannot list tenant A holidays or timesheets', async () => {
   const clientB = createTenantClient(tenantB);
-  const [holidays, entries, daysOff] = await Promise.all([
+  const [holidays, entries, daysOff, members] = await Promise.all([
     clientB.workspaceHoliday.findMany(),
     clientB.timesheetEntry.findMany(),
     clientB.timesheetDayOff.findMany(),
+    clientB.tenantMember.findMany(),
   ]);
   expect(holidays.every((row) => row.tenantId === tenantB)).toBe(true);
   expect(entries.every((row) => row.tenantId === tenantB)).toBe(true);
   expect(daysOff.every((row) => row.tenantId === tenantB)).toBe(true);
+  expect(members.every((row) => row.tenantId === tenantB)).toBe(true);
 });
 
 test('create injects caller tenantId and cannot write into tenant A', async () => {

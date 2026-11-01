@@ -25,6 +25,7 @@ export const CHECKS = [
   { name: '20261029230000_comment_reactions', kind: 'table', table: 'CommentReaction' },
   { name: '20261031140000_timesheets_reports', kind: 'table', table: 'TimesheetEntry' },
   { name: '20261031160000_timesheet_edit_days', kind: 'column', table: 'Workspace', column: 'timesheetEditDays' },
+  { name: '20261101220000_member_working_pattern', kind: 'column', table: 'TenantMember', column: 'workingDays' },
 ];
 
 function prisma(args) {

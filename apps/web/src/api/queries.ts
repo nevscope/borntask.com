@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -97,6 +97,7 @@ export const api: Api = {
   toggleCommentReaction: (key, commentId, emoji) => tasksApi().toggleCommentReaction(key, commentId, emoji),
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
+  patchSubtask: (key, id, input) => tasksApi().patchSubtask(key, id, input),
   deleteTask: (key) => tasksApi().deleteTask(key),
   restoreTask: (key) => tasksApi().restoreTask(key),
   setWatching: (key, watch) => tasksApi().setWatching(key, watch),
@@ -488,6 +489,14 @@ export function useSetSubtaskDone() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, id, done }: { key: string; id: string; done: boolean }) => api.setSubtaskDone(key, id, done),
+    onSuccess: (_s, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
+  });
+}
+
+export function usePatchSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, id, input }: { key: string; id: string; input: PatchSubtaskInput }) => api.patchSubtask(key, id, input),
     onSuccess: (_s, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
   });
 }
@@ -945,6 +954,8 @@ export const TimesheetRangeSchema = z.object({
   memberSince: z.string().nullable().optional(),
   timesheetsStartOn: z.string().nullable().optional(),
   expectedFrom: z.string().nullable().optional(),
+  workingDays: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).optional(),
+  hoursPerWeek: z.number().nullable().optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string() })),

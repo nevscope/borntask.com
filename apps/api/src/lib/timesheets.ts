@@ -1,16 +1,25 @@
 import {
   expectedDays,
   formatYmd,
+  hoursPerWeekToNumber,
   isTimesheetLocked,
   isWorkingDay,
   parseWorkingDays,
   parseYmd,
   placeWeeklyDaysOff,
+  resolveMemberWorkingDays,
   timesheetLockLabel,
   weekStartFor,
 } from '@borntask/shared';
+import { Prisma } from '@prisma/client';
 import type { Authed } from '../context.js';
 import { conflict, forbidden, notFound, validation } from '../errors.js';
+
+export function optionalJson(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return value as Prisma.InputJsonValue;
+}
 
 export function requireTimesheetWrite(role: Authed['workspaceRole']) {
   if (role === 'guest' || role === 'viewer') throw forbidden('Guests and viewers cannot log time.');
@@ -87,6 +96,22 @@ export function isOwnerAdmin(role: Authed['workspaceRole']) {
 
 export function ymdOf(value: Date): string {
   return formatYmd(new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())));
+}
+
+export function mapHoursPerWeek(value: unknown): number | null {
+  return hoursPerWeekToNumber(value);
+}
+
+export async function memberWorkingDaysFor(
+  auth: Authed,
+  userId: string,
+  workspaceDays: string[],
+): Promise<string[]> {
+  const member = await auth.db.tenantMember.findFirst({
+    where: { userId },
+    select: { workingDays: true },
+  });
+  return resolveMemberWorkingDays(member?.workingDays, workspaceDays);
 }
 
 export async function workspaceTimesheetSettings(auth: Authed) {

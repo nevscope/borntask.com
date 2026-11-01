@@ -3,6 +3,7 @@ import {
   parseYmd,
   putDaysOffSchema,
   putTimesheetsSchema,
+  resolveMemberWorkingDays,
   timesheetPersonStart,
   timesheetRangeQuerySchema,
 } from '@borntask/shared';
@@ -18,6 +19,8 @@ import {
   holidaysInRange,
   logTimesheetCorrection,
   mapDayOff,
+  mapHoursPerWeek,
+  memberWorkingDaysFor,
   requireTimesheetWrite,
   resolveTimesheetWriteUserId,
   workspaceTimesheetSettings,
@@ -50,14 +53,17 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         }),
         holidaysInRange(auth, from, to),
         workspaceTimesheetSettings(auth),
-        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true } }),
+        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true } }),
       ]);
       const startOn = timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt);
+      const workingDays = resolveMemberWorkingDays(member?.workingDays, settings.workingDays);
       return {
         userId,
         timesheetPeriod: settings.timesheetPeriod,
         timesheetUnit: settings.timesheetUnit,
         weekStart: settings.weekStart,
+        workingDays,
+        hoursPerWeek: mapHoursPerWeek(member?.hoursPerWeek),
         memberSince: member ? ymdOf(member.createdAt) : null,
         timesheetsStartOn: settings.timesheetsStartOn ? ymdOf(settings.timesheetsStartOn) : null,
         expectedFrom: startOn ? ymdOf(startOn) : null,
@@ -158,12 +164,13 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const settings = await workspaceTimesheetSettings(auth);
       const holidayRows = await auth.db.workspaceHoliday.findMany();
       const holidaySet = new Set(holidayRows.map((row) => ymdOf(row.date)));
+      const workingDays = await memberWorkingDaysFor(auth, userId, settings.workingDays);
       if (body.week) {
         const placed = await applyWeekDaysOff(
           auth,
           userId,
           body.week,
-          settings.workingDays,
+          workingDays,
           settings.weekStart,
           settings.timesheetEditDays,
         );
@@ -178,7 +185,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
           continue;
         }
         if (!day.kind) throw validation('Choose Leave or Other.');
-        await assertDayOffAllowed(auth, userId, day.date, settings.workingDays, holidaySet);
+        await assertDayOffAllowed(auth, userId, day.date, workingDays, holidaySet);
         await auth.db.timesheetDayOff.upsert({
           where: { tenantId_userId_date: { tenantId: auth.tenantId, userId, date } },
           create: {

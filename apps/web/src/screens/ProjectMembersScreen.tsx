@@ -97,7 +97,7 @@ export function ProjectMembersScreen() {
         </div>
         <InvitePeopleButton variant="primary" projectId={detail.data?.project.id} projectName={detail.data?.project.name} />
       </div>
-      {detail.isError && <Alert type="error" message="Sign in and set VITE_MOCK_PROJECTS=false to edit live members." />}
+      {detail.isError && <Alert type="error" message="Could not load members. Sign in and try again." />}
       <section className="bt-card" style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 680 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1.2fr) 110px 44px', gap: 12, padding: '10px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>

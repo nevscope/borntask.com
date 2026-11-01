@@ -7,6 +7,7 @@ import type { User, WorkspaceRole } from '../api/types';
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
+import { WorkingPatternFields } from '../components/WorkingPatternFields';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { WorkspaceRolesAside } from '../components/WorkspaceRolesAside';
@@ -19,8 +20,21 @@ const NON_OWNER_ROLES: { value: WorkspaceRole; label: string }[] = [
   { value: 'viewer', label: 'Viewer' },
 ];
 
-type Person = User & { workspaceRole: WorkspaceRole; signsInWith?: string; projects?: string };
-type Invite = { id: string; email: string; tenantRole: string; expiresAt: string };
+type Person = User & {
+  workspaceRole: WorkspaceRole;
+  signsInWith?: string;
+  projects?: string;
+  workingDays?: string[] | null;
+  hoursPerWeek?: number | null;
+};
+type Invite = {
+  id: string;
+  email: string;
+  tenantRole: string;
+  expiresAt: string;
+  workingDays?: string[] | null;
+  hoursPerWeek?: number | null;
+};
 
 function storedDomains(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -62,13 +76,71 @@ export function AdminPeopleScreen() {
     queryKey: ['workspace-settings'],
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
-      if (!res.ok) return { allowedDomains: [] as unknown };
-      return (await res.json()) as { allowedDomains: unknown };
+      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'] };
+      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[] };
     },
   });
   const [domains, setDomains] = useState<string[] | null>(null);
   const liveDomains = domains ?? storedDomains(ws.data?.allowedDomains);
   const domainsKnown = domains !== null || ws.isSuccess;
+
+  const workspaceDays = (ws.data && 'workingDays' in ws.data && Array.isArray(ws.data.workingDays) && ws.data.workingDays.length
+    ? ws.data.workingDays
+    : ['mon', 'tue', 'wed', 'thu', 'fri']) as string[];
+
+  const savePattern = useMutation({
+    mutationFn: async ({
+      userId,
+      workingDays,
+      hoursPerWeek,
+    }: {
+      userId: string;
+      workingDays: string[] | null;
+      hoursPerWeek: number | null;
+    }) => {
+      const res = await fetch(`${BASE_URL}/people/${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workingDays, hoursPerWeek }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
+        throw new Error(json.error?.message ?? json.message ?? 'Could not save working pattern');
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['people'] });
+      void qc.invalidateQueries({ queryKey: ['timesheets'] });
+      void qc.invalidateQueries({ queryKey: ['reports'] });
+    },
+    onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save working pattern.' }),
+  });
+
+  const saveInvitePattern = useMutation({
+    mutationFn: async ({
+      id,
+      workingDays,
+      hoursPerWeek,
+    }: {
+      id: string;
+      workingDays: string[] | null;
+      hoursPerWeek: number | null;
+    }) => {
+      const res = await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workingDays, hoursPerWeek }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
+        throw new Error(json.error?.message ?? json.message ?? 'Could not save working pattern');
+      }
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['invites'] }),
+    onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save working pattern.' }),
+  });
 
   const setRole = useMutation({
     mutationFn: async ({ userId, tenantRole }: { userId: string; tenantRole: WorkspaceRole }) => {
@@ -223,41 +295,50 @@ export function AdminPeopleScreen() {
             <span>Person</span><span>Workspace role</span><span>Signs in with</span><span>Projects</span><span />
           </div>
           {rows.map((p) => (
-            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr) 88px', gap: 12, alignItems: 'center', minHeight: 54, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <Avatar user={p} size={30} />
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.email}</span>
+            <div key={p.id} style={{ padding: '10px 16px', borderBottom: `1px solid ${color.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr) 88px', gap: 12, alignItems: 'center', minHeight: 44 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <Avatar user={p} size={30} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
+                    <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.email}</span>
+                  </span>
                 </span>
-              </span>
-              <Select
-                disabled={!canAdmin || p.workspaceRole === 'owner'}
-                value={p.workspaceRole}
-                style={{ width: 130 }}
-                options={
-                  p.workspaceRole === 'owner'
-                    ? [{ value: 'owner', label: 'Owner' }]
-                    : isOwner && p.id !== me?.user.id && p.workspaceRole !== 'guest'
-                      ? [{ value: 'owner', label: 'Owner' }, ...NON_OWNER_ROLES]
-                      : NON_OWNER_ROLES
-                }
-                onChange={(tenantRole) => {
-                  if (tenantRole === 'owner') {
-                    setTransferConfirm('');
-                    setPendingTransfer(p);
-                    return;
+                <Select
+                  disabled={!canAdmin || p.workspaceRole === 'owner'}
+                  value={p.workspaceRole}
+                  style={{ width: 130 }}
+                  options={
+                    p.workspaceRole === 'owner'
+                      ? [{ value: 'owner', label: 'Owner' }]
+                      : isOwner && p.id !== me?.user.id && p.workspaceRole !== 'guest'
+                        ? [{ value: 'owner', label: 'Owner' }, ...NON_OWNER_ROLES]
+                        : NON_OWNER_ROLES
                   }
-                  setRole.mutate({ userId: p.id, tenantRole });
-                }}
+                  onChange={(tenantRole) => {
+                    if (tenantRole === 'owner') {
+                      setTransferConfirm('');
+                      setPendingTransfer(p);
+                      return;
+                    }
+                    setRole.mutate({ userId: p.id, tenantRole });
+                  }}
+                />
+                <span style={{ fontSize: 13, color: color.ink3 }}>{p.signsInWith ?? '-'}</span>
+                <span style={{ fontSize: 13, color: color.ink3 }}>{p.projects ?? '-'}</span>
+                {canAdmin && p.workspaceRole !== 'owner' && p.id !== me?.user.id && (isOwner || p.workspaceRole !== 'admin') ? (
+                  <Button type="link" danger onClick={() => setPendingPersonRevoke(p)}>Revoke</Button>
+                ) : (
+                  <span />
+                )}
+              </div>
+              <WorkingPatternFields
+                workingDays={p.workingDays ?? null}
+                workspaceDays={workspaceDays}
+                hoursPerWeek={p.hoursPerWeek ?? null}
+                disabled={!canAdmin}
+                onSave={(next) => savePattern.mutate({ userId: p.id, ...next })}
               />
-              <span style={{ fontSize: 13, color: color.ink3 }}>{p.signsInWith ?? '-'}</span>
-              <span style={{ fontSize: 13, color: color.ink3 }}>{p.projects ?? '-'}</span>
-              {canAdmin && p.workspaceRole !== 'owner' && p.id !== me?.user.id && (isOwner || p.workspaceRole !== 'admin') ? (
-                <Button type="link" danger onClick={() => setPendingPersonRevoke(p)}>Revoke</Button>
-              ) : (
-                <span />
-              )}
             </div>
           ))}
         </div>
@@ -276,16 +357,24 @@ export function AdminPeopleScreen() {
         {(invites.data ?? []).map((i) => {
           const expired = new Date(i.expiresAt).getTime() < Date.now();
           return (
-            <div key={i.id} className="bt-row" style={{ padding: '12px 16px' }}>
-              <span style={{ flex: '1 1 260px' }}>
-                <span style={{ display: 'block', fontWeight: 500 }}>{i.email}</span>
-                <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
-              </span>
-              <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
-                {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
-              </span>
-              <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
-              <Button type="link" danger onClick={() => setPendingInviteRevoke({ id: i.id, email: i.email })}>Revoke</Button>
+            <div key={i.id} style={{ padding: '12px 16px', borderBottom: `1px solid ${color.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="bt-row" style={{ padding: 0 }}>
+                <span style={{ flex: '1 1 260px' }}>
+                  <span style={{ display: 'block', fontWeight: 500 }}>{i.email}</span>
+                  <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
+                  {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
+                </span>
+                <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
+                <Button type="link" danger onClick={() => setPendingInviteRevoke({ id: i.id, email: i.email })}>Revoke</Button>
+              </div>
+              <WorkingPatternFields
+                workingDays={i.workingDays ?? null}
+                workspaceDays={workspaceDays}
+                hoursPerWeek={i.hoursPerWeek ?? null}
+                onSave={(next) => saveInvitePattern.mutate({ id: i.id, ...next })}
+              />
             </div>
           );
         })}

@@ -201,8 +201,20 @@ export const TaskSchema = z.object({
 });
 export type Task = z.infer<typeof TaskSchema>;
 
-export const SubtaskSchema = z.object({ id: z.string(), title: z.string(), done: z.boolean() });
+export const SubtaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+});
 export type Subtask = z.infer<typeof SubtaskSchema>;
+export const PatchSubtaskInputSchema = z.object({
+  done: z.boolean().optional(),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+});
+export type PatchSubtaskInput = z.infer<typeof PatchSubtaskInputSchema>;
 
 export const CommentReactionKindSchema = z.enum(['like', 'love', 'yes', 'seen', 'celebrate']);
 export type CommentReactionKind = z.infer<typeof CommentReactionKindSchema>;
@@ -430,6 +442,7 @@ export interface Api {
   toggleCommentReaction(key: string, commentId: string, emoji: CommentReactionKind): Promise<Comment>; // POST /tasks/:key/comments/:id/reactions
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
+  patchSubtask(key: string, subtaskId: string, input: PatchSubtaskInput): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
   restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
   setWatching(key: string, watch: boolean): Promise<{ ok: boolean }>; // POST /tasks/:key/watchers

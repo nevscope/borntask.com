@@ -104,10 +104,43 @@ export function isMovableHolidayName(name: string): boolean {
   return MOVABLE_HOLIDAY.test(name);
 }
 
+export const hoursPerWeekSchema = z
+  .number()
+  .min(0, 'Hours per week cannot be negative.')
+  .max(168, 'Hours per week cannot exceed 168.');
+
+export const memberWorkingPatternSchema = z.object({
+  workingDays: workingDaysSchema.nullable().optional(),
+  hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
+});
+
 export function parseWorkingDays(value: unknown): z.infer<typeof weekdayKeySchema>[] {
   const parsed = workingDaysSchema.safeParse(value);
   if (parsed.success) return parsed.data;
   return [...DEFAULT_WORKING_DAYS];
+}
+
+/** Null or invalid JSON means inherit the workspace working days. */
+export function parseOptionalWorkingDays(value: unknown): z.infer<typeof weekdayKeySchema>[] | null {
+  if (value == null) return null;
+  const parsed = workingDaysSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function resolveMemberWorkingDays(
+  memberWorkingDays: unknown,
+  workspaceWorkingDays: unknown,
+): z.infer<typeof weekdayKeySchema>[] {
+  return parseOptionalWorkingDays(memberWorkingDays) ?? parseWorkingDays(workspaceWorkingDays);
+}
+
+export function hoursPerWeekToNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const n =
+    typeof value === 'object' && value !== null && 'toNumber' in value
+      ? Number((value as { toNumber: () => number }).toNumber())
+      : Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function parseYmd(value: string): Date {

@@ -7,6 +7,7 @@ import {
   loggedExpectedDays,
   missingDays,
   parseYmd,
+  resolveMemberWorkingDays,
   timesheetPersonStart,
   workingDatesInRange,
 } from '@borntask/shared';
@@ -273,11 +274,12 @@ export async function workspaceReports(
     }
     if (entry.periodKind === 'weekly' && ((entry.minutes ?? 0) > 0 || (entry.percent ?? 0) > 0)) {
       const member = members.find((row) => row.userId === entry.userId);
+      const personDays = resolveMemberWorkingDays(member?.workingDays, settings.workingDays);
       const set = timeByUserDay.get(entry.userId) ?? new Set<string>();
       for (const date of workingDatesInRange({
         from: entry.periodStart,
         to: new Date(entry.periodStart.getTime() + 6 * 86400000),
-        workingDays: settings.workingDays,
+        workingDays: personDays,
         holidays: holidaySet,
         today,
         startOn: timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt),
@@ -294,7 +296,7 @@ export async function workspaceReports(
     const expectedDates = workingDatesInRange({
       from,
       to,
-      workingDays: settings.workingDays,
+      workingDays: resolveMemberWorkingDays(m.workingDays, settings.workingDays),
       holidays: holidaySet,
       today,
       startOn: personStart,

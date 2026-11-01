@@ -30,7 +30,7 @@ describe('blocked attachment types', () => {
       { name: 'bad.exe', size: 12, type: 'application/x-msdownload' },
     ]);
     expect(accepted.map((file) => file.name)).toEqual(['ok.pdf']);
-    expect(reason).toBe(ATTACHMENT_TYPE_BLOCKED);
+    expect(reason).toBe(`bad.exe: ${ATTACHMENT_TYPE_BLOCKED}`);
   });
 
   test('rejects oversized files', () => {

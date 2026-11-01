@@ -99,7 +99,7 @@ export function partitionAttachmentFiles<T extends { name: string; size: number;
   for (const file of files) {
     const reject = attachmentRejectReason(file.name, file.size, file.type ?? '');
     if (reject) {
-      reason = reject;
+      reason = `${file.name}: ${reject}`;
       continue;
     }
     accepted.push(file);

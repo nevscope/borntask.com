@@ -1,10 +1,10 @@
 // Screen 2 · Project list. Drag the handle to reorder or move between sections.
 // Click type, status, assignee, due date or priority to change them. Status goes through moveTask.
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { Skeleton, Tooltip } from 'antd';
+import { Dropdown, Skeleton, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useCopyTask, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
+import { useAddSubtask, useCopyTask, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
 import { useStatusToast } from '../components/StatusToast';
 import type { ProjectDetail, Task } from '../api/types';
 import { CopyIcon, GitHubBadge, TaskHints } from '../components/Chips';
@@ -162,20 +162,22 @@ export function ProjectListScreen() {
   return (
     <div className="bt-page">
       <ProjectHeader detail={d} />
-      <ProjectViewBar
-        mode="list"
-        detail={d}
-        workspaceId={me?.workspace.id ?? 'local'}
-        canShare={canShare}
-        labels={labels}
-        count={visible.length}
-        view={view}
-        onView={view.setView}
-      />
+      <div className="bt-list-stick">
+        <ProjectViewBar
+          mode="list"
+          detail={d}
+          workspaceId={me?.workspace.id ?? 'local'}
+          canShare={canShare}
+          labels={labels}
+          count={visible.length}
+          view={view}
+          onView={view.setView}
+        />
+        {selectedTasks.length > 0 && (
+          <BulkBar tasks={selectedTasks} detail={d} roles={myRoles} onClear={() => setSelected([])} />
+        )}
+      </div>
       {flow.modal}
-      {selectedTasks.length > 0 && (
-        <BulkBar tasks={selectedTasks} detail={d} roles={myRoles} onClear={() => setSelected([])} />
-      )}
       <DndContext sensors={sensors} onDragStart={(event) => setActiveKey(String(event.active.id))} onDragEnd={manual ? onDragEnd : () => setActiveKey(null)} onDragCancel={() => setActiveKey(null)}>
         {list}
         <DragOverlay>
@@ -298,7 +300,10 @@ function Row({
 }) {
   const { openTask } = useTaskParam();
   const copyTask = useCopyTask();
+  const addSubtask = useAddSubtask();
   const toast = useStatusToast();
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
   const drag = useDraggable({ id: task.key, disabled: !draggable });
   const drop = useDroppable({ id: `row:${task.key}`, disabled: !draggable });
   const done = statusById(detail.workflow, task.statusId)?.category === 'done';
@@ -312,22 +317,106 @@ function Row({
       onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not copy this task.' }),
     });
   };
-  const copyControl = (
-    <Tooltip title="Copy this task">
-      <button
-        type="button"
-        className={`bt-row-copy${compact ? ' always' : ''}`}
-        aria-label={`Copy ${task.key}`}
-        disabled={copyTask.isPending}
-        onClick={copy}
+  const copyLink = (event: { stopPropagation(): void }) => {
+    event.stopPropagation();
+    const url = new URL(window.location.href);
+    url.searchParams.set('task', task.key);
+    if (!navigator.clipboard?.writeText) {
+      toast.show({ kind: 'error', text: 'Could not copy the link.' });
+      return;
+    }
+    void navigator.clipboard.writeText(url.toString()).then(() => toast.show('Copied')).catch(() => {
+      toast.show({ kind: 'error', text: 'Could not copy the link.' });
+    });
+  };
+  const startAddSubtask = (event: { stopPropagation(): void }) => {
+    event.stopPropagation();
+    setAddingSubtask(true);
+  };
+  const submitSubtask = () => {
+    const title = subtaskTitle.trim();
+    if (!title) return;
+    addSubtask.mutate({ key: task.key, title }, {
+      onSuccess: () => {
+        setSubtaskTitle('');
+        setAddingSubtask(false);
+      },
+      onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not add that subtask.' }),
+    });
+  };
+  const rowActions = (
+    <>
+      <Tooltip title="Add a subtask">
+        <button
+          type="button"
+          className={`bt-row-copy${compact ? ' always' : ''}`}
+          aria-label={`Add a subtask to ${task.key}`}
+          onClick={startAddSubtask}
+        >
+          +
+        </button>
+      </Tooltip>
+      <Tooltip title="Copy this task">
+        <button
+          type="button"
+          className={`bt-row-copy${compact ? ' always' : ''}`}
+          aria-label={`Copy ${task.key}`}
+          disabled={copyTask.isPending}
+          onClick={copy}
+        >
+          <CopyIcon />
+        </button>
+      </Tooltip>
+      <Dropdown
+        menu={{
+          items: [
+            { key: 'subtask', label: 'Add subtask', onClick: () => setAddingSubtask(true) },
+            { key: 'link', label: 'Copy link', onClick: () => copyLink({ stopPropagation() {} }) },
+          ],
+        }}
+        trigger={['click']}
       >
-        <CopyIcon />
-      </button>
-    </Tooltip>
+        <button
+          type="button"
+          className={`bt-row-copy${compact ? ' always' : ''}`}
+          aria-label={`More actions for ${task.key}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          ···
+        </button>
+      </Dropdown>
+    </>
+  );
+  const inlineSubtask = addingSubtask && (
+    <div
+      className="bt-row"
+      style={{ minHeight: 40, paddingLeft: compact ? 38 : 74 }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <input
+        autoFocus
+        aria-label={`Subtask title for ${task.key}`}
+        value={subtaskTitle}
+        placeholder="Subtask title"
+        onChange={(event) => setSubtaskTitle(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            submitSubtask();
+          }
+          if (event.key === 'Escape') {
+            setAddingSubtask(false);
+            setSubtaskTitle('');
+          }
+        }}
+        style={{ flex: 1, minWidth: 0, height: 32, border: 0, background: 'transparent', font: 'inherit', outline: 'none' }}
+      />
+    </div>
   );
 
   if (compact) {
     return (
+      <>
       <div
         className="bt-row"
         style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, padding: '10px 14px', minHeight: 0, background: selected ? color.brandTint : undefined }}
@@ -348,7 +437,7 @@ function Row({
               {task.githubBadge && <GitHubBadge kind={task.githubBadge} compact />}
               <TaskHints task={task} />
             </button>
-            {copyControl}
+            {rowActions}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24, fontSize: 12, color: color.muted }}>
@@ -356,10 +445,13 @@ function Row({
           <ListFields compact task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} hiddenCols={hiddenCols} />
         </div>
       </div>
+      {inlineSubtask}
+      </>
     );
   }
 
   return (
+    <>
     <div
       ref={(el) => { drag.setNodeRef(el); drop.setNodeRef(el); }}
       className={`bt-row${drop.isOver && !drag.isDragging ? ' drop-before' : ''}`}
@@ -384,10 +476,12 @@ function Row({
           {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
           <TaskHints task={task} />
         </button>
-        {copyControl}
+        {rowActions}
       </span>
       <ListFields task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} hiddenCols={hiddenCols} />
     </div>
+    {inlineSubtask}
+    </>
   );
 }
 

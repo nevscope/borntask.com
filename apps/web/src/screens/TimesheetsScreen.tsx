@@ -70,7 +70,7 @@ export function TimesheetsScreen() {
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false && p.acceptsTimesheets);
   const people = usePeople();
   const weekStartSetting = settings.data?.weekStart ?? 'monday';
-  const workingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const workspaceWorkingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
   const editDays = settings.data?.timesheetEditDays ?? 7;
   const guest = me?.workspaceRole === 'guest' || me?.workspaceRole === 'viewer';
 
@@ -92,6 +92,7 @@ export function TimesheetsScreen() {
 
   const sheet = useTimesheets(from, to, viewUserId, !guest);
   const lastWeek = useTimesheets(lastFrom, lastTo, viewUserId, !guest);
+  const workingDays = sheet.data?.workingDays ?? workspaceWorkingDays;
   const timesheetsStartOn = sheet.data?.expectedFrom
     ? parseYmd(sheet.data.expectedFrom)
     : settings.data?.timesheetsStartOn
@@ -949,7 +950,7 @@ function DailyGrid({
                         </div>
                       )}
                       {weekend && (
-                        <div style={{ padding: '6px 10px 8px', fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>Not a working day in this workspace. Log time here only if you worked.</div>
+                        <div style={{ padding: '6px 10px 8px', fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>Not a working day on this pattern. Log time here only if you worked.</div>
                       )}
                     </div>
                   )}

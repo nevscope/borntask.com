@@ -231,12 +231,14 @@ model Workspace {
 }
 
 model TenantMember {
-  id         String     @id @default(cuid())
-  tenantId   String
-  userId     String
-  tenantRole TenantRole
-  isActive   Boolean    @default(true)
-  createdAt  DateTime   @default(now())
+  id           String     @id @default(cuid())
+  tenantId     String
+  userId       String
+  tenantRole   TenantRole
+  isActive     Boolean    @default(true)
+  workingDays  Json?
+  hoursPerWeek Decimal?   @db.Decimal(5, 2)
+  createdAt    DateTime   @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -255,6 +257,8 @@ model Invitation {
   tokenHash      String
   invitedById    String
   message        String?    @db.Text
+  workingDays    Json?
+  hoursPerWeek   Decimal?   @db.Decimal(5, 2)
   expiresAt      DateTime
   acceptedAt     DateTime?
   revokedAt      DateTime?

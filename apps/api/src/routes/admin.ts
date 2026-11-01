@@ -6,8 +6,17 @@ import { prisma } from '../db.js';
 import { requireAuth, setSession, type Authed } from '../context.js';
 import { config } from '../env.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { isIanaTimeZone, parseWorkingDays, parseYmd, patchWorkspaceTimesheetSchema } from '@borntask/shared';
-import { ymdOf } from '../lib/timesheets.js';
+import {
+  hoursPerWeekSchema,
+  hoursPerWeekToNumber,
+  isIanaTimeZone,
+  parseOptionalWorkingDays,
+  parseWorkingDays,
+  parseYmd,
+  patchWorkspaceTimesheetSchema,
+  workingDaysSchema,
+} from '@borntask/shared';
+import { optionalJson, ymdOf } from '../lib/timesheets.js';
 import { slugify } from '../lib/tokens.js';
 import { parseWorkspaceSlug } from '../lib/workspaceSlug.js';
 import { originForSlug } from '../lib/workspaceHost.js';
@@ -334,9 +343,30 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       requireOwnerAdmin(auth.workspaceRole);
       const userId = (req.params as { userId: string }).userId;
-      const body = z.object({ tenantRole: z.enum(['owner', 'admin', 'member', 'guest', 'viewer']) }).parse(req.body);
+      const body = z.object({
+        tenantRole: z.enum(['owner', 'admin', 'member', 'guest', 'viewer']).optional(),
+        workingDays: workingDaysSchema.nullable().optional(),
+        hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
+      }).parse(req.body);
       const member = await auth.db.tenantMember.findFirst({ where: { userId } });
       if (!member) throw notFound();
+      if (body.workingDays !== undefined || body.hoursPerWeek !== undefined) {
+        await auth.db.tenantMember.update({
+          where: { id: member.id },
+          data: {
+            ...(body.workingDays !== undefined ? { workingDays: optionalJson(body.workingDays) } : {}),
+            ...(body.hoursPerWeek !== undefined ? { hoursPerWeek: body.hoursPerWeek } : {}),
+          },
+        });
+      }
+      if (body.tenantRole === undefined) {
+        const next = await auth.db.tenantMember.findFirst({ where: { id: member.id } });
+        return {
+          ok: true,
+          workingDays: parseOptionalWorkingDays(next?.workingDays),
+          hoursPerWeek: hoursPerWeekToNumber(next?.hoursPerWeek),
+        };
+      }
       if (body.tenantRole === 'owner') {
         if (auth.workspaceRole !== 'owner') throw forbidden('Only the owner can transfer ownership.');
         if (userId === auth.userId) throw validation('You already own this workspace.');
@@ -413,6 +443,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           email: i.email,
           tenantRole: i.tenantRole,
           projectId: i.projectId,
+          workingDays: parseOptionalWorkingDays(i.workingDays),
+          hoursPerWeek: hoursPerWeekToNumber(i.hoursPerWeek),
           expiresAt: i.expiresAt.toISOString(),
           createdAt: i.createdAt.toISOString(),
         })),
