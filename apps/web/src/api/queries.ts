@@ -962,6 +962,12 @@ export const TimesheetRangeSchema = z.object({
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string(), countryCode: z.string().nullable().optional() })),
+  corrections: z.array(z.object({
+    id: z.string(),
+    actorId: z.string(),
+    via: z.string(),
+    at: z.string(),
+  })).optional(),
 });
 
 export type TimesheetRange = z.infer<typeof TimesheetRangeSchema>;

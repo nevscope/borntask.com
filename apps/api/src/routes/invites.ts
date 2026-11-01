@@ -65,7 +65,7 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       const created: { email: string; url: string; tenantRole: string }[] = [];
       const alreadyMembers: string[] = [];
       for (const emailRaw of input.emails) {
-        const email = emailRaw.toLowerCase();
+        const email = emailRaw.trim().toLowerCase();
         const tenantRole = roleForInvite(email, input.tenantRole, domains);
         if (tenantRole === 'guest' && !ws.membersCanInviteGuests && auth.workspaceRole === 'member') {
           throw forbid('Only admins and leads can invite guests.');

@@ -4,7 +4,7 @@ import {
   putDaysOffSchema,
   putTimesheetsSchema,
   resolveMemberWorkingDays,
-  timesheetPersonStart,
+  timesheetExpectedStart,
   timesheetRangeQuerySchema,
 } from '@borntask/shared';
 import { requireAuth } from '../context.js';
@@ -39,7 +39,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       if (!access.ok) throw forbidden('You can only read timesheets for projects you lead.');
       const from = parseYmd(query.from);
       const to = parseYmd(query.to);
-      const [entries, daysOff, holidays, settings, member] = await Promise.all([
+      const [entries, daysOff, holidays, settings, member, corrections] = await Promise.all([
         auth.db.timesheetEntry.findMany({
           where: {
             userId,
@@ -56,8 +56,20 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         holidaysInRange(auth, from, to),
         workspaceTimesheetSettings(auth),
         auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true, holidayCountry: true } }),
+        userId === auth.userId
+          ? Promise.resolve([])
+          : auth.db.activityLog.findMany({
+              where: { action: 'updated timesheet', actorId: { not: userId } },
+              orderBy: { at: 'desc' },
+              take: 20,
+              select: { id: true, actorId: true, via: true, at: true, fromJson: true },
+            }),
       ]);
-      const startOn = timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt);
+      const startOn = timesheetExpectedStart({
+        workspaceStart: settings.timesheetsStartOn,
+        joinedAt: member?.createdAt,
+        memberWorkingDays: member?.workingDays,
+      });
       const workingDays = resolveMemberWorkingDays(member?.workingDays, settings.workingDays);
       const holidayCountry = memberHolidayCountry(member?.holidayCountry, settings.defaultHolidayCountry);
       const personHolidays = holidays.filter((row) => row.countryCode == null || row.countryCode === holidayCountry);
@@ -84,6 +96,18 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         })),
         daysOff: daysOff.map((row) => mapDayOff(row, access.seeDayOffDetails)),
         holidays: personHolidays.map((row) => ({ date: ymdOf(row.date), name: row.name, countryCode: row.countryCode })),
+        corrections: corrections
+          .filter((row) => {
+            const fromJson = row.fromJson as { sheetUserId?: string } | null;
+            return fromJson?.sheetUserId === userId;
+          })
+          .slice(0, 5)
+          .map((row) => ({
+            id: row.id,
+            actorId: row.actorId ?? '',
+            via: row.via,
+            at: row.at.toISOString(),
+          })),
       };
     } catch (err) {
       return sendError(reply, err);

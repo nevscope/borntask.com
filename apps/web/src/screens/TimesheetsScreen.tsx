@@ -2,6 +2,7 @@ import {
   addUtcDays,
   expectedDays,
   formatMinutes,
+  formatMixedTotals,
   formatYmd,
   isTimesheetLocked,
   isWorkingDay,
@@ -307,6 +308,7 @@ export function TimesheetsScreen() {
       }
     }
     if (usedPercent && minutes === 0) return `${percent}%`;
+    if (minutes > 0 && usedPercent) return formatMixedTotals(minutes, percent);
     if (minutes > 0) return formatMinutes(minutes);
     return '';
   };
@@ -396,31 +398,41 @@ export function TimesheetsScreen() {
     await runCopyLastWeek(writes);
   };
 
-  const valueOf = (projectId: string, ymd: string) => {
+  const partsOf = (projectId: string, ymd: string) => {
     const cell = displayCell(projectId, ymd);
-    if (cell.unit === 'percent') return Number(cell.text) || 0;
-    return parseTimeToMinutes(cell.text) ?? 0;
+    if (cell.unit === 'percent') return { minutes: 0, percent: Number(cell.text) || 0 };
+    return { minutes: parseTimeToMinutes(cell.text) ?? 0, percent: 0 };
   };
+
+  const addParts = (a: { minutes: number; percent: number }, b: { minutes: number; percent: number }) => ({
+    minutes: a.minutes + b.minutes,
+    percent: a.percent + b.percent,
+  });
 
   const dayTotals = days.map((date) => {
     const ymd = formatYmd(date);
-    if (offByDate.has(ymd)) return { kind: 'off' as const, label: kindLabel(offByDate.get(ymd)?.kind), value: 0 };
-    const sum = projects.reduce((acc, p) => acc + valueOf(p.id, period === 'daily' ? ymd : from), 0);
-    return { kind: 'sum' as const, label: '', value: period === 'daily' ? sum : 0 };
+    if (offByDate.has(ymd)) return { kind: 'off' as const, label: kindLabel(offByDate.get(ymd)?.kind), minutes: 0, percent: 0 };
+    const sum = projects.reduce((acc, p) => addParts(acc, partsOf(p.id, period === 'daily' ? ymd : from)), { minutes: 0, percent: 0 });
+    return { kind: 'sum' as const, label: '', minutes: period === 'daily' ? sum.minutes : 0, percent: period === 'daily' ? sum.percent : 0 };
   });
 
-  const weekTotal = projects.reduce((acc, p) => {
-    if (period === 'weekly') return acc + valueOf(p.id, from);
-    return acc + days.reduce((n, d) => n + valueOf(p.id, formatYmd(d)), 0);
-  }, 0);
+  const weekParts = projects.reduce((acc, p) => {
+    if (period === 'weekly') return addParts(acc, partsOf(p.id, from));
+    return days.reduce((n, d) => addParts(n, partsOf(p.id, formatYmd(d))), acc);
+  }, { minutes: 0, percent: 0 });
 
   const todayYmd = formatYmd(today);
-  const todayTotal = period === 'daily' ? projects.reduce((acc, p) => acc + valueOf(p.id, todayYmd), 0) : weekTotal;
+  const todayParts = period === 'daily'
+    ? projects.reduce((acc, p) => addParts(acc, partsOf(p.id, todayYmd)), { minutes: 0, percent: 0 })
+    : weekParts;
 
-  const lastWeekTotal = (lastWeek.data?.entries ?? []).reduce((acc, row) => {
-    if (row.unit === 'percent') return acc + (row.percent ?? 0);
-    return acc + (row.minutes ?? 0);
-  }, 0);
+  const lastWeekParts = (lastWeek.data?.entries ?? []).reduce(
+    (acc, row) => {
+      if (row.unit === 'percent') return { minutes: acc.minutes, percent: acc.percent + (row.percent ?? 0) };
+      return { minutes: acc.minutes + (row.minutes ?? 0), percent: acc.percent };
+    },
+    { minutes: 0, percent: 0 },
+  );
 
   const holidaySet = [...holidayByDate.keys()];
   const offSet = [...offByDate.keys()];
@@ -449,7 +461,7 @@ export function TimesheetsScreen() {
   );
 
   useEffect(() => {
-    if (sessionShownIds || !sheet.data) return;
+    if (!sheet.data) return;
     const hasSaved = (projectId: string) =>
       (sheet.data?.entries ?? []).some((row) => {
         if (row.projectId !== projectId) return false;
@@ -457,9 +469,19 @@ export function TimesheetsScreen() {
       });
     const mustIds = openable.filter((p) => hasSaved(p.id)).map((p) => p.id);
     const extraIds = openable.filter((p) => !mustIds.includes(p.id)).map((p) => p.id);
-    const keep = new Set([...mustIds, ...extraIds.slice(0, Math.max(0, 4 - mustIds.length))]);
-    setSessionShownIds(openable.filter((p) => keep.has(p.id)).map((p) => p.id));
-  }, [openable, sessionShownIds, sheet.data]);
+    const minRows = Math.min(openable.length, Math.max(2, 4));
+    setSessionShownIds((prev) => {
+      const keep = new Set(prev ?? []);
+      for (const id of mustIds) keep.add(id);
+      for (const id of extraIds) {
+        if (keep.size >= minRows) break;
+        keep.add(id);
+      }
+      const next = openable.filter((p) => keep.has(p.id)).map((p) => p.id);
+      if (prev && prev.length === next.length && prev.every((id, i) => id === next[i])) return prev;
+      return next;
+    });
+  }, [openable, sheet.data]);
 
   const shown = extraOpen
     ? openable
@@ -475,7 +497,7 @@ export function TimesheetsScreen() {
     ? `Days before ${DAY_SHORT[firstOpen.getUTCDay()]} ${dayLabel(firstOpen)} are locked. ${openDayNames} ${openDays.length === 1 ? 'is' : 'are'} still open.`
     : '';
   const hideCopy = readOnly || weekLocked;
-  const hideHint = readOnly || periodLocked;
+  const hideHint = viewingOther || readOnly || periodLocked;
 
   const viewingName = people.data?.find((p) => p.id === viewUserId)?.name;
   const maxWeeklyOff = days.filter((d) => isWorkingDay(d, workingDays) && !holidayByDate.has(formatYmd(d))).length;
@@ -492,7 +514,7 @@ export function TimesheetsScreen() {
         ? 'Weekly entries in hours, against projects · set by your workspace'
         : 'Weekly entries as a percentage, against projects · set by your workspace';
 
-  const fmt = (value: number, cellUnit = unit) => (cellUnit === 'percent' ? `${value}%` : formatMinutes(value));
+  const fmtParts = (parts: { minutes: number; percent: number }) => formatMixedTotals(parts.minutes, parts.percent);
 
   if (guest) {
     return (
@@ -590,12 +612,12 @@ export function TimesheetsScreen() {
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Tile label="This week" value={fmt(weekTotal)} />
+        <Tile label="This week" value={fmtParts(weekParts)} />
         <Tile
           label={period === 'daily' ? `Today, ${DAY_SHORT[today.getUTCDay()]} ${dayLabel(today)}` : `Week of ${dayLabel(weekStart)}`}
-          value={fmt(todayTotal)}
+          value={fmtParts(todayParts)}
         />
-        <Tile label="Last week" value={fmt(lastWeekTotal, lastWeek.data?.entries[0]?.unit ?? unit)} />
+        <Tile label="Last week" value={fmtParts(lastWeekParts)} />
         <Tile
           label="Days logged so far"
           value={
@@ -674,14 +696,13 @@ export function TimesheetsScreen() {
           commitCell={commitCell}
           invalidCells={invalidCells}
           readOnly={readOnly || weekLocked}
-          weekTotal={weekTotal}
+          weekParts={weekParts}
         />
       ) : (
         <DailyGrid
           projects={shown}
           days={days}
           today={today}
-          unit={unit}
           holidayByDate={holidayByDate}
           offByDate={offByDate}
           workingDays={workingDays}
@@ -694,7 +715,7 @@ export function TimesheetsScreen() {
           dayHasTime={dayHasTime}
           markOff={markOff}
           dayTotals={dayTotals}
-          weekTotal={weekTotal}
+          weekParts={weekParts}
           noteCell={noteCell}
           setNoteCell={setNoteCell}
           noteDraft={noteDraft}
@@ -704,9 +725,9 @@ export function TimesheetsScreen() {
         />
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, fontSize: 12.5, color: color.muted }}>
-        <span>
-          {hideHint ? null : unit === 'time' ? (
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 40, fontSize: 12.5, color: color.muted }}>
+        <span style={{ visibility: hideHint ? 'hidden' : 'visible' }}>
+          {unit === 'time' ? (
             <>Type <kbd className="bt-kbd">2:30</kbd> or <kbd className="bt-kbd">2.5</kbd>. Tab moves to the next {period === 'daily' ? 'day' : 'project'}. Changes save as you go. Click a filled cell again to add a note.{period === 'daily' ? ' Open a day\'s menu to mark it off.' : ''}</>
           ) : (
             <>Type a percentage. Changes save as you go. Weeks and days usually add up to 100%, but short totals still save.</>
@@ -724,6 +745,14 @@ export function TimesheetsScreen() {
           {canAdmin
             ? 'You can see this because you are an owner/admin.'
             : `You lead ${leadsProjects.map((p) => p.name).join(' and ') || 'these projects'}, so you only see ${viewingName}'s time on those. Days off show as "Off"; the type and note stay private to ${viewingName}, owners and admins.`}
+        </p>
+      )}
+      {viewingOther && (sheet.data?.corrections ?? []).length > 0 && (
+        <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>
+          {(sheet.data?.corrections ?? []).map((row) => {
+            const actor = people.data?.find((p) => p.id === row.actorId)?.name ?? 'Someone';
+            return `${actor} updated this timesheet via ${row.via === 'app' ? 'app' : row.via}`;
+          }).join(' · ')}
         </p>
       )}
 
@@ -775,7 +804,7 @@ function WeeklyGrid({
   commitCell,
   invalidCells,
   readOnly,
-  weekTotal,
+  weekParts,
 }: {
   projects: { id: string; name: string; color: string }[];
   unit: 'time' | 'percent';
@@ -786,9 +815,9 @@ function WeeklyGrid({
   commitCell: (projectId: string, periodStart: string) => void;
   invalidCells: Record<string, boolean>;
   readOnly: boolean;
-  weekTotal: number;
+  weekParts: { minutes: number; percent: number };
 }) {
-  const pctTotal = unit === 'percent' ? weekTotal : 0;
+  const pctTotal = weekParts.percent;
   return (
     <section aria-label="Time per project" style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px' }}>
@@ -798,17 +827,17 @@ function WeeklyGrid({
       {projects.map((p) => {
         const cell = displayCell(p.id, from);
         const invalid = Boolean(invalidCells[cellKey(p.id, from)]);
-        const n = unit === 'percent' ? Number(cell.text) || 0 : 0;
+        const n = cell.unit === 'percent' ? Number(cell.text) || 0 : 0;
         return (
           <div key={p.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, minHeight: 48, padding: '6px 16px', borderTop: `1px solid ${color.divider}` }}>
             <span style={{ flex: 'none', width: 9, height: 9, borderRadius: 3, background: p.color }} />
             <span style={{ flex: '1 1 140px', fontWeight: 500 }}>{p.name}</span>
-            {unit === 'percent' && (
+            {cell.unit === 'percent' && (
               <span aria-hidden="true" style={{ width: 120, height: 6, borderRadius: 3, background: color.divider, overflow: 'hidden' }}>
                 <span style={{ display: 'block', width: `${Math.min(100, n)}%`, height: 6, background: p.color }} />
               </span>
             )}
-            {unit === 'time' && (
+            {cell.unit === 'time' && (
               <Input
                 placeholder="Note (optional)"
                 aria-label={`${p.name}, week of ${dayLabel(weekStart)} note`}
@@ -831,20 +860,20 @@ function WeeklyGrid({
                 onKeyDown={(e) => {
                   if (e.key === 'Tab' || e.key === 'Enter') commitCell(p.id, from);
                 }}
-                style={{ width: unit === 'percent' ? 64 : 76, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
+                style={{ width: cell.unit === 'percent' ? 64 : 76, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
               />
-              {unit === 'percent' && <span style={{ fontSize: 13, color: color.muted }}>%</span>}
+              {cell.unit === 'percent' && <span style={{ fontSize: 13, color: color.muted }}>%</span>}
             </span>
           </div>
         );
       })}
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderTop: `1px solid ${color.divider}`, background: color.subtle }}>
         <span style={{ flex: 1, fontWeight: 600 }}>Total</span>
-        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: unit === 'percent' && pctTotal !== 100 ? color.warning : color.ink }}>
-          {unit === 'percent' ? `${pctTotal}%` : formatMinutes(weekTotal)}
+        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: weekParts.minutes === 0 && pctTotal > 0 && pctTotal !== 100 ? color.warning : color.ink }}>
+          {formatMixedTotals(weekParts.minutes, weekParts.percent)}
         </span>
       </div>
-      {unit === 'percent' && pctTotal !== 100 && (
+      {weekParts.minutes === 0 && pctTotal > 0 && pctTotal !== 100 && (
         <Alert
           type="warning"
           showIcon
@@ -860,7 +889,6 @@ function DailyGrid({
   projects,
   days,
   today,
-  unit,
   holidayByDate,
   offByDate,
   workingDays,
@@ -873,7 +901,7 @@ function DailyGrid({
   dayHasTime,
   markOff,
   dayTotals,
-  weekTotal,
+  weekParts,
   noteCell,
   setNoteCell,
   noteDraft,
@@ -884,7 +912,6 @@ function DailyGrid({
   projects: { id: string; name: string; key: string; color: string; leadId: string }[];
   days: Date[];
   today: Date;
-  unit: 'time' | 'percent';
   holidayByDate: Map<string, string>;
   offByDate: Map<string, { kind?: string | null }>;
   workingDays: string[];
@@ -896,8 +923,8 @@ function DailyGrid({
   dayLocked: (ymd: string) => boolean;
   dayHasTime: (ymd: string) => boolean;
   markOff: (ymd: string, kind: 'leave' | 'other' | null) => void;
-  dayTotals: Array<{ kind: 'off' | 'sum'; label: string; value: number }>;
-  weekTotal: number;
+  dayTotals: Array<{ kind: 'off' | 'sum'; label: string; minutes: number; percent: number }>;
+  weekParts: { minutes: number; percent: number };
   noteCell: { projectId: string; periodStart: string } | null;
   setNoteCell: (v: { projectId: string; periodStart: string } | null) => void;
   noteDraft: string;
@@ -974,7 +1001,12 @@ function DailyGrid({
           <span style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: color.muted }}>Total</span>
         </div>
         {projects.map((p) => {
-          const rowTotal = days.reduce((acc, d) => acc + (offByDate.has(formatYmd(d)) ? 0 : (displayCell(p.id, formatYmd(d)).unit === 'percent' ? Number(displayCell(p.id, formatYmd(d)).text) || 0 : parseTimeToMinutes(displayCell(p.id, formatYmd(d)).text) ?? 0)), 0);
+          const rowParts = days.reduce((acc, d) => {
+            if (offByDate.has(formatYmd(d))) return acc;
+            const cell = displayCell(p.id, formatYmd(d));
+            if (cell.unit === 'percent') return { minutes: acc.minutes, percent: acc.percent + (Number(cell.text) || 0) };
+            return { minutes: acc.minutes + (parseTimeToMinutes(cell.text) ?? 0), percent: acc.percent };
+          }, { minutes: 0, percent: 0 });
           return (
             <div key={p.id} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', borderBottom: `1px solid ${color.divider}` }}>
               <ProjectCell name={p.name} colorSwatch={p.color} meta={p.key} />
@@ -993,7 +1025,7 @@ function DailyGrid({
                       <span aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]}: day off`} style={{ display: 'grid', placeItems: 'center', height: 38, borderRadius: 8, background: color.chip, fontSize: 12, fontWeight: 500, color: color.muted }}>Off</span>
                     ) : readOnly || dayLocked(ymd) ? (
                       <span style={{ display: 'grid', placeItems: 'center', height: 38, fontVariantNumeric: 'tabular-nums', color: filled ? color.ink : color.faint }}>
-                        {filled ? (unit === 'percent' ? `${cell.text}%` : cell.text) : holiday ? 'Holiday' : '-'}
+                        {filled ? (cell.unit === 'percent' ? `${cell.text}%` : cell.text) : holiday ? 'Holiday' : '-'}
                       </span>
                     ) : (
                       <Popover
@@ -1068,7 +1100,7 @@ function DailyGrid({
                 );
               })}
               <span style={{ padding: '0 16px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                {rowTotal ? (unit === 'percent' ? `${rowTotal}%` : formatMinutes(rowTotal)) : '-'}
+                {formatMixedTotals(rowParts.minutes, rowParts.percent)}
               </span>
             </div>
           );
@@ -1079,18 +1111,19 @@ function DailyGrid({
             const date = days[i];
             if (!date) return null;
             const ymd = formatYmd(date);
-            const pastEmpty = t.kind === 'sum' && t.value === 0 && date.getTime() <= today.getTime() && isWorkingDay(date, workingDays) && !holidayByDate.has(ymd);
-            const short = unit === 'percent' && t.kind === 'sum' && t.value > 0 && t.value < 100;
-            const label = t.kind === 'off' ? t.label : t.value ? (unit === 'percent' ? `${t.value}%` : formatMinutes(t.value)) : '-';
+            const empty = t.minutes === 0 && t.percent === 0;
+            const pastEmpty = t.kind === 'sum' && empty && date.getTime() <= today.getTime() && isWorkingDay(date, workingDays) && !holidayByDate.has(ymd);
+            const short = t.kind === 'sum' && t.minutes === 0 && t.percent > 0 && t.percent < 100;
+            const label = t.kind === 'off' ? t.label : formatMixedTotals(t.minutes, t.percent);
             return (
-              <span key={ymd} style={{ padding: '14px 4px', textAlign: 'center', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: t.kind === 'off' ? color.muted : short || pastEmpty ? color.warning : t.value ? (unit === 'percent' && t.value === 100 ? color.brandStrong : color.ink) : color.faint }}>
+              <span key={ymd} style={{ padding: '14px 4px', textAlign: 'center', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: t.kind === 'off' ? color.muted : short || pastEmpty ? color.warning : !empty ? (t.minutes === 0 && t.percent === 100 ? color.brandStrong : color.ink) : color.faint }}>
                 {label}
-                {short && <span style={{ display: 'block', fontSize: 11, fontWeight: 500 }}>{100 - t.value}% short</span>}
+                {short && <span style={{ display: 'block', fontSize: 11, fontWeight: 500 }}>{100 - t.percent}% short</span>}
               </span>
             );
           })}
           <span style={{ padding: '14px 16px', textAlign: 'right', fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {unit === 'percent' ? `${weekTotal}%` : formatMinutes(weekTotal)}
+            {formatMixedTotals(weekParts.minutes, weekParts.percent)}
           </span>
         </div>
       </div>

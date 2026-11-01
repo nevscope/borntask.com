@@ -770,7 +770,7 @@ function Subtasks({ task, detail, onDraftChange }: { task: TaskDetail; detail: P
   return (
     <Section title={`Subtasks ${task.subtaskCount.done}/${task.subtaskCount.total}`}>
       {task.subtasks.map((s) => (
-        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <Checkbox checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
             <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
           </Checkbox>

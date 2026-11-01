@@ -8,7 +8,9 @@ import {
   expectedDays,
   holidayDatesForCountry,
   resolveHolidayCountry,
+  timesheetExpectedStart,
   timesheetPersonStart,
+  formatMixedTotals,
   formatMinutes,
   isTimesheetLocked,
   loggedExpectedDays,
@@ -164,6 +166,36 @@ describe('timesheet start date', () => {
     expect(timesheetPersonStart(parseYmd('2026-11-02'), parseYmd('2026-11-16'))?.toISOString().slice(0, 10)).toBe('2026-11-16');
     expect(timesheetPersonStart(null, parseYmd('2026-11-16'))?.toISOString().slice(0, 10)).toBe('2026-11-16');
   });
+
+  test('inherited working days ignore join date for expected start', () => {
+    expect(
+      timesheetExpectedStart({
+        workspaceStart: parseYmd('2026-10-01'),
+        joinedAt: parseYmd('2026-11-01'),
+        memberWorkingDays: null,
+      })?.toISOString().slice(0, 10),
+    ).toBe('2026-10-01');
+    expect(
+      expectedDays({
+        from: parseYmd('2026-10-26'),
+        to: parseYmd('2026-11-01'),
+        workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        today: parseYmd('2026-11-01'),
+        startOn: timesheetExpectedStart({
+          workspaceStart: parseYmd('2026-10-01'),
+          joinedAt: parseYmd('2026-11-01'),
+          memberWorkingDays: [],
+        }),
+      }),
+    ).toBe(5);
+  });
+
+  test('mixed totals keep hours and percent separate', () => {
+    expect(formatMixedTotals(120, 0)).toBe('2:00');
+    expect(formatMixedTotals(150, 0)).toBe('2:30');
+    expect(formatMixedTotals(0, 40)).toBe('40%');
+    expect(formatMixedTotals(120, 40)).toBe('2:00 + 40%');
+  });
 });
 
 describe('completeness and canvas fixture', () => {
@@ -252,6 +284,8 @@ describe('completeness and canvas fixture', () => {
     expect(loggedExpectedDays(['2026-10-27', '2026-10-29'], expectedDates)).toBe(2);
     expect(resolveMemberWorkingDays(['tue', 'thu'], ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['tue', 'thu']);
     expect(parseOptionalWorkingDays(null)).toBeNull();
+    expect(parseOptionalWorkingDays([])).toBeNull();
+    expect(resolveMemberWorkingDays([], ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
     expect(resolveMemberWorkingDays(null, ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
   });
 

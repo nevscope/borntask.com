@@ -10,7 +10,8 @@ import {
   holidayDatesForCountry,
   resolveHolidayCountry,
   resolveMemberWorkingDays,
-  timesheetPersonStart,
+  timesheetExpectedStart,
+  utcDay,
   workingDatesInRange,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
@@ -95,7 +96,7 @@ export async function workspaceReports(
   const selfOnly = !isOwnerAdmin(auth.workspaceRole);
   const from = parseYmd(range.from);
   const to = parseYmd(range.to);
-  const today = range.today ?? new Date();
+  const today = range.today ?? utcDay();
   const settings = await workspaceTimesheetSettings(auth);
   const holidayRows = await holidaysInRange(auth, from, to);
   const mappedHolidays = holidayRows.map((row) => ({
@@ -294,7 +295,11 @@ export async function workspaceReports(
           resolveHolidayCountry(member?.holidayCountry, settings.defaultHolidayCountry),
         ),
         today,
-        startOn: timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt),
+        startOn: timesheetExpectedStart({
+          workspaceStart: settings.timesheetsStartOn,
+          joinedAt: member?.createdAt,
+          memberWorkingDays: member?.workingDays,
+        }),
       })) {
         set.add(formatYmd(date));
       }
@@ -303,7 +308,11 @@ export async function workspaceReports(
   }
 
   const people = members.map((m) => {
-    const personStart = timesheetPersonStart(settings.timesheetsStartOn, m.createdAt);
+    const personStart = timesheetExpectedStart({
+      workspaceStart: settings.timesheetsStartOn,
+      joinedAt: m.createdAt,
+      memberWorkingDays: m.workingDays,
+    });
     const daysOffCount = offByUser.get(m.userId)?.size ?? 0;
     const expectedDates = workingDatesInRange({
       from,

@@ -138,6 +138,7 @@ export function parseWorkingDays(value: unknown): z.infer<typeof weekdayKeySchem
 /** Null or invalid JSON means inherit the workspace working days. */
 export function parseOptionalWorkingDays(value: unknown): z.infer<typeof weekdayKeySchema>[] | null {
   if (value == null) return null;
+  if (Array.isArray(value) && value.length === 0) return null;
   const parsed = workingDaysSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
@@ -238,9 +239,34 @@ export function clipTimesheetFrom(from: Date, startOn?: Date | null): Date {
 
 /** Later of the workspace timesheet start and the day the person joined. */
 export function timesheetPersonStart(workspaceStart?: Date | null, joinedAt?: Date | null): Date | null {
-  const dates = [workspaceStart, joinedAt ? utcDateOnly(joinedAt) : null].filter((date): date is Date => Boolean(date));
+  const dates = [
+    workspaceStart ? utcDateOnly(workspaceStart) : null,
+    joinedAt ? utcDateOnly(joinedAt) : null,
+  ].filter((date): date is Date => Boolean(date));
   if (dates.length === 0) return null;
   return dates.reduce((latest, date) => (date.getTime() > latest.getTime() ? date : latest));
+}
+
+/**
+ * People who inherit the workspace working pattern use the workspace start only.
+ * Join date must not zero expected days once timesheets have started.
+ */
+export function timesheetExpectedStart(input: {
+  workspaceStart?: Date | null;
+  joinedAt?: Date | null;
+  memberWorkingDays?: unknown;
+}): Date | null {
+  if (parseOptionalWorkingDays(input.memberWorkingDays) == null) {
+    return input.workspaceStart ? utcDateOnly(input.workspaceStart) : null;
+  }
+  return timesheetPersonStart(input.workspaceStart, input.joinedAt);
+}
+
+export function formatMixedTotals(minutes: number, percent: number): string {
+  const timePart = minutes > 0 ? formatMinutes(minutes) : '';
+  const pctPart = percent > 0 ? `${Math.round(percent)}%` : '';
+  if (timePart && pctPart) return `${timePart} + ${pctPart}`;
+  return timePart || pctPart || '-';
 }
 
 export function workingDatesInRange(input: {

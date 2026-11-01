@@ -27,7 +27,7 @@ export async function findPendingInvite(
       revokedAt: null,
       projectId: input.projectId ?? null,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }],
   });
 }
 

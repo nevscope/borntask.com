@@ -71,6 +71,7 @@ export function AttachmentTiles({
   onOpen,
   onRejected,
   hint = true,
+  thumbHeight = 84,
 }: {
   items: AttachmentItem[];
   onAdd: (files: File[]) => void;
@@ -78,6 +79,7 @@ export function AttachmentTiles({
   onOpen?: (item: AttachmentItem) => void;
   onRejected?: (reason: string) => void;
   hint?: boolean;
+  thumbHeight?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -97,7 +99,7 @@ export function AttachmentTiles({
             onClick={() => onOpen?.(item)}
             style={{
               cursor: onOpen ? 'pointer' : undefined,
-              height: 84,
+              height: thumbHeight,
               borderRadius: radius.md,
               border: `1px solid ${color.border}`,
               background: item.previewUrl ? color.ink : color.surface,

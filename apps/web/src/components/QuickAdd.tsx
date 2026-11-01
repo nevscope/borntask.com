@@ -668,6 +668,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
         <div style={{ padding: '0 18px 16px' }}>
           <AttachmentTiles
             items={files}
+            thumbHeight={140}
             onAdd={addFiles}
             onOpen={(item) => setPreview(item)}
             onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
