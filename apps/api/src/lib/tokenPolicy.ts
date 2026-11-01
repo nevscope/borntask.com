@@ -8,6 +8,8 @@ const READ_PATHS = [
   /^\/search$/,
   /^\/people$/,
   /^\/tasks\/[^/]+$/,
+  /^\/timesheets$/,
+  /^\/reports\/workspace$/,
 ];
 
 const WRITE_PATHS: { method: string; pattern: RegExp }[] = [
@@ -21,6 +23,7 @@ const WRITE_PATHS: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/subtasks$/ },
   { method: 'PATCH', pattern: /^\/tasks\/[^/]+\/subtasks\/[^/]+$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/watchers$/ },
+  { method: 'PUT', pattern: /^\/timesheets$/ },
 ];
 
 export function tokenAllows(

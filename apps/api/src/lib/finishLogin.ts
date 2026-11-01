@@ -1,7 +1,8 @@
 import type { AuthProvider } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { prisma } from '../db.js';
+import { createTenantClient, prisma } from '../db.js';
 import { setSession } from '../context.js';
+import { settlePendingInvitesForEmail } from './inviteHygiene.js';
 import { normaliseDomain } from './inviteRole.js';
 import { hashToken } from './tokens.js';
 import { workspaceSlugFromRequest } from './workspaceHost.js';
@@ -69,6 +70,11 @@ export async function finishLogin(
           data: { tenantId: match.id, userId: user.id, tenantRole: 'member' },
         });
         tenantId = match.id;
+        await settlePendingInvitesForEmail(createTenantClient(match.id), {
+          tenantId: match.id,
+          userId: user.id,
+          email,
+        });
       }
     }
   }

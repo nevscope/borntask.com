@@ -941,6 +941,7 @@ export const TimesheetRangeSchema = z.object({
   userId: z.string(),
   timesheetPeriod: z.enum(['daily', 'weekly']).optional(),
   timesheetUnit: z.enum(['time', 'percent']).optional(),
+  weekStart: z.enum(['monday', 'sunday']).optional(),
   memberSince: z.string().nullable().optional(),
   timesheetsStartOn: z.string().nullable().optional(),
   expectedFrom: z.string().nullable().optional(),

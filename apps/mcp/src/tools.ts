@@ -1,4 +1,4 @@
-import { MCP_TOOL_NAMES, type McpToolName } from '@borntask/shared';
+import { formatYmd, MCP_TOOL_NAMES, parseTimeToMinutes, parseYmd, weekStartFor, type McpToolName } from '@borntask/shared';
 
 function apiBase(): string {
   return (process.env.API_PUBLIC_URL ?? 'http://127.0.0.1:3010').replace(/\/$/, '');
@@ -126,6 +126,48 @@ export const TOOLS: ToolDef[] = [
         id: { type: 'string', description: 'Attachment id from get_task.' },
       },
       required: ['key', 'id'],
+    },
+  },
+  {
+    name: 'list_timesheets',
+    description: 'Read timesheet entries, days off and holidays for a date range. You always see your own sheet. Owners and admins may pass person. Project leads see only projects they lead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Start date YYYY-MM-DD.' },
+        to: { type: 'string', description: 'End date YYYY-MM-DD.' },
+        person: { type: 'string', description: 'User id. Owners and admins may pass another person. Leads see projects they lead.' },
+      },
+      required: ['from', 'to'],
+    },
+  },
+  {
+    name: 'get_report',
+    description: 'Workspace or self reports for a date range, same scope as Reports in the app. Members see their own tasks and time. Owners and admins see the workspace. Guests and viewers cannot read reports.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Start date YYYY-MM-DD.' },
+        to: { type: 'string', description: 'End date YYYY-MM-DD.' },
+        projectId: { type: 'string', description: 'Optional project id to filter.' },
+      },
+      required: ['from', 'to'],
+    },
+  },
+  {
+    name: 'log_time',
+    description: 'Log time on your own day only. You cannot target another person. Uses the same parse, 24:00 cap, lock and day-off rules as the app. Pass minutes or a time string such as 2:30, 2.5 or 1,5.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'Day to log, YYYY-MM-DD.' },
+        projectId: { type: 'string', description: 'Project id. Use this or key.' },
+        key: { type: 'string', description: 'Project key, such as WEB. Use this or projectId.' },
+        minutes: { type: 'number', description: 'Minutes to log. Use this or time.' },
+        time: { type: 'string', description: 'Hours as 2:30, 2.5 or 1,5. Use this or minutes.' },
+        note: { type: 'string', description: 'Optional note for the cell.' },
+      },
+      required: ['date'],
     },
   },
 ];
@@ -276,7 +318,82 @@ export async function callTool(token: string, name: string, args: Record<string,
       }
       return text({ name: file.name, mime: file.mime, size: file.buf.length, note: 'Not an image. Open the task url from get_task to download it.' });
     }
+    case 'list_timesheets': {
+      const from = str('from') ?? '';
+      const to = str('to') ?? '';
+      const person = str('person');
+      const qs = new URLSearchParams({ from, to });
+      if (person) qs.set('userId', person);
+      return text(await api(token, 'GET', `/timesheets?${qs}`));
+    }
+    case 'get_report': {
+      const from = str('from') ?? '';
+      const to = str('to') ?? '';
+      const qs = new URLSearchParams({ from, to });
+      const projectId = str('projectId');
+      if (projectId) qs.set('projectId', projectId);
+      return text(await api(token, 'GET', `/reports/workspace?${qs}`));
+    }
+    case 'log_time': {
+      if (str('person') || str('userId')) {
+        throw new Error('You can only log time for yourself.');
+      }
+      const date = str('date') ?? '';
+      const minutes = resolveLogMinutes(args);
+      const projectId = await resolveProjectId(token, str('projectId'), str('key') ?? str('projectKey'));
+      const sheet = await api(token, 'GET', `/timesheets?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`) as {
+        timesheetPeriod?: 'daily' | 'weekly';
+        weekStart?: 'monday' | 'sunday';
+      };
+      const periodKind = sheet.timesheetPeriod === 'weekly' ? 'weekly' : 'daily';
+      const periodStart = periodKind === 'weekly'
+        ? formatYmd(weekStartFor(parseYmd(date), sheet.weekStart ?? 'monday'))
+        : date;
+      return text(await api(token, 'PUT', '/timesheets', {
+        entries: [{
+          projectId,
+          periodKind,
+          periodStart,
+          unit: 'time',
+          minutes,
+          note: str('note') ?? null,
+        }],
+      }));
+    }
     default:
       throw new Error(`Unknown tool ${name}.`);
   }
+}
+
+function resolveLogMinutes(args: Record<string, unknown>): number {
+  if (typeof args.minutes === 'number' && Number.isFinite(args.minutes)) {
+    const value = Math.round(args.minutes);
+    if (value < 0 || value > 24 * 60) throw new Error('A day cannot exceed 24:00.');
+    return value;
+  }
+  if (typeof args.minutes === 'string') {
+    const parsed = parseTimeToMinutes(args.minutes);
+    if (parsed == null) throw new Error('Enter time as 2:30, 2.5 or 1,5.');
+    return parsed;
+  }
+  if (typeof args.time === 'string') {
+    const parsed = parseTimeToMinutes(args.time);
+    if (parsed == null) throw new Error('Enter time as 2:30, 2.5 or 1,5.');
+    return parsed;
+  }
+  throw new Error('Pass minutes or a time string such as 2:30.');
+}
+
+async function resolveProjectId(token: string, projectId?: string, key?: string): Promise<string> {
+  if (projectId && !key) return projectId;
+  const rows = await api(token, 'GET', '/projects') as Array<{ id: string; key: string }>;
+  if (projectId) {
+    const byId = rows.find((row) => row.id === projectId);
+    if (byId) return byId.id;
+  }
+  if (key) {
+    const match = rows.find((row) => row.key.toLowerCase() === key.toLowerCase());
+    if (match) return match.id;
+  }
+  throw new Error('Pass a projectId or project key that you can see.');
 }

@@ -57,6 +57,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         userId,
         timesheetPeriod: settings.timesheetPeriod,
         timesheetUnit: settings.timesheetUnit,
+        weekStart: settings.weekStart,
         memberSince: member ? ymdOf(member.createdAt) : null,
         timesheetsStartOn: settings.timesheetsStartOn ? ymdOf(settings.timesheetsStartOn) : null,
         expectedFrom: startOn ? ymdOf(startOn) : null,

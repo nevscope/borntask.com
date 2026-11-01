@@ -9,6 +9,13 @@ import { internalDomains, roleForInvite } from '../lib/inviteRole.js';
 import { enqueueMail, roleLabel } from '../lib/enqueueMail.js';
 import { hashToken, newInviteToken } from '../lib/tokens.js';
 import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
+import {
+  activeMemberForEmail,
+  findPendingInvite,
+  resendInviteRow,
+  revokeExpiredPendingInvites,
+  settlePendingInvitesForEmail,
+} from '../lib/inviteHygiene.js';
 import { assertCanManageOpenProject } from '../lib/projectAccess.js';
 
 const createInviteSchema = z.object({
@@ -43,15 +50,71 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       const actor = await prisma.user.findUnique({ where: { id: auth.userId } });
       const domains = internalDomains(ws.allowedDomains, actor?.email ?? '');
       const created: { email: string; url: string; tenantRole: string }[] = [];
+      const alreadyMembers: string[] = [];
       for (const emailRaw of input.emails) {
         const email = emailRaw.toLowerCase();
         const tenantRole = roleForInvite(email, input.tenantRole, domains);
         if (tenantRole === 'guest' && !ws.membersCanInviteGuests && auth.workspaceRole === 'member') {
           throw forbid('Only admins and leads can invite guests.');
         }
+        const member = await activeMemberForEmail(auth.tenantId, email);
+        if (member && !input.projectId) {
+          alreadyMembers.push(email);
+          continue;
+        }
+        if (member && input.projectId) {
+          const pending = await findPendingInvite(auth.db, { email, projectId: input.projectId });
+          const invite = pending ?? await auth.db.invitation.create({
+            data: {
+              tenantId: auth.tenantId,
+              email,
+              tenantRole,
+              projectId: input.projectId,
+              projectRoleIds: roleRows.map((r) => r.id),
+              tokenHash: newInviteToken().hash,
+              invitedById: auth.userId,
+              message: input.message,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          });
+          await acceptProjectInvite(auth.db, {
+            tenantId: auth.tenantId,
+            userId: member.user.id,
+            invite,
+          });
+          await settlePendingInvitesForEmail(auth.db, {
+            tenantId: auth.tenantId,
+            userId: member.user.id,
+            email,
+            keepId: invite.id,
+          });
+          const project = await auth.db.project.findFirst({ where: { id: input.projectId }, select: { key: true, name: true } });
+          if (project) {
+            try {
+              await auth.db.notification.create({
+                data: {
+                  tenantId: auth.tenantId,
+                  userId: member.user.id,
+                  actorId: auth.userId,
+                  kind: `project_invite:${project.key}`,
+                },
+              });
+            } catch {
+              // Seating already succeeded; a missing notification column must not undo the invite.
+            }
+          }
+          created.push({ email, url: `${originForSlug(ws.slug)}/invite/seated`, tenantRole });
+          continue;
+        }
+        const pending = await findPendingInvite(auth.db, { email, projectId: input.projectId });
+        if (pending) {
+          const resent = await resendInviteRow(auth.db, auth.tenantId, pending, actor?.name ?? 'A teammate');
+          created.push({ email, url: resent.url, tenantRole: resent.tenantRole });
+          continue;
+        }
         const { token, hash } = newInviteToken();
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        const invite = await auth.db.invitation.create({
+        await auth.db.invitation.create({
           data: {
             tenantId: auth.tenantId,
             email,
@@ -66,50 +129,23 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
         });
         const url = `${originForSlug(ws.slug)}/invite/${token}`;
         created.push({ email, url, tenantRole });
-        let seatedExisting = false;
-        if (input.projectId) {
-          const existing = await prisma.user.findFirst({ where: { email } });
-          const seat = existing
-            ? await prisma.tenantMember.findUnique({
-              where: { tenantId_userId: { tenantId: auth.tenantId, userId: existing.id } },
-            })
-            : null;
-          if (existing && seat?.isActive) {
-            await acceptProjectInvite(auth.db, {
-              tenantId: auth.tenantId,
-              userId: existing.id,
-              invite,
-            });
-            seatedExisting = true;
-            const project = await auth.db.project.findFirst({ where: { id: input.projectId }, select: { key: true, name: true } });
-            if (project) {
-              try {
-                await auth.db.notification.create({
-                  data: {
-                    tenantId: auth.tenantId,
-                    userId: existing.id,
-                    actorId: auth.userId,
-                    kind: `project_invite:${project.key}`,
-                  },
-                });
-              } catch {
-                // Seating already succeeded; a missing notification column must not undo the invite.
-              }
-            }
-          }
-        }
-        if (!seatedExisting) {
-          await enqueueMail({
-            kind: 'invite',
-            to: email,
-            inviteUrl: url,
-            workspaceName: ws.name,
-            inviterName: actor?.name ?? 'A teammate',
-            roleLabel: roleLabel(tenantRole, roleRows[0]?.name),
-            message: input.message ?? null,
-            expiresAt: expiresAt.toISOString(),
-          });
-        }
+        await enqueueMail({
+          kind: 'invite',
+          to: email,
+          inviteUrl: url,
+          workspaceName: ws.name,
+          inviterName: actor?.name ?? 'A teammate',
+          roleLabel: roleLabel(tenantRole, roleRows[0]?.name),
+          message: input.message ?? null,
+          expiresAt: expiresAt.toISOString(),
+        });
+      }
+      if (created.length === 0 && alreadyMembers.length > 0) {
+        throw val(
+          alreadyMembers.length === 1
+            ? `${alreadyMembers[0]} is already in this workspace.`
+            : 'Those people are already in this workspace.',
+        );
       }
       return { invites: created };
     } catch (err) {
@@ -151,11 +187,17 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       if (invite.projectId) {
         await acceptProjectInvite(db, { tenantId: invite.tenantId, userId: user.id, invite });
       } else {
-        await prisma.invitation.update({
+        await db.invitation.update({
           where: { id: invite.id },
           data: { acceptedAt: new Date() },
         });
       }
+      await settlePendingInvitesForEmail(db, {
+        tenantId: invite.tenantId,
+        userId: user.id,
+        email: invite.email,
+        keepId: invite.id,
+      });
       setSession(req, reply, { userId: user.id, tenantId: invite.tenantId });
       let projectKey: string | null = null;
       let projectName: string | null = null;
@@ -192,28 +234,22 @@ export const inviteRoutes: FastifyPluginAsync = async (app) => {
       if (!invite) throw nf();
       await assertCanManageInvitation(auth, invite);
       if (invite.acceptedAt || invite.revokedAt) throw val('This invitation is no longer pending.');
-      const { token, hash } = newInviteToken();
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await auth.db.invitation.update({
-        where: { id: invite.id },
-        data: { tokenHash: hash, expiresAt },
-      });
-      const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
-      const url = `${originForSlug(ws?.slug)}/invite/${token}`;
       const actor = await prisma.user.findUnique({ where: { id: auth.userId } });
-      const roleIds = Array.isArray(invite.projectRoleIds) ? (invite.projectRoleIds as string[]) : [];
-      const role = roleIds[0] ? await auth.db.projectRole.findFirst({ where: { id: roleIds[0] } }) : null;
-      await enqueueMail({
-        kind: 'invite',
-        to: invite.email,
-        inviteUrl: url,
-        workspaceName: ws?.name ?? 'BornTask',
-        inviterName: actor?.name ?? 'A teammate',
-        roleLabel: roleLabel(invite.tenantRole, role?.name),
-        message: invite.message,
-        expiresAt: expiresAt.toISOString(),
-      });
-      return { email: invite.email, url };
+      const resent = await resendInviteRow(auth.db, auth.tenantId, invite, actor?.name ?? 'A teammate');
+      return { email: resent.email, url: resent.url };
+    } catch (err) {
+      return send(reply, err);
+    }
+  });
+
+  app.post('/invites/revoke-expired', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      if (auth.workspaceRole !== 'owner' && auth.workspaceRole !== 'admin') {
+        throw forbid('Only an owner or admin can revoke expired invitations.');
+      }
+      const result = await revokeExpiredPendingInvites(auth.db);
+      return { ok: true, revoked: result.count };
     } catch (err) {
       return send(reply, err);
     }

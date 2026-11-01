@@ -3,6 +3,7 @@ import { prisma } from '../db.js';
 import { forbidden, notFound } from '../errors.js';
 import type { Authed } from '../context.js';
 import { acceptProjectInvite } from './applyProjectInvite.js';
+import { settlePendingInvitesForEmail } from './inviteHygiene.js';
 
 async function userEmail(auth: Authed): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { email: true } });
@@ -19,11 +20,13 @@ export async function grantPendingProjectSeats(auth: Authed): Promise<void> {
       acceptedAt: null,
       revokedAt: null,
       projectId: { not: null },
+      expiresAt: { gt: new Date() },
     },
   });
   for (const invite of invites) {
     await acceptProjectInvite(auth.db, { tenantId: auth.tenantId, userId: auth.userId, invite });
   }
+  await settlePendingInvitesForEmail(auth.db, { tenantId: auth.tenantId, userId: auth.userId, email });
 }
 
 export async function pendingInviteProjectIds(auth: Authed): Promise<string[]> {

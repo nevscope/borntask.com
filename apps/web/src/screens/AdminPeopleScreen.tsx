@@ -113,6 +113,20 @@ export function AdminPeopleScreen() {
     onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not revoke access.' }),
   });
 
+  const revokeExpired = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${BASE_URL}/invites/revoke-expired`, { method: 'POST', credentials: 'include' });
+      const json = await res.json().catch(() => ({})) as { message?: string; revoked?: number };
+      if (!res.ok) throw new Error(json.message ?? 'Could not revoke expired invitations');
+      return json.revoked ?? 0;
+    },
+    onSuccess: (revoked) => {
+      void qc.invalidateQueries({ queryKey: ['invites'] });
+      sent.show(revoked === 1 ? '1 expired invitation revoked.' : `${revoked} expired invitations revoked.`);
+    },
+    onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not revoke expired invitations.' }),
+  });
+
   const actInvite = async (id: string, email: string, action: 'resend' | 'revoke') => {
     try {
       const res = await fetch(`${BASE_URL}/invites/${encodeURIComponent(id)}/${action}`, { method: 'POST', credentials: 'include' });
@@ -249,9 +263,16 @@ export function AdminPeopleScreen() {
         </div>
       </section>
       {canAdmin && <section className="bt-card">
-        <h2 style={{ margin: 0, padding: '14px 16px', fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${color.divider}` }}>
-          Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
-        </h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
+          <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>
+            Pending invitations <span style={{ fontWeight: 500, color: color.muted }}>{invites.data?.length ?? 0}</span>
+          </h2>
+          {(invites.data ?? []).some((i) => new Date(i.expiresAt).getTime() < Date.now()) && (
+            <Button onClick={() => void revokeExpired.mutate()} loading={revokeExpired.isPending}>
+              Revoke expired
+            </Button>
+          )}
+        </div>
         {(invites.data ?? []).map((i) => {
           const expired = new Date(i.expiresAt).getTime() < Date.now();
           return (

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { color, font } from '../theme/tokens';
-import { expectedDays, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
+import { expectedDays, formatMinutes, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
 
 type SheetView = 'time' | 'percent';
 
@@ -20,6 +20,49 @@ function viewAmount(minutes: number | undefined, weight: number | undefined, tim
 function pctLabel(part: number, whole: number) {
   if (!part || !whole) return '-';
   return `${Math.round((part / whole) * 100)}%`;
+}
+
+function csvCell(value: string | number) {
+  const text = String(value);
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
+  const body = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([`\uFEFF${body}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function timeCsvName(from: string) {
+  return `borntask-time-${from.slice(0, 7)}.csv`;
+}
+
+function CsvButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        height: 30,
+        padding: '0 10px',
+        border: `1px solid ${color.border}`,
+        borderRadius: 8,
+        background: color.surface,
+        color: color.ink2,
+        font: 'inherit',
+        fontSize: 13,
+        cursor: 'pointer',
+      }}
+    >
+      Download CSV
+    </button>
+  );
 }
 
 function sheetValue(view: SheetView, part: number, whole: number, timeLabel: string) {
@@ -452,6 +495,7 @@ function ReportsBody({
         <div style={{ minWidth: 900 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>By person and project</h3>
+            <CsvButton onClick={() => downloadPersonProjectCsv(ts, timeCsvName(data.range.from))} />
             <span style={{ fontSize: 12.5, color: color.muted }}>
               {sheetView === 'percent'
                 ? '% of each person\'s logged time · days logged out of days expected (working days minus days off and holidays)'
@@ -465,8 +509,9 @@ function ReportsBody({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
         <section className="bt-card" style={{ flex: '1 1 440px', padding: 0, overflowX: 'auto' }}>
           <div style={{ minWidth: 440 }}>
-            <div style={{ padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
-              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>By project</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
+              <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>By project</h3>
+              <CsvButton onClick={() => downloadByProjectCsv(ts, timeCsvName(data.range.from))} />
             </div>
             <GridHead cols="minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr)" cells={['Project', sheetView === 'percent' ? 'Share' : 'Time', 'People', 'Share of time logged']} />
             {ts.byProject.map((p) => {
@@ -509,6 +554,40 @@ function ReportsBody({
       </div>
     </>
   );
+}
+
+function downloadPersonProjectCsv(data: WorkspaceReports['timesheets'], filename: string) {
+  const header: Array<string | number> = ['Person'];
+  for (const project of data.projects) {
+    header.push(`${project.name} (hours)`, `${project.name} (minutes)`);
+  }
+  header.push('Total (hours)', 'Total (minutes)', 'Off', 'Logged', 'Expected');
+  const rows: Array<Array<string | number>> = [header];
+  for (const row of data.people) {
+    const line: Array<string | number> = [row.name];
+    for (const project of data.projects) {
+      const minutes = row.byProjectMinutes[project.id] ?? 0;
+      line.push(formatMinutes(minutes), minutes);
+    }
+    line.push(formatMinutes(row.minutes), row.minutes, row.off, row.loggedDays, row.expected);
+    rows.push(line);
+  }
+  const total: Array<string | number> = ['Total'];
+  for (const project of data.projects) {
+    const minutes = data.byProject.find((row) => row.projectId === project.id)?.minutes ?? 0;
+    total.push(formatMinutes(minutes), minutes);
+  }
+  total.push(formatMinutes(data.minutes), data.minutes, data.projectTotals.off, '', '');
+  rows.push(total);
+  downloadCsv(filename, rows);
+}
+
+function downloadByProjectCsv(data: WorkspaceReports['timesheets'], filename: string) {
+  const rows: Array<Array<string | number>> = [['Project', 'Hours', 'Minutes', 'People', 'Share']];
+  for (const row of data.byProject) {
+    rows.push([row.name, formatMinutes(row.minutes), row.minutes, row.people, row.share]);
+  }
+  downloadCsv(filename, rows);
 }
 
 function PersonProjectTable({ data, view }: { data: WorkspaceReports['timesheets']; view: SheetView }) {
