@@ -21,17 +21,22 @@ export const workingDaysSchema = z
 /** Days after a period ends that people may still edit. -1 means never lock. Default 7. */
 export const timesheetEditDaysSchema = z.number().int().min(-1).max(365);
 
-export const patchWorkspaceTimesheetSchema = z.object({
-  timesheetPeriod: timesheetPeriodSchema.optional(),
-  timesheetUnit: timesheetUnitSchema.optional(),
-  timesheetEditDays: timesheetEditDaysSchema.optional(),
-  timesheetsStartOn: ymdSchema.nullable().optional(),
-  workingDays: workingDaysSchema.optional(),
-});
+export const countryCodeSchema = z
+  .string()
+  .trim()
+  .length(2)
+  .transform((code) => code.toUpperCase());
+
+export const countryCodeOrNullSchema = z
+  .union([countryCodeSchema, z.literal(''), z.null()])
+  .transform((code) => (code ? code : null));
+
+export const optionalCountryCodeSchema = countryCodeOrNullSchema.optional();
 
 export const holidayItemSchema = z.object({
   date: ymdSchema,
   name: z.string().trim().min(1, 'Enter a holiday name.').max(80, 'Name must be 80 characters or fewer.'),
+  countryCode: optionalCountryCodeSchema,
 });
 
 export const putHolidaysSchema = z.object({
@@ -47,7 +52,16 @@ export const copyHolidaysSchema = z.object({
 
 export const importHolidaysSchema = z.object({
   year: z.number().int().min(2000).max(2100),
-  countryCode: z.string().trim().length(2).transform((code) => code.toUpperCase()),
+  countryCode: countryCodeSchema,
+});
+
+export const patchWorkspaceTimesheetSchema = z.object({
+  timesheetPeriod: timesheetPeriodSchema.optional(),
+  timesheetUnit: timesheetUnitSchema.optional(),
+  timesheetEditDays: timesheetEditDaysSchema.optional(),
+  timesheetsStartOn: ymdSchema.nullable().optional(),
+  workingDays: workingDaysSchema.optional(),
+  defaultHolidayCountry: optionalCountryCodeSchema,
 });
 
 export const timesheetRangeQuerySchema = z.object({
@@ -112,6 +126,7 @@ export const hoursPerWeekSchema = z
 export const memberWorkingPatternSchema = z.object({
   workingDays: workingDaysSchema.nullable().optional(),
   hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
+  holidayCountry: optionalCountryCodeSchema,
 });
 
 export function parseWorkingDays(value: unknown): z.infer<typeof weekdayKeySchema>[] {
@@ -132,6 +147,35 @@ export function resolveMemberWorkingDays(
   workspaceWorkingDays: unknown,
 ): z.infer<typeof weekdayKeySchema>[] {
   return parseOptionalWorkingDays(memberWorkingDays) ?? parseWorkingDays(workspaceWorkingDays);
+}
+
+export function resolveHolidayCountry(
+  memberCountry?: string | null,
+  workspaceDefault?: string | null,
+): string | null {
+  const person = memberCountry?.trim().toUpperCase();
+  if (person && person.length === 2) return person;
+  const fallback = workspaceDefault?.trim().toUpperCase();
+  return fallback && fallback.length === 2 ? fallback : null;
+}
+
+export function holidayAppliesToCountry(
+  holidayCountry: string | null | undefined,
+  personCountry: string | null | undefined,
+): boolean {
+  if (holidayCountry == null || holidayCountry === '') return true;
+  return Boolean(personCountry) && holidayCountry === personCountry;
+}
+
+export function holidayDatesForCountry(
+  holidays: Iterable<{ date: string; countryCode?: string | null }>,
+  country: string | null | undefined,
+): string[] {
+  const dates = new Set<string>();
+  for (const row of holidays) {
+    if (holidayAppliesToCountry(row.countryCode ?? null, country)) dates.add(row.date);
+  }
+  return [...dates];
 }
 
 export function hoursPerWeekToNumber(value: unknown): number | null {

@@ -185,6 +185,7 @@ model Workspace {
   timesheetEditDays       Int             @default(7)
   timesheetsStartOn       DateTime?
   workingDays             Json            @default("[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]")
+  defaultHolidayCountry   String?         @db.Char(2)
   deletedAt               DateTime?
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
@@ -236,9 +237,10 @@ model TenantMember {
   userId       String
   tenantRole   TenantRole
   isActive     Boolean    @default(true)
-  workingDays  Json?
-  hoursPerWeek Decimal?   @db.Decimal(5, 2)
-  createdAt    DateTime   @default(now())
+  workingDays     Json?
+  hoursPerWeek    Decimal?   @db.Decimal(5, 2)
+  holidayCountry  String?    @db.Char(2)
+  createdAt       DateTime   @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -885,15 +887,16 @@ model DevLink {
 }
 
 model WorkspaceHoliday {
-  id        String   @id @default(cuid())
-  tenantId  String
-  date      DateTime @db.Date
-  name      String
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  tenantId    String
+  date        DateTime @db.Date
+  name        String
+  countryCode String?  @db.Char(2)
+  createdAt   DateTime @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, date])
+  @@unique([tenantId, date, countryCode])
   @@index([tenantId])
 }
 

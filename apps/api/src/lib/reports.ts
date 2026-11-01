@@ -7,12 +7,14 @@ import {
   loggedExpectedDays,
   missingDays,
   parseYmd,
+  holidayDatesForCountry,
+  resolveHolidayCountry,
   resolveMemberWorkingDays,
   timesheetPersonStart,
   workingDatesInRange,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
-import { holidaysInRange, isOwnerAdmin, workspaceTimesheetSettings, ymdOf } from './timesheets.js';
+import { holidayYmidsForCountry, holidaysInRange, isOwnerAdmin, workspaceTimesheetSettings, ymdOf } from './timesheets.js';
 import { forbidden } from '../errors.js';
 
 function averageDays(values: number[]): number | null {
@@ -96,7 +98,14 @@ export async function workspaceReports(
   const today = range.today ?? new Date();
   const settings = await workspaceTimesheetSettings(auth);
   const holidayRows = await holidaysInRange(auth, from, to);
-  const holidaySet = new Set(holidayRows.map((row) => ymdOf(row.date)));
+  const mappedHolidays = holidayRows.map((row) => ({
+    date: ymdOf(row.date),
+    name: row.name,
+    countryCode: row.countryCode,
+  }));
+  const workspaceHolidaySet = new Set(
+    holidayYmidsForCountry(holidayRows, settings.defaultHolidayCountry),
+  );
 
   const taskWhere = {
     deletedAt: null,
@@ -280,7 +289,10 @@ export async function workspaceReports(
         from: entry.periodStart,
         to: new Date(entry.periodStart.getTime() + 6 * 86400000),
         workingDays: personDays,
-        holidays: holidaySet,
+        holidays: holidayDatesForCountry(
+          mappedHolidays,
+          resolveHolidayCountry(member?.holidayCountry, settings.defaultHolidayCountry),
+        ),
         today,
         startOn: timesheetPersonStart(settings.timesheetsStartOn, member?.createdAt),
       })) {
@@ -297,7 +309,10 @@ export async function workspaceReports(
       from,
       to,
       workingDays: resolveMemberWorkingDays(m.workingDays, settings.workingDays),
-      holidays: holidaySet,
+      holidays: holidayDatesForCountry(
+        mappedHolidays,
+        resolveHolidayCountry(m.holidayCountry, settings.defaultHolidayCountry),
+      ),
       today,
       startOn: personStart,
     }).filter((date) => !(offByUser.get(m.userId)?.has(formatYmd(date)) ?? false));
@@ -368,7 +383,7 @@ export async function workspaceReports(
     from,
     to,
     workingDays: settings.workingDays,
-    holidays: holidaySet,
+    holidays: workspaceHolidaySet,
     today,
     startOn: settings.timesheetsStartOn,
   });
@@ -396,7 +411,9 @@ export async function workspaceReports(
     range: { from: range.from, to: range.to },
     timeZone: settings.timeZone,
     workingDaysSoFar,
-    holidays: holidayRows.map((row) => ({ date: ymdOf(row.date), name: row.name })),
+    holidays: mappedHolidays.filter(
+      (row) => row.countryCode == null || row.countryCode === settings.defaultHolidayCountry,
+    ),
     tasks: {
       opened: opened.length,
       closed: closed.length,

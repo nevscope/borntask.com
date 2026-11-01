@@ -10,6 +10,7 @@ import {
   hoursPerWeekSchema,
   hoursPerWeekToNumber,
   isIanaTimeZone,
+  optionalCountryCodeSchema,
   parseOptionalWorkingDays,
   parseWorkingDays,
   parseYmd,
@@ -55,6 +56,7 @@ async function workspaceSettings(auth: Authed) {
     timesheetEditDays: ws.timesheetEditDays,
     timesheetsStartOn: ws.timesheetsStartOn ? ymdOf(ws.timesheetsStartOn) : null,
     workingDays: parseWorkingDays(ws.workingDays),
+    defaultHolidayCountry: ws.defaultHolidayCountry,
     logo: Boolean(ws.logo),
     workflows: workflows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
     roles: roles.map((r) => ({ id: r.id, name: r.name, slug: r.slug, colour: r.colour })),
@@ -347,15 +349,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         tenantRole: z.enum(['owner', 'admin', 'member', 'guest', 'viewer']).optional(),
         workingDays: workingDaysSchema.nullable().optional(),
         hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
+        holidayCountry: optionalCountryCodeSchema,
       }).parse(req.body);
       const member = await auth.db.tenantMember.findFirst({ where: { userId } });
       if (!member) throw notFound();
-      if (body.workingDays !== undefined || body.hoursPerWeek !== undefined) {
+      if (body.workingDays !== undefined || body.hoursPerWeek !== undefined || body.holidayCountry !== undefined) {
         await auth.db.tenantMember.update({
           where: { id: member.id },
           data: {
             ...(body.workingDays !== undefined ? { workingDays: optionalJson(body.workingDays) } : {}),
             ...(body.hoursPerWeek !== undefined ? { hoursPerWeek: body.hoursPerWeek } : {}),
+            ...(body.holidayCountry !== undefined ? { holidayCountry: body.holidayCountry } : {}),
           },
         });
       }
@@ -365,6 +369,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           ok: true,
           workingDays: parseOptionalWorkingDays(next?.workingDays),
           hoursPerWeek: hoursPerWeekToNumber(next?.hoursPerWeek),
+          holidayCountry: next?.holidayCountry ?? null,
         };
       }
       if (body.tenantRole === 'owner') {

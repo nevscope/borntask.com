@@ -20,7 +20,7 @@ import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { holidayCountryOptions, timeZoneSelectOptions } from '@borntask/shared';
+import { holidayCountryName, holidayCountryOptions, timeZoneSelectOptions } from '@borntask/shared';
 import { color, radius } from '../theme/tokens';
 
 const SAVED_FIELDS = [
@@ -37,6 +37,7 @@ const SAVED_FIELDS = [
   'timesheetEditDays',
   'timesheetsStartOn',
   'workingDays',
+  'defaultHolidayCountry',
 ] as const;
 
 const DAY_CHIPS = [
@@ -70,6 +71,7 @@ function withDefaults(data: WorkspaceSettings): WorkspaceSettings {
     timesheetEditDays: data.timesheetEditDays ?? 7,
     timesheetsStartOn: data.timesheetsStartOn ?? '',
     workingDays: data.workingDays?.length ? data.workingDays : [...DEFAULT_WORKING_DAYS],
+    defaultHolidayCountry: data.defaultHolidayCountry ?? null,
   };
 }
 
@@ -115,6 +117,7 @@ export function WorkspaceGeneralScreen() {
   const [countries, setCountries] = useState(() => holidayCountryOptions());
   const [addDate, setAddDate] = useState('');
   const [addName, setAddName] = useState('');
+  const [addCountry, setAddCountry] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [holidayBusy, setHolidayBusy] = useState(false);
   const toast = useStatusToast();
@@ -177,8 +180,8 @@ export function WorkspaceGeneralScreen() {
       setAddError('Enter a holiday name.');
       return;
     }
-    if (holidays.some((row) => row.date === addDate)) {
-      setAddError('That date already has a holiday.');
+    if (holidays.some((row) => row.date === addDate && (row.countryCode ?? null) === addCountry)) {
+      setAddError('That date already has a holiday for this country.');
       return;
     }
     setHolidayBusy(true);
@@ -187,7 +190,7 @@ export function WorkspaceGeneralScreen() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: addDate, name }),
+        body: JSON.stringify({ date: addDate, name, countryCode: addCountry }),
       });
       const json = await res.json().catch(() => ({})) as { holidays?: WorkspaceHoliday[]; message?: string };
       if (!res.ok) {
@@ -205,10 +208,11 @@ export function WorkspaceGeneralScreen() {
     }
   };
 
-  const removeHoliday = async (date: string) => {
+  const removeHoliday = async (date: string, countryCode?: string | null) => {
     setHolidayBusy(true);
     try {
-      const res = await fetch(`${BASE_URL}/workspace/holidays?date=${encodeURIComponent(date)}`, {
+      const countryQs = countryCode ? `&countryCode=${encodeURIComponent(countryCode)}` : '';
+      const res = await fetch(`${BASE_URL}/workspace/holidays?date=${encodeURIComponent(date)}${countryQs}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -382,6 +386,7 @@ export function WorkspaceGeneralScreen() {
                 timesheetEditDays: values.timesheetEditDays,
                 timesheetsStartOn: values.timesheetsStartOn || null,
                 workingDays: days,
+                defaultHolidayCountry: values.defaultHolidayCountry || null,
               }),
             });
             const json = await res.json().catch(() => ({})) as WorkspaceSettings & { message?: string };
@@ -610,11 +615,25 @@ export function WorkspaceGeneralScreen() {
             </Checkbox.Group>
           </Form.Item>
           <span style={{ fontSize: 12.5, color: color.muted, marginTop: -6 }}>Only working days count as expected in Reports. Anyone can still log time on other days.</span>
+          <Form.Item
+            name="defaultHolidayCountry"
+            label="Default holiday country"
+            style={{ marginBottom: 0 }}
+            extra="People inherit this unless they have their own holiday country. Everyone holidays still apply to all."
+          >
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="None - only Everyone holidays"
+              options={holidayCountryOptions(countries).map((row) => ({ value: row.code, label: `${row.name} (${row.code})` }))}
+            />
+          </Form.Item>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
               <span style={{ flex: '1 1 200px' }}>
                 <span style={{ display: 'block', fontSize: 13, fontWeight: 500 }}>Public holidays</span>
-                <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: color.muted }}>Shown on everyone's timesheet as "Public holiday" and never counted as missing.</span>
+                <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: color.muted }}>Everyone holidays apply to all. Country holidays apply only to people in that country.</span>
               </span>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                 <span className="bt-sr-only">Year</span>
@@ -637,7 +656,7 @@ export function WorkspaceGeneralScreen() {
               >
                 Import from country
               </Button>
-              <Button htmlType="button" disabled={!canAdmin || holidayBusy || holidaysQ.isLoading} onClick={() => { setAddError(null); setAddDate(`${holidayYear}-01-01`); setAddName(''); setAddOpen(true); }}>
+              <Button htmlType="button" disabled={!canAdmin || holidayBusy || holidaysQ.isLoading} onClick={() => { setAddError(null); setAddDate(`${holidayYear}-01-01`); setAddName(''); setAddCountry(null); setAddOpen(true); }}>
                 + Add holiday
               </Button>
             </div>
@@ -668,9 +687,10 @@ export function WorkspaceGeneralScreen() {
                 const weekdayKey = (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const)[day.day()];
                 const idle = !workingDays.includes(weekdayKey);
                 return (
-                  <div key={row.date} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 12px', minHeight: 46, padding: '6px 14px', borderTop: `1px solid ${color.divider}` }}>
+                  <div key={`${row.date}:${row.countryCode ?? ''}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 12px', minHeight: 46, padding: '6px 14px', borderTop: `1px solid ${color.divider}` }}>
                     <span style={{ width: 92, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{day.format('D MMM')}</span>
                     <span style={{ width: 40, fontSize: 12.5, color: color.muted }}>{weekday}</span>
+                    <span style={{ width: 110, fontSize: 12.5, color: color.muted }}>{holidayCountryName(row.countryCode ?? null, countries)}</span>
                     <span style={{ flex: '1 1 180px' }}>
                       {row.name}
                       {idle && <span style={{ fontSize: 12.5, color: color.muted }}> - not a working day, no effect</span>}
@@ -681,7 +701,7 @@ export function WorkspaceGeneralScreen() {
                       danger
                       disabled={!canAdmin || holidayBusy}
                       aria-label={`Remove ${row.name}`}
-                      onClick={() => void removeHoliday(row.date)}
+                      onClick={() => void removeHoliday(row.date, row.countryCode)}
                     >
                       Remove
                     </Button>
@@ -800,7 +820,7 @@ export function WorkspaceGeneralScreen() {
         }}
       >
         <p style={{ marginTop: 0 }}>
-          Loads the official public holiday list for that country from Nager Date. Existing dates in {holidayYear} keep their place; matching dates are updated. You can still add or remove days afterwards.
+          Adds this country's dates to the list. Existing dates for other countries stay. Matching dates for this country are updated. You can still add or remove days afterwards.
         </p>
         {importError && <Alert type="error" message={importError} style={{ marginBottom: 12 }} />}
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
@@ -825,15 +845,26 @@ export function WorkspaceGeneralScreen() {
         onCancel={() => setAddOpen(false)}
         onConfirm={() => void addHoliday()}
       >
-        <p style={{ marginTop: 0, color: color.muted, fontSize: 13 }}>Shown on everyone's timesheet as a public holiday.</p>
+        <p style={{ marginTop: 0, color: color.muted, fontSize: 13 }}>Everyone applies to all people. A country applies only to people in that country.</p>
         {addError && <Alert type="error" message={addError} style={{ marginBottom: 12 }} />}
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
           Date
           <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
           Name
           <Input value={addName} onChange={(e) => setAddName(e.target.value)} maxLength={80} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
+          Applies to
+          <Select
+            value={addCountry ?? ''}
+            onChange={(value) => setAddCountry(value || null)}
+            options={[
+              { value: '', label: 'Everyone' },
+              ...holidayCountryOptions(countries).map((row) => ({ value: row.code, label: `${row.name} (${row.code})` })),
+            ]}
+          />
         </label>
       </ConfirmDialog>
       <ConfirmDialog

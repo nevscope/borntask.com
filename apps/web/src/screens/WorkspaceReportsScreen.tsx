@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { color, font } from '../theme/tokens';
-import { expectedDays, formatMinutes, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
+import { expectedDays, formatMinutes, holidayDatesForCountry, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
 
 type SheetView = 'time' | 'percent';
 
@@ -192,11 +192,11 @@ export function WorkspaceReportsScreen() {
       from: parseYmd(data.range.from),
       to: parseYmd(data.range.to),
       workingDays,
-      holidays: data.holidays.map((h) => h.date),
+      holidays: holidayDatesForCountry(data.holidays, settings.data?.defaultHolidayCountry ?? null),
       today: utcDay(),
       startOn,
     });
-  }, [data, settings.data?.timesheetsStartOn, settings.data?.workingDays]);
+  }, [data, settings.data?.defaultHolidayCountry, settings.data?.timesheetsStartOn, settings.data?.workingDays]);
 
   return (
     <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>

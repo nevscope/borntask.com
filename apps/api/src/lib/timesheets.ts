@@ -7,6 +7,7 @@ import {
   parseWorkingDays,
   parseYmd,
   placeWeeklyDaysOff,
+  resolveHolidayCountry,
   resolveMemberWorkingDays,
   timesheetLockLabel,
   weekStartFor,
@@ -123,9 +124,17 @@ export async function workspaceTimesheetSettings(auth: Authed) {
     timesheetEditDays: ws.timesheetEditDays,
     timesheetsStartOn: ws.timesheetsStartOn,
     workingDays: parseWorkingDays(ws.workingDays),
+    defaultHolidayCountry: ws.defaultHolidayCountry,
     weekStart: ws.weekStart,
     timeZone: ws.timeZone,
   };
+}
+
+export function memberHolidayCountry(
+  memberCountry: string | null | undefined,
+  workspaceDefault: string | null | undefined,
+) {
+  return resolveHolidayCountry(memberCountry, workspaceDefault);
 }
 
 export function assertTimesheetEditable(
@@ -164,8 +173,17 @@ export async function canReadTimesheet(auth: Authed, userId: string): Promise<{
 export async function holidaysInRange(auth: Authed, from: Date, to: Date) {
   return auth.db.workspaceHoliday.findMany({
     where: { date: { gte: from, lte: to } },
-    orderBy: { date: 'asc' },
+    orderBy: [{ date: 'asc' }, { countryCode: 'asc' }],
   });
+}
+
+export function holidayYmidsForCountry(
+  rows: { date: Date; countryCode: string | null }[],
+  country: string | null | undefined,
+) {
+  return rows
+    .filter((row) => row.countryCode == null || row.countryCode === country)
+    .map((row) => ymdOf(row.date));
 }
 
 export async function dailyTimeDates(auth: Authed, userId: string, dates: string[]): Promise<Set<string>> {
@@ -232,7 +250,16 @@ export async function applyWeekDaysOff(
   const weekEnd = new Date(start);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
   const holidays = await holidaysInRange(auth, start, weekEnd);
-  const holidaySet = new Set(holidays.map((row) => ymdOf(row.date)));
+  const member = await auth.db.tenantMember.findFirst({
+    where: { userId },
+    select: { holidayCountry: true },
+  });
+  const ws = await auth.db.workspace.findUnique({
+    where: { id: auth.tenantId },
+    select: { defaultHolidayCountry: true },
+  });
+  const country = resolveHolidayCountry(member?.holidayCountry, ws?.defaultHolidayCountry);
+  const holidaySet = new Set(holidayYmidsForCountry(holidays, country));
   const placed = placeWeeklyDaysOff({
     weekStart: start,
     count: week.count,

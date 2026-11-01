@@ -32,7 +32,8 @@ These are the mocks for the "Workspace reports page" plan (`workspace_reports_pa
 ### Data model
 
 - **`Workspace.workingDays`:** for example `["mon","tue","wed","thu","fri"]` (the default).
-- **`WorkspaceHoliday`:** `tenantId`, `date`, `name`. Unique on `(tenantId, date)`. Owner and admin write.
+- **`WorkspaceHoliday`:** `tenantId`, `date`, `name`, `countryCode` (Char(2), nullable). `null` is Everyone (office closed for all). Unique on `(tenantId, date, countryCode)`. Owner and admin write. Existing rows from before this change stay `null` (Everyone) because they used to apply to every person.
+- **`Workspace.defaultHolidayCountry`:** optional. People inherit it unless `TenantMember.holidayCountry` is set.
 - **`TimesheetDayOff`:** `tenantId`, `userId`, `date`, `kind` (`leave` | `other`), `note?`. Unique on `(tenantId, userId, date)`. In weekly mode, store one row per day off. The UI asks for a count, and the server assigns the days to the first working, non-holiday days of that week.
 - **Kept separate from `TimesheetEntry`,** because a day off has no project.
 
@@ -45,7 +46,7 @@ These are the mocks for the "Workspace reports page" plan (`workspace_reports_pa
 ### Rules
 
 - **Who can mark a day off:** only the person, and only for a working day with no time logged. Future dates are allowed, so leave can be planned.
-- **Public holidays:** apply to everyone automatically. Time can still be logged on a holiday and counts as extra.
+- **Public holidays:** a person sees Everyone plus their own holiday country (inherited from the workspace default when unset). Other countries are normal working days for them. Time can still be logged on their own holiday and counts as extra. The Reports header "expected working days so far" uses Everyone plus the workspace default country.
 - **Visibility:** anyone who can read a timesheet sees **"Off"**. The kind and note are visible only to the person, owners and admins.
 - **Kinds are Leave and Other only. Don't add "Sick":** project leads can read timesheets, and a sick label would spread health information.
 - **No approval workflow;** days off are self-declared, as in v1.

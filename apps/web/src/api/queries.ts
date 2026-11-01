@@ -881,11 +881,12 @@ export type WorkspaceSettings = {
   timesheetEditDays: number;
   timesheetsStartOn: string | null;
   workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
+  defaultHolidayCountry: string | null;
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
 };
 
-export type WorkspaceHoliday = { date: string; name: string };
+export type WorkspaceHoliday = { date: string; name: string; countryCode?: string | null };
 
 const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
   name: 'Scope Cloud Solutions',
@@ -902,6 +903,7 @@ const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
   timesheetEditDays: 7,
   timesheetsStartOn: '2026-11-02',
   workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  defaultHolidayCountry: 'MT',
   workflows: [],
 };
 
@@ -923,6 +925,7 @@ export function useWorkspaceSettings() {
       return {
         ...json,
         timesheetsStartOn: json.timesheetsStartOn ?? null,
+        defaultHolidayCountry: json.defaultHolidayCountry ?? null,
       };
     },
   });
@@ -958,7 +961,7 @@ export const TimesheetRangeSchema = z.object({
   hoursPerWeek: z.number().nullable().optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
-  holidays: z.array(z.object({ date: z.string(), name: z.string() })),
+  holidays: z.array(z.object({ date: z.string(), name: z.string(), countryCode: z.string().nullable().optional() })),
 });
 
 export type TimesheetRange = z.infer<typeof TimesheetRangeSchema>;
@@ -1066,7 +1069,7 @@ export type WorkspaceReports = {
   scope: 'self' | 'workspace';
   range: { from: string; to: string };
   timeZone: string;
-  holidays: { date: string; name: string }[];
+  holidays: { date: string; name: string; countryCode?: string | null }[];
   workingDaysSoFar: number;
   tasks: {
     opened: number;

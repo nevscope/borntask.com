@@ -26,6 +26,7 @@ type Person = User & {
   projects?: string;
   workingDays?: string[] | null;
   hoursPerWeek?: number | null;
+  holidayCountry?: string | null;
 };
 type Invite = {
   id: string;
@@ -76,8 +77,8 @@ export function AdminPeopleScreen() {
     queryKey: ['workspace-settings'],
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
-      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'] };
-      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[] };
+      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'], defaultHolidayCountry: null as string | null };
+      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[]; defaultHolidayCountry?: string | null };
     },
   });
   const [domains, setDomains] = useState<string[] | null>(null);
@@ -93,16 +94,18 @@ export function AdminPeopleScreen() {
       userId,
       workingDays,
       hoursPerWeek,
+      holidayCountry,
     }: {
       userId: string;
       workingDays: string[] | null;
       hoursPerWeek: number | null;
+      holidayCountry?: string | null;
     }) => {
       const res = await fetch(`${BASE_URL}/people/${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workingDays, hoursPerWeek }),
+        body: JSON.stringify({ workingDays, hoursPerWeek, holidayCountry }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
@@ -336,6 +339,9 @@ export function AdminPeopleScreen() {
                 workingDays={p.workingDays ?? null}
                 workspaceDays={workspaceDays}
                 hoursPerWeek={p.hoursPerWeek ?? null}
+                holidayCountry={p.holidayCountry ?? null}
+                workspaceHolidayCountry={ws.data && 'defaultHolidayCountry' in ws.data ? ws.data.defaultHolidayCountry ?? null : null}
+                showHolidayCountry
                 disabled={!canAdmin}
                 onSave={(next) => savePattern.mutate({ userId: p.id, ...next })}
               />

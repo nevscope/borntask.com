@@ -52,6 +52,12 @@ export const HOLIDAY_COUNTRIES: HolidayCountry[] = [
   { code: 'TR', name: 'Türkiye' },
 ];
 
+export function holidayCountryName(code: string | null | undefined, extra: HolidayCountry[] = []): string {
+  if (!code) return 'Everyone';
+  const match = holidayCountryOptions(extra).find((row) => row.code === code.toUpperCase());
+  return match ? match.name : code.toUpperCase();
+}
+
 export function holidayCountryOptions(extra: HolidayCountry[] = []): HolidayCountry[] {
   const byCode = new Map<string, HolidayCountry>();
   for (const row of [...HOLIDAY_COUNTRIES, ...extra]) {

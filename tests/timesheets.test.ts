@@ -6,6 +6,8 @@ import {
   dayOffKindSchema,
   clipTimesheetFrom,
   expectedDays,
+  holidayDatesForCountry,
+  resolveHolidayCountry,
   timesheetPersonStart,
   formatMinutes,
   isTimesheetLocked,
@@ -251,6 +253,28 @@ describe('completeness and canvas fixture', () => {
     expect(resolveMemberWorkingDays(['tue', 'thu'], ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['tue', 'thu']);
     expect(parseOptionalWorkingDays(null)).toBeNull();
     expect(resolveMemberWorkingDays(null, ['mon', 'tue', 'wed', 'thu', 'fri'])).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
+  });
+
+  test('two countries, two people, same week, different expected', () => {
+    const from = parseYmd('2026-10-26');
+    const to = parseYmd('2026-11-01');
+    const today = parseYmd('2026-11-01');
+    const workingDays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    const holidays = [
+      { date: '2026-10-28', countryCode: null },
+      { date: '2026-10-26', countryCode: 'MT' },
+      { date: '2026-10-27', countryCode: 'MT' },
+      { date: '2026-10-30', countryCode: 'IT' },
+    ];
+    const malta = holidayDatesForCountry(holidays, resolveHolidayCountry('MT', 'MT'));
+    const italy = holidayDatesForCountry(holidays, resolveHolidayCountry('IT', 'MT'));
+    const workspaceHeader = holidayDatesForCountry(holidays, resolveHolidayCountry(null, 'MT'));
+    expect(malta.sort()).toEqual(['2026-10-26', '2026-10-27', '2026-10-28']);
+    expect(italy.sort()).toEqual(['2026-10-28', '2026-10-30']);
+    expect(workspaceHeader.sort()).toEqual(['2026-10-26', '2026-10-27', '2026-10-28']);
+    expect(expectedDays({ from, to, workingDays, holidays: malta, today })).toBe(2);
+    expect(expectedDays({ from, to, workingDays, holidays: italy, today })).toBe(3);
+    expect(expectedDays({ from, to, workingDays, holidays: workspaceHeader, today })).toBe(2);
   });
 
   test('logged days against expected ignore Saturday unless it is a working day', () => {

@@ -1,5 +1,6 @@
-import { Checkbox, Input } from 'antd';
+import { Checkbox, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
+import { holidayCountryName, holidayCountryOptions } from '@borntask/shared';
 import { color } from '../theme/tokens';
 
 const DAY_CHIPS = [
@@ -22,14 +23,20 @@ export function WorkingPatternFields({
   workingDays,
   workspaceDays,
   hoursPerWeek,
+  holidayCountry,
+  workspaceHolidayCountry,
+  showHolidayCountry = false,
   disabled,
   onSave,
 }: {
   workingDays: string[] | null;
   workspaceDays: string[];
   hoursPerWeek: number | null;
+  holidayCountry?: string | null;
+  workspaceHolidayCountry?: string | null;
+  showHolidayCountry?: boolean;
   disabled?: boolean;
-  onSave: (next: { workingDays: string[] | null; hoursPerWeek: number | null }) => void;
+  onSave: (next: { workingDays: string[] | null; hoursPerWeek: number | null; holidayCountry?: string | null }) => void;
 }) {
   const inherited = workingDays == null;
   const days = workingDays ?? workspaceDays;
@@ -40,21 +47,21 @@ export function WorkingPatternFields({
 
   function saveDays(next: string[]) {
     if (next.length === 0 || sameDays(next, workspaceDays)) {
-      onSave({ workingDays: null, hoursPerWeek });
+      onSave({ workingDays: null, hoursPerWeek, holidayCountry: holidayCountry ?? null });
       return;
     }
-    onSave({ workingDays: next, hoursPerWeek });
+    onSave({ workingDays: next, hoursPerWeek, holidayCountry: holidayCountry ?? null });
   }
 
   function commitHours() {
     const trimmed = hoursDraft.trim();
     if (!trimmed) {
-      if (hoursPerWeek != null) onSave({ workingDays, hoursPerWeek: null });
+      if (hoursPerWeek != null) onSave({ workingDays, hoursPerWeek: null, holidayCountry: holidayCountry ?? null });
       return;
     }
     const n = Number(trimmed.replace(',', '.'));
     if (!Number.isFinite(n) || n < 0 || n > 168) return;
-    if (n !== hoursPerWeek) onSave({ workingDays, hoursPerWeek: n });
+    if (n !== hoursPerWeek) onSave({ workingDays, hoursPerWeek: n, holidayCountry: holidayCountry ?? null });
   }
 
   return (
@@ -97,6 +104,21 @@ export function WorkingPatternFields({
           {inherited ? 'Uses the workspace working days.' : 'Custom pattern. Days off this pattern are not expected.'}
         </span>
       </span>
+      {showHolidayCountry && (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: color.muted }}>
+        Holiday country
+        <Select
+          disabled={disabled}
+          allowClear
+          value={holidayCountry ?? undefined}
+          placeholder={workspaceHolidayCountry ? `Workspace default (${holidayCountryName(workspaceHolidayCountry)})` : 'Workspace default (Everyone only)'}
+          aria-label="Holiday country"
+          style={{ width: 220 }}
+          options={holidayCountryOptions().map((row) => ({ value: row.code, label: `${row.name} (${row.code})` }))}
+          onChange={(value) => onSave({ workingDays, hoursPerWeek, holidayCountry: value ?? null })}
+        />
+      </label>
+      )}
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: color.muted }}>
         Hours per week
         <Input
@@ -113,7 +135,7 @@ export function WorkingPatternFields({
       {!inherited && !disabled && (
         <button
           type="button"
-          onClick={() => onSave({ workingDays: null, hoursPerWeek })}
+          onClick={() => onSave({ workingDays: null, hoursPerWeek, holidayCountry: holidayCountry ?? null })}
           style={{ border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
         >
           Use workspace days

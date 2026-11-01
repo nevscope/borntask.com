@@ -623,6 +623,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
                   : '-',
           workingDays: parseOptionalWorkingDays(m.workingDays),
           hoursPerWeek: hoursPerWeekToNumber(m.hoursPerWeek),
+          holidayCountry: m.holidayCountry,
           projects: (projectsByUser.get(m.userId) ?? []).join(', ') || 'None',
         };
       });
