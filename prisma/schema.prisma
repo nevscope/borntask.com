@@ -237,10 +237,11 @@ model TenantMember {
   userId       String
   tenantRole   TenantRole
   isActive     Boolean    @default(true)
-  workingDays     Json?
-  hoursPerWeek    Decimal?   @db.Decimal(5, 2)
-  holidayCountry  String?    @db.Char(2)
-  createdAt       DateTime   @default(now())
+  workingDays        Json?
+  hoursPerWeek       Decimal?   @db.Decimal(5, 2)
+  holidayCountry     String?    @db.Char(2)
+  timesheetsExempt   Boolean    @default(false)
+  createdAt          DateTime   @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)

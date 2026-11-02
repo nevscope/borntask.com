@@ -55,7 +55,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         }),
         holidaysInRange(auth, from, to),
         workspaceTimesheetSettings(auth),
-        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true, holidayCountry: true } }),
+        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true, holidayCountry: true, timesheetsExempt: true } }),
         userId === auth.userId
           ? Promise.resolve([])
           : auth.db.activityLog.findMany({
@@ -80,6 +80,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         weekStart: settings.weekStart,
         workingDays,
         hoursPerWeek: mapHoursPerWeek(member?.hoursPerWeek),
+        timesheetsExempt: member?.timesheetsExempt ?? false,
         holidayCountry,
         memberSince: member ? ymdOf(member.createdAt) : null,
         timesheetsStartOn: settings.timesheetsStartOn ? ymdOf(settings.timesheetsStartOn) : null,
@@ -120,6 +121,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       requireTimesheetWrite(auth.workspaceRole);
       const body = putTimesheetsSchema.parse(req.body);
       const userId = await resolveTimesheetWriteUserId(auth, body.userId);
+      if (userId === auth.userId) {
+        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true } });
+        if (self?.timesheetsExempt) throw validation('You do not fill timesheets.');
+      }
       const settings = await workspaceTimesheetSettings(auth);
       const saved = [];
       for (const entry of body.entries) {
@@ -190,6 +195,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       requireTimesheetWrite(auth.workspaceRole);
       const body = putDaysOffSchema.parse(req.body);
       const userId = await resolveTimesheetWriteUserId(auth, body.userId);
+      if (userId === auth.userId) {
+        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true } });
+        if (self?.timesheetsExempt) throw validation('You do not fill timesheets.');
+      }
       const settings = await workspaceTimesheetSettings(auth);
       const holidayRows = await auth.db.workspaceHoliday.findMany();
       const member = await auth.db.tenantMember.findFirst({

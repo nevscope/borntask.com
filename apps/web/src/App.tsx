@@ -29,7 +29,7 @@ import { ProjectDetailsScreen } from './screens/ProjectDetailsScreen';
 import { ProjectMembersScreen } from './screens/ProjectMembersScreen';
 import { ProjectStructureScreen } from './screens/ProjectStructureScreen';
 import { ProjectsScreen } from './screens/ProjectsScreen';
-import { WorkspaceGeneralScreen } from './screens/WorkspaceGeneralScreen';
+import { WorkspaceGeneralScreen, WorkspaceTimesheetsSettingsScreen } from './screens/WorkspaceGeneralScreen';
 import { AdminBillingScreen } from './screens/AdminBillingScreen';
 import { WorkspaceReportsScreen } from './screens/WorkspaceReportsScreen';
 import { ApiTokensScreen } from './screens/ApiTokensScreen';
@@ -112,6 +112,7 @@ function Shell() {
         <Route path="/settings/people" element={<AdminPeopleScreen />} />
         <Route path="/settings/defaults" element={<AdminDefaultsScreen />} />
         <Route path="/settings/workspace" element={<WorkspaceGeneralScreen />} />
+        <Route path="/settings/timesheets" element={<WorkspaceTimesheetsSettingsScreen />} />
         <Route path="/settings/billing" element={<AdminBillingScreen />} />
         <Route path="/settings/reports" element={<Navigate to="/reports" replace />} />
         <Route path="/settings/profile" element={<ProfileSettingsScreen />} />

@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, u
 import { Dropdown, Skeleton, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAddSubtask, useCopyTask, useMe, useProject, useProjectTasks, useReorderTask } from '../api/queries';
+import { useAddSubtask, useCopyTask, useMe, useProject, useProjectTasks, useReorderTask, useSetWatching } from '../api/queries';
 import { useStatusToast } from '../components/StatusToast';
 import type { ProjectDetail, Task } from '../api/types';
 import { CopyIcon, GitHubBadge, TaskHints } from '../components/Chips';
@@ -301,9 +301,11 @@ function Row({
   const { openTask } = useTaskParam();
   const copyTask = useCopyTask();
   const addSubtask = useAddSubtask();
+  const setWatching = useSetWatching();
   const toast = useStatusToast();
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [watching, setWatchingLocal] = useState(false);
   const drag = useDraggable({ id: task.key, disabled: !draggable });
   const drop = useDroppable({ id: `row:${task.key}`, disabled: !draggable });
   const done = statusById(detail.workflow, task.statusId)?.category === 'done';
@@ -372,6 +374,24 @@ function Row({
           items: [
             { key: 'subtask', label: 'Add subtask', onClick: () => setAddingSubtask(true) },
             { key: 'link', label: 'Copy link', onClick: () => copyLink({ stopPropagation() {} }) },
+            {
+              key: 'watch',
+              label: watching ? 'Stop watching' : 'Watch',
+              disabled: setWatching.isPending,
+              onClick: () => {
+                const next = !watching;
+                setWatching.mutate(
+                  { key: task.key, watch: next },
+                  {
+                    onSuccess: () => {
+                      setWatchingLocal(next);
+                      toast.show(next ? "You're watching this task." : 'You stopped watching this task.');
+                    },
+                    onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not update watching.' }),
+                  },
+                );
+              },
+            },
           ],
         }}
         trigger={['click']}

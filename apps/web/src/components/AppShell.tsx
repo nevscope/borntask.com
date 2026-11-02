@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const showTimesheetsNav = !guest && !viewer && (!me?.timesheetsExempt || canAdmin);
   const settingsTo = canAdmin ? '/settings/workspace' : '/settings/people';
   const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
@@ -291,7 +292,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="bt-sidebar-label" style={{ flex: 1 }}>My tasks</span>
           <span className="bt-sidebar-label" style={{ fontSize: 12, fontWeight: 600 }}>{myCount || ''}</span>
         </NavLink>
-        {!guest && !viewer && (
+        {showTimesheetsNav && (
           <NavLink to="/timesheets" className="bt-nav-link" title="Timesheets">
             <span className="bt-nav-icon"><NavIcon kind="timesheets" /></span>
             <span className="bt-sidebar-label" style={{ flex: 1 }}>Timesheets</span>

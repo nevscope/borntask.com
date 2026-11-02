@@ -25,6 +25,7 @@ import { colourSchema, deleteRole, deleteType, deleteWorkflow, patchRole, patchT
 import { createOpenWorkflow } from '../lib/bootstrapWorkspace.js';
 import { loadWorkflow } from '../lib/loadProject.js';
 import { assertCanManageOpenProject } from '../lib/projectAccess.js';
+import { revokeExpiredPendingInvites } from '../lib/inviteHygiene.js';
 
 function requireOwnerAdmin(role: string) {
   if (role !== 'owner' && role !== 'admin') throw forbidden('Owners and admins only.');
@@ -350,16 +351,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         workingDays: workingDaysSchema.nullable().optional(),
         hoursPerWeek: hoursPerWeekSchema.nullable().optional(),
         holidayCountry: optionalCountryCodeSchema,
+        timesheetsExempt: z.boolean().optional(),
       }).parse(req.body);
       const member = await auth.db.tenantMember.findFirst({ where: { userId } });
       if (!member) throw notFound();
-      if (body.workingDays !== undefined || body.hoursPerWeek !== undefined || body.holidayCountry !== undefined) {
+      if (body.workingDays !== undefined || body.hoursPerWeek !== undefined || body.holidayCountry !== undefined || body.timesheetsExempt !== undefined) {
         await auth.db.tenantMember.update({
           where: { id: member.id },
           data: {
             ...(body.workingDays !== undefined ? { workingDays: optionalJson(body.workingDays) } : {}),
             ...(body.hoursPerWeek !== undefined ? { hoursPerWeek: body.hoursPerWeek } : {}),
             ...(body.holidayCountry !== undefined ? { holidayCountry: body.holidayCountry } : {}),
+            ...(body.timesheetsExempt !== undefined ? { timesheetsExempt: body.timesheetsExempt } : {}),
           },
         });
       }
@@ -370,6 +373,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           workingDays: parseOptionalWorkingDays(next?.workingDays),
           hoursPerWeek: hoursPerWeekToNumber(next?.hoursPerWeek),
           holidayCountry: next?.holidayCountry ?? null,
+          timesheetsExempt: next?.timesheetsExempt ?? false,
         };
       }
       if (body.tenantRole === 'owner') {
@@ -433,6 +437,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       } else {
         requireOwnerAdmin(auth.workspaceRole);
       }
+      await revokeExpiredPendingInvites(auth.db);
       const invites = await auth.db.invitation.findMany({
         where: {
           acceptedAt: null,

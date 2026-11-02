@@ -603,10 +603,14 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         include: { project: { select: { name: true } } },
       });
       const projectsByUser = new Map<string, string[]>();
+      const projectIdsByUser = new Map<string, string[]>();
       for (const row of onProjects) {
         const list = projectsByUser.get(row.userId) ?? [];
         list.push(row.project.name);
         projectsByUser.set(row.userId, list);
+        const ids = projectIdsByUser.get(row.userId) ?? [];
+        ids.push(row.projectId);
+        projectIdsByUser.set(row.userId, ids);
       }
       return members.map((m) => {
         const u = users.find((x) => x.id === m.userId);
@@ -624,6 +628,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           workingDays: parseOptionalWorkingDays(m.workingDays),
           hoursPerWeek: hoursPerWeekToNumber(m.hoursPerWeek),
           holidayCountry: m.holidayCountry,
+          timesheetsExempt: m.timesheetsExempt,
+          projectIds: projectIdsByUser.get(m.userId) ?? [],
           projects: (projectsByUser.get(m.userId) ?? []).join(', ') || 'None',
         };
       });

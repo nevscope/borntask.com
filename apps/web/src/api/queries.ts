@@ -192,8 +192,8 @@ export function usePeople() {
     queryKey: qk.people,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/people`, { credentials: 'include' });
-      if (!res.ok) return [] as { id: string; name: string; email: string; initials: string; workspaceRole?: string }[];
-      return (await res.json()) as { id: string; name: string; email: string; initials: string; workspaceRole?: string }[];
+      if (!res.ok) return [] as { id: string; name: string; email: string; initials: string; workspaceRole?: string; projectIds?: string[] }[];
+      return (await res.json()) as { id: string; name: string; email: string; initials: string; workspaceRole?: string; projectIds?: string[] }[];
     },
     staleTime: 60_000,
   });
@@ -524,7 +524,10 @@ export function useSetWatching() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, watch }: { key: string; watch: boolean }) => api.setWatching(key, watch),
-    onSuccess: (_d, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+    onSuccess: (_d, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
+    },
   });
 }
 
@@ -959,6 +962,7 @@ export const TimesheetRangeSchema = z.object({
   expectedFrom: z.string().nullable().optional(),
   workingDays: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).optional(),
   hoursPerWeek: z.number().nullable().optional(),
+  timesheetsExempt: z.boolean().optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string(), countryCode: z.string().nullable().optional() })),
@@ -1145,6 +1149,7 @@ export type WorkspaceReports = {
       minutes: number;
       weight: number;
       off: number;
+      hoursPerWeek?: number | null;
       loggedDays: number;
       expected: number;
     }>;
@@ -1236,6 +1241,7 @@ function mapLiveReports(raw: {
       minutes?: number;
       weight?: number;
       off: number;
+      hoursPerWeek?: number | null;
       loggedDays: number;
       expected: number;
       missing: number;
@@ -1330,6 +1336,7 @@ function mapLiveReports(raw: {
         minutes: p.minutes ?? 0,
         weight: p.weight ?? p.minutes ?? 0,
         off: p.off,
+        hoursPerWeek: p.hoursPerWeek ?? null,
         loggedDays: p.loggedDays,
         expected: p.expected,
       })),

@@ -88,7 +88,8 @@ export function TimesheetsScreen() {
   const [viewUserId, setViewUserId] = useState<string | undefined>();
   const viewingOther = Boolean(viewUserId && viewUserId !== me?.user.id);
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
-  const readOnly = viewingOther && !canAdmin;
+  const selfExempt = Boolean(me?.timesheetsExempt) && !viewingOther;
+  const readOnly = (viewingOther && !canAdmin) || selfExempt;
   const sheetUserId = viewUserId && viewUserId !== me?.user.id ? viewUserId : undefined;
 
   const sheet = useTimesheets(from, to, viewUserId, !guest);
@@ -529,6 +530,19 @@ export function TimesheetsScreen() {
     );
   }
 
+  if (me?.timesheetsExempt && !viewingOther && !canAdmin) {
+    return (
+      <div className="bt-page" style={{ maxWidth: 560, margin: '48px auto', textAlign: 'center' }}>
+        <LogoMark size={40} />
+        <strong style={{ display: 'block', marginTop: 12, fontSize: 15 }}>You do not fill timesheets</strong>
+        <p style={{ margin: '8px 0 0', color: color.muted, fontSize: 13 }}>
+          An owner or admin can change this under People and invitations.
+        </p>
+        <Link to="/" style={{ display: 'inline-block', marginTop: 12, fontWeight: 600 }}>Back to My tasks</Link>
+      </div>
+    );
+  }
+
   if (settings.isLoading || sheet.isLoading) {
     return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
   }
@@ -566,7 +580,12 @@ export function TimesheetsScreen() {
                 options={[
                   { value: me?.user.id ?? 'me', label: 'Me' },
                   ...(people.data ?? [])
-                    .filter((p) => p.id !== me?.user.id && p.workspaceRole !== 'guest' && p.workspaceRole !== 'viewer')
+                    .filter((p) => {
+                      if (p.id === me?.user.id || p.workspaceRole === 'guest' || p.workspaceRole === 'viewer') return false;
+                      if (canAdmin) return true;
+                      const leadIds = new Set(leadsProjects.map((proj) => proj.id));
+                      return (p.projectIds ?? []).some((id) => leadIds.has(id));
+                    })
                     .map((p) => ({ value: p.id, label: p.name })),
                 ]}
               />
@@ -593,6 +612,9 @@ export function TimesheetsScreen() {
       </div>
 
       {saveError && <Alert type="error" showIcon message={saveError} />}
+      {selfExempt && (
+        <Alert type="info" showIcon message="You are marked as not filling timesheets. You can still view other people's entries." />
+      )}
       {!readOnly && periodLocked && editDays >= 0 && (
         <Alert
           type="info"
@@ -657,23 +679,27 @@ export function TimesheetsScreen() {
                 onChange={(count) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count, kind: weekOffKind, note: weekOffNote || null } })}
               />
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500 }}>
-              Type
-              <Select
-                aria-label="Day off type"
-                value={weekOffKind}
-                style={{ width: 120 }}
-                options={[{ value: 'leave', label: 'Leave' }, { value: 'other', label: 'Other' }]}
-                onChange={(kind) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind, note: weekOffNote || null } })}
-              />
-            </label>
-            <Input
-              placeholder="Note (optional)"
-              aria-label="Days off note"
-              style={{ flex: '1 1 140px', maxWidth: 280 }}
-              defaultValue={weekOffNote}
-              onBlur={(e) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind: weekOffKind, note: e.target.value || null } })}
-            />
+            {(!viewingOther || canAdmin) && (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500 }}>
+                  Type
+                  <Select
+                    aria-label="Day off type"
+                    value={weekOffKind}
+                    style={{ width: 120 }}
+                    options={[{ value: 'leave', label: 'Leave' }, { value: 'other', label: 'Other' }]}
+                    onChange={(kind) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind, note: weekOffNote || null } })}
+                  />
+                </label>
+                <Input
+                  placeholder="Note (optional)"
+                  aria-label="Days off note"
+                  style={{ flex: '1 1 140px', maxWidth: 280 }}
+                  defaultValue={weekOffNote}
+                  onBlur={(e) => void saveDaysOff.mutateAsync({ userId: sheetUserId, week: { weekStart: from, count: weekOffCount, kind: weekOffKind, note: e.target.value || null } })}
+                />
+              </>
+            )}
           </div>
           <p style={{ margin: 0, padding: '10px 16px', borderTop: `1px solid ${color.divider}`, background: color.subtle, fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
             Expected this week: {days.filter((d) => isWorkingDay(d, workingDays)).length} working days
@@ -1030,7 +1056,6 @@ function DailyGrid({
                     ) : (
                       <Popover
                         open={open}
-                        getPopupContainer={(node) => node.parentElement ?? node}
                         onOpenChange={(next) => {
                           if (next && filled && !readOnly) {
                             setNoteCell({ projectId: p.id, periodStart: ymd });

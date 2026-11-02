@@ -27,6 +27,8 @@ type Person = User & {
   workingDays?: string[] | null;
   hoursPerWeek?: number | null;
   holidayCountry?: string | null;
+  timesheetsExempt?: boolean;
+  projectIds?: string[];
 };
 type Invite = {
   id: string;
@@ -95,17 +97,19 @@ export function AdminPeopleScreen() {
       workingDays,
       hoursPerWeek,
       holidayCountry,
+      timesheetsExempt,
     }: {
       userId: string;
       workingDays: string[] | null;
       hoursPerWeek: number | null;
       holidayCountry?: string | null;
+      timesheetsExempt?: boolean;
     }) => {
       const res = await fetch(`${BASE_URL}/people/${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workingDays, hoursPerWeek, holidayCountry }),
+        body: JSON.stringify({ workingDays, hoursPerWeek, holidayCountry, timesheetsExempt }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string };
@@ -335,16 +339,22 @@ export function AdminPeopleScreen() {
                   <span />
                 )}
               </div>
-              <WorkingPatternFields
-                workingDays={p.workingDays ?? null}
-                workspaceDays={workspaceDays}
-                hoursPerWeek={p.hoursPerWeek ?? null}
-                holidayCountry={p.holidayCountry ?? null}
-                workspaceHolidayCountry={ws.data && 'defaultHolidayCountry' in ws.data ? ws.data.defaultHolidayCountry ?? null : null}
-                showHolidayCountry
-                disabled={!canAdmin}
-                onSave={(next) => savePattern.mutate({ userId: p.id, ...next })}
-              />
+              {p.workspaceRole === 'guest' || p.workspaceRole === 'viewer' ? (
+                <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>Guests and viewers do not fill timesheets.</p>
+              ) : (
+                <WorkingPatternFields
+                  workingDays={p.workingDays ?? null}
+                  workspaceDays={workspaceDays}
+                  hoursPerWeek={p.hoursPerWeek ?? null}
+                  holidayCountry={p.holidayCountry ?? null}
+                  workspaceHolidayCountry={ws.data && 'defaultHolidayCountry' in ws.data ? ws.data.defaultHolidayCountry ?? null : null}
+                  showHolidayCountry
+                  timesheetsExempt={p.timesheetsExempt ?? false}
+                  showTimesheetsExempt
+                  disabled={!canAdmin}
+                  onSave={(next) => savePattern.mutate({ userId: p.id, ...next })}
+                />
+              )}
             </div>
           ))}
         </div>

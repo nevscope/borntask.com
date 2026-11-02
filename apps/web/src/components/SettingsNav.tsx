@@ -15,6 +15,7 @@ const projectLinks = (key: string) => [
 
 const workspaceLinks = (canAdmin: boolean, isOwner: boolean) => [
   { to: '/settings/workspace', label: 'General', show: canAdmin },
+  { to: '/settings/timesheets', label: 'Timesheets', show: canAdmin },
   { to: '/settings/people', label: 'People and invitations', show: true },
   { to: '/settings/defaults', label: 'Roles, types and workflows', show: canAdmin },
   { to: '/settings/workflow', label: 'Workflow editor', show: canAdmin },

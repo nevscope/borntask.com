@@ -1,6 +1,6 @@
 // Task detail (screen 4). Opens over any screen from ?task=KEY.
 // Everything edits in place and saves on its own; the header shows Saving… / Saved.
-import { Button, Checkbox, Drawer, Input, Popover, Select, Skeleton, Tooltip } from 'antd';
+import { Button, Checkbox, Drawer, Dropdown, Input, Popover, Select, Skeleton, Tooltip } from 'antd';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
@@ -48,7 +48,6 @@ import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
 import { useTaskParam } from './useTaskParam';
 import { setLiveDrawerGuard } from '../lib/liveDrawer';
-import { useBackLayer } from '../lib/backLayer';
 import { useIsPhone } from '../hooks/useIsPhone';
 
 type CloseGuard = {
@@ -65,27 +64,20 @@ export function TaskDrawer() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const isPhone = useIsPhone();
 
-  const back = useBackLayer(!!taskKey, () => {
-    guard.current.flush();
-    if (guard.current.dirty) {
-      setDiscardOpen(true);
-      return true;
-    }
-    closeTask();
-  });
-
+  // Close via the URL only. history.back() on a dummy layer can restore ?task=
+  // for a frame after a comment save, so the drawer slides out, in, then out.
   function requestClose() {
     guard.current.flush();
     if (guard.current.dirty) {
       setDiscardOpen(true);
       return;
     }
-    back.dismiss(() => closeTask());
+    closeTask();
   }
 
   function discardAndClose() {
     setDiscardOpen(false);
-    back.dismiss(() => closeTask());
+    closeTask();
   }
 
   return (
@@ -163,6 +155,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmMoveProject, setConfirmMoveProject] = useState(false);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [confirmWatch, setConfirmWatch] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
@@ -380,24 +373,27 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
         >
           {linkCopied ? 'Copied' : 'Copy link'}
         </Button>
-        {!isPhone && (
-        <Button
-          type="text"
-          size="small"
-          style={{ whiteSpace: 'nowrap' }}
-          loading={copyTask.isPending}
-          onClick={() => {
-            copyTask.mutate(task.key, {
-              onSuccess: (created) => {
-                toast.show(`Created ${created.key}.`);
-                openTask(created.key);
-              },
-              onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not copy this task.' }),
-            });
+        {!inTrash && !readOnly && (
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            items: [
+              { key: 'duplicate', label: 'Duplicate', disabled: copyTask.isPending, onClick: () => setConfirmDuplicate(true) },
+              { key: 'move', label: 'Move to another project', disabled: moveProject.isPending, onClick: () => setConfirmMoveProject(true) },
+              { type: 'divider' },
+              { key: 'delete', label: 'Delete', danger: true, disabled: del.isPending, onClick: () => remove() },
+            ],
           }}
         >
-          Copy
-        </Button>
+          <button
+            type="button"
+            aria-label="More actions"
+            aria-haspopup="menu"
+            style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18, letterSpacing: 1, flex: 'none' }}
+          >
+            ···
+          </button>
+        </Dropdown>
         )}
         {!isPhone && (
         <button type="button" aria-label="Close" onClick={onClose} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: radius.md, background: 'transparent', color: color.ink3, cursor: 'pointer', font: 'inherit', fontSize: 18, flex: 'none' }}>×</button>
@@ -661,14 +657,6 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             void downloadTaskFile(task.key, preview!.item.id, preview!.item.name);
           }}
         />
-        {!inTrash && !readOnly && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button type="text" style={{ alignSelf: 'flex-start' }} onClick={() => setConfirmMoveProject(true)} loading={moveProject.isPending}>
-              Move to another project
-            </Button>
-            <Button danger type="text" style={{ alignSelf: 'flex-start' }} onClick={remove} loading={del.isPending}>Delete task</Button>
-          </div>
-        )}
         <MoveToProjectDialog
           open={confirmMoveProject}
           sourceProjectKey={task.projectKey}
@@ -698,6 +686,26 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           onConfirm={doDelete}
         >
           {trashToldCopy(toldNames())}
+        </ConfirmDialog>
+        <ConfirmDialog
+          open={confirmDuplicate}
+          title={`Duplicate ${task.key}?`}
+          confirmLabel="Duplicate task"
+          tone="primary"
+          busy={copyTask.isPending}
+          onCancel={() => setConfirmDuplicate(false)}
+          onConfirm={() => {
+            copyTask.mutate(task.key, {
+              onSuccess: (created) => {
+                setConfirmDuplicate(false);
+                toast.show(`Created ${created.key}.`);
+                openTask(created.key);
+              },
+              onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not duplicate this task.' }),
+            });
+          }}
+        >
+          This creates a new task in this project with the same description, type, priority, due date and labels. The assignee and attachments are not copied. Cancel if you only meant to copy the link.
         </ConfirmDialog>
         <ConfirmDialog
           open={confirmWatch}
@@ -817,10 +825,14 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
     const body = persistDescription(value ?? draft);
     if (isEmptyDescription(body)) return;
     sending.current = true;
+    const raw = value ?? draft;
+    if (!parentId) write('');
     add.mutate({ key: task.key, body, parentId }, {
       onSuccess: () => {
-        if (!parentId) write('');
         after?.();
+      },
+      onError: () => {
+        if (!parentId) write(raw);
       },
       onSettled: () => { sending.current = false; },
     });
@@ -1214,7 +1226,9 @@ function PhoneMoveBar({
   const send = () => {
     const body = persistDescription(draft);
     if (isEmptyDescription(body) || add.isPending) return;
-    add.mutate({ key: task.key, body }, { onSuccess: () => write('') });
+    const raw = draft;
+    write('');
+    add.mutate({ key: task.key, body }, { onError: () => write(raw) });
   };
   const allowed = options.filter((item) => item.check.kind === 'allowed');
 

@@ -70,6 +70,10 @@ export async function finishLogin(
           data: { tenantId: match.id, userId: user.id, tenantRole: 'member' },
         });
         tenantId = match.id;
+      } else if (existing.isActive) {
+        tenantId = match.id;
+      }
+      if (tenantId === match.id) {
         await settlePendingInvitesForEmail(createTenantClient(match.id), {
           tenantId: match.id,
           userId: user.id,
@@ -77,6 +81,18 @@ export async function finishLogin(
         });
       }
     }
+  }
+
+  const settleTenants = new Set<string>([
+    ...memberships.map((m) => m.tenantId),
+    ...(tenantId ? [tenantId] : []),
+  ]);
+  for (const id of settleTenants) {
+    await settlePendingInvitesForEmail(createTenantClient(id), {
+      tenantId: id,
+      userId: user.id,
+      email,
+    });
   }
 
   setSession(req, reply, { userId: user.id, tenantId });

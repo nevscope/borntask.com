@@ -39,8 +39,8 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
   URL.revokeObjectURL(url);
 }
 
-function timeCsvName(from: string) {
-  return `borntask-time-${from.slice(0, 7)}.csv`;
+function timeCsvName(from: string, kind: 'people' | 'projects') {
+  return `borntask-time-${kind}-${from.slice(0, 7)}.csv`;
 }
 
 function CsvButton({ onClick }: { onClick: () => void }) {
@@ -495,7 +495,7 @@ function ReportsBody({
         <div style={{ minWidth: 900 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>By person and project</h3>
-            <CsvButton onClick={() => downloadPersonProjectCsv(ts, timeCsvName(data.range.from))} />
+            <CsvButton onClick={() => downloadPersonProjectCsv(ts, timeCsvName(data.range.from, 'people'))} />
             <span style={{ fontSize: 12.5, color: color.muted }}>
               {sheetView === 'percent'
                 ? '% of each person\'s logged time · days logged out of days expected (working days minus days off and holidays)'
@@ -511,7 +511,7 @@ function ReportsBody({
           <div style={{ minWidth: 440 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
               <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>By project</h3>
-              <CsvButton onClick={() => downloadByProjectCsv(ts, timeCsvName(data.range.from))} />
+              <CsvButton onClick={() => downloadByProjectCsv(ts, timeCsvName(data.range.from, 'projects'))} />
             </div>
             <GridHead cols="minmax(200px, 1.4fr) 100px 80px minmax(200px, 2fr)" cells={['Project', sheetView === 'percent' ? 'Share' : 'Time', 'People', 'Share of time logged']} />
             {ts.byProject.map((p) => {
@@ -557,14 +557,14 @@ function ReportsBody({
 }
 
 function downloadPersonProjectCsv(data: WorkspaceReports['timesheets'], filename: string) {
-  const header: Array<string | number> = ['Person'];
+  const header: Array<string | number> = ['Person', 'Hours per week'];
   for (const project of data.projects) {
     header.push(`${project.name} (hours)`, `${project.name} (minutes)`);
   }
   header.push('Total (hours)', 'Total (minutes)', 'Off', 'Logged', 'Expected');
   const rows: Array<Array<string | number>> = [header];
   for (const row of data.people) {
-    const line: Array<string | number> = [row.name];
+    const line: Array<string | number> = [row.name, row.hoursPerWeek ?? ''];
     for (const project of data.projects) {
       const minutes = row.byProjectMinutes[project.id] ?? 0;
       line.push(formatMinutes(minutes), minutes);
@@ -572,7 +572,7 @@ function downloadPersonProjectCsv(data: WorkspaceReports['timesheets'], filename
     line.push(formatMinutes(row.minutes), row.minutes, row.off, row.loggedDays, row.expected);
     rows.push(line);
   }
-  const total: Array<string | number> = ['Total'];
+  const total: Array<string | number> = ['Total', ''];
   for (const project of data.projects) {
     const minutes = data.byProject.find((row) => row.projectId === project.id)?.minutes ?? 0;
     total.push(formatMinutes(minutes), minutes);

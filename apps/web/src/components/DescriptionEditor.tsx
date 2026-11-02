@@ -71,6 +71,8 @@ export function DescriptionEditor({
   const keyDown = useRef(onEditorKeyDown);
   keyDown.current = onEditorKeyDown;
   const applying = useRef(false);
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const suggestionOpen = useRef(false);
   const mentionUiOpen = useRef(false);
   const [focused, setFocused] = useState(false);
@@ -148,7 +150,14 @@ export function DescriptionEditor({
     onBlur: ({ editor: next }) => {
       setFocused(false);
       focusCb.current?.(false);
+      if (applying.current) return;
       const html = persistDescription(next.isEmpty ? '' : next.getHTML());
+      if (!persistDescription(valueRef.current) && html) {
+        applying.current = true;
+        next.commands.setContent('', { emitUpdate: false });
+        applying.current = false;
+        return;
+      }
       onChange(html);
       onBlur?.(html);
     },

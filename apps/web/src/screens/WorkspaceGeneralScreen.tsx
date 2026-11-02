@@ -23,7 +23,9 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { holidayCountryName, holidayCountryOptions, timeZoneSelectOptions } from '@borntask/shared';
 import { color, radius } from '../theme/tokens';
 
-const SAVED_FIELDS = [
+type SettingsPage = 'general' | 'timesheets';
+
+const GENERAL_FIELDS = [
   'name',
   'timeZone',
   'weekStart',
@@ -32,6 +34,9 @@ const SAVED_FIELDS = [
   'allowGoogle',
   'allowMicrosoft',
   'membersCanInviteGuests',
+] as const;
+
+const TIMESHEET_FIELDS = [
   'timesheetPeriod',
   'timesheetUnit',
   'timesheetEditDays',
@@ -52,10 +57,13 @@ const DAY_CHIPS = [
 
 const DEFAULT_WORKING_DAYS: WorkspaceSettings['workingDays'] = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
-function settingsSnapshot(values: Partial<WorkspaceSettings> | undefined) {
+function settingsSnapshot(
+  values: Partial<WorkspaceSettings> | undefined,
+  fields: readonly (keyof WorkspaceSettings)[],
+) {
   if (!values) return '';
   return JSON.stringify(
-    SAVED_FIELDS.map((key) => {
+    fields.map((key) => {
       const value = values[key];
       if (key === 'workingDays' && Array.isArray(value)) return [...value].sort();
       return value ?? null;
@@ -90,6 +98,14 @@ function radioCard(selected: boolean) {
 }
 
 export function WorkspaceGeneralScreen() {
+  return <WorkspaceSettingsBody page="general" />;
+}
+
+export function WorkspaceTimesheetsSettingsScreen() {
+  return <WorkspaceSettingsBody page="timesheets" />;
+}
+
+function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
   const me = useMe().data;
   const chatApp = useChatAppStatus();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
@@ -128,7 +144,8 @@ export function WorkspaceGeneralScreen() {
   const holidaysQ = useWorkspaceHolidays(holidayYear, canAdmin);
   const draft = Form.useWatch([], form) as Partial<WorkspaceSettings> | undefined;
   const hydrated = typeof draft?.name === 'string';
-  const dirty = Boolean(ws.data && hydrated && settingsSnapshot(draft) !== settingsSnapshot(withDefaults(ws.data)));
+  const savedFields = page === 'timesheets' ? TIMESHEET_FIELDS : GENERAL_FIELDS;
+  const dirty = Boolean(ws.data && hydrated && settingsSnapshot(draft, savedFields) !== settingsSnapshot(withDefaults(ws.data), savedFields));
   const unsaved = useUnsavedChanges(dirty);
 
   useEffect(() => {
@@ -330,7 +347,7 @@ export function WorkspaceGeneralScreen() {
   };
 
   const weekHint = useMemo(
-    () => `One line per project per week. Weeks start on ${weekStart}, as set above.`,
+    () => `One line per project per week. Weeks start on ${weekStart}, as set under General.`,
     [weekStart],
   );
 
@@ -338,8 +355,10 @@ export function WorkspaceGeneralScreen() {
     <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: '1 1 280px' }}>
-          <h1 className="bt-h1">Workspace</h1>
-          <p style={{ color: color.muted, margin: '6px 0 0' }}>Owners and admins only.</p>
+          <h1 className="bt-h1">{page === 'timesheets' ? 'Timesheets' : 'Workspace'}</h1>
+          <p style={{ color: color.muted, margin: '6px 0 0' }}>
+            {page === 'timesheets' ? 'How people log time, working days and public holidays.' : 'Owners and admins only.'}
+          </p>
         </div>
         {canAdmin && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -372,22 +391,27 @@ export function WorkspaceGeneralScreen() {
               method: 'PATCH',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: values.name,
-                timeZone: values.timeZone,
-                weekStart: values.weekStart,
-                defaultWorkflowId: values.defaultWorkflowId ?? null,
-                bugsStartIn: values.bugsStartIn,
-                allowGoogle: values.allowGoogle,
-                allowMicrosoft: values.allowMicrosoft,
-                membersCanInviteGuests: values.membersCanInviteGuests,
-                timesheetPeriod: values.timesheetPeriod,
-                timesheetUnit: values.timesheetUnit,
-                timesheetEditDays: values.timesheetEditDays,
-                timesheetsStartOn: values.timesheetsStartOn || null,
-                workingDays: days,
-                defaultHolidayCountry: values.defaultHolidayCountry || null,
-              }),
+              body: JSON.stringify(
+                page === 'timesheets'
+                  ? {
+                      timesheetPeriod: values.timesheetPeriod,
+                      timesheetUnit: values.timesheetUnit,
+                      timesheetEditDays: values.timesheetEditDays,
+                      timesheetsStartOn: values.timesheetsStartOn || null,
+                      workingDays: days,
+                      defaultHolidayCountry: values.defaultHolidayCountry || null,
+                    }
+                  : {
+                      name: values.name,
+                      timeZone: values.timeZone,
+                      weekStart: values.weekStart,
+                      defaultWorkflowId: values.defaultWorkflowId ?? null,
+                      bugsStartIn: values.bugsStartIn,
+                      allowGoogle: values.allowGoogle,
+                      allowMicrosoft: values.allowMicrosoft,
+                      membersCanInviteGuests: values.membersCanInviteGuests,
+                    },
+              ),
             });
             const json = await res.json().catch(() => ({})) as WorkspaceSettings & { message?: string };
             if (!res.ok) {
@@ -396,7 +420,7 @@ export function WorkspaceGeneralScreen() {
                 qc.setQueryData(qk.workspaceSettings, next);
                 form.setFieldsValue(withDefaults(next));
                 setSaved(true);
-                toast.show('Workspace saved.');
+                toast.show(page === 'timesheets' ? 'Timesheet settings saved.' : 'Workspace saved.');
                 void qc.invalidateQueries({ queryKey: ['timesheets'] });
                 void qc.invalidateQueries({ queryKey: ['reports'] });
                 void qc.invalidateQueries({ queryKey: qk.projects });
@@ -409,7 +433,7 @@ export function WorkspaceGeneralScreen() {
             qc.setQueryData(qk.workspaceSettings, json);
             form.setFieldsValue(withDefaults(json));
             setSaved(true);
-            toast.show('Workspace saved.');
+            toast.show(page === 'timesheets' ? 'Timesheet settings saved.' : 'Workspace saved.');
             void qc.invalidateQueries({ queryKey: qk.me });
             void qc.invalidateQueries({ queryKey: ['timesheets'] });
             void qc.invalidateQueries({ queryKey: ['reports'] });
@@ -420,7 +444,7 @@ export function WorkspaceGeneralScreen() {
               qc.setQueryData(qk.workspaceSettings, next);
               form.setFieldsValue(withDefaults(next));
               setSaved(true);
-              toast.show('Workspace saved.');
+              toast.show(page === 'timesheets' ? 'Timesheet settings saved.' : 'Workspace saved.');
               void qc.invalidateQueries({ queryKey: ['timesheets'] });
               void qc.invalidateQueries({ queryKey: ['reports'] });
               void qc.invalidateQueries({ queryKey: qk.projects });
@@ -432,7 +456,7 @@ export function WorkspaceGeneralScreen() {
           }
         }}
       >
-        <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
+        {page === 'general' && <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             {ws.data?.logo ? (
               <img src={`${BASE_URL}/workspace/logo?v=${logoVersion}`} alt="" width={64} height={64} style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'cover' }} />
@@ -485,8 +509,8 @@ export function WorkspaceGeneralScreen() {
               </div>
             </div>
           </div>
-        </section>
-        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        </section>}
+        {page === 'general' && <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Defaults</h2>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>Used for new projects and for how dates are shown.</p>
@@ -513,8 +537,8 @@ export function WorkspaceGeneralScreen() {
               />
             </Form.Item>
           </div>
-        </section>
-        <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        </section>}
+        {page === 'timesheets' && <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Timesheets</h2>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: color.muted }}>Members log their time against projects. Guests and viewers don't fill timesheets.</p>
@@ -726,8 +750,8 @@ export function WorkspaceGeneralScreen() {
               Changing period or unit doesn't change saved timesheets. Each entry keeps the period and unit it was saved with. Once a period is older than the lock window, nobody can edit it - that keeps <Link to="/reports">Reports</Link> stable. People mark their own days off (Leave or Other) on the Timesheets page.
             </span>
           </p>
-        </section>
-        <section className="bt-card" style={{ padding: '16px 18px' }}>
+        </section>}
+        {page === 'general' && <section className="bt-card" style={{ padding: '16px 18px' }}>
           <h2 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 600 }}>Security</h2>
           <Form.Item name="allowGoogle" valuePropName="checked" style={{ marginBottom: 8 }}><Checkbox className="bt-check-row">Allow sign-in with Google</Checkbox></Form.Item>
           <Form.Item name="allowMicrosoft" valuePropName="checked" style={{ marginBottom: 8 }}>
@@ -736,9 +760,9 @@ export function WorkspaceGeneralScreen() {
           <Form.Item name="membersCanInviteGuests" valuePropName="checked" style={{ marginBottom: 0 }}>
             <Checkbox className="bt-check-row">Members can invite guests <span style={{ fontSize: 12.5, color: color.muted }}>(otherwise only admins and project leads)</span></Checkbox>
           </Form.Item>
-        </section>
+        </section>}
       </Form>
-      {isOwner && (
+      {page === 'general' && isOwner && (
         <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <span style={{ flex: '1 1 320px' }}>
             <span style={{ display: 'block', fontWeight: 600, color: color.danger }}>Delete workspace</span>
@@ -747,7 +771,7 @@ export function WorkspaceGeneralScreen() {
           <Button danger onClick={() => { setConfirmName(''); setDeleteError(null); setDeleteOpen(true); }}>Delete workspace…</Button>
         </section>
       )}
-      <section className="bt-card" style={{ padding: '16px 18px' }}>
+      {page === 'general' && <section className="bt-card" style={{ padding: '16px 18px' }}>
         <h2 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600 }}>Google Chat app</h2>
         <p style={{ margin: 0, fontSize: 13, color: color.muted, lineHeight: 1.5 }}>
           {chatApp.data?.configured
@@ -756,7 +780,7 @@ export function WorkspaceGeneralScreen() {
               ? 'Checking whether the Chat app is configured on this server.'
               : 'The Chat app is not configured on this server yet. Space webhooks still work.'}
         </p>
-      </section>
+      </section>}
       <ConfirmDialog
         open={slugOpen}
         title="Change web address"

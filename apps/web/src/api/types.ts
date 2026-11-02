@@ -47,6 +47,7 @@ export const MeSchema = z.object({
   user: UserSchema,
   workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional(), logo: z.boolean().optional() }),
   workspaceRole: WorkspaceRoleSchema,
+  timesheetsExempt: z.boolean().optional(),
   host: z
     .object({
       kind: z.enum(['app', 'workspace']),

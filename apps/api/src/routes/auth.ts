@@ -212,6 +212,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           ? { id: current.tenant.id, name: current.tenant.name, slug: current.tenant.slug, logo: Boolean(current.tenant.logo) }
           : { id: '', name: '', slug: '', logo: false },
         workspaceRole: current?.tenantRole ?? 'member',
+        timesheetsExempt: current?.timesheetsExempt ?? false,
         host: hostSlug
           ? {
               kind: 'workspace' as const,

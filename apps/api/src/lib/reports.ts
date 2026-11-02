@@ -8,6 +8,7 @@ import {
   missingDays,
   parseYmd,
   holidayDatesForCountry,
+  hoursPerWeekToNumber,
   resolveHolidayCountry,
   resolveMemberWorkingDays,
   timesheetExpectedStart,
@@ -126,6 +127,7 @@ export async function workspaceReports(
     auth.db.tenantMember.findMany({
       where: {
         isActive: true,
+        timesheetsExempt: false,
         tenantRole: { notIn: ['guest', 'viewer'] },
         ...(selfOnly ? { userId: auth.userId } : {}),
       },
@@ -343,6 +345,7 @@ export async function workspaceReports(
       weight,
       time: formatMinutes(minutes),
       off: daysOffCount,
+      hoursPerWeek: hoursPerWeekToNumber(m.hoursPerWeek),
       loggedDays,
       expected,
       missing,
