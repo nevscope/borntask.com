@@ -225,7 +225,7 @@ export function ProjectStructureScreen() {
         </div>
         {(trash.data ?? []).map((t) => (
           <div key={t.key} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px', minHeight: 52, padding: '8px 16px', borderBottom: `1px solid ${color.divider}` }}>
-            <span style={{ width: 58, fontSize: 12.5, color: color.muted }}>{t.key}</span>
+            <span className="bt-key">{t.key}</span>
             <span style={{ flex: '1 1 240px', fontWeight: 500 }}>{t.title}</span>
             <span style={{ fontSize: 12.5, color: color.muted }}>{trashMeta(t)}</span>
             <Button onClick={() => restore.mutate(t.key)}>Restore</Button>

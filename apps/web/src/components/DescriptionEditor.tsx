@@ -1,16 +1,35 @@
+import { Image } from '@tiptap/extension-image';
 import Mention from '@tiptap/extension-mention';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '../api/types';
-import { mentionSearchHref, persistDescription, toEditorHtml } from '../lib/descriptionHtml';
+import { discardEditorHtmlOnBlur, mentionSearchHref, persistDescription, toEditorHtml } from '../lib/descriptionHtml';
 import { color, font, radius } from '../theme/tokens';
 import { filesFromClipboard } from './AttachmentTiles';
 
 export type MentionInviteTarget = { email: string; person?: User };
+
+export type EmbeddedImage = { id: string; name: string; src: string };
+
+const TaskImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      attachmentId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-attachment-id'),
+        renderHTML: (attributes: { attachmentId?: string | null }) => (
+          attributes.attachmentId ? { 'data-attachment-id': attributes.attachmentId } : {}
+        ),
+      },
+    };
+  },
+});
 
 const TaskMention = Mention.extend({
   parseHTML() {
@@ -36,7 +55,10 @@ interface Props {
   showPasteHint?: boolean;
   ariaLabel?: string;
   onEditorKeyDown?: (event: KeyboardEvent) => void;
-  onPasteFiles?: (files: File[]) => void;
+  onPasteFiles?: (files: File[]) => void | EmbeddedImage[] | Promise<void | EmbeddedImage[] | undefined>;
+  /** Paste and the Image button insert the uploaded picture into this field. */
+  embedImages?: boolean;
+  onOpenImage?: (id: string) => void;
 }
 
 export function DescriptionEditor({
@@ -55,6 +77,8 @@ export function DescriptionEditor({
   ariaLabel = 'Description',
   onEditorKeyDown,
   onPasteFiles,
+  embedImages = false,
+  onOpenImage,
 }: Props) {
   const peopleRef = useRef(people);
   peopleRef.current = people;
@@ -68,11 +92,20 @@ export function DescriptionEditor({
   focusCb.current = onFocusChange;
   const pasteFiles = useRef(onPasteFiles);
   pasteFiles.current = onPasteFiles;
+  const embedImagesRef = useRef(embedImages);
+  embedImagesRef.current = embedImages;
+  const openImageRef = useRef(onOpenImage);
+  openImageRef.current = onOpenImage;
+  const editorRef = useRef<Editor | null>(null);
+  const afterPaste = useRef<(files: File[]) => void>(() => {});
   const keyDown = useRef(onEditorKeyDown);
   keyDown.current = onEditorKeyDown;
   const applying = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const acknowledged = useRef(persistDescription(value));
+  const shown = persistDescription(value);
+  if (shown) acknowledged.current = shown;
   const suggestionOpen = useRef(false);
   const mentionUiOpen = useRef(false);
   const [focused, setFocused] = useState(false);
@@ -98,6 +131,11 @@ export function DescriptionEditor({
           HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
         },
       }),
+      TaskImage.configure({ inline: false, allowBase64: false }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Placeholder.configure({ placeholder }),
       TaskMention.configure({
         HTMLAttributes: { class: 'bt-mention' },
@@ -123,11 +161,20 @@ export function DescriptionEditor({
         if (!files.length || !pasteFiles.current) return false;
         event.preventDefault();
         event.stopPropagation();
-        pasteFiles.current(files);
+        afterPaste.current(files);
         return true;
       },
       handleClick(_view, _pos, event) {
         const target = event.target as HTMLElement | null;
+        const image = target?.closest?.('img');
+        if (image instanceof HTMLImageElement) {
+          const id = image.getAttribute('data-attachment-id');
+          if (id && openImageRef.current) {
+            event.preventDefault();
+            openImageRef.current(id);
+            return true;
+          }
+        }
         const mention = target?.closest?.('[data-type="mention"]');
         if (mention instanceof HTMLElement) {
           const label = mention.getAttribute('data-label') || mention.textContent?.replace(/^@/, '').trim() || '';
@@ -141,7 +188,7 @@ export function DescriptionEditor({
     },
     onUpdate: ({ editor: next }) => {
       if (applying.current) return;
-      onChange(persistDescription(next.isEmpty ? '' : next.getHTML()));
+      onChange(persistDescription(next.getHTML()));
     },
     onFocus: () => {
       setFocused(true);
@@ -151,8 +198,8 @@ export function DescriptionEditor({
       setFocused(false);
       focusCb.current?.(false);
       if (applying.current) return;
-      const html = persistDescription(next.isEmpty ? '' : next.getHTML());
-      if (!persistDescription(valueRef.current) && html) {
+      const html = persistDescription(next.getHTML());
+      if (discardEditorHtmlOnBlur(valueRef.current, acknowledged.current, html)) {
         applying.current = true;
         next.commands.setContent('', { emitUpdate: false });
         applying.current = false;
@@ -163,10 +210,24 @@ export function DescriptionEditor({
     },
   });
 
+  editorRef.current = editor;
+  afterPaste.current = (files) => {
+    const result = pasteFiles.current?.(files);
+    if (!embedImagesRef.current) return;
+    void Promise.resolve(result).then((images) => {
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed || !Array.isArray(images) || !images.length) return;
+      ed.chain().focus().insertContent(images.map((image) => ({
+        type: 'image',
+        attrs: { src: image.src, alt: image.name, attachmentId: image.id },
+      }))).run();
+    });
+  };
+
   useEffect(() => {
     if (!editor) return;
     const next = toEditorHtml(value);
-    const current = persistDescription(editor.isEmpty ? '' : editor.getHTML());
+    const current = persistDescription(editor.getHTML());
     if (current === persistDescription(next)) return;
     // Empty the editor even while focused so a sent comment cannot linger and block close.
     if (focused && persistDescription(next)) return;
@@ -222,6 +283,8 @@ export function DescriptionEditor({
         canInvite={canInvite}
         showPasteHint={showPasteHint}
         pickerId={`bt-mention-picker-${ariaLabel.replace(/\s+/g, '-')}`}
+        embedImages={embedImages}
+        onAddImages={(files) => afterPaste.current(files)}
         onMention={() => {
           if (!editor) return;
           editor.chain().focus().run();
@@ -257,6 +320,20 @@ export function DescriptionEditor({
   );
 }
 
+function wide(label: string): boolean {
+  return label === 'Link' || label === 'Table' || label === 'Image';
+}
+
+function toolLabel(label: string): string {
+  if (label === 'Bold') return 'B';
+  if (label === 'Italic') return 'I';
+  if (label === 'Numbered list') return '1.';
+  if (label === 'Bulleted list') return '•';
+  if (label === 'Code') return '</>';
+  if (label === 'Link' || label === 'Table' || label === 'Image') return label;
+  return '@';
+}
+
 function Toolbar({
   editor,
   focused,
@@ -266,6 +343,8 @@ function Toolbar({
   canInvite,
   showPasteHint,
   pickerId,
+  embedImages,
+  onAddImages,
   onMention,
   onPickMention,
 }: {
@@ -277,9 +356,12 @@ function Toolbar({
   canInvite: boolean;
   showPasteHint: boolean;
   pickerId: string;
+  embedImages: boolean;
+  onAddImages: (files: File[]) => void;
   onMention: () => void;
   onPickMention: (choice: MentionChoice) => void;
 }) {
+  const imageInput = useRef<HTMLInputElement>(null);
   const tool = (label: string, active: boolean, run: () => void, style?: CSSProperties) => (
     <button
       type="button"
@@ -288,18 +370,20 @@ function Toolbar({
       onMouseDown={(event) => event.preventDefault()}
       onClick={run}
       style={{
-        width: label === 'Link' ? 40 : 32,
+        width: wide(label) ? 'auto' : 32,
         height: 30,
+        padding: wide(label) ? '0 8px' : 0,
         border: 0,
         borderRadius: 6,
         background: active ? color.brandTint : 'transparent',
         font: 'inherit',
+        fontSize: wide(label) ? 12 : undefined,
         cursor: 'pointer',
         color: color.ink,
         ...style,
       }}
     >
-      {label === 'Bold' ? 'B' : label === 'Italic' ? 'I' : label === 'Numbered list' ? '1.' : label === 'Bulleted list' ? '•' : label === 'Code' ? '</>' : label === 'Link' ? 'Link' : '@'}
+      {toolLabel(label)}
     </button>
   );
 
@@ -314,6 +398,10 @@ function Toolbar({
       return;
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+  }
+
+  function insertTable() {
+    editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }
 
   function code() {
@@ -351,7 +439,23 @@ function Toolbar({
       {tool('Bulleted list', !!editor?.isActive('bulletList'), () => editor?.chain().focus().toggleBulletList().run())}
       {tool('Code', !!(editor?.isActive('code') || editor?.isActive('codeBlock')), code, { fontFamily: font.mono, fontSize: 12 })}
       {tool('Link', !!editor?.isActive('link'), setLink, { fontSize: 12 })}
+      {tool('Table', !!editor?.isActive('table'), insertTable)}
+      {embedImages && tool('Image', false, () => imageInput.current?.click())}
       {tool('Mention someone', mentionOpen, onMention)}
+      {embedImages && (
+        <input
+          ref={imageInput}
+          type="file"
+          accept="image/*"
+          multiple
+          className="bt-sr-only"
+          onChange={(event) => {
+            const list = event.target.files;
+            if (list?.length) onAddImages(Array.from(list));
+            event.target.value = '';
+          }}
+        />
+      )}
       <span style={{ flex: 1 }} />
       {showPasteHint && <span style={{ padding: '0 6px', fontSize: 12, color: color.muted }}>Paste images straight in</span>}
       {mentionOpen && (

@@ -203,14 +203,30 @@ export function AttachmentPreview({
   src,
   onClose,
   onDownload,
+  onPrev,
+  onNext,
+  position,
 }: {
   item: { name: string; mime: string } | null;
   src?: string;
   onClose: () => void;
   onDownload?: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  position?: { index: number; count: number };
 }) {
   if (!item) return null;
-  return <AttachmentPreviewBody item={item} src={src} onClose={onClose} onDownload={onDownload} />;
+  return (
+    <AttachmentPreviewBody
+      item={item}
+      src={src}
+      onClose={onClose}
+      onDownload={onDownload}
+      onPrev={onPrev}
+      onNext={onNext}
+      position={position}
+    />
+  );
 }
 
 function AttachmentPreviewBody({
@@ -218,25 +234,73 @@ function AttachmentPreviewBody({
   src,
   onClose,
   onDownload,
+  onPrev,
+  onNext,
+  position,
 }: {
   item: { name: string; mime: string };
   src?: string;
   onClose: () => void;
   onDownload?: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  position?: { index: number; count: number };
 }) {
   const [turn, setTurn] = useState(0);
   useBackLayer(true, onClose);
   useEffect(() => {
     setTurn(0);
   }, [item.name, src]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key === 'ArrowLeft' && onPrev) {
+        event.preventDefault();
+        onPrev();
+      } else if (event.key === 'ArrowRight' && onNext) {
+        event.preventDefault();
+        onNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onPrev, onNext]);
   const image = item.mime.startsWith('image/');
   const pdf = item.mime === 'application/pdf';
   const rotatable = image || pdf;
+  const title = position && position.count > 1 ? `${item.name} (${position.index + 1} of ${position.count})` : item.name;
+  const arrow = (side: 'left' | 'right', label: string, run: () => void) => (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={run}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        [side]: 8,
+        transform: 'translateY(-50%)',
+        zIndex: 2,
+        width: 36,
+        height: 36,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: `1px solid ${color.border}`,
+        borderRadius: radius.md,
+        background: color.surface,
+        color: color.ink,
+        cursor: 'pointer',
+        padding: 0,
+      }}
+    >
+      <Chevron dir={side} />
+    </button>
+  );
   return (
     <Modal
       open
       centered
-      title={item.name}
+      title={title}
       onCancel={onClose}
       footer={(
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -262,7 +326,9 @@ function AttachmentPreviewBody({
       )}
       width={image || pdf ? 880 : 560}
     >
-      <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+      <div style={{ position: 'relative', overflow: 'auto', maxHeight: '70vh', minHeight: image ? 160 : undefined }}>
+        {onPrev && arrow('left', 'Previous image', onPrev)}
+        {onNext && arrow('right', 'Next image', onNext)}
         <div style={{ transform: rotatable ? `rotate(${turn}deg)` : undefined, transformOrigin: 'center center', display: 'flex', justifyContent: 'center' }}>
           {image && src ? (
             <img src={src} alt={item.name} style={{ display: 'block', maxWidth: turn % 180 === 0 ? '100%' : '70vh', maxHeight: turn % 180 === 0 ? '70vh' : '100%', margin: '0 auto' }} />
@@ -276,5 +342,20 @@ function AttachmentPreviewBody({
         </div>
       </div>
     </Modal>
+  );
+}
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        d={dir === 'left' ? 'M10 3 L5 8 L10 13' : 'M6 3 L11 8 L6 13'}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

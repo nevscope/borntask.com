@@ -9,6 +9,7 @@ import {
   useAddComment,
   useAddSubtask,
   useCopyTask,
+  useDeleteSubtask,
   usePatchSubtask,
   useDeleteComment,
   useToggleCommentReaction,
@@ -26,11 +27,12 @@ import {
   qk,
 } from '../api/queries';
 import type { ActorVia, Comment, CommentReactionKind, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
+import { dueLabel } from '../lib/dates';
 import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
-import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, uploadTaskFile } from '../lib/uploadAttachment';
+import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, taskAttachmentSrc, uploadTaskFile } from '../lib/uploadAttachment';
 import { COMMENT_REACTION_KINDS, COMMENT_REACTION_LABELS, isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { isEmptyDescription, persistDescription, readableDescriptionHtml } from '../lib/descriptionHtml';
@@ -38,7 +40,7 @@ import { allowedTypeSlugs } from '../lib/taskFilters';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
 import { AttachmentPreview, AttachmentTiles, filesFromClipboard, type AttachmentItem } from './AttachmentTiles';
-import { DescriptionEditor } from './DescriptionEditor';
+import { DescriptionEditor, type EmbeddedImage } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { MoveToProjectDialog } from './MoveToProjectDialog';
@@ -141,6 +143,8 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const savedDescription = useRef(task.description);
+  const descriptionRef = useRef(task.description);
+  const descQueue = useRef<{ pending: string | null; busy: boolean }>({ pending: null, busy: false });
   const [files, setFiles] = useState(() => {
     if (task.attachments?.length) {
       return task.attachments.map((att) => ({
@@ -160,6 +164,9 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const [linkCopied, setLinkCopied] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
   const [preview, setPreview] = useState<{ item: AttachmentItem; src?: string; revoke?: boolean } | null>(null);
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const [commentPasteBusy, setCommentPasteBusy] = useState(false);
   const [subtaskDraft, setSubtaskDraft] = useState('');
   const [descFocused, setDescFocused] = useState(false);
   const [remoteNotice, setRemoteNotice] = useState(false);
@@ -188,8 +195,12 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
 
   useEffect(() => {
     if (remoteNotice || descFocused) return;
-    setDescription(task.description);
+    // Leaving the field must not copy a stale server copy over text that has not been saved yet.
+    if (descriptionRef.current !== savedDescription.current) return;
+    if (task.description === savedDescription.current) return;
+    descriptionRef.current = task.description;
     savedDescription.current = task.description;
+    setDescription(task.description);
   }, [task.description, remoteNotice, descFocused]);
 
   const setAttachments = (next: typeof files) => {
@@ -202,10 +213,11 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
     if (reason) toast.show({ kind: 'error', text: reason });
     if (!accepted.length) return 0;
     try {
-      const next = [...files];
+      const next = [...filesRef.current];
       for (const file of accepted) {
         next.push(await uploadTaskFile(task.key, file));
       }
+      filesRef.current = next;
       setAttachments(next);
       return accepted.length;
     } catch (err) {
@@ -213,6 +225,92 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
       return 0;
     }
   }
+
+  async function embedCommentFiles(list: File[]): Promise<EmbeddedImage[]> {
+    const { accepted, reason } = partitionAttachmentFiles(list);
+    if (reason) toast.show({ kind: 'error', text: reason });
+    if (!accepted.length) return [];
+    setCommentPasteBusy(true);
+    const embedded: EmbeddedImage[] = [];
+    const start = filesRef.current.length;
+    const next = [...filesRef.current];
+    try {
+      for (const file of accepted) {
+        const item = await uploadTaskFile(task.key, file);
+        next.push(item);
+        if (item.mime.startsWith('image/')) {
+          embedded.push({ id: item.id, name: item.name, src: taskAttachmentSrc(task.key, item.id) });
+        }
+      }
+    } catch (err) {
+      toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not attach that file.' });
+    } finally {
+      if (next.length !== filesRef.current.length) {
+        filesRef.current = next;
+        setAttachments(next);
+      }
+      const added = next.length - start;
+      if (embedded.length) {
+        toast.show(embedded.length === 1 ? 'Screenshot added to the comment.' : `${embedded.length} screenshots added to the comment.`);
+      } else if (added > 0) {
+        toast.show(added === 1 ? 'File attached.' : `${added} files attached.`);
+      }
+      setCommentPasteBusy(false);
+    }
+    return embedded;
+  }
+
+  async function openAttachment(item: AttachmentItem) {
+    if (!canPreviewAttachment(item.mime)) {
+      await downloadTaskFile(task.key, item.id, item.name);
+      return;
+    }
+    if (item.previewUrl) {
+      setPreview((current) => {
+        if (current?.revoke && current.src && current.src !== item.previewUrl) URL.revokeObjectURL(current.src);
+        return { item, src: item.previewUrl };
+      });
+      return;
+    }
+    setPreview((current) => {
+      if (current?.revoke && current.src) URL.revokeObjectURL(current.src);
+      return { item };
+    });
+    try {
+      const { url } = await blobUrlForTaskFile(task.key, item.id);
+      setPreview((current) => {
+        if (!current || current.item.id !== item.id) {
+          URL.revokeObjectURL(url);
+          return current;
+        }
+        return { item, src: url, revoke: true };
+      });
+    } catch {
+      toast.show({ kind: 'error', text: 'Could not open that file.' });
+    }
+  }
+
+  function openImageById(id: string) {
+    const item = filesRef.current.find((file) => file.id === id && file.mime.startsWith('image/'));
+    if (!item) {
+      toast.show({ kind: 'error', text: 'Could not open that image.' });
+      return;
+    }
+    void openAttachment(item);
+  }
+
+  function stepPreview(delta: number) {
+    if (!preview || !preview.item.mime.startsWith('image/')) return;
+    const images = filesRef.current.filter((item) => item.mime.startsWith('image/'));
+    const index = images.findIndex((item) => item.id === preview.item.id);
+    const next = images[index + delta];
+    if (next) void openAttachment(next);
+  }
+
+  const imageItems = files.filter((item) => item.mime.startsWith('image/'));
+  const previewImageIndex = preview && preview.item.mime.startsWith('image/')
+    ? imageItems.findIndex((item) => item.id === preview.item.id)
+    : -1;
 
   const wf = detail.workflow;
   const status = statusById(wf, task.statusId);
@@ -290,14 +388,44 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
     flush: () => {
       const next = title.trim();
       if (next && next !== task.title) save({ title: next });
+      persistDesc(descriptionRef.current);
     },
   };
 
+  function drainDesc() {
+    if (descQueue.current.busy) return;
+    const html = descQueue.current.pending;
+    if (html == null || html === savedDescription.current) {
+      descQueue.current.pending = null;
+      return;
+    }
+    descQueue.current.pending = null;
+    descQueue.current.busy = true;
+    update.mutate(
+      { key: task.key, input: { description: html } },
+      {
+        onSuccess: () => {
+          if (descriptionRef.current === html) savedDescription.current = html;
+        },
+        onError: (err) => {
+          toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save this task.' });
+        },
+        onSettled: () => {
+          descQueue.current.busy = false;
+          if (descQueue.current.pending != null) drainDesc();
+        },
+      },
+    );
+  }
+
   function persistDesc(next: string) {
     const html = persistDescription(next);
+    descriptionRef.current = html;
     setDescription(html);
-    if (html === savedDescription.current) return;
-    save({ description: html });
+    if (inTrash || readOnly || isTaskDescriptionTooLong(html)) return;
+    if (html === savedDescription.current && descQueue.current.pending == null) return;
+    descQueue.current.pending = html;
+    drainDesc();
   }
 
   function remove() {
@@ -563,11 +691,12 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             onInvite={mentionInvite.onInvite}
             minHeight={88}
             onChange={(next) => {
+              descriptionRef.current = next;
               setDescription(next);
-              persistDesc(next);
             }}
             onFocusChange={setDescFocused}
             onBlur={(next) => persistDesc(next)}
+            onOpenImage={openImageById}
             onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }}
           />
           {descTooLong && (
@@ -596,24 +725,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               items={files}
               onAdd={(added) => void addTaskFiles(added)}
               onRejected={(reason) => toast.show({ kind: 'error', text: reason })}
-              onOpen={(item) => {
-                void (async () => {
-                  if (!canPreviewAttachment(item.mime)) {
-                    await downloadTaskFile(task.key, item.id, item.name);
-                    return;
-                  }
-                  if (item.previewUrl?.startsWith('blob:')) {
-                    setPreview({ item, src: item.previewUrl });
-                    return;
-                  }
-                  try {
-                    const { url } = await blobUrlForTaskFile(task.key, item.id);
-                    setPreview({ item, src: url, revoke: true });
-                  } catch {
-                    toast.show({ kind: 'error', text: 'Could not open that file.' });
-                  }
-                })();
-              }}
+              onOpen={(item) => { void openAttachment(item); }}
               onRemove={(id) => {
                 void deleteTaskFile(task.key, id)
                   .then(() => setAttachments(files.filter((x) => x.id !== id)))
@@ -623,7 +735,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           </div>
         </Section>
 
-        <Subtasks task={task} detail={detail} onDraftChange={setSubtaskDraft} />
+        <Subtasks task={task} detail={detail} readOnly={readOnly || inTrash} onDraftChange={setSubtaskDraft} />
         {(task.type === 'story' || task.type === 'epic') && (
           <Section title={`In this ${task.type} ${task.planningChildCount?.done ?? 0}/${task.planningChildCount?.total ?? 0}`}>
             {(task.planningChildren ?? []).length === 0 && (
@@ -643,7 +755,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             ))}
           </Section>
         )}
-        <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }} hideComposer={isPhone || readOnly} />
+        <Comments task={task} detail={detail} people={mentionPeople} mentionInvite={mentionInvite} onDraftChange={setCommentDraft} onPasteFiles={embedCommentFiles} onOpenImage={openImageById} pasteBusy={commentPasteBusy} hideComposer={isPhone || readOnly} />
         <DevelopmentSection task={task} />
 
         <AttachmentPreview
@@ -656,6 +768,9 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           onDownload={() => {
             void downloadTaskFile(task.key, preview!.item.id, preview!.item.name);
           }}
+          onPrev={previewImageIndex > 0 ? () => stepPreview(-1) : undefined}
+          onNext={previewImageIndex >= 0 && previewImageIndex < imageItems.length - 1 ? () => stepPreview(1) : undefined}
+          position={previewImageIndex >= 0 ? { index: previewImageIndex, count: imageItems.length } : undefined}
         />
         <MoveToProjectDialog
           open={confirmMoveProject}
@@ -744,7 +859,9 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           options={passFail}
           onMove={(statusId) => flow.requestMove(task, statusId)}
           onDraftChange={setCommentDraft}
-          onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }}
+          onPasteFiles={embedCommentFiles}
+          onOpenImage={openImageById}
+          pasteBusy={commentPasteBusy}
         />
       )}
     </div>
@@ -764,10 +881,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Subtasks({ task, detail, onDraftChange }: { task: TaskDetail; detail: ProjectDetail; onDraftChange: (value: string) => void }) {
+function Subtasks({ task, detail, readOnly, onDraftChange }: { task: TaskDetail; detail: ProjectDetail; readOnly: boolean; onDraftChange: (value: string) => void }) {
   const add = useAddSubtask();
   const setDone = useSetSubtaskDone();
   const patch = usePatchSubtask();
+  const remove = useDeleteSubtask();
+  const restore = useRestoreTask();
+  const toast = useStatusToast();
+  const qc = useQueryClient();
   const me = useMe().data;
   const [draft, setDraft] = useState('');
   const write = (value: string) => {
@@ -777,39 +898,89 @@ function Subtasks({ task, detail, onDraftChange }: { task: TaskDetail; detail: P
   const members = detail.users.filter((user) => detail.members.some((member) => member.userId === user.id));
   return (
     <Section title={`Subtasks ${task.subtaskCount.done}/${task.subtaskCount.total}`}>
-      {task.subtasks.map((s) => (
-        <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <Checkbox checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
-            <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
-          </Checkbox>
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-            <AssigneePicker
-              value={s.assigneeId ?? null}
-              users={members}
-              detail={detail}
-              meId={me?.user.id}
-              onChange={(assigneeId) => patch.mutate({ key: task.key, id: s.id, input: { assigneeId } })}
-              trigger={<Avatar user={members.find((user) => user.id === s.assigneeId)} size={22} fontSize={9} />}
-            />
-            <DuePicker
-              value={s.dueDate ?? null}
-              onChange={(dueDate) => patch.mutate({ key: task.key, id: s.id, input: { dueDate } })}
-            />
-          </span>
-        </div>
-      ))}
-      <Input
-        value={draft}
-        onChange={(e) => write(e.target.value)}
-        onPressEnter={() => { if (draft.trim()) { add.mutate({ key: task.key, title: draft.trim() }); write(''); } }}
-        placeholder="+ Add a subtask and press Enter"
-        variant="filled"
-      />
+      {task.subtasks.map((s) => {
+        const person = members.find((user) => user.id === s.assigneeId);
+        return (
+          <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0', borderTop: `1px solid ${color.divider}` }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Checkbox disabled={readOnly} checked={s.done} onChange={(e) => setDone.mutate({ key: task.key, id: s.id, done: e.target.checked })}>
+                  <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
+                </Checkbox>
+              </div>
+              {!readOnly && (
+                <button
+                  type="button"
+                  aria-label={`Remove subtask ${s.title}`}
+                  onClick={() => {
+                    remove.mutate(
+                      { key: task.key, id: s.id },
+                      {
+                        onSuccess: (result) => {
+                          toast.show({
+                            text: <>Removed <strong>{s.title}</strong></>,
+                            onUndo: () => {
+                              restore.mutate(result.key, {
+                                onSuccess: () => {
+                                  void qc.invalidateQueries({ queryKey: qk.task(task.key) });
+                                  void qc.invalidateQueries({ queryKey: qk.projectTasks(task.projectKey) });
+                                },
+                              });
+                            },
+                            showShortcut: true,
+                            durationMs: 10000,
+                          });
+                        },
+                        onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not remove that subtask.' }),
+                      },
+                    );
+                  }}
+                  style={{ flex: 'none', height: 32, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: 8, background: color.surface, color: color.danger, font: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {readOnly ? (
+              <div style={{ paddingLeft: 24, fontSize: 13, color: color.ink3 }}>{person?.name ?? 'Unassigned'} · {dueLabel(s.dueDate ?? null)}</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingLeft: 24 }}>
+                <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                  <AssigneePicker
+                    value={s.assigneeId ?? null}
+                    users={members}
+                    detail={detail}
+                    meId={me?.user.id}
+                    ariaLabel={`Assignee for ${s.title}`}
+                    onChange={(assigneeId) => patch.mutate({ key: task.key, id: s.id, input: { assigneeId } })}
+                  />
+                </div>
+                <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+                  <DuePicker
+                    value={s.dueDate ?? null}
+                    ariaLabel={`Due date for ${s.title}`}
+                    onChange={(dueDate) => patch.mutate({ key: task.key, id: s.id, input: { dueDate } })}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {!readOnly && (
+        <Input
+          value={draft}
+          onChange={(e) => write(e.target.value)}
+          onPressEnter={() => { if (draft.trim()) { add.mutate({ key: task.key, title: draft.trim() }); write(''); } }}
+          placeholder="+ Add a subtask and press Enter"
+          variant="filled"
+        />
+      )}
     </Section>
   );
 }
 
-function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteFiles, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; mentionInvite: ReturnType<typeof useMentionInvite>; onDraftChange: (value: string) => void; onPasteFiles?: (files: File[]) => void; hideComposer?: boolean }) {
+function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteFiles, onOpenImage, pasteBusy = false, hideComposer = false }: { task: TaskDetail; detail: ProjectDetail; people: ProjectDetail['users']; mentionInvite: ReturnType<typeof useMentionInvite>; onDraftChange: (value: string) => void; onPasteFiles?: (files: File[]) => Promise<EmbeddedImage[]>; onOpenImage?: (id: string) => void; pasteBusy?: boolean; hideComposer?: boolean }) {
   const me = useMe().data;
   const { commentId } = useTaskParam();
   const add = useAddComment();
@@ -821,7 +992,7 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
   };
   const sending = useRef(false);
   const send = (parentId?: string, value?: string, after?: () => void) => {
-    if (sending.current || add.isPending) return;
+    if (sending.current || add.isPending || pasteBusy) return;
     const body = persistDescription(value ?? draft);
     if (isEmptyDescription(body)) return;
     sending.current = true;
@@ -864,10 +1035,10 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
       {tab === 'comments'
         ? roots.map((comment) => (
             <div key={comment.id}>
-              <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={comment.id === commentId} onPasteFiles={onPasteFiles} onReply={(body, done) => send(comment.id, body, done)} />
+              <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={comment} who={userOf(comment.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={comment.id === commentId} onPasteFiles={onPasteFiles} onOpenImage={onOpenImage} pasteBusy={pasteBusy} onReply={(body, done) => send(comment.id, body, done)} />
               {repliesOf(comment.id).map((reply) => (
                 <div key={reply.id} style={{ marginLeft: 36, marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${color.divider}` }}>
-                  <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={reply} who={userOf(reply.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={reply.id === commentId} onPasteFiles={onPasteFiles} />
+                  <CommentRow taskKey={task.key} projectKey={task.projectKey} comment={reply} who={userOf(reply.authorId)} people={people} mentionInvite={mentionInvite} meId={me?.user.id} workspaceRole={me?.workspaceRole} highlighted={reply.id === commentId} onPasteFiles={onPasteFiles} onOpenImage={onOpenImage} pasteBusy={pasteBusy} />
                 </div>
               ))}
             </div>
@@ -888,9 +1059,11 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
             compact
             showPasteHint={false}
             minHeight={64}
-            placeholder="Write a comment. Type @ to mention someone. Paste a screenshot to attach it."
+            placeholder="Write a comment. Type @ to mention someone. Paste a screenshot to show it here."
             ariaLabel="Comment"
             onChange={write}
+            embedImages
+            onOpenImage={onOpenImage}
             onPasteFiles={onPasteFiles}
             onEditorKeyDown={(e) => {
               if (e.key !== 'Enter') return;
@@ -903,7 +1076,7 @@ function Comments({ task, detail, people, mentionInvite, onDraftChange, onPasteF
             <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: color.muted, lineHeight: 1.45 }}>
               <kbd className="bt-kbd">Enter</kbd> to send, <kbd className="bt-kbd">Shift</kbd> + <kbd className="bt-kbd">Enter</kbd> for a new line
             </span>
-            <Button type="primary" style={{ flexShrink: 0 }} onClick={() => send()} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
+            <Button type="primary" style={{ flexShrink: 0 }} onClick={() => send()} loading={add.isPending || pasteBusy} disabled={isEmptyDescription(draft) || pasteBusy}>Comment</Button>
           </div>
         </>
       )}
@@ -922,6 +1095,8 @@ function CommentRow({
   workspaceRole,
   highlighted,
   onPasteFiles,
+  onOpenImage,
+  pasteBusy = false,
   onReply,
 }: {
   taskKey: string;
@@ -933,7 +1108,9 @@ function CommentRow({
   meId: string | undefined;
   workspaceRole: WorkspaceRole | undefined;
   highlighted: boolean;
-  onPasteFiles?: (files: File[]) => void;
+  onPasteFiles?: (files: File[]) => Promise<EmbeddedImage[]>;
+  onOpenImage?: (id: string) => void;
+  pasteBusy?: boolean;
   onReply?: (body: string, done: () => void) => void;
 }) {
   const toast = useStatusToast();
@@ -966,6 +1143,7 @@ function CommentRow({
   }
 
   const save = () => {
+    if (pasteBusy) return;
     const body = persistDescription(editDraft);
     if (isEmptyDescription(body) || body === persistDescription(comment.body)) {
       setEditing(false);
@@ -998,6 +1176,8 @@ function CommentRow({
                 placeholder="Edit comment. Type @ to mention someone."
                 ariaLabel="Edit comment"
                 onChange={setEditDraft}
+                embedImages
+                onOpenImage={onOpenImage}
                 onPasteFiles={onPasteFiles}
                 onEditorKeyDown={(e) => {
                   if (e.key === 'Escape') { setEditing(false); setEditDraft(comment.body); return; }
@@ -1009,12 +1189,23 @@ function CommentRow({
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
               <Button onClick={() => { setEditing(false); setEditDraft(comment.body); }}>Cancel</Button>
-              <Button type="primary" onClick={save} loading={update.isPending} disabled={isEmptyDescription(editDraft)}>Save</Button>
+              <Button type="primary" onClick={save} loading={update.isPending || pasteBusy} disabled={isEmptyDescription(editDraft) || pasteBusy}>Save</Button>
             </div>
           </>
         ) : (
           <>
-            <div className="bt-comment-body" dangerouslySetInnerHTML={{ __html: readableDescriptionHtml(comment.body, people) }} />
+            <div
+              className="bt-comment-body"
+              onClick={(event) => {
+                const img = (event.target as HTMLElement).closest('img');
+                if (!(img instanceof HTMLImageElement)) return;
+                const id = img.getAttribute('data-attachment-id');
+                if (!id || !onOpenImage) return;
+                event.preventDefault();
+                onOpenImage(id);
+              }}
+              dangerouslySetInnerHTML={{ __html: readableDescriptionHtml(comment.body, people) }}
+            />
             <CommentReactions
               groups={comment.reactions ?? []}
               people={people}
@@ -1053,14 +1244,16 @@ function CommentRow({
                   compact
                   showPasteHint={false}
                   minHeight={56}
-                  placeholder="Write a reply. Type @ to mention someone."
+                  placeholder="Write a reply. Type @ to mention someone. Paste a screenshot to show it here."
                   ariaLabel="Reply"
                   onChange={setReplyDraft}
+                  embedImages
+                  onOpenImage={onOpenImage}
                   onPasteFiles={onPasteFiles}
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                   <Button onClick={() => { setReplying(false); setReplyDraft(''); }}>Cancel</Button>
-                  <Button type="primary" disabled={isEmptyDescription(replyDraft)} onClick={() => onReply(replyDraft, () => { setReplying(false); setReplyDraft(''); })}>Reply</Button>
+                  <Button type="primary" disabled={isEmptyDescription(replyDraft) || pasteBusy} onClick={() => { if (!pasteBusy) onReply(replyDraft, () => { setReplying(false); setReplyDraft(''); }); }}>Reply</Button>
                 </div>
               </div>
             )}
@@ -1208,6 +1401,8 @@ function PhoneMoveBar({
   onMove,
   onDraftChange,
   onPasteFiles,
+  onOpenImage,
+  pasteBusy = false,
 }: {
   task: TaskDetail;
   people: ProjectDetail['users'];
@@ -1215,7 +1410,9 @@ function PhoneMoveBar({
   options: ReturnType<typeof moveOptions>;
   onMove: (statusId: string) => void;
   onDraftChange: (value: string) => void;
-  onPasteFiles?: (files: File[]) => void;
+  onPasteFiles?: (files: File[]) => Promise<EmbeddedImage[]>;
+  onOpenImage?: (id: string) => void;
+  pasteBusy?: boolean;
 }) {
   const add = useAddComment();
   const [draft, setDraft] = useState('');
@@ -1225,7 +1422,7 @@ function PhoneMoveBar({
   };
   const send = () => {
     const body = persistDescription(draft);
-    if (isEmptyDescription(body) || add.isPending) return;
+    if (isEmptyDescription(body) || add.isPending || pasteBusy) return;
     const raw = draft;
     write('');
     add.mutate({ key: task.key, body }, { onError: () => write(raw) });
@@ -1262,9 +1459,11 @@ function PhoneMoveBar({
         compact
         showPasteHint={false}
         minHeight={56}
-        placeholder="Comment. Type @ to mention someone."
+        placeholder="Comment. Paste a screenshot to show it here."
         ariaLabel="Comment"
         onChange={write}
+        embedImages
+        onOpenImage={onOpenImage}
         onPasteFiles={onPasteFiles}
         onEditorKeyDown={(e) => {
           if (e.key !== 'Enter' || e.shiftKey) return;
@@ -1273,7 +1472,7 @@ function PhoneMoveBar({
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button type="primary" onClick={send} loading={add.isPending} disabled={isEmptyDescription(draft)}>Comment</Button>
+        <Button type="primary" onClick={send} loading={add.isPending || pasteBusy} disabled={isEmptyDescription(draft) || pasteBusy}>Comment</Button>
       </div>
     </div>
   );

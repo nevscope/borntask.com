@@ -5,6 +5,7 @@ export const MCP_TOOL_NAMES = [
   'list_projects',
   'list_my_tasks',
   'create_task',
+  'create_subtask',
   'update_task',
   'move_task',
   'move_task_to_project',

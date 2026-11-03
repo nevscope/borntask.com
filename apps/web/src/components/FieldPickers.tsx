@@ -62,6 +62,7 @@ export function AssigneePicker({
   onChange,
   bare,
   trigger,
+  ariaLabel = 'Change assignee',
 }: {
   value: string | null;
   users: User[];
@@ -70,6 +71,7 @@ export function AssigneePicker({
   onChange: (userId: string | null) => void;
   bare?: boolean;
   trigger?: ReactNode;
+  ariaLabel?: string;
 }) {
   const me = useMe().data;
   const selfId = meId ?? me?.user.id;
@@ -82,7 +84,7 @@ export function AssigneePicker({
     <Picker
       bare={bare}
       label={trigger ?? (current ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar user={current} size={20} />{current.name}</span> : 'Unassigned')}
-      ariaLabel="Change assignee"
+      ariaLabel={ariaLabel}
       onKey={(key, close) => {
         if (key.toLowerCase() !== 'i' || !selfId) return false;
         onChange(selfId);
@@ -146,9 +148,9 @@ function AssigneeList({
   );
 }
 
-export function DuePicker({ value, onChange, bare, trigger }: { value: string | null; onChange: (date: string | null) => void; bare?: boolean; trigger?: ReactNode }) {
+export function DuePicker({ value, onChange, bare, trigger, ariaLabel = 'Change due date' }: { value: string | null; onChange: (date: string | null) => void; bare?: boolean; trigger?: ReactNode; ariaLabel?: string }) {
   return (
-    <Picker bare={bare} label={trigger ?? dueLabel(value)} ariaLabel="Change due date">
+    <Picker bare={bare} label={trigger ?? dueLabel(value)} ariaLabel={ariaLabel}>
       {(close) => <DuePanel value={value} onChange={(date) => { onChange(date); close(); }} />}
     </Picker>
   );

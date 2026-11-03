@@ -179,6 +179,8 @@ const subtasks: Record<string, Subtask[]> = {
   ],
 };
 
+const removedSubtasks = new Map<string, { parentKey: string; subtask: Subtask }>();
+
 const watchers: Record<string, string[]> = {
   'WEB-139': ['u_karl'],
 };
@@ -743,6 +745,20 @@ export const mockApi: Api = {
     return clone(s);
   },
 
+  async deleteSubtask(key, subtaskId) {
+    await wait();
+    const t = findTask(key);
+    const list = subtasks[key] ?? [];
+    const index = list.findIndex((row) => row.id === subtaskId);
+    if (index < 0) throw new ApiError(404, 'NOT_FOUND', 'Subtask not found');
+    const [row] = list.splice(index, 1);
+    if (!row) throw new ApiError(404, 'NOT_FOUND', 'Subtask not found');
+    const removedKey = `${key}:sub:${row.id}`;
+    removedSubtasks.set(removedKey, { parentKey: key, subtask: row });
+    t.subtaskCount = { done: list.filter((item) => item.done).length, total: list.length };
+    return { key: removedKey };
+  },
+
   async deleteTask(key) {
     await wait();
     const t = findTask(key);
@@ -762,6 +778,15 @@ export const mockApi: Api = {
 
   async restoreTask(key) {
     await wait();
+    const removed = removedSubtasks.get(key);
+    if (removed) {
+      removedSubtasks.delete(key);
+      const parent = findTask(removed.parentKey);
+      (subtasks[removed.parentKey] ??= []).push(removed.subtask);
+      const list = subtasks[removed.parentKey] ?? [];
+      parent.subtaskCount = { done: list.filter((item) => item.done).length, total: list.length };
+      return clone(parent);
+    }
     const t = deleted.get(key);
     if (!t) throw new ApiError(404, 'NOT_FOUND', `${key} is not in Trash`);
     deleted.delete(key);

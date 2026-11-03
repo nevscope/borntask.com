@@ -22,7 +22,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'get_task',
-    description: 'Read one task, including description, comments, activity, attachment list and a url you can open in the browser.',
+    description: 'Read one task, including description, subtasks, comments, activity, attachment list and a url you can open in the browser.',
     inputSchema: {
       type: 'object',
       properties: { key: { type: 'string', description: 'Task key, such as WEB-142.' } },
@@ -56,6 +56,18 @@ export const TOOLS: ToolDef[] = [
         dueDate: { type: 'string', description: 'YYYY-MM-DD' },
       },
       required: ['projectKey', 'title'],
+    },
+  },
+  {
+    name: 'create_subtask',
+    description: 'Add a subtask on an existing task. A subtask is a checklist item on that task, not a new task and not text in the description. You cannot delete tasks or subtasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Parent task key, such as WEB-142.' },
+        title: { type: 'string' },
+      },
+      required: ['key', 'title'],
     },
   },
   {
@@ -271,6 +283,18 @@ export async function callTool(token: string, name: string, args: Record<string,
         attachmentIds: [],
         planningParentId: str('planningParentId') ?? null,
       }));
+    }
+    case 'create_subtask': {
+      const key = str('key') ?? '';
+      const title = (str('title') ?? '').trim();
+      if (!title) throw new Error('A subtask needs a title.');
+      const created = await api(token, 'POST', `/tasks/${encodeURIComponent(key)}/subtasks`, { title });
+      const task = await api(token, 'GET', `/tasks/${encodeURIComponent(key)}`) as { projectKey?: string };
+      return text({
+        ...(created && typeof created === 'object' ? created : { created }),
+        parentKey: key,
+        url: task.projectKey ? webUrl(task.projectKey, key) : undefined,
+      });
     }
     case 'update_task': {
       const key = str('key') ?? '';

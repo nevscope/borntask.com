@@ -91,7 +91,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           section: true,
           project: true,
           labels: { include: { label: true } },
-          subtasks: true,
+          subtasks: { where: { deletedAt: null } },
           attachments: { select: { id: true } },
           comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
           _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
@@ -784,6 +784,37 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.delete('/tasks/:key/subtasks/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { id } = req.params as { id: string };
+      const parentKey = (req.params as { key: string }).key;
+      const parent = await findTaskByKey(auth.db, parentKey);
+      if (!parent || parent.deletedAt) throw notFound();
+      await requireOpenProjectWrite(auth, parent.project.key);
+      const existing = await auth.db.task.findFirst({ where: { id, parentId: parent.id, deletedAt: null } });
+      if (!existing) throw notFound('Subtask not found.');
+      await auth.db.task.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedById: auth.userId },
+      });
+      const label = existing.title.replace(/\s+/g, ' ').trim().slice(0, 80);
+      await auth.db.activityLog.create({
+        data: {
+          tenantId: auth.tenantId,
+          taskId: parent.id,
+          actorId: auth.userId,
+          via: auth.via,
+          action: `removed the subtask ${label}`,
+        },
+      });
+      publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
+      return { key: taskKey(parent.project.key, existing.number) };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.delete('/tasks/:key', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
@@ -899,9 +930,11 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const att = await auth.db.attachment.findFirst({ where: { id, taskId: row.id } });
       if (!att) throw notFound();
       const stream = await openAttachmentFile(auth.tenantId, att.storageKey);
+      const mime = att.mime || 'application/octet-stream';
+      const disposition = mime.startsWith('image/') ? 'inline' : 'attachment';
       return reply
-        .header('Content-Type', att.mime || 'application/octet-stream')
-        .header('Content-Disposition', `attachment; filename="${att.name.replace(/"/g, '')}"`)
+        .header('Content-Type', mime)
+        .header('Content-Disposition', `${disposition}; filename="${att.name.replace(/"/g, '')}"`)
         .send(stream);
     } catch (err) {
       return sendError(reply, err);

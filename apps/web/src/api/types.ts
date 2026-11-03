@@ -444,6 +444,7 @@ export interface Api {
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   patchSubtask(key: string, subtaskId: string, input: PatchSubtaskInput): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
+  deleteSubtask(key: string, subtaskId: string): Promise<{ key: string }>; // DELETE /tasks/:key/subtasks/:id (soft delete, returns the subtask key for undo)
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
   restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
   setWatching(key: string, watch: boolean): Promise<{ ok: boolean }>; // POST /tasks/:key/watchers

@@ -1,9 +1,9 @@
 /** Description HTML: detect, sanitise (no scripts), and flatten for search. */
 
-const ALLOWED = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'code', 'pre', 'a', 'span']);
+const ALLOWED = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'code', 'pre', 'a', 'span', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td']);
 
 export function looksLikeHtml(value: string): boolean {
-  return /<(?:p|br|div|ul|ol|li|strong|em|b|i|code|pre|a|h[1-6]|span)\b/i.test(value);
+  return /<(?:p|br|div|ul|ol|li|strong|em|b|i|code|pre|a|h[1-6]|span|img|table|thead|tbody|tr|th|td)\b/i.test(value);
 }
 
 export function stripTags(value: string): string {
@@ -29,6 +29,7 @@ export function normalizePlain(value: string): string {
 }
 
 export function isEmptyDescription(value: string): boolean {
+  if (/<(?:img|table)\b/i.test(value)) return false;
   return !normalizePlain(value);
 }
 
@@ -62,6 +63,17 @@ export function persistDescription(value: string): string {
   return looksLikeHtml(value) ? sanitizeDescriptionHtml(value) : value;
 }
 
+/**
+ * Drop editor HTML on blur only when the parent already showed it and then cleared it
+ * (a sent comment). A value that is still empty because the parent has not re-rendered
+ * must be kept and saved.
+ */
+export function discardEditorHtmlOnBlur(value: string, acknowledged: string, editorHtml: string): boolean {
+  const html = persistDescription(editorHtml);
+  if (!html || persistDescription(value)) return false;
+  return persistDescription(acknowledged) === html;
+}
+
 export function sanitizeDescriptionHtml(html: string): string {
   if (!html.trim()) return '';
   const stripped = html
@@ -79,6 +91,11 @@ export function sanitizeDescriptionHtml(html: string): string {
       const href = attr(full, 'href');
       const safe = safeHref(href);
       return safe ? `<a href="${escapeAttr(safe)}" rel="noopener noreferrer" target="_blank">` : '<a>';
+    }
+    if (name === 'img') return full.startsWith('</') ? '' : imageTag(full);
+    if (name === 'th' || name === 'td') {
+      if (full.startsWith('</')) return `</${name}>`;
+      return `<${name}${spanAttr(full, 'colspan')}${spanAttr(full, 'rowspan')}>`;
     }
     if (name === 'span') {
       const type = attr(full, 'data-type');
@@ -174,6 +191,33 @@ function linkifyPlainUrls(html: string): string {
 function attr(tag: string, name: string): string {
   const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+}
+
+function spanAttr(tag: string, name: 'colspan' | 'rowspan'): string {
+  const n = Number(attr(tag, name));
+  return Number.isInteger(n) && n > 1 && n <= 12 ? ` ${name}="${n}"` : '';
+}
+
+function imageTag(tag: string): string {
+  const src = safeImageSrc(attr(tag, 'src'));
+  if (!src) return '';
+  const id = safeAttachmentId(attr(tag, 'data-attachment-id'));
+  const alt = attr(tag, 'alt').replace(/[\r\n]+/g, ' ').slice(0, 200);
+  const bits = [`<img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}"`];
+  if (id) bits.push(` data-attachment-id="${escapeAttr(id)}"`);
+  bits.push('>');
+  return bits.join('');
+}
+
+function safeImageSrc(src: string): string | null {
+  const t = src.trim();
+  if (/^\/(?:api\/)?tasks\/[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+$/.test(t)) return t;
+  return null;
+}
+
+function safeAttachmentId(value: string): string | null {
+  const t = value.trim();
+  return /^[A-Za-z0-9_-]+$/.test(t) ? t : null;
 }
 
 function safeHref(href: string): string | null {

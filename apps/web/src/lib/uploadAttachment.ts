@@ -17,6 +17,10 @@ export async function uploadPendingFile(file: File): Promise<AttachmentItem> {
   };
 }
 
+export function taskAttachmentSrc(taskKey: string, id: string): string {
+  return `${BASE_URL}/tasks/${encodeURIComponent(taskKey)}/attachments/${encodeURIComponent(id)}`;
+}
+
 export async function uploadTaskFile(taskKey: string, file: File): Promise<AttachmentItem> {
   const body = new FormData();
   body.append('file', file, file.name);

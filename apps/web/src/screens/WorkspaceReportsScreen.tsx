@@ -407,7 +407,7 @@ function ReportsBody({
                   to={`/p/${u.key.split('-')[0]}/list?task=${u.key}`}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, padding: '6px 16px', borderBottom: `1px solid ${color.divider}`, color: color.ink, textDecoration: 'none' }}
                 >
-                  <span style={{ width: 58, fontSize: 12.5, color: color.muted, fontVariantNumeric: 'tabular-nums' }}>{u.key}</span>
+                  <span className="bt-key">{u.key}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.title}</span>
                     <span style={{ display: 'block', fontSize: 12, color: color.muted }}>{u.who} · {u.status}</span>

@@ -164,7 +164,7 @@ export function CommandPalette() {
                   textAlign: 'left',
                 }}
               >
-                <span style={{ fontSize: 12, color: color.muted, width: 58 }}>{t.key}</span>
+                <span className="bt-key">{t.key}</span>
                 <span style={{ flex: 1 }}>
                   {parts.pre}
                   {parts.hit ? <mark className="bt-hit">{parts.hit}</mark> : null}

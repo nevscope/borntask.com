@@ -98,6 +98,7 @@ export const api: Api = {
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
   patchSubtask: (key, id, input) => tasksApi().patchSubtask(key, id, input),
+  deleteSubtask: (key, id) => tasksApi().deleteSubtask(key, id),
   deleteTask: (key) => tasksApi().deleteTask(key),
   restoreTask: (key) => tasksApi().restoreTask(key),
   setWatching: (key, watch) => tasksApi().setWatching(key, watch),
@@ -401,13 +402,40 @@ export function useCopyTask() {
   });
 }
 
+const taskWriteSeq = new Map<string, number>();
+let taskWriteClock = 0;
+
 export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, input }: { key: string; input: UpdateTaskInput }) => api.updateTask(key, input),
-    onMutate: ({ key, input }) => ({ rollback: patchProjectTask(qc, projectKeyOf(key), key, input) }),
-    onError: (_e, _v, ctx) => ctx?.rollback(),
-    onSettled: (_d, _e, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
+    onMutate: async ({ key, input }) => {
+      const seq = ++taskWriteClock;
+      taskWriteSeq.set(key, seq);
+      await qc.cancelQueries({ queryKey: qk.task(key) });
+      const previousTask = qc.getQueryData<Record<string, unknown>>(qk.task(key));
+      if (previousTask) {
+        qc.setQueryData(qk.task(key), { ...previousTask, ...input });
+      }
+      return { seq, previousTask, rollback: patchProjectTask(qc, projectKeyOf(key), key, input) };
+    },
+    onError: (_e, vars, ctx) => {
+      if (!ctx || taskWriteSeq.get(vars.key) !== ctx.seq) return;
+      ctx.rollback();
+      if (ctx.previousTask !== undefined) qc.setQueryData(qk.task(vars.key), ctx.previousTask);
+    },
+    onSuccess: (updated, _vars, ctx) => {
+      if (!ctx || taskWriteSeq.get(updated.key) !== ctx.seq) return;
+      upsertProjectTask(qc, updated);
+      qc.setQueryData(qk.task(updated.key), (current: unknown) => {
+        if (!current || typeof current !== 'object') return current;
+        return { ...current, ...updated };
+      });
+    },
+    onSettled: (_d, _e, vars, ctx) => {
+      if (!ctx || taskWriteSeq.get(vars.key) !== ctx.seq) return;
+      invalidateTaskViews(qc, { key: vars.key, projectKey: projectKeyOf(vars.key) });
+    },
   });
 }
 
@@ -498,6 +526,14 @@ export function usePatchSubtask() {
   return useMutation({
     mutationFn: ({ key, id, input }: { key: string; id: string; input: PatchSubtaskInput }) => api.patchSubtask(key, id, input),
     onSuccess: (_s, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
+  });
+}
+
+export function useDeleteSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, id }: { key: string; id: string }) => api.deleteSubtask(key, id),
+    onSuccess: (_result, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
   });
 }
 

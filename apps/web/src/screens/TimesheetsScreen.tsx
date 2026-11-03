@@ -150,6 +150,17 @@ export function TimesheetsScreen() {
     }
   }, [readOnly, saveEntries, sheetUserId]);
 
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  useEffect(() => {
+    const onLeave = () => { void flushRef.current(); };
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      window.removeEventListener('pagehide', onLeave);
+      void flushRef.current();
+    };
+  }, [from, sheetUserId]);
+
   const queueSave = useCallback(
     (entry: TimesheetEntryWrite) => {
       if (readOnly) return;
@@ -163,7 +174,7 @@ export function TimesheetsScreen() {
   );
 
   const entryOf = (projectId: string, periodStart: string) =>
-    sheet.data?.entries.find((e) => e.projectId === projectId && e.periodStart === periodStart);
+    sheet.data?.entries.find((e) => e.projectId === projectId && e.periodStart === periodStart && e.periodKind === period);
 
   const displayCell = (projectId: string, periodStart: string): CellDraft => {
     const draft = drafts[cellKey(projectId, periodStart)];
@@ -288,6 +299,27 @@ export function TimesheetsScreen() {
     });
   };
 
+  const clearLoggedCell = (projectId: string, periodStart: string) => {
+    if (readOnly) return;
+    if (isTimesheetLocked({ periodStart: parseYmd(periodStart), periodKind: period, editDays, today })) return;
+    const current = displayCell(projectId, periodStart);
+    setDrafts((prev) => ({ ...prev, [cellKey(projectId, periodStart)]: { text: '', note: '', unit: current.unit } }));
+    clearCellInvalid(cellKey(projectId, periodStart));
+    setNoteCell(null);
+    pending.current.set(`${projectId}:${periodStart}`, {
+      projectId,
+      periodKind: period,
+      periodStart,
+      unit: current.unit,
+      minutes: current.unit === 'time' ? 0 : null,
+      percent: current.unit === 'percent' ? 0 : null,
+      note: null,
+      clear: true,
+    });
+    window.clearTimeout(saveTimer.current);
+    void flush();
+  };
+
   const dayHasTime = (ymd: string) =>
     projects.some((p) => {
       const cell = displayCell(p.id, ymd);
@@ -336,6 +368,7 @@ export function TimesheetsScreen() {
 
   const copyWrites = (): TimesheetEntryWrite[] =>
     (lastWeek.data?.entries ?? [])
+      .filter((row) => row.periodKind === period)
       .map((row) => {
         const start = formatYmd(addUtcDays(parseYmd(row.periodStart), 7));
         return {
@@ -427,7 +460,7 @@ export function TimesheetsScreen() {
     ? projects.reduce((acc, p) => addParts(acc, partsOf(p.id, todayYmd)), { minutes: 0, percent: 0 })
     : weekParts;
 
-  const lastWeekParts = (lastWeek.data?.entries ?? []).reduce(
+  const lastWeekParts = (lastWeek.data?.entries ?? []).filter((row) => row.periodKind === period).reduce(
     (acc, row) => {
       if (row.unit === 'percent') return { minutes: acc.minutes, percent: acc.percent + (row.percent ?? 0) };
       return { minutes: acc.minutes + (row.minutes ?? 0), percent: acc.percent };
@@ -455,7 +488,7 @@ export function TimesheetsScreen() {
 
   const offWhich = days.filter((d) => offByDate.has(formatYmd(d))).map((d) => DAY_SHORT[d.getUTCDay()]).join(', ');
 
-  const mixedUnits = (sheet.data?.entries ?? []).some((e) => e.unit !== unit);
+  const mixedUnits = (sheet.data?.entries ?? []).some((e) => e.periodKind === period && e.unit !== unit);
   const openable = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name, 'en-GB')),
     [projects],
@@ -465,7 +498,7 @@ export function TimesheetsScreen() {
     if (!sheet.data) return;
     const hasSaved = (projectId: string) =>
       (sheet.data?.entries ?? []).some((row) => {
-        if (row.projectId !== projectId) return false;
+        if (row.projectId !== projectId || row.periodKind !== period) return false;
         return (row.minutes ?? 0) > 0 || (row.percent ?? 0) > 0 || Boolean(row.note);
       });
     const mustIds = openable.filter((p) => hasSaved(p.id)).map((p) => p.id);
@@ -482,7 +515,7 @@ export function TimesheetsScreen() {
       if (prev && prev.length === next.length && prev.every((id, i) => id === next[i])) return prev;
       return next;
     });
-  }, [openable, sheet.data]);
+  }, [openable, sheet.data, period]);
 
   const shown = extraOpen
     ? openable
@@ -748,6 +781,7 @@ export function TimesheetsScreen() {
           setNoteDraft={setNoteDraft}
           hideOffKind={viewingOther && !canAdmin}
           dayTimeLabel={dayTimeLabel}
+          clearLoggedCell={clearLoggedCell}
         />
       )}
 
@@ -934,6 +968,7 @@ function DailyGrid({
   setNoteDraft,
   hideOffKind,
   dayTimeLabel,
+  clearLoggedCell,
 }: {
   projects: { id: string; name: string; key: string; color: string; leadId: string }[];
   days: Date[];
@@ -957,6 +992,7 @@ function DailyGrid({
   setNoteDraft: (v: string) => void;
   hideOffKind: boolean;
   dayTimeLabel: (ymd: string) => string;
+  clearLoggedCell: (projectId: string, periodStart: string) => void;
 }) {
   const [holidayEdit, setHolidayEdit] = useState<string | null>(null);
   const cols = `minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px`;
@@ -1078,7 +1114,7 @@ function DailyGrid({
                               <Input.TextArea rows={3} value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
                             </label>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'nowrap' }}>
-                              <Button type="text" danger onClick={() => { setCell(p.id, ymd, { text: '', note: '' }); setNoteCell(null); }}>Clear this cell</Button>
+                              <Button type="text" danger onMouseDown={(event) => event.preventDefault()} onClick={() => clearLoggedCell(p.id, ymd)}>Clear this cell</Button>
                               <span style={{ display: 'flex', flex: 'none', gap: 8 }}>
                                 <Button onClick={() => setNoteCell(null)}>Cancel</Button>
                                 <Button type="primary" onClick={() => { setCell(p.id, ymd, { note: noteDraft }); setNoteCell(null); }}>Save note</Button>

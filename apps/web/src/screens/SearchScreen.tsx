@@ -149,7 +149,7 @@ export function SearchScreen() {
                   cursor: 'pointer',
                 }}
               >
-                <span style={{ width: 58, fontSize: 12.5, color: color.muted, paddingTop: 1 }}>{r.key}</span>
+                <span className="bt-key" style={{ paddingTop: 1 }}>{r.key}</span>
                 <span style={{ flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontWeight: 500 }}>
                     {parts.pre}

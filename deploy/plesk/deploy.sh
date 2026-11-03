@@ -121,3 +121,11 @@ curl -sS --max-time 10 https://app.borntask.com/api/health || true
 echo
 curl -sS --max-time 10 -H 'Host: borntask.com' http://127.0.0.1/ || true
 echo
+
+# Drop leftover BuildKit cache and dangling images. Do not prune volumes or
+# unused tagged images (kerd and borntask-web-builder must stay).
+echo "--- docker prune ---"
+docker_cmd builder prune -af --keep-storage 4GB || docker_cmd builder prune -af || true
+docker_cmd image prune -f || true
+df -h /
+echo

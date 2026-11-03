@@ -461,7 +461,7 @@ function Row({
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24, fontSize: 12, color: color.muted }}>
-          <span>{task.key}</span>
+          <span style={{ whiteSpace: 'nowrap' }}>{task.key}</span>
           <ListFields compact task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} hiddenCols={hiddenCols} />
         </div>
       </div>
