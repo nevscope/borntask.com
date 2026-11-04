@@ -8,6 +8,7 @@ const READ_PATHS = [
   /^\/search$/,
   /^\/people$/,
   /^\/tasks\/[^/]+$/,
+  /^\/tasks\/[^/]+\/attachments\/[^/]+$/,
   /^\/timesheets$/,
   /^\/reports\/workspace$/,
 ];

@@ -298,7 +298,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const section = await auth.db.section.create({
         data: { tenantId: auth.tenantId, projectId: project.id, name: body.name, position: rankKey(count) },
       });
-      return { id: section.id, projectKey: key, name: section.name, position: count };
+      return { id: section.id, projectKey: key, name: section.name, position: count, hidden: section.hidden };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -311,16 +311,22 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const body = z.object({
         name: z.string().trim().min(1).max(80).optional(),
         position: z.string().optional(),
+        hidden: z.boolean().optional(),
       }).parse(req.body);
-      await requireOpenProjectWrite(auth, key);
+      const project = await requireOpenProjectWrite(auth, key);
+      if (body.hidden === true) {
+        const visible = await auth.db.section.count({ where: { projectId: project.id, hidden: false, id: { not: id } } });
+        if (visible < 1) throw validation('Keep at least one section visible.');
+      }
       const section = await auth.db.section.update({
         where: { id },
         data: {
           ...(body.name ? { name: body.name } : {}),
           ...(body.position ? { position: body.position } : {}),
+          ...(body.hidden === undefined ? {} : { hidden: body.hidden }),
         },
       });
-      return { id: section.id, name: section.name };
+      return { id: section.id, name: section.name, hidden: section.hidden };
     } catch (err) {
       return sendError(reply, err);
     }

@@ -313,6 +313,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
       projectKey: project.key,
       name: s.name,
       position: i,
+      hidden: s.hidden,
     })),
     members: project.members.map((m) => ({
       userId: m.userId,

@@ -86,6 +86,9 @@ async function assertCanCreate(auth: Authed, projectId: string) {
 
 async function defaultSectionId(auth: Authed, projectId: string): Promise<string> {
   const section = await auth.db.section.findFirst({
+    where: { projectId, hidden: false },
+    orderBy: { position: 'asc' },
+  }) ?? await auth.db.section.findFirst({
     where: { projectId },
     orderBy: { position: 'asc' },
   });

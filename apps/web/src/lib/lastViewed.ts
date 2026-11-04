@@ -1,0 +1,98 @@
+export type LastViewedTask = { key: string; title: string; projectKey: string; at: number };
+
+const KEY = 'bt-last-viewed-tasks';
+const MAX = 15;
+
+function readAll(): LastViewedTask[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is LastViewedTask =>
+      Boolean(row)
+      && typeof row === 'object'
+      && typeof (row as LastViewedTask).key === 'string'
+      && typeof (row as LastViewedTask).title === 'string'
+      && typeof (row as LastViewedTask).projectKey === 'string'
+      && typeof (row as LastViewedTask).at === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function readLastViewed(): LastViewedTask[] {
+  return readAll().sort((a, b) => b.at - a.at).slice(0, MAX);
+}
+
+export function recordLastViewed(entry: { key: string; title?: string; projectKey?: string }) {
+  const projectKey = entry.projectKey ?? entry.key.split('-')[0] ?? entry.key;
+  const title = entry.title?.trim() || entry.key;
+  const next = [{ key: entry.key, title, projectKey, at: Date.now() }, ...readAll().filter((row) => row.key !== entry.key)].slice(0, MAX);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+const HIDDEN_KEY = 'bt-show-hidden-sections';
+
+export function readShowHiddenSections(projectKey: string): boolean {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    if (!raw) return false;
+    const parsed: unknown = JSON.parse(raw);
+    return Boolean(parsed && typeof parsed === 'object' && (parsed as Record<string, unknown>)[projectKey]);
+  } catch {
+    return false;
+  }
+}
+
+export function writeShowHiddenSections(projectKey: string, on: boolean) {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, boolean> : {};
+    if (on) parsed[projectKey] = true;
+    else delete parsed[projectKey];
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
+}
+
+const PREFS_KEY = 'bt-my-tasks-prefs';
+
+export type MyTasksPrefs = {
+  showUnassigned: boolean;
+  projectKey: string;
+  priority: string;
+  sort: 'due' | 'priority' | 'updated' | 'project';
+};
+
+const DEFAULT_PREFS: MyTasksPrefs = { showUnassigned: false, projectKey: '', priority: '', sort: 'due' };
+
+export function readMyTasksPrefs(): MyTasksPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return DEFAULT_PREFS;
+    const parsed = JSON.parse(raw) as Partial<MyTasksPrefs>;
+    return {
+      showUnassigned: Boolean(parsed.showUnassigned),
+      projectKey: typeof parsed.projectKey === 'string' ? parsed.projectKey : '',
+      priority: typeof parsed.priority === 'string' ? parsed.priority : '',
+      sort: parsed.sort === 'priority' || parsed.sort === 'updated' || parsed.sort === 'project' ? parsed.sort : 'due',
+    };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
+
+export function writeMyTasksPrefs(prefs: MyTasksPrefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
+}

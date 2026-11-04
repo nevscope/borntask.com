@@ -134,6 +134,8 @@ export function ProjectViewBar({
   count,
   view,
   onView,
+  showHidden,
+  onShowHidden,
 }: {
   mode: 'list' | 'board';
   detail: ProjectDetail;
@@ -143,6 +145,8 @@ export function ProjectViewBar({
   count: number;
   view: ProjectView;
   onView: (patch: Partial<ProjectView>) => void;
+  showHidden?: boolean;
+  onShowHidden?: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -277,6 +281,15 @@ export function ProjectViewBar({
             />
           )}
         </div>
+        {detail.sections.some((section) => section.hidden) && onShowHidden && (
+          <button
+            type="button"
+            onClick={() => onShowHidden(!showHidden)}
+            style={{ ...controlStyle, color: showHidden ? color.brandStrong : color.ink3, cursor: 'pointer' }}
+          >
+            {showHidden ? 'Hide archived sections' : 'Show hidden sections'}
+          </button>
+        )}
         {view.filters.map((condition) => (
           <span key={condition.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
             {chipLabel(condition, detail)}

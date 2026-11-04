@@ -25,7 +25,11 @@ export const CHECKS = [
   { name: '20261029230000_comment_reactions', kind: 'table', table: 'CommentReaction' },
   { name: '20261031140000_timesheets_reports', kind: 'table', table: 'TimesheetEntry' },
   { name: '20261031160000_timesheet_edit_days', kind: 'column', table: 'Workspace', column: 'timesheetEditDays' },
+  { name: '20261031200000_timesheet_projects_start', kind: 'column', table: 'Workspace', column: 'timesheetsStartOn' },
   { name: '20261101220000_member_working_pattern', kind: 'column', table: 'TenantMember', column: 'workingDays' },
+  { name: '20261101223000_holiday_country', kind: 'column', table: 'Workspace', column: 'defaultHolidayCountry' },
+  { name: '20261102100000_timesheets_exempt', kind: 'column', table: 'TenantMember', column: 'timesheetsExempt' },
+  { name: '20261104150000_section_hidden', kind: 'column', table: 'Section', column: 'hidden' },
 ];
 
 function prisma(args) {

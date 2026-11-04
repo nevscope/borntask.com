@@ -40,8 +40,11 @@ export function SignInScreen() {
   }, [form, providers.devLogin]);
 
   const start = (path: string) => {
-    const q = invite ? `?invite=${encodeURIComponent(invite)}` : '';
-    window.location.href = `${BASE_URL}${path}${q}`;
+    const q = new URLSearchParams();
+    if (invite) q.set('invite', invite);
+    if (next) q.set('next', next);
+    const query = q.toString();
+    window.location.href = `${BASE_URL}${path}${query ? `?${query}` : ''}`;
   };
 
   if (me.isLoading) {

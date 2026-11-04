@@ -449,12 +449,15 @@ export function takeGroupedTasks(groups: TaskGroup[], limit: number, collapsedId
   return out;
 }
 
-export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail, allTasks?: Task[]): TaskGroup[] {
+export function groupTasks(tasks: Task[], group: GroupBy, detail: ProjectDetail, allTasks?: Task[], includeHidden = false): TaskGroup[] {
   if (group === 'none') return [{ id: 'all', name: 'All tasks', tasks }];
   if (group === 'section') {
-    const known = new Set(detail.sections.map((s) => s.id));
-    const groups = detail.sections.map((s) => ({ id: s.id, name: s.name, tasks: tasks.filter((t) => t.sectionId === s.id) }));
-    const other = tasks.filter((t) => !known.has(t.sectionId));
+    const hiddenIds = new Set(detail.sections.filter((s) => s.hidden).map((s) => s.id));
+    const known = new Set(detail.sections.filter((s) => includeHidden || !s.hidden).map((s) => s.id));
+    const groups = detail.sections
+      .filter((s) => includeHidden || !s.hidden)
+      .map((s) => ({ id: s.id, name: s.hidden ? `${s.name} (hidden)` : s.name, tasks: tasks.filter((t) => t.sectionId === s.id) }));
+    const other = tasks.filter((t) => !known.has(t.sectionId) && (includeHidden || !hiddenIds.has(t.sectionId)));
     if (other.length) groups.push({ id: 'other', name: 'Other', tasks: other });
     return groups;
   }

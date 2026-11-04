@@ -50,6 +50,7 @@ import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
 import { useTaskParam } from './useTaskParam';
 import { setLiveDrawerGuard } from '../lib/liveDrawer';
+import { recordLastViewed } from '../lib/lastViewed';
 import { useIsPhone } from '../hooks/useIsPhone';
 
 type CloseGuard = {
@@ -81,6 +82,11 @@ export function TaskDrawer() {
     setDiscardOpen(false);
     closeTask();
   }
+
+  useEffect(() => {
+    if (!task.data) return;
+    recordLastViewed({ key: task.data.key, title: task.data.title, projectKey: task.data.projectKey });
+  }, [task.data?.key, task.data?.title, task.data?.projectKey]);
 
   return (
     <>

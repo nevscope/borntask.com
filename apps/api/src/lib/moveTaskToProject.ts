@@ -25,7 +25,7 @@ export async function moveTaskToProject(
   const destSections = await auth.db.section.findMany({ where: { projectId: dest.id }, orderBy: { position: 'asc' } });
   const section = input.sectionId
     ? destSections.find((item) => item.id === input.sectionId)
-    : destSections[0];
+    : destSections.find((item) => !item.hidden) ?? destSections[0];
   if (!section) throw validation('Choose a section in that project.');
 
   const destStatuses = await auth.db.workflowStatus.findMany({ where: { workflowId: dest.workflowId } });

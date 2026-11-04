@@ -144,6 +144,7 @@ export const SectionSchema = z.object({
   projectKey: z.string(),
   name: z.string(),
   position: z.number(),
+  hidden: z.boolean().optional(),
 });
 export type Section = z.infer<typeof SectionSchema>;
 
@@ -344,6 +345,8 @@ export const MyTasksSchema = z.object({
   approvals: z.array(TaskSchema),
   created: z.array(TaskSchema).optional(),
   watching: z.array(TaskSchema).optional(),
+  /** Open tasks with no assignee on projects I can open. Off the default My tasks list. */
+  unassigned: z.array(TaskSchema).optional(),
 });
 export type MyTasks = z.infer<typeof MyTasksSchema>;
 

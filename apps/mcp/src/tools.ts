@@ -258,15 +258,20 @@ export async function callTool(token: string, name: string, args: Record<string,
       return withTaskUrl(await api(token, 'GET', `/tasks/${encodeURIComponent(str('key') ?? '')}`));
     case 'list_projects':
       return text(await api(token, 'GET', '/projects'));
-    case 'list_my_tasks':
-      return text(await api(token, 'GET', '/me/tasks'));
+    case 'list_my_tasks': {
+      const mine = await api(token, 'GET', '/me/tasks') as {
+        assigned?: unknown[];
+        approvals?: unknown[];
+      };
+      return text({ assigned: mine.assigned ?? [], approvals: mine.approvals ?? [] });
+    }
     case 'create_task': {
       const projectKey = str('projectKey') ?? '';
       const project = await api(token, 'GET', `/projects/${encodeURIComponent(projectKey)}`) as {
-        sections?: { id: string }[];
+        sections?: { id: string; hidden?: boolean }[];
         disabledTypes?: string[];
       };
-      const sectionId = str('sectionId') ?? project.sections?.[0]?.id;
+      const sectionId = str('sectionId') ?? project.sections?.find((s) => !s.hidden)?.id ?? project.sections?.[0]?.id;
       if (!sectionId) throw new Error('This project has no section to put the task in.');
       const disabled = new Set(project.disabledTypes ?? []);
       const defaultType = ['idea', 'bug', 'improvement', 'feature', 'task'].find((slug) => !disabled.has(slug)) ?? 'idea';

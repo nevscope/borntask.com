@@ -20,6 +20,7 @@ import { useTaskParam } from '../components/useTaskParam';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useVisibleWindow } from '../hooks/useVisibleWindow';
 import { readCollapsedGroups, writeCollapsedGroups } from '../lib/listCollapse';
+import { readShowHiddenSections, writeShowHiddenSections } from '../lib/lastViewed';
 import { allowedGroup, choicesFor, groupTasks, LIST_FIELD_LABEL, LIST_FIELD_WIDTH, LIST_FIELDS, personChoices, sortTasks, takeGroupedTasks, taskMatches, type ListField } from '../lib/taskFilters';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
@@ -36,6 +37,7 @@ export function ProjectListScreen() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const flow = useMoveFlow(detail.data);
   const isPhone = useIsPhone();
+  const [showHidden, setShowHidden] = useState(() => readShowHiddenSections(projectKey));
 
   const manual = view.group === 'section' && view.sort === 'manual';
   const visible = useMemo(() => {
@@ -44,13 +46,14 @@ export function ProjectListScreen() {
   }, [detail.data, tasks.data, view.filters, view.sort, me?.user.id]);
   const groups = useMemo(() => {
     if (!detail.data) return [];
-    return groupTasks(visible, allowedGroup(view.group, detail.data.workBreakdown), detail.data, tasks.data).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
-  }, [detail.data, visible, view.group, view.sort, tasks.data]);
-  const windowReset = `${projectKey}|${view.group}|${view.sort}|${JSON.stringify(view.filters)}`;
+    return groupTasks(visible, allowedGroup(view.group, detail.data.workBreakdown), detail.data, tasks.data, showHidden).map((group) => ({ ...group, tasks: sortTasks(group.tasks, view.sort) }));
+  }, [detail.data, visible, view.group, view.sort, tasks.data, showHidden]);
+  const windowReset = `${projectKey}|${view.group}|${view.sort}|${JSON.stringify(view.filters)}|${showHidden}`;
   const { shown, sentinelRef, remaining } = useVisibleWindow(visible.length, windowReset);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set(readCollapsedGroups(projectKey, view.group)));
   useEffect(() => {
     setCollapsedIds(new Set(readCollapsedGroups(projectKey, view.group)));
+    setShowHidden(readShowHiddenSections(projectKey));
   }, [projectKey, view.group]);
   const toggleGroup = (id: string) => {
     setCollapsedIds((prev) => {
@@ -172,6 +175,11 @@ export function ProjectListScreen() {
           count={visible.length}
           view={view}
           onView={view.setView}
+          showHidden={showHidden}
+          onShowHidden={(on) => {
+            setShowHidden(on);
+            writeShowHiddenSections(projectKey, on);
+          }}
         />
         {selectedTasks.length > 0 && (
           <BulkBar tasks={selectedTasks} detail={d} roles={myRoles} onClear={() => setSelected([])} />
@@ -260,7 +268,7 @@ function SectionGroup({
             type="button"
             onClick={() => quickAdd.open({
               projectKey: detail.project.key,
-              sectionId: canAdd ? id : detail.sections[0]?.id,
+              sectionId: canAdd ? id : (detail.sections.find((section) => !section.hidden)?.id ?? detail.sections[0]?.id),
               planningParentId: addParentId,
             })}
             style={{ height: 40, padding: 0, border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}

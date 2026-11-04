@@ -4,6 +4,7 @@
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { Skeleton } from 'antd';
 import { useMemo, useRef, useState } from 'react';
+import { readShowHiddenSections, writeShowHiddenSections } from '../lib/lastViewed';
 import { useParams } from 'react-router-dom';
 import { useMe, useProject, useProjectTasks } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -30,6 +31,7 @@ export function ProjectBoardScreen() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [openSides, setOpenSides] = useState<Record<string, boolean>>({});
   const [phoneColumn, setPhoneColumn] = useState(0);
+  const [showHidden, setShowHidden] = useState(() => readShowHiddenSections(projectKey));
   const swipeX = useRef<number | null>(null);
   const isPhone = useIsPhone();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: isPhone ? 8 : 5 } }), useSensor(KeyboardSensor));
@@ -52,7 +54,7 @@ export function ProjectBoardScreen() {
   const byStatus = view.columns === 'status';
   const grouped: TaskGroup[] = byStatus
     ? []
-    : groupTasks(visible, view.columns, d).filter((group) => group.tasks.length > 0 || view.columns === 'section');
+    : groupTasks(visible, view.columns, d, undefined, showHidden).filter((group) => group.tasks.length > 0 || view.columns === 'section');
   const phoneStatuses = byStatus ? [...mainStatuses, ...sideStatuses] : grouped.map((group) => ({ id: group.id, name: group.name }));
   const safePhoneColumn = Math.min(phoneColumn, Math.max(0, phoneStatuses.length - 1));
   const phoneFocus = phoneStatuses[safePhoneColumn];
@@ -70,6 +72,11 @@ export function ProjectBoardScreen() {
         count={visible.length}
         view={view}
         onView={view.setView}
+        showHidden={showHidden}
+        onShowHidden={(on) => {
+          setShowHidden(on);
+          writeShowHiddenSections(projectKey, on);
+        }}
       />
       <DndContext
         sensors={sensors}

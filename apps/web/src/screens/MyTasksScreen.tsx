@@ -1,11 +1,11 @@
 // Screen 1 · My tasks. Ideas waiting for my decision first, then my tasks by due date.
-import { Button, Segmented, Skeleton } from 'antd';
+import { Button, Segmented, Select, Skeleton, Switch } from 'antd';
 import { useQueries } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
-import type { ProjectDetail, Task } from '../api/types';
+import type { Priority, ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TaskHints, TypeTag } from '../components/Chips';
 import { useQuickAdd } from '../components/QuickAdd';
 import { useStatusToast } from '../components/StatusToast';
@@ -14,8 +14,9 @@ import { GuestWelcome, MemberEmpty } from '../components/WelcomeInShell';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { useVisibleWindow } from '../hooks/useVisibleWindow';
 import { dueBucket, dueColor, dueLabel, dueTone, type DueBucket } from '../lib/dates';
+import { readLastViewed, readMyTasksPrefs, writeMyTasksPrefs } from '../lib/lastViewed';
 import { statusById } from '../lib/workflow';
-import { color } from '../theme/tokens';
+import { color, priorityStyle } from '../theme/tokens';
 
 const BUCKETS: { id: DueBucket; label: string; color: string }[] = [
   { id: 'overdue', label: 'Overdue', color: color.danger },
@@ -36,23 +37,52 @@ export function MyTasksScreen() {
   const [params] = useSearchParams();
   const isPhone = useIsPhone();
 
-  const keys = [...new Set([...(mine.data?.assigned ?? []), ...(mine.data?.approvals ?? [])].map((t) => t.projectKey))];
+  const keys = [...new Set([
+    ...(mine.data?.assigned ?? []),
+    ...(mine.data?.approvals ?? []),
+    ...(mine.data?.unassigned ?? []),
+    ...(mine.data?.created ?? []),
+    ...(mine.data?.watching ?? []),
+  ].map((t) => t.projectKey))];
   const details = useQueries({ queries: keys.map((k) => ({ queryKey: qk.project(k), queryFn: () => api.getProject(k) })) });
   const detailOf = (key: string): ProjectDetail | undefined => details.find((d) => d.data?.project.key === key)?.data;
   const projectName = (key: string) => projects.find((p) => p.key === key)?.name ?? key;
 
   const [tab, setTab] = useState<'assigned' | 'created' | 'watching'>('assigned');
-  const assigned = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
+  const [prefs, setPrefs] = useState(readMyTasksPrefs);
+  const lastViewed = useMemo(() => readLastViewed(), [mine.dataUpdatedAt, params.get('task')]);
+  const assignedBase = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
+  const unassigned = tab === 'assigned' && prefs.showUnassigned ? (mine.data?.unassigned ?? []) : [];
+  const assigned = useMemo(() => {
+    const merged = tab === 'assigned' ? [...assignedBase, ...unassigned.filter((t) => !assignedBase.some((a) => a.key === t.key))] : assignedBase;
+    return merged.filter((t) => {
+      if (prefs.projectKey && t.projectKey !== prefs.projectKey) return false;
+      if (prefs.priority && t.priority !== prefs.priority) return false;
+      return true;
+    }).sort((a, b) => {
+      if (prefs.sort === 'priority') return priorityStyle[a.priority].key.localeCompare(priorityStyle[b.priority].key);
+      if (prefs.sort === 'updated') return b.updatedAt.localeCompare(a.updatedAt);
+      if (prefs.sort === 'project') return a.projectKey.localeCompare(b.projectKey) || a.title.localeCompare(b.title);
+      return (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999');
+    });
+  }, [assignedBase, unassigned, prefs, tab]);
   const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
   const buckets = useMemo(
     () =>
-      BUCKETS.map((b) => ({
-        ...b,
-        list: assigned.filter((t) => dueBucket(t.dueDate) === b.id).sort((x, y) => (x.dueDate ?? '').localeCompare(y.dueDate ?? '')),
-      })).filter((b) => b.list.length),
-    [assigned],
+      prefs.sort === 'due'
+        ? BUCKETS.map((b) => ({
+            ...b,
+            list: assigned.filter((t) => dueBucket(t.dueDate) === b.id),
+          })).filter((b) => b.list.length)
+        : [{ id: 'all' as DueBucket, label: prefs.sort === 'priority' ? 'By priority' : prefs.sort === 'updated' ? 'Recently updated' : 'By project', color: color.ink, list: assigned }],
+    [assigned, prefs.sort],
   );
-  const { shown, sentinelRef, remaining } = useVisibleWindow(assigned.length, tab);
+  const { shown, sentinelRef, remaining } = useVisibleWindow(assigned.length, `${tab}|${prefs.projectKey}|${prefs.priority}|${prefs.sort}|${prefs.showUnassigned}`);
+  const setPref = <K extends keyof typeof prefs>(key: K, value: (typeof prefs)[K]) => {
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    writeMyTasksPrefs(next);
+  };
 
   if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
   if (params.get('welcome') === 'guest') return <GuestWelcome />;
@@ -90,7 +120,64 @@ export function MyTasksScreen() {
             { label: 'Watching', value: 'watching' },
           ]}
         />
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 12 }}>
+          <Select
+            aria-label="Project"
+            allowClear
+            placeholder="All projects"
+            value={prefs.projectKey || undefined}
+            onChange={(value) => setPref('projectKey', value ?? '')}
+            style={{ minWidth: 180 }}
+            options={projects.map((p) => ({ value: p.key, label: p.name }))}
+          />
+          <Select
+            aria-label="Priority"
+            allowClear
+            placeholder="Any priority"
+            value={prefs.priority || undefined}
+            onChange={(value) => setPref('priority', value ?? '')}
+            style={{ minWidth: 150 }}
+            options={(Object.keys(priorityStyle) as Priority[]).map((p) => ({ value: p, label: priorityStyle[p].label }))}
+          />
+          <Select
+            aria-label="Sort"
+            value={prefs.sort}
+            onChange={(value) => setPref('sort', value)}
+            style={{ minWidth: 170 }}
+            options={[
+              { value: 'due', label: 'Due date' },
+              { value: 'priority', label: 'Priority' },
+              { value: 'updated', label: 'Last updated' },
+              { value: 'project', label: 'Project' },
+            ]}
+          />
+          {tab === 'assigned' && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: color.ink3 }}>
+              <Switch size="small" checked={prefs.showUnassigned} onChange={(on) => setPref('showUnassigned', on)} />
+              Show unassigned
+            </label>
+          )}
+        </div>
       </div>
+
+      {lastViewed.length > 0 && (
+        <section className="bt-card">
+          <div className="bt-group-head" style={{ color: color.ink }}>Last viewed <span style={{ color: color.muted, fontWeight: 500 }}>{lastViewed.length}</span></div>
+          {lastViewed.map((row) => (
+            <button
+              key={row.key}
+              type="button"
+              className="bt-row"
+              onClick={() => openTask(row.key, { title: row.title, projectKey: row.projectKey })}
+              style={{ paddingLeft: 16, cursor: 'pointer' }}
+            >
+              <span className="bt-key">{row.key}</span>
+              <span className="bt-row-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</span>
+              <span style={{ fontSize: 12.5, color: color.muted, width: 150 }}>{projectName(row.projectKey)}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       {approvals.length > 0 && (
         <section className="bt-card">

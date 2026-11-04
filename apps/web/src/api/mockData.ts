@@ -465,7 +465,8 @@ export const mockApi: Api = {
     const approvals = tasks.filter((t) => t.statusId === 'idea' && myRolesIn(t.projectKey).includes('business'));
     const created = tasks.filter((t) => t.reporterId === me.user.id && statusById(deliveryWorkflow, t.statusId)?.category !== 'done');
     const watching = tasks.filter((t) => t.labels.includes('watch-demo'));
-    return clone({ assigned, approvals, created, watching });
+    const unassigned = tasks.filter((t) => !t.assigneeId && statusById(deliveryWorkflow, t.statusId)?.category !== 'done');
+    return clone({ assigned, approvals, created, watching, unassigned });
   },
 
   async getTask(key): Promise<TaskDetail> {

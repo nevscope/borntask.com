@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAcceptProjectInvite, useMarkNotificationsRead, useNotifications } from '../api/queries';
+import { readLastViewed } from '../lib/lastViewed';
 import type { Notification, NotificationKind } from '../api/types';
 import { formatWhen } from '../lib/relativeTime';
 import { color, radius } from '../theme/tokens';
@@ -105,7 +106,7 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
   const accept = useAcceptProjectInvite();
-  const [tab, setTab] = useState<'unread' | 'all'>('unread');
+  const [tab, setTab] = useState<'unread' | 'all' | 'viewed'>('unread');
   const [openGroups, setOpenGroups] = useState<Partial<Record<NotificationKind, boolean>>>({});
   const items = list?.items ?? [];
   const unreadCount = list?.unreadCount ?? 0;
@@ -198,6 +199,26 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
           >
             All
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'viewed'}
+            onClick={() => { setTab('viewed'); setOpenGroups({}); }}
+            style={{
+              height: 26,
+              padding: '0 10px',
+              border: 0,
+              borderRadius: 6,
+              background: tab === 'viewed' ? color.surface : 'transparent',
+              font: 'inherit',
+              fontSize: 12.5,
+              fontWeight: tab === 'viewed' ? 600 : 400,
+              color: tab === 'viewed' ? color.ink : color.ink3,
+              cursor: 'pointer',
+            }}
+          >
+            Last viewed
+          </button>
         </div>
         <div style={{ flex: 1 }} />
         <button
@@ -219,7 +240,37 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
           Mark all read
         </button>
       </div>
-      {shown.length === 0 ? (
+      {tab === 'viewed' ? (
+        <div style={{ flex: phone ? 1 : undefined, maxHeight: phone ? undefined : 420, overflow: 'auto' }}>
+          {readLastViewed().length === 0 ? (
+            <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center' }}>No recently viewed tasks.</div>
+          ) : readLastViewed().map((row) => (
+            <button
+              key={row.key}
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate(`/p/${row.projectKey}/list?task=${row.key}`);
+              }}
+              style={{
+                display: 'flex',
+                width: '100%',
+                gap: 10,
+                padding: '10px 16px',
+                border: 0,
+                borderBottom: `1px solid ${color.divider}`,
+                background: 'transparent',
+                textAlign: 'left',
+                font: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              <span className="bt-key">{row.key}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</span>
+            </button>
+          ))}
+        </div>
+      ) : shown.length === 0 ? (
         <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center', flex: phone ? 1 : undefined }}>
           {tab === 'unread' ? 'You are up to date.' : 'No notifications yet.'}
         </div>

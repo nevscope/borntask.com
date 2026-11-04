@@ -204,6 +204,15 @@ describe('list grouping', () => {
     expect(groups[0]?.tasks.map((row) => row.id)).toEqual(['t1']);
   });
 
+  test('omits hidden sections unless asked', () => {
+    const inbox = { id: 's1', name: 'Inbox', hidden: false } as ProjectDetail['sections'][number];
+    const old = { id: 's2', name: 'Old', hidden: true } as ProjectDetail['sections'][number];
+    const task = { sectionId: 's2', title: 'Parked' } as Task;
+    const detail = { sections: [inbox, old], users: [], workflow: { statuses: [] } } as unknown as ProjectDetail;
+    expect(groupTasks([task], 'section', detail).map((g) => g.id)).toEqual(['s1']);
+    expect(groupTasks([task], 'section', detail, undefined, true).map((g) => g.id)).toEqual(['s1', 's2']);
+  });
+
   test('drops story grouping when work breakdown is off', () => {
     expect(allowedGroup('story', 'off')).toBe('section');
     expect(allowedGroup('epic', 'stories')).toBe('section');

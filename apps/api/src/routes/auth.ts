@@ -116,10 +116,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  function oauthQuery(req: { query?: unknown }) {
+    const q = req.query && typeof req.query === 'object' ? req.query as { invite?: string; next?: string } : {};
+    return {
+      invite: String(q.invite ?? ''),
+      next: inAppNext(q.next) ?? '',
+    };
+  }
+
   app.get('/auth/google', async (req, reply) => {
     if (!googleEnabled()) return reply.redirect(`${config.publicUrl}/sign-in?error=google-unconfigured`);
-    const invite = typeof req.query === 'object' && req.query && 'invite' in req.query ? String((req.query as { invite?: string }).invite ?? '') : '';
-    return reply.redirect(googleAuthUrl(createOauthState(invite, workspaceSlugFromRequest(req) ?? '')));
+    const { invite, next } = oauthQuery(req);
+    return reply.redirect(googleAuthUrl(createOauthState(invite, workspaceSlugFromRequest(req) ?? '', next)));
   });
 
   app.get('/auth/google/callback', async (req, reply) => {
@@ -129,8 +137,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!q.code || !parsed) throw validation('Invalid Google callback.');
       if (parsed.invite) req.session.set('inviteToken', parsed.invite);
       const profile = await googleProfile(q.code);
-      const next = await finishLogin(req, reply, { ...profile, provider: 'google' }, { preferredSlug: parsed.returnSlug });
-      return reply.redirect(loginAbsoluteUrl(req, next.path, next.tenantSlug));
+      const logged = await finishLogin(req, reply, { ...profile, provider: 'google' }, { preferredSlug: parsed.returnSlug });
+      const path = logged.path === '/' && parsed.next ? (inAppNext(parsed.next) ?? logged.path) : logged.path;
+      return reply.redirect(loginAbsoluteUrl(req, path, logged.tenantSlug));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -138,8 +147,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/auth/microsoft', async (req, reply) => {
     if (!microsoftEnabled()) return reply.redirect(`${config.publicUrl}/sign-in?error=microsoft-unconfigured`);
-    const invite = typeof req.query === 'object' && req.query && 'invite' in req.query ? String((req.query as { invite?: string }).invite ?? '') : '';
-    return reply.redirect(microsoftAuthUrl(createOauthState(invite, workspaceSlugFromRequest(req) ?? '')));
+    const { invite, next } = oauthQuery(req);
+    return reply.redirect(microsoftAuthUrl(createOauthState(invite, workspaceSlugFromRequest(req) ?? '', next)));
   });
 
   app.get('/auth/microsoft/callback', async (req, reply) => {
@@ -149,8 +158,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       if (!q.code || !parsed) throw validation('Invalid Microsoft callback.');
       if (parsed.invite) req.session.set('inviteToken', parsed.invite);
       const profile = await microsoftProfile(q.code);
-      const next = await finishLogin(req, reply, { ...profile, provider: 'microsoft' }, { preferredSlug: parsed.returnSlug });
-      return reply.redirect(loginAbsoluteUrl(req, next.path, next.tenantSlug));
+      const logged = await finishLogin(req, reply, { ...profile, provider: 'microsoft' }, { preferredSlug: parsed.returnSlug });
+      const path = logged.path === '/' && parsed.next ? (inAppNext(parsed.next) ?? logged.path) : logged.path;
+      return reply.redirect(loginAbsoluteUrl(req, path, logged.tenantSlug));
     } catch (err) {
       return sendError(reply, err);
     }

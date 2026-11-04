@@ -413,6 +413,7 @@ model Section {
   projectId String
   name      String
   position  String
+  hidden    Boolean @default(false)
   createdAt DateTime @default(now())
 
   tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)

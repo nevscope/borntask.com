@@ -137,7 +137,9 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
 
   useEffect(() => {
     if (!detail) return;
-    if (!sectionId || !detail.sections.some((s) => s.id === sectionId)) setSectionId(detail.sections[0]?.id);
+    if (!sectionId || !detail.sections.some((s) => s.id === sectionId)) {
+      setSectionId(detail.sections.find((s) => !s.hidden)?.id ?? detail.sections[0]?.id);
+    }
   }, [detail, sectionId]);
 
   useEffect(() => {

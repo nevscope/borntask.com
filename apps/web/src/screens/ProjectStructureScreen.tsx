@@ -39,6 +39,7 @@ export function ProjectStructureScreen() {
   const [typeDraft, setTypeDraft] = useState('');
   const [addingType, setAddingType] = useState(false);
   const [typeError, setTypeError] = useState<string | null>(null);
+  const [sectionError, setSectionError] = useState<string | null>(null);
 
   const trash = useProjectTrash(projectKey);
   const restore = useRestoreTask();
@@ -121,6 +122,22 @@ export function ProjectStructureScreen() {
     refresh();
   };
 
+  const toggleHidden = async (id: string, hidden: boolean) => {
+    setSectionError(null);
+    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden }),
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    if (!res.ok) {
+      setSectionError(json.message ?? 'Could not hide that section.');
+      return;
+    }
+    refresh();
+  };
+
   const confirmDelete = async () => {
     if (!deleteId || !moveTo) return;
     await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/sections/${encodeURIComponent(deleteId)}`, {
@@ -162,10 +179,12 @@ export function ProjectStructureScreen() {
             <span style={{ fontSize: 12.5, color: color.muted }}>Drag to reorder</span>
           </div>
           <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          {sectionError && <p style={{ margin: 0, padding: '10px 16px', color: color.danger, fontSize: 12.5 }}>{sectionError}</p>}
           {sections.map((s) => (
             <SectionRow key={s.id} id={s.id} name={s.name}>
-              <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
+              <span style={{ flex: 1, fontWeight: 500, color: s.hidden ? color.muted : color.ink }}>{s.name}{s.hidden ? ' (hidden)' : ''}</span>
               <span style={{ fontSize: 12.5, color: color.muted }}>{counts.get(s.id) ?? 0} tasks</span>
+              <Button type="link" onClick={() => void toggleHidden(s.id, !s.hidden)}>{s.hidden ? 'Show' : 'Hide'}</Button>
               <Button type="link" onClick={() => { setRenameId(s.id); setRename(s.name); }}>Rename</Button>
               <Button type="link" danger onClick={() => { setDeleteId(s.id); setMoveTo(sections.find((x) => x.id !== s.id)?.id ?? ''); }}>Delete</Button>
             </SectionRow>

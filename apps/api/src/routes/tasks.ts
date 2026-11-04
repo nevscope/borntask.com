@@ -25,6 +25,7 @@ import {
   storeTaskUpload,
 } from '../lib/attachments.js';
 import { canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite, requireProjectWrite } from '../lib/projectAccess.js';
+import { setTaskLabels } from '../lib/setTaskLabels.js';
 
 function mapSubtask(row: {
   id: string;
@@ -164,6 +165,10 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const watching = watchingRows
         .map((w) => w.task)
         .filter((t) => t && !t.deletedAt && t.status.category !== 'done');
+      const unassigned = await auth.db.task.findMany({
+        where: { assigneeId: null, deletedAt: null, parentId: null, status: { category: { not: 'done' } } },
+        include,
+      });
 
       const myMemberships = await auth.db.projectMember.findMany({
         where: { userId: auth.userId },
@@ -191,6 +196,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         assigned: visible(assigned).map((row) => mapTask(row)),
         created: visible(created).map((row) => mapTask(row)),
         watching: visible(watching).map((row) => mapTask(row)),
+        unassigned: visible(unassigned).map((row) => mapTask(row)),
         approvals: approvals.map((row) => mapTask(row)),
       };
     } catch (err) {
@@ -330,7 +336,15 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
       await attachPendingToTask(auth, created.id, input.attachmentIds);
-      const afterAttach = input.attachmentIds.length
+      if (input.labels.length) {
+        await setTaskLabels(auth.db, {
+          tenantId: auth.tenantId,
+          projectId: created.projectId,
+          taskId: created.id,
+          names: input.labels,
+        });
+      }
+      const afterAttach = input.attachmentIds.length || input.labels.length
         ? await findTaskByKey(auth.db, taskKey(created.project.key, created.number))
         : null;
       await auth.db.activityLog.create({
@@ -433,6 +447,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
+      if (input.labels) {
+        await setTaskLabels(auth.db, {
+          tenantId: auth.tenantId,
+          projectId: row.projectId,
+          taskId: row.id,
+          names: input.labels,
+        });
+      }
+      const labelled = input.labels ? await findTaskByKey(auth.db, key) : updated;
+      if (!labelled) throw notFound();
       if (auth.via === 'mcp') {
         await auth.db.activityLog.create({
           data: {
@@ -445,7 +469,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           },
         });
       }
-      const mappedUpdated = mapTask(updated);
+      const mappedUpdated = mapTask(labelled);
       publishTaskChange(auth, mappedUpdated, 'patch');
       if (input.assigneeId && input.assigneeId !== row.assigneeId) {
         const name = await actorName(auth.userId);
