@@ -8,9 +8,11 @@ import { Link } from 'react-router-dom';
 import {
   useAddComment,
   useAddSubtask,
+  useConvertTaskToSubtask,
   useCopyTask,
   useDeleteSubtask,
   usePatchSubtask,
+  usePromoteSubtask,
   useDeleteComment,
   useToggleCommentReaction,
   useDeleteTask,
@@ -44,6 +46,7 @@ import { DescriptionEditor, type EmbeddedImage } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { MoveToProjectDialog } from './MoveToProjectDialog';
+import { MoveUnderTaskDialog, taskNeedsConvertWarn } from './MoveUnderTaskDialog';
 import { AddReactionIcon, Avatar, BlockedMark, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, SeenReactionIcon, StatusPill, TypeTag, YesReactionIcon } from './Chips';
 import { TaskLinks } from './TaskLinks';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
@@ -88,6 +91,12 @@ export function TaskDrawer() {
     if (!task.data) return;
     recordLastViewed({ key: task.data.key, title: task.data.title, projectKey: task.data.projectKey });
   }, [task.data?.key, task.data?.title, task.data?.projectKey]);
+
+  useEffect(() => {
+    if (!task.data?.redirectedFrom || !taskKey) return;
+    if (task.data.redirectedFrom !== taskKey) return;
+    openTask(task.data.key, { title: task.data.title, projectKey: task.data.projectKey, replace: true });
+  }, [task.data, taskKey, openTask]);
 
   return (
     <>
@@ -141,6 +150,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const update = useUpdateTask();
   const del = useDeleteTask();
   const moveProject = useMoveTaskToProject();
+  const convertUnder = useConvertTaskToSubtask();
   const restore = useRestoreTask();
   const copyTask = useCopyTask();
   const watch = useSetWatching();
@@ -166,6 +176,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmMoveProject, setConfirmMoveProject] = useState(false);
+  const [confirmMoveUnder, setConfirmMoveUnder] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [confirmWatch, setConfirmWatch] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -523,6 +534,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             items: [
               { key: 'duplicate', label: 'Duplicate', disabled: copyTask.isPending, onClick: () => setConfirmDuplicate(true) },
               { key: 'move', label: 'Move to another project', disabled: moveProject.isPending, onClick: () => setConfirmMoveProject(true) },
+              { key: 'under', label: 'Move under another task', disabled: convertUnder.isPending, onClick: () => setConfirmMoveUnder(true) },
               { type: 'divider' },
               { key: 'delete', label: 'Delete', danger: true, disabled: del.isPending, onClick: () => remove() },
             ],
@@ -754,7 +766,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
 
         <TaskLinks task={task} readOnly={readOnly || inTrash} />
 
-        <Subtasks task={task} detail={detail} readOnly={readOnly || inTrash} onDraftChange={setSubtaskDraft} />
+        <Subtasks task={task} detail={detail} readOnly={readOnly || inTrash} onDraftChange={setSubtaskDraft} openTask={openTask} />
         {(task.type === 'story' || task.type === 'epic') && (
           <Section title={`In this ${task.type} ${task.planningChildCount?.done ?? 0}/${task.planningChildCount?.total ?? 0}`}>
             {(task.planningChildren ?? []).length === 0 && (
@@ -790,6 +802,26 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           onPrev={previewImageIndex > 0 ? () => stepPreview(-1) : undefined}
           onNext={previewImageIndex >= 0 && previewImageIndex < imageItems.length - 1 ? () => stepPreview(1) : undefined}
           position={previewImageIndex >= 0 ? { index: previewImageIndex, count: imageItems.length } : undefined}
+        />
+        <MoveUnderTaskDialog
+          open={confirmMoveUnder}
+          sourceKey={task.key}
+          busy={convertUnder.isPending}
+          warn={taskNeedsConvertWarn(task)}
+          onCancel={() => setConfirmMoveUnder(false)}
+          onConfirm={(parentKey) => {
+            convertUnder.mutate(
+              { key: task.key, input: { parentKey, confirm: taskNeedsConvertWarn(task) } },
+              {
+                onSuccess: (result) => {
+                  setConfirmMoveUnder(false);
+                  openTask(result.parentKey);
+                  toast.show({ text: <><strong>{task.key}</strong> is now a subtask on <strong>{result.parentKey}</strong>.</> });
+                },
+                onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not move this under that task.' }),
+              },
+            );
+          }}
         />
         <MoveToProjectDialog
           open={confirmMoveProject}
@@ -900,10 +932,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Subtasks({ task, detail, readOnly, onDraftChange }: { task: TaskDetail; detail: ProjectDetail; readOnly: boolean; onDraftChange: (value: string) => void }) {
+function Subtasks({ task, detail, readOnly, onDraftChange, openTask }: { task: TaskDetail; detail: ProjectDetail; readOnly: boolean; onDraftChange: (value: string) => void; openTask: (key: string) => void }) {
   const add = useAddSubtask();
   const setDone = useSetSubtaskDone();
   const patch = usePatchSubtask();
+  const promote = usePromoteSubtask();
   const remove = useDeleteSubtask();
   const restore = useRestoreTask();
   const toast = useStatusToast();
@@ -927,6 +960,27 @@ function Subtasks({ task, detail, readOnly, onDraftChange }: { task: TaskDetail;
                   <span style={{ textDecoration: s.done ? 'line-through' : 'none', color: s.done ? color.muted : color.ink }}>{s.title}</span>
                 </Checkbox>
               </div>
+              {!readOnly && (
+                <button
+                  type="button"
+                  aria-label={`Turn ${s.title} into its own task`}
+                  onClick={() => {
+                    promote.mutate(
+                      { key: task.key, id: s.id },
+                      {
+                        onSuccess: (created) => {
+                          toast.show({ text: <>Created <strong>{created.key}</strong> from that subtask.</> });
+                          openTask(created.key);
+                        },
+                        onError: (err) => toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not turn that into a task.' }),
+                      },
+                    );
+                  }}
+                  style={{ flex: 'none', height: 32, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: 8, background: color.surface, color: color.ink, font: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Turn into a task
+                </button>
+              )}
               {!readOnly && (
                 <button
                   type="button"

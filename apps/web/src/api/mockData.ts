@@ -182,6 +182,14 @@ const subtasks: Record<string, Subtask[]> = {
 };
 
 const removedSubtasks = new Map<string, { parentKey: string; subtask: Subtask }>();
+const convertedKeys = new Map<string, string>();
+
+function convertNeedsWarn(key: string): boolean {
+  const commentCount = (comments[key] ?? []).length;
+  const attachmentCount = key === 'WEB-142' ? 1 : 0;
+  const history = (activity[key] ?? []).filter((row) => !/^created this\b/i.test(row.text)).length;
+  return commentCount > 0 || attachmentCount > 0 || history > 0;
+}
 
 const watchers: Record<string, string[]> = {
   'WEB-139': ['u_karl'],
@@ -471,7 +479,9 @@ export const mockApi: Api = {
     };
 
     if (isTaskKey(n)) {
-      const t = tasks.find((x) => x.key.toLowerCase() === n.toLowerCase());
+      const raw = n.toUpperCase();
+      const redirected = convertedKeys.get(raw);
+      const t = tasks.find((x) => x.key.toLowerCase() === (redirected ?? raw).toLowerCase());
       if (t) pushHit(t, 'key', t.title, null);
       return { hits, tookMs: Date.now() - started };
     }
@@ -519,18 +529,21 @@ export const mockApi: Api = {
 
   async getTask(key): Promise<TaskDetail> {
     await wait();
-    const t = findTask(key);
+    const redirectedFrom = convertedKeys.get(key) ? key : undefined;
+    const resolvedKey = convertedKeys.get(key) ?? key;
+    const t = findTask(resolvedKey);
     refreshBlocked();
     return clone({
       ...t,
       links: linksFor(t),
-      subtasks: subtasks[key] ?? [],
-      comments: comments[key] ?? [],
-      activity: activity[key] ?? [],
-      watcherIds: watchers[key] ?? [],
-      attachments: key === 'WEB-142'
+      subtasks: subtasks[resolvedKey] ?? [],
+      comments: comments[resolvedKey] ?? [],
+      activity: activity[resolvedKey] ?? [],
+      watcherIds: watchers[resolvedKey] ?? [],
+      attachments: resolvedKey === 'WEB-142'
         ? [{ id: 'att_1', name: 'safari-fail.png', size: 184320, mime: 'image/png' }]
         : [],
+      redirectedFrom: redirectedFrom ?? null,
       development: key.startsWith('WEB-')
         ? {
             enabled: true,
@@ -778,6 +791,67 @@ export const mockApi: Api = {
     (subtasks[key] ??= []).push(s);
     t.subtaskCount = { done: t.subtaskCount.done, total: t.subtaskCount.total + 1 };
     return clone(s);
+  },
+
+  async convertTaskToSubtask(key, input) {
+    await wait();
+    if (key === input.parentKey) throw new ApiError(400, 'VALIDATION', 'A task cannot sit under itself.');
+    const child = findTask(key);
+    const parent = findTask(input.parentKey);
+    if ((subtasks[key] ?? []).length) throw new ApiError(400, 'VALIDATION', 'Promote or move this task\'s subtasks first.');
+    if (convertNeedsWarn(key) && !input.confirm) {
+      throw new ApiError(409, 'CONFLICT', 'This task has comments, attachments or history. Those will be copied onto a comment on the parent.');
+    }
+    const s: Subtask = {
+      id: uid('st'),
+      title: child.title,
+      done: false,
+      assigneeId: child.assigneeId,
+      dueDate: child.dueDate,
+    };
+    (subtasks[parent.key] ??= []).push(s);
+    parent.subtaskCount = { done: (subtasks[parent.key] ?? []).filter((row) => row.done).length, total: (subtasks[parent.key] ?? []).length };
+    if (convertNeedsWarn(key) || stripTags(child.description)) {
+      const bits = [`Moved ${key} (${child.title}) under this task as a subtask.`];
+      for (const comment of comments[key] ?? []) {
+        bits.push(`${users.find((user) => user.id === comment.authorId)?.name ?? 'Someone'}: ${comment.body}`);
+      }
+      (comments[parent.key] ??= []).push({
+        id: uid('c'),
+        authorId: me.user.id,
+        body: bits.join('\n'),
+        via: 'app',
+        createdAt: new Date().toISOString(),
+        reactions: [],
+      });
+      applyCommentHints(parent.key);
+    }
+    tasks = tasks.filter((row) => row.key !== key);
+    convertedKeys.set(key, parent.key);
+    return { parentKey: parent.key, redirectedTo: parent.key, subtask: clone(s) };
+  },
+
+  async promoteSubtask(key, subtaskId) {
+    await wait();
+    const parent = findTask(key);
+    const list = subtasks[key] ?? [];
+    const index = list.findIndex((row) => row.id === subtaskId);
+    if (index < 0) throw new ApiError(404, 'NOT_FOUND', 'Subtask not found');
+    const [row] = list.splice(index, 1);
+    if (!row) throw new ApiError(404, 'NOT_FOUND', 'Subtask not found');
+    parent.subtaskCount = { done: list.filter((item) => item.done).length, total: list.length };
+    const created = seed({
+      key: `${parent.projectKey}-${++seq}`,
+      title: row.title,
+      type: parent.type,
+      statusId: 'idea',
+      sectionId: parent.sectionId,
+      assigneeId: row.assigneeId ?? null,
+      dueDate: row.dueDate ?? null,
+      reporterId: me.user.id,
+    }, tasks.length + 1);
+    tasks.push(created);
+    return clone(created);
   },
 
   async setSubtaskDone(key, subtaskId, done) {

@@ -320,7 +320,21 @@ export const TaskDetailSchema = TaskSchema.extend({
   development: TaskDevelopmentSchema.optional(),
   planningChildren: z.array(z.object({ key: z.string(), title: z.string(), type: TaskTypeSchema })).optional(),
   links: z.array(TaskLinkSchema).optional(),
+  redirectedFrom: z.string().nullable().optional(),
 });
+
+export const ConvertToSubtaskInputSchema = z.object({
+  parentKey: z.string(),
+  confirm: z.boolean().optional(),
+});
+export type ConvertToSubtaskInput = z.infer<typeof ConvertToSubtaskInputSchema>;
+
+export const ConvertToSubtaskResultSchema = z.object({
+  parentKey: z.string(),
+  redirectedTo: z.string(),
+  subtask: SubtaskSchema,
+});
+export type ConvertToSubtaskResult = z.infer<typeof ConvertToSubtaskResultSchema>;
 
 export const SearchHitSchema = z.object({
   key: z.string(),
@@ -443,6 +457,7 @@ export const ApiErrorCodeSchema = z.enum([
   'VALIDATION',
   'UNAUTHORIZED',
   'FORBIDDEN',
+  'CONFLICT',
   'SERVER',
 ]);
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;
@@ -477,6 +492,8 @@ export interface Api {
   deleteComment(key: string, commentId: string): Promise<void>; // DELETE /tasks/:key/comments/:id
   toggleCommentReaction(key: string, commentId: string, emoji: CommentReactionKind): Promise<Comment>; // POST /tasks/:key/comments/:id/reactions
   addSubtask(key: string, title: string): Promise<Subtask>; // POST /tasks/:key/subtasks
+  convertTaskToSubtask(key: string, input: ConvertToSubtaskInput): Promise<ConvertToSubtaskResult>; // POST /tasks/:key/convert-to-subtask
+  promoteSubtask(key: string, subtaskId: string): Promise<Task>; // POST /tasks/:key/subtasks/:id/promote
   setSubtaskDone(key: string, subtaskId: string, done: boolean): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   patchSubtask(key: string, subtaskId: string, input: PatchSubtaskInput): Promise<Subtask>; // PATCH /tasks/:key/subtasks/:id
   deleteSubtask(key: string, subtaskId: string): Promise<{ key: string }>; // DELETE /tasks/:key/subtasks/:id (soft delete, returns the subtask key for undo)

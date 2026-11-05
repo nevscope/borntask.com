@@ -12,6 +12,7 @@ import {
   ProjectSchema,
   SearchResponseSchema,
   SubtaskSchema,
+  ConvertToSubtaskResultSchema,
   TaskDetailSchema,
   TaskLinkSchema,
   TaskSchema,
@@ -90,6 +91,8 @@ export const httpApi: Api = {
   toggleCommentReaction: (key, commentId, emoji) =>
     request('POST', `/tasks/${enc(key)}/comments/${enc(commentId)}/reactions`, CommentSchema, { emoji }),
   addSubtask: (key, title) => request('POST', `/tasks/${enc(key)}/subtasks`, SubtaskSchema, { title }),
+  convertTaskToSubtask: (key, input) => request('POST', `/tasks/${enc(key)}/convert-to-subtask`, ConvertToSubtaskResultSchema, input),
+  promoteSubtask: (key, id) => request('POST', `/tasks/${enc(key)}/subtasks/${enc(id)}/promote`, TaskSchema),
   setSubtaskDone: (key, id, done) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, { done }),
   patchSubtask: (key, id, input) => request('PATCH', `/tasks/${enc(key)}/subtasks/${enc(id)}`, SubtaskSchema, input),
   deleteSubtask: (key, id) => request('DELETE', `/tasks/${enc(key)}/subtasks/${enc(id)}`, z.object({ key: z.string() })),
