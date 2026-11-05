@@ -1,6 +1,8 @@
 /** Description HTML: sanitise on save and flatten for search snippets. */
 
-const ALLOWED = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'code', 'pre', 'a', 'span', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td']);
+import { markdownToHtml } from '@borntask/shared';
+
+const ALLOWED = new Set(['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'code', 'pre', 'a', 'span', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 export function looksLikeHtml(value: string): boolean {
   return /<(?:p|br|div|ul|ol|li|strong|em|b|i|code|pre|a|h[1-6]|span|img|table|thead|tbody|tr|th|td)\b/i.test(value);
@@ -25,7 +27,7 @@ export function stripTags(value: string): string {
 
 export function persistDescription(value: string): string {
   if (!value.trim()) return '';
-  return looksLikeHtml(value) ? sanitizeDescriptionHtml(value) : value;
+  return looksLikeHtml(value) ? sanitizeDescriptionHtml(value) : sanitizeDescriptionHtml(markdownToHtml(value));
 }
 
 export function sanitizeDescriptionHtml(html: string): string {

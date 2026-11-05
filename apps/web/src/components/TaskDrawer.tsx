@@ -1,6 +1,6 @@
 // Task detail (screen 4). Opens over any screen from ?task=KEY.
 // Everything edits in place and saves on its own; the header shows Saving… / Saved.
-import { Button, Checkbox, Drawer, Dropdown, Input, Popover, Select, Skeleton, Tooltip } from 'antd';
+import { Button, Checkbox, Drawer, Dropdown, Input, Select, Skeleton, Tooltip } from 'antd';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
@@ -47,7 +47,7 @@ import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { MoveToProjectDialog } from './MoveToProjectDialog';
 import { MoveUnderTaskDialog, taskNeedsConvertWarn } from './MoveUnderTaskDialog';
-import { AddReactionIcon, Avatar, BlockedMark, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, SeenReactionIcon, StatusPill, TypeTag, YesReactionIcon } from './Chips';
+import { Avatar, BlockedMark, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, NoReactionIcon, QuestionReactionIcon, SeenReactionIcon, StatusPill, ThinkReactionIcon, TypeTag, YesReactionIcon } from './Chips';
 import { TaskLinks } from './TaskLinks';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
@@ -1306,24 +1306,24 @@ function CommentRow({
               busy={react.isPending}
               onToggle={(emoji) => react.mutate({ key: taskKey, commentId: comment.id, emoji })}
             />
-            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2, marginLeft: -7 }}>
               {onReply && (
-                <button type="button" onClick={() => setReplying((open) => !open)} style={commentAction}>
+                <Button type="text" size="small" onClick={() => setReplying((open) => !open)} style={commentAction}>
                   Reply
-                </button>
+                </Button>
               )}
-              <button type="button" onClick={copyLink} style={commentAction}>
+              <Button type="text" size="small" onClick={copyLink} style={commentAction}>
                 {linkCopied ? 'Copied' : 'Copy link'}
-              </button>
+              </Button>
               {canEdit && (
-                <button type="button" onClick={() => { setEditDraft(comment.body); setEditing(true); }} style={commentAction}>
+                <Button type="text" size="small" onClick={() => { setEditDraft(comment.body); setEditing(true); }} style={commentAction}>
                   Edit
-                </button>
+                </Button>
               )}
               {canDelete && (
-                <button type="button" onClick={() => setConfirmDelete(true)} style={commentAction}>
+                <Button type="text" size="small" onClick={() => setConfirmDelete(true)} style={commentAction}>
                   Delete
-                </button>
+                </Button>
               )}
             </div>
             {replying && onReply && (
@@ -1372,7 +1372,10 @@ function reactionIcon(kind: CommentReactionKind, size = 14) {
   if (kind === 'love') return <LoveReactionIcon size={size} />;
   if (kind === 'yes') return <YesReactionIcon size={size} />;
   if (kind === 'seen') return <SeenReactionIcon size={size} />;
-  return <CelebrateReactionIcon size={size} />;
+  if (kind === 'celebrate') return <CelebrateReactionIcon size={size} />;
+  if (kind === 'question') return <QuestionReactionIcon size={size} />;
+  if (kind === 'no') return <NoReactionIcon size={size} />;
+  return <ThinkReactionIcon size={size} />;
 }
 
 function CommentReactions({
@@ -1388,35 +1391,37 @@ function CommentReactions({
   busy: boolean;
   onToggle: (emoji: CommentReactionKind) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const namesOf = (userIds: string[]) =>
     userIds
       .map((id) => people.find((person) => person.id === id)?.name ?? 'Someone')
       .join(', ');
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-      {groups.map((group) => {
-        const mine = Boolean(meId && group.userIds.includes(meId));
-        const label = COMMENT_REACTION_LABELS[group.emoji];
-        const tip = `${namesOf(group.userIds)} · ${label}`;
+    <div role="group" aria-label="Reactions" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+      {COMMENT_REACTION_KINDS.map((kind) => {
+        const group = groups.find((item) => item.emoji === kind);
+        const userIds = group?.userIds ?? [];
+        const count = userIds.length;
+        const mine = Boolean(meId && userIds.includes(meId));
+        const label = COMMENT_REACTION_LABELS[kind];
+        const tip = count ? `${namesOf(userIds)} · ${label}` : label;
         return (
-          <Tooltip key={group.emoji} title={tip}>
+          <Tooltip key={kind} title={tip}>
             <button
               type="button"
               aria-pressed={mine}
-              aria-label={`${label}, ${group.userIds.length}`}
+              aria-label={count ? `${label}, ${count}` : label}
               disabled={busy}
-              onClick={() => onToggle(group.emoji)}
+              onClick={() => onToggle(kind)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
                 height: 24,
-                padding: '0 8px',
+                padding: count ? '0 8px' : '0 6px',
                 borderRadius: 999,
-                border: `1px solid ${mine ? color.brandBorder : color.border}`,
-                background: mine ? color.brandTint : color.subtle,
+                border: `1px solid ${mine ? color.brandBorder : count ? color.border : 'transparent'}`,
+                background: mine ? color.brandTint : count ? color.subtle : 'transparent',
                 color: mine ? color.brandStrong : color.ink2,
                 font: 'inherit',
                 fontSize: 12,
@@ -1424,66 +1429,21 @@ function CommentReactions({
                 cursor: 'pointer',
               }}
             >
-              {reactionIcon(group.emoji, 13)}
-              {group.userIds.length}
+              {reactionIcon(kind, 13)}
+              {count > 0 ? count : null}
             </button>
           </Tooltip>
         );
       })}
-      <Popover
-        trigger="click"
-        open={open}
-        onOpenChange={setOpen}
-        placement="bottomLeft"
-        content={
-          <div role="menu" aria-label="Add a reaction" style={{ display: 'flex', gap: 4 }}>
-            {COMMENT_REACTION_KINDS.map((kind) => (
-              <Tooltip key={kind} title={COMMENT_REACTION_LABELS[kind]}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label={COMMENT_REACTION_LABELS[kind]}
-                  disabled={busy}
-                  onClick={() => {
-                    onToggle(kind);
-                    setOpen(false);
-                  }}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    display: 'grid',
-                    placeItems: 'center',
-                    border: 0,
-                    borderRadius: radius.sm,
-                    background: 'transparent',
-                    color: color.ink2,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {reactionIcon(kind, 16)}
-                </button>
-              </Tooltip>
-            ))}
-          </div>
-        }
-      >
-        <button type="button" aria-label="Add a reaction" style={{ ...commentAction, display: 'inline-flex', alignItems: 'center', height: 24 }}>
-          <AddReactionIcon size={14} />
-        </button>
-      </Popover>
     </div>
   );
 }
 
 const commentAction = {
   height: 24,
-  padding: 0,
-  border: 0,
-  background: 'transparent',
-  font: 'inherit',
+  paddingInline: 8,
   fontSize: 12.5,
   color: color.muted,
-  cursor: 'pointer',
 } as const;
 
 function PhoneMoveBar({

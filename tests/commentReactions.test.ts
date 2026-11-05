@@ -3,6 +3,7 @@ import { groupCommentReactions, isCommentReactionKind } from '@borntask/shared';
 
 test('groupCommentReactions keeps the fixed order and drops unknown kinds', () => {
   expect(isCommentReactionKind('like')).toBe(true);
+  expect(isCommentReactionKind('question')).toBe(true);
   expect(isCommentReactionKind('ok')).toBe(false);
   expect(
     groupCommentReactions([

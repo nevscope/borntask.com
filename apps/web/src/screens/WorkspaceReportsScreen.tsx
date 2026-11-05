@@ -187,6 +187,58 @@ function CreatedClosedChart({ weeks }: { weeks: WorkspaceReports['tasks']['weekl
   );
 }
 
+function parseDayCount(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function StagePileChart({ rows }: { rows: WorkspaceReports['tasks']['byProject'] }) {
+  const peak = Math.max(1, ...rows.map((row) => row.open + row.flight));
+  return (
+    <section className="bt-card" style={{ padding: '14px 16px 16px' }} aria-label="Open tasks by project">
+      <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Where work sits</h3>
+      <p style={{ margin: '-6px 0 12px', fontSize: 12.5, color: color.muted }}>Open now, with in-flight called out. Shows where work is piling up.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {rows.map((row) => {
+          const openPct = (row.open / peak) * 100;
+          const flightPct = (row.flight / peak) * 100;
+          return (
+            <div key={row.projectId} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 180px) 1fr 48px', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+              <span aria-hidden="true" style={{ display: 'flex', height: 10, borderRadius: 5, background: color.divider, overflow: 'hidden' }}>
+                <span style={{ width: `${openPct}%`, background: color.ink }} />
+                <span style={{ width: `${flightPct}%`, background: color.brandFill }} />
+              </span>
+              <span style={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: color.ink2 }}>{row.open}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function CycleChart({ rows }: { rows: WorkspaceReports['tasks']['byProject'] }) {
+  const values = rows.map((row) => ({ name: row.name, days: parseDayCount(row.close) })).filter((row): row is { name: string; days: number } => row.days != null);
+  const peak = Math.max(1, ...values.map((row) => row.days));
+  return (
+    <section className="bt-card" style={{ padding: '14px 16px 16px' }} aria-label="Time to close by project">
+      <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Time in stage to close</h3>
+      <p style={{ margin: '-6px 0 12px', fontSize: 12.5, color: color.muted }}>Median days from create to close, by project.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {values.map((row) => (
+          <div key={row.name} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 180px) 1fr 56px', gap: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+            <CssBar pct={(row.days / peak) * 100} fill={color.brandFill} height={10} />
+            <span style={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: color.ink2 }}>{row.days} d</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Tile({
   label,
   value,
@@ -388,6 +440,8 @@ function ReportsBody({
       </div>
 
       {(t.weekly?.length ?? 0) > 0 && <CreatedClosedChart weeks={t.weekly} />}
+      {t.byProject.length > 0 && <StagePileChart rows={t.byProject} />}
+      {t.byProject.some((row) => parseDayCount(row.close) != null) && <CycleChart rows={t.byProject} />}
 
       <section className="bt-card" style={{ padding: 0, overflowX: 'auto' }}>
         <div style={{ minWidth: 760 }}>

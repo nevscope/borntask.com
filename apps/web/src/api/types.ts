@@ -1,7 +1,7 @@
 // API contract for BornTask (proposed). These Zod schemas are the single source of truth for
 // the web app today; move them to @borntask/shared when the monorepo is ready so the
 // Fastify API validates against exactly the same shapes.
-import { taskDescriptionSchema } from '@borntask/shared';
+import { COMMENT_REACTION_KINDS, taskDescriptionSchema } from '@borntask/shared';
 import { z } from 'zod';
 
 // ---------- enums ----------
@@ -295,7 +295,7 @@ export const PatchSubtaskInputSchema = z.object({
 });
 export type PatchSubtaskInput = z.infer<typeof PatchSubtaskInputSchema>;
 
-export const CommentReactionKindSchema = z.enum(['like', 'love', 'yes', 'seen', 'celebrate']);
+export const CommentReactionKindSchema = z.enum(COMMENT_REACTION_KINDS);
 export type CommentReactionKind = z.infer<typeof CommentReactionKindSchema>;
 
 export const CommentReactionGroupSchema = z.object({

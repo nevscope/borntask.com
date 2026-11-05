@@ -134,11 +134,29 @@ export function CelebrateReactionIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function AddReactionIcon({ size = 14 }: { size?: number }) {
+export function QuestionReactionIcon({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v8M8 12h8" />
+      <path d="M9.6 9.4a2.4 2.4 0 1 1 3.6 2.1c-.8.5-1.2 1-1.2 2" />
+      <circle cx="12" cy="16.6" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function NoReactionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      <path d="M7 7l10 10M17 7 7 17" />
+    </svg>
+  );
+}
+
+export function ThinkReactionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 18h6M10 21h4" />
+      <path d="M8.2 15.2A5.8 5.8 0 1 1 15.8 15c0 1.7-1 2.6-2 3.4H10.2c-1-.8-2-1.7-2-3.2z" />
     </svg>
   );
 }

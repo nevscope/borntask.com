@@ -1,4 +1,4 @@
-import { Button, Input, Select } from 'antd';
+import { AutoComplete, Button, Select } from 'antd';
 import { useMemo, useState } from 'react';
 import { TASK_LINK_LABELS, TASK_LINK_RELATIONS, type TaskLinkRelation } from '@borntask/shared';
 import { useAddTaskLink, useRemoveTaskLink, useSearch } from '../api/queries';
@@ -72,44 +72,31 @@ export function TaskLinks({ task, readOnly }: { task: TaskDetail; readOnly: bool
             style={{ width: 140 }}
             aria-label="Link type"
           />
-          <Input
+          <AutoComplete
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
+            onSelect={(value) => onAdd(value)}
+            options={hits.map((hit) => ({
+              value: hit.key,
+              disabled: add.isPending,
+              label: (
+                <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, color: color.muted, flex: 'none' }}>{hit.key}</span>
+                  <span style={{ fontSize: 13.5, color: color.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hit.title}</span>
+                </span>
+              ),
+            }))}
+            open={Boolean(query.trim())}
+            notFoundContent={
+              search.isFetching
+                ? <span style={{ fontSize: 13, color: color.muted }}>Searching…</span>
+                : <span style={{ fontSize: 13, color: color.muted }}>No matching tasks.</span>
+            }
             placeholder="Task key or title"
             aria-label="Find a task to link"
-            style={{ flex: '1 1 180px', minWidth: 160 }}
+            style={{ flex: '1 1 180px', minWidth: 160, width: '100%' }}
+            popupMatchSelectWidth
           />
-        </div>
-      )}
-      {!readOnly && query.trim() && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {search.isFetching && <span style={{ fontSize: 13, color: color.muted }}>Searching…</span>}
-          {hits.map((hit) => (
-            <button
-              key={hit.key}
-              type="button"
-              onClick={() => onAdd(hit.key)}
-              disabled={add.isPending}
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'baseline',
-                textAlign: 'left',
-                border: `1px solid ${color.divider}`,
-                background: color.surface,
-                borderRadius: 8,
-                padding: '6px 10px',
-                cursor: 'pointer',
-                font: 'inherit',
-              }}
-            >
-              <span style={{ fontSize: 12, color: color.muted, flex: 'none' }}>{hit.key}</span>
-              <span style={{ fontSize: 13.5, color: color.ink }}>{hit.title}</span>
-            </button>
-          ))}
-          {!search.isFetching && hits.length === 0 && (
-            <span style={{ fontSize: 13, color: color.muted }}>No matching tasks.</span>
-          )}
         </div>
       )}
     </section>

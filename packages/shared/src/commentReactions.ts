@@ -1,4 +1,4 @@
-export const COMMENT_REACTION_KINDS = ['like', 'love', 'yes', 'seen', 'celebrate'] as const;
+export const COMMENT_REACTION_KINDS = ['like', 'love', 'yes', 'seen', 'celebrate', 'question', 'no', 'think'] as const;
 export type CommentReactionKind = (typeof COMMENT_REACTION_KINDS)[number];
 
 export const COMMENT_REACTION_LABELS: Record<CommentReactionKind, string> = {
@@ -7,6 +7,9 @@ export const COMMENT_REACTION_LABELS: Record<CommentReactionKind, string> = {
   yes: 'Yes',
   seen: 'Seen',
   celebrate: 'Celebrate',
+  question: 'Question',
+  no: 'No',
+  think: 'Think',
 };
 
 export function isCommentReactionKind(value: string): value is CommentReactionKind {

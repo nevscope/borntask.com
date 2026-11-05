@@ -67,18 +67,20 @@ export function MyTasksScreen() {
   }, [assignedBase, unassigned, prefs, tab]);
   const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
   const lastViewed = useMemo(() => {
-    const onTab = new Set([...assigned, ...approvals].map((t) => t.key));
-    return readLastViewed(me?.user.id).filter((row) => !onTab.has(row.key));
+    const assignedKeys = new Set(assigned.map((t) => t.key));
+    const approvalKeys = new Set(approvals.map((t) => t.key));
+    return readLastViewed(me?.user.id).filter((row) => assignedKeys.has(row.key) && !approvalKeys.has(row.key));
   }, [me?.user.id, assigned, approvals, mine.dataUpdatedAt, params.get('task')]);
+  const lastViewedKeys = useMemo(() => new Set(lastViewed.map((row) => row.key)), [lastViewed]);
   const buckets = useMemo(
     () =>
       prefs.sort === 'due'
         ? BUCKETS.map((b) => ({
             ...b,
-            list: assigned.filter((t) => dueBucket(t.dueDate) === b.id),
+            list: assigned.filter((t) => !lastViewedKeys.has(t.key) && dueBucket(t.dueDate) === b.id),
           })).filter((b) => b.list.length)
-        : [{ id: 'all' as DueBucket, label: prefs.sort === 'priority' ? 'By priority' : prefs.sort === 'updated' ? 'Recently updated' : 'By project', color: color.ink, list: assigned }],
-    [assigned, prefs.sort],
+        : [{ id: 'all' as DueBucket, label: prefs.sort === 'priority' ? 'By priority' : prefs.sort === 'updated' ? 'Recently updated' : 'By project', color: color.ink, list: assigned.filter((t) => !lastViewedKeys.has(t.key)) }],
+    [assigned, prefs.sort, lastViewedKeys],
   );
   const { shown, sentinelRef, remaining } = useVisibleWindow(assigned.length, `${tab}|${prefs.projectKey}|${prefs.priority}|${prefs.sort}|${prefs.showUnassigned}`);
   const setPref = <K extends keyof typeof prefs>(key: K, value: (typeof prefs)[K]) => {
