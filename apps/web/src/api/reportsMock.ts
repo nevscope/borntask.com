@@ -92,6 +92,12 @@ export function mockWorkspaceReports(projectId?: string): WorkspaceReports {
       closeHint: 'median · average 9.1 days · across all projects',
       startDays: '1.5 days',
       startHint: 'median · average 3.2 days · to first move into WIP or review',
+      weekly: [
+        { week: '2026-10-05', label: '5 Oct', opened: 11, closed: 8 },
+        { week: '2026-10-12', label: '12 Oct', opened: 14, closed: 12 },
+        { week: '2026-10-19', label: '19 Oct', opened: 9, closed: 13 },
+        { week: '2026-10-26', label: '26 Oct', opened: 14, closed: 8 },
+      ],
       byProject: [
         { ...WEB, opened: 22, closed: 19, open: 28, flight: 9, overdue: 3, close: '5.5 d', start: '1.5 d' },
         { ...MOB, opened: 14, closed: 11, open: 19, flight: 6, overdue: 2, close: '8.0 d', start: '2.0 d' },

@@ -14,6 +14,7 @@ import {
   timesheetExpectedStart,
   timesheetPersonStart,
   formatMixedTotals,
+  formatWorkspaceTotals,
   formatMinutes,
   isTimesheetLocked,
   loggedExpectedDays,
@@ -198,6 +199,14 @@ describe('timesheet start date', () => {
     expect(formatMixedTotals(150, 0)).toBe('2:30');
     expect(formatMixedTotals(0, 40)).toBe('40%');
     expect(formatMixedTotals(120, 40)).toBe('2:00 + 40%');
+  });
+
+  test('percent workspace totals never look like silent hours', () => {
+    expect(formatWorkspaceTotals(140, 0, 'percent')).toBe('2:20 leftover');
+    expect(formatWorkspaceTotals(140, 0, 'percent', true)).toBe('2:20 h');
+    expect(formatWorkspaceTotals(0, 40, 'percent')).toBe('40%');
+    expect(formatWorkspaceTotals(270, 2, 'percent')).toBe('4:30 leftover + 2%');
+    expect(formatWorkspaceTotals(140, 0, 'time')).toBe('2:20');
   });
 });
 

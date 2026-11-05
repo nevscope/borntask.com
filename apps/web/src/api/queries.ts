@@ -4,7 +4,10 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
+import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, Me, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, PlatformWorkspace, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
+import { PlatformWorkspaceListSchema } from './types';
+import { recordRecentProject } from '../lib/recentProjects';
+import { personInitials } from '@borntask/shared';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -156,6 +159,7 @@ export const qk = {
   people: ['people'] as const,
   workspaceSettings: ['workspace-settings'] as const,
   workspaceHolidays: (year: number) => ['workspace-holidays', year] as const,
+  platformWorkspaces: ['platform', 'workspaces'] as const,
   timesheets: (from: string, to: string, userId?: string) => ['timesheets', from, to, userId ?? 'me'] as const,
   reports: (from: string, to: string, projectId?: string) => ['reports', from, to, projectId ?? 'all'] as const,
 };
@@ -169,6 +173,17 @@ export const useMe = () =>
     refetchOnWindowFocus: true,
     retry: (count, err) => (err instanceof ApiError && err.status === 401 ? false : count < 2),
   });
+
+export const usePlatformWorkspaces = (enabled: boolean) =>
+  useQuery({
+    queryKey: qk.platformWorkspaces,
+    enabled,
+    queryFn: async (): Promise<PlatformWorkspace[]> => {
+      const data = await request('GET', '/platform/workspaces', PlatformWorkspaceListSchema);
+      return data.workspaces;
+    },
+  });
+
 export const useProjects = () => useQuery({ queryKey: qk.projects, queryFn: () => api.listProjects() });
 
 export function useProjectAccessRequests(projectKey: string, enabled: boolean) {
@@ -255,6 +270,8 @@ export function useAcceptProjectInvite() {
       if (!res.ok) throw new Error(json?.message ?? 'Could not join this project.');
     },
     onSuccess: (_d, projectKey) => {
+      const workspaceId = qc.getQueryData<Me>(qk.me)?.workspace.id;
+      if (workspaceId) recordRecentProject(workspaceId, projectKey);
       void qc.invalidateQueries({ queryKey: qk.projects });
       void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
       void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKey) });
@@ -1201,6 +1218,7 @@ export type WorkspaceReports = {
     closeHint: string;
     startDays: string;
     startHint: string;
+    weekly: Array<{ week: string; label: string; opened: number; closed: number }>;
     byProject: Array<{
       projectId: string;
       key?: string;
@@ -1287,15 +1305,6 @@ function daysLabel(n: number | null | undefined): string {
   return `${n} days`;
 }
 
-function personInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function mapLiveReports(raw: {
   scope?: 'self' | 'workspace';
   range?: { from: string; to: string };
@@ -1331,6 +1340,7 @@ function mapLiveReports(raw: {
     }>;
     byPerson?: WorkspaceReports['tasks']['byPerson'];
     upcoming?: WorkspaceReports['tasks']['upcoming'];
+    weekly?: WorkspaceReports['tasks']['weekly'];
   };
   timesheets?: {
     time: string;
@@ -1414,6 +1424,7 @@ function mapLiveReports(raw: {
         close: row.close ?? '-',
         start: row.start ?? '-',
       })),
+      weekly: raw.tasks?.weekly ?? [],
       byPerson: raw.tasks?.byPerson ?? [],
       upcoming: raw.tasks?.upcoming ?? [],
     },

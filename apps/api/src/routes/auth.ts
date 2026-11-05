@@ -13,6 +13,7 @@ import { sendLoginCodeEmail } from '../lib/sendLoginCode.js';
 import { hashToken } from '../lib/tokens.js';
 import { hubOrigin, loginAbsoluteUrl, loginDestination, originForSlug, requestWebOrigin, workspaceSlugFromRequest } from '../lib/workspaceHost.js';
 import { isAllowedWebOrigin, memberFillsTimesheets } from '@borntask/shared';
+import { isPlatformAdminEmail } from '../lib/platformAdmin.js';
 
 const devLoginSchema = z.object({
   email: z.string().email(),
@@ -244,6 +245,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           logo: Boolean(m.tenant.logo),
           url: originForSlug(m.tenant.slug),
         })),
+        isPlatformAdmin: isPlatformAdminEmail(user.email),
       };
     } catch (err) {
       return sendError(reply, err);

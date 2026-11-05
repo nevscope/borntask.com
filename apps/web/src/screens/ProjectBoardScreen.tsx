@@ -2,10 +2,10 @@
 // the workflow rules apply: allowed columns light up while dragging, the rest fade, and a
 // blocked drop explains who can make the move (with Ask / Override).
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
-import { Skeleton } from 'antd';
+import { Select, Skeleton } from 'antd';
 import { useMemo, useRef, useState } from 'react';
 import { readShowHiddenSections, writeShowHiddenSections } from '../lib/lastViewed';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useMe, useProject, useProjectTasks } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
@@ -18,6 +18,7 @@ import { useMoveFlow } from '../components/useMoveFlow';
 import { useTaskParam } from '../components/useTaskParam';
 import { dueColor, dueLabel, dueTone } from '../lib/dates';
 import { groupTasks, taskMatches, type TaskGroup } from '../lib/taskFilters';
+import { laneDropId, statusFromDropId } from '../lib/boardLanes';
 import { checkMove, rolesLabel } from '../lib/workflow';
 import { color, toneStyle } from '../theme/tokens';
 
@@ -27,6 +28,8 @@ export function ProjectBoardScreen() {
   const tasks = useProjectTasks(projectKey);
   const me = useMe().data;
   const view = useProjectView();
+  const [params, setParams] = useSearchParams();
+  const lanesByAssignee = params.get('lanes') === 'assignee';
   const flow = useMoveFlow(detail.data, { board: true });
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [openSides, setOpenSides] = useState<Record<string, boolean>>({});
@@ -78,20 +81,58 @@ export function ProjectBoardScreen() {
           writeShowHiddenSections(projectKey, on);
         }}
       />
+      {!isPhone && byStatus && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Select
+            size="small"
+            aria-label="Swimlanes"
+            value={lanesByAssignee ? 'assignee' : 'none'}
+            onChange={(value: string) => {
+              const next = new URLSearchParams(params);
+              if (value === 'assignee') next.set('lanes', 'assignee');
+              else next.delete('lanes');
+              setParams(next, { replace: true });
+            }}
+            options={[
+              { value: 'none', label: 'No swimlanes' },
+              { value: 'assignee', label: 'Swimlanes by assignee' },
+            ]}
+            style={{ width: 210 }}
+          />
+        </div>
+      )}
       <DndContext
         sensors={sensors}
+        accessibility={{
+          announcements: {
+            onDragStart({ active }) {
+              return `Picked up ${active.id}.`;
+            },
+            onDragOver({ active, over }) {
+              if (!over) return `${active.id} is no longer over a column.`;
+              return `${active.id} is over ${columnName(String(over.id), d.workflow)}.`;
+            },
+            onDragEnd({ active, over }) {
+              if (!over) return `${active.id} was dropped.`;
+              return `${active.id} was dropped on ${columnName(String(over.id), d.workflow)}.`;
+            },
+            onDragCancel({ active }) {
+              return `Dragging was cancelled. ${active.id} was dropped.`;
+            },
+          },
+        }}
         onDragStart={(event) => setActiveKey(String(event.active.id))}
         onDragCancel={() => setActiveKey(null)}
         onDragEnd={(event) => {
           setActiveKey(null);
           if (!byStatus) return;
           const task = visible.find((row) => row.key === String(event.active.id));
-          if (task && event.over) flow.requestMove(task, String(event.over.id));
+          if (task && event.over) flow.requestMove(task, statusFromDropId(String(event.over.id)));
         }}
       >
         <div className={`bt-board${isPhone ? ' is-phone' : ''}`}>
           {isPhone && (
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            <div className="bt-board-phone-strip" style={{ paddingBottom: 4 }}>
               {phoneStatuses.map((item, index) => {
                 const selected = index === safePhoneColumn;
                 const count = byStatus
@@ -104,6 +145,7 @@ export function ProjectBoardScreen() {
                     onClick={() => setPhoneColumn(index)}
                     style={{
                       flex: 'none',
+                      whiteSpace: 'nowrap',
                       height: 44,
                       padding: '0 10px',
                       border: `1px solid ${selected ? color.brand : color.border}`,
@@ -123,7 +165,7 @@ export function ProjectBoardScreen() {
             </div>
           )}
           {isPhone && byStatus && active && (
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+            <div className="bt-board-phone-strip">
               {statuses.map((status) => {
                 const dragState = active.statusId === status.id ? 'origin' : checkMove(d.workflow, active, status.id, flow.myRoles).kind;
                 return (
@@ -169,7 +211,16 @@ export function ProjectBoardScreen() {
             </div>
           ) : (
             <>
-              {byStatus ? mainStatuses.map((status) => (
+              {byStatus && lanesByAssignee ? (
+                <AssigneeLanes
+                  tasks={visible}
+                  users={d.users}
+                  statuses={mainStatuses}
+                  detail={d}
+                  active={active}
+                  myRoles={flow.myRoles}
+                />
+              ) : byStatus ? mainStatuses.map((status) => (
                 <Column
                   key={status.id}
                   status={status}
@@ -286,8 +337,74 @@ function SideRail({ status, count, onExpand }: { status: WorkflowStatus; count: 
   );
 }
 
-function Column({ status, detail, tasks, dragState, blockedReason, droppable = true }: { status: WorkflowStatus; detail: ProjectDetail; tasks: Task[]; dragState: DragState; blockedReason: string | null; droppable?: boolean }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status.id, disabled: !droppable });
+function columnName(id: string, workflow: ProjectDetail['workflow']): string {
+  const statusId = statusFromDropId(id);
+  return workflow.statuses.find((status) => status.id === statusId)?.name ?? 'that column';
+}
+
+function AssigneeLanes({
+  tasks,
+  users,
+  statuses,
+  detail,
+  active,
+  myRoles,
+}: {
+  tasks: Task[];
+  users: ProjectDetail['users'];
+  statuses: WorkflowStatus[];
+  detail: ProjectDetail;
+  active: Task | undefined;
+  myRoles: Parameters<typeof checkMove>[3];
+}) {
+  const lanes = useMemo(() => {
+    const rows = new Map<string, { id: string; name: string; tasks: Task[] }>();
+    for (const task of tasks) {
+      const id = task.assigneeId ?? 'none';
+      const name = task.assigneeId ? users.find((user) => user.id === task.assigneeId)?.name ?? 'Unknown' : 'Unassigned';
+      const row = rows.get(id) ?? { id, name, tasks: [] };
+      row.tasks.push(task);
+      rows.set(id, row);
+    }
+    return [...rows.values()].sort((a, b) => (a.id === 'none' ? 1 : b.id === 'none' ? -1 : a.name.localeCompare(b.name)));
+  }, [tasks, users]);
+
+  if (lanes.length === 0) {
+    return (
+      <>
+        {statuses.map((status) => (
+          <Column key={status.id} status={status} detail={detail} tasks={[]} dragState={null} blockedReason={null} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 'min-content' }}>
+      {lanes.map((lane) => (
+        <section key={lane.id} aria-label={lane.name}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>{lane.name}</h3>
+          <div className="bt-board" style={{ paddingBottom: 0 }}>
+            {statuses.map((status) => (
+              <Column
+                key={`${lane.id}:${status.id}`}
+                status={status}
+                detail={detail}
+                dropId={laneDropId(lane.id, status.id)}
+                tasks={lane.tasks.filter((task) => task.statusId === status.id).sort((a, b) => a.position - b.position)}
+                dragState={active ? ((active.assigneeId ?? 'none') === lane.id && active.statusId === status.id ? 'origin' : checkMove(detail.workflow, active, status.id, myRoles).kind) : null}
+                blockedReason={active && active.statusId !== status.id ? reasonFor(detail, active, status.id, myRoles) : null}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function Column({ status, detail, tasks, dragState, blockedReason, droppable = true, dropId }: { status: WorkflowStatus; detail: ProjectDetail; tasks: Task[]; dragState: DragState; blockedReason: string | null; droppable?: boolean; dropId?: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId ?? status.id, disabled: !droppable });
   const quickAdd = useQuickAdd();
   const over = status.wipLimit !== null && tasks.length > status.wipLimit;
   const cls = ['bt-column', status.side ? 'side' : '', dragState === 'allowed' ? 'allowed' : '', dragState === 'not-allowed' || dragState === 'no-path' ? 'blocked' : ''].join(' ');

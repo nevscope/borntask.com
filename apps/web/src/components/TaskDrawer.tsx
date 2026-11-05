@@ -67,6 +67,7 @@ export function TaskDrawer() {
   const projectKey = taskKey?.split('-')[0] ?? '';
   const task = useTask(taskKey);
   const detail = useProject(projectKey);
+  const userId = useMe().data?.user.id;
   const guard = useRef<CloseGuard>({ dirty: false, flush: () => {} });
   const [discardOpen, setDiscardOpen] = useState(false);
   const isPhone = useIsPhone();
@@ -89,8 +90,8 @@ export function TaskDrawer() {
 
   useEffect(() => {
     if (!task.data) return;
-    recordLastViewed({ key: task.data.key, title: task.data.title, projectKey: task.data.projectKey });
-  }, [task.data?.key, task.data?.title, task.data?.projectKey]);
+    recordLastViewed(userId, { key: task.data.key, title: task.data.title, projectKey: task.data.projectKey });
+  }, [userId, task.data?.key, task.data?.title, task.data?.projectKey]);
 
   useEffect(() => {
     if (!task.data?.redirectedFrom || !taskKey) return;
@@ -103,16 +104,21 @@ export function TaskDrawer() {
       <Drawer
         open={!!taskKey}
         onClose={requestClose}
-        maskClosable={!isPhone}
+        mask={isPhone}
+        maskClosable={isPhone}
+        keyboard
         width={isPhone ? '100%' : 600}
         closable={false}
         destroyOnHidden
+        rootClassName={isPhone ? 'bt-task-drawer' : 'bt-task-drawer-desktop'}
+        zIndex={isPhone ? 220 : undefined}
         styles={{
+          root: isPhone ? undefined : { pointerEvents: 'none' },
           wrapper: isPhone
             ? { top: 0, bottom: 0, height: '100%', maxHeight: '100dvh' }
-            : { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)' },
+            : { top: 16, bottom: 16, height: 'auto', maxHeight: 'calc(100dvh - 32px)', width: 600, pointerEvents: 'auto' },
           content: { height: '100%', overflow: 'hidden' },
-          body: { padding: 0, height: '100%', overflow: 'hidden' },
+          body: { padding: 0, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
         }}
       >
         {task.data && detail.data ? (
@@ -686,6 +692,20 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} onChange={(assigneeId) => save({ assigneeId })} />
           <FieldLabel>Due</FieldLabel>
           <DuePicker value={task.dueDate} onChange={(dueDate) => save({ dueDate })} />
+          <FieldLabel>Estimate</FieldLabel>
+          <Input
+            aria-label="Estimate"
+            placeholder="2h"
+            maxLength={40}
+            defaultValue={task.estimate ?? ''}
+            key={`${task.key}:${task.estimate ?? ''}`}
+            onBlur={(event) => {
+              const next = event.target.value.trim();
+              if (next === (task.estimate ?? '')) return;
+              save({ estimate: next || null });
+            }}
+            onPressEnter={(event) => event.currentTarget.blur()}
+          />
           <FieldLabel>Priority</FieldLabel>
           <PriorityPicker value={task.priority} onChange={(priority) => save({ priority })} />
           <FieldLabel>Section</FieldLabel>

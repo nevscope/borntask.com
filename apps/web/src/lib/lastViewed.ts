@@ -1,11 +1,25 @@
 export type LastViewedTask = { key: string; title: string; projectKey: string; at: number };
 
-const KEY = 'bt-last-viewed-tasks';
+const LEGACY_KEY = 'bt-last-viewed-tasks';
 const MAX = 15;
 
-function readAll(): LastViewedTask[] {
+function storageKey(userId: string) {
+  return `${LEGACY_KEY}:${userId}`;
+}
+
+function dropLegacySharedKey() {
   try {
-    const raw = localStorage.getItem(KEY);
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readAll(userId: string | undefined): LastViewedTask[] {
+  if (!userId) return [];
+  dropLegacySharedKey();
+  try {
+    const raw = localStorage.getItem(storageKey(userId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -22,16 +36,17 @@ function readAll(): LastViewedTask[] {
   }
 }
 
-export function readLastViewed(): LastViewedTask[] {
-  return readAll().sort((a, b) => b.at - a.at).slice(0, MAX);
+export function readLastViewed(userId: string | undefined): LastViewedTask[] {
+  return readAll(userId).sort((a, b) => b.at - a.at).slice(0, MAX);
 }
 
-export function recordLastViewed(entry: { key: string; title?: string; projectKey?: string }) {
+export function recordLastViewed(userId: string | undefined, entry: { key: string; title?: string; projectKey?: string }) {
+  if (!userId) return;
   const projectKey = entry.projectKey ?? entry.key.split('-')[0] ?? entry.key;
   const title = entry.title?.trim() || entry.key;
-  const next = [{ key: entry.key, title, projectKey, at: Date.now() }, ...readAll().filter((row) => row.key !== entry.key)].slice(0, MAX);
+  const next = [{ key: entry.key, title, projectKey, at: Date.now() }, ...readAll(userId).filter((row) => row.key !== entry.key)].slice(0, MAX);
   try {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    localStorage.setItem(storageKey(userId), JSON.stringify(next));
   } catch {
     /* ignore quota / private mode */
   }

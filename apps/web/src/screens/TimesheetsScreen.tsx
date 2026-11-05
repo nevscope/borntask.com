@@ -3,7 +3,7 @@ import {
   expectedDays,
   lastEndedDayInZone,
   formatMinutes,
-  formatMixedTotals,
+  formatWorkspaceTotals,
   formatYmd,
   isTimesheetLocked,
   isWorkingDay,
@@ -321,12 +321,23 @@ export function TimesheetsScreen() {
     void flush();
   };
 
-  const dayHasTime = (ymd: string) =>
-    projects.some((p) => {
-      const cell = displayCell(p.id, ymd);
-      if (cell.unit === 'percent') return Number(cell.text) > 0;
-      return (parseTimeToMinutes(cell.text) ?? 0) > 0;
+  const cellHasEntry = (cell: CellDraft) => {
+    if (cell.note.trim()) return true;
+    if (cell.unit === 'percent') return Number(cell.text) > 0;
+    return (parseTimeToMinutes(cell.text) ?? 0) > 0;
+  };
+
+  const dayHasTime = (ymd: string) => {
+    if (projects.some((p) => cellHasEntry(displayCell(p.id, ymd)))) return true;
+    return (sheet.data?.entries ?? []).some((row) => {
+      if (row.periodKind !== period) return false;
+      const start = row.periodStart;
+      if (period === 'weekly') {
+        return start === from && ((row.minutes ?? 0) > 0 || (row.percent ?? 0) > 0 || Boolean(row.note));
+      }
+      return start === ymd && ((row.minutes ?? 0) > 0 || (row.percent ?? 0) > 0 || Boolean(row.note));
     });
+  };
 
   const dayTimeLabel = (ymd: string) => {
     let minutes = 0;
@@ -342,8 +353,8 @@ export function TimesheetsScreen() {
       }
     }
     if (usedPercent && minutes === 0) return `${percent}%`;
-    if (minutes > 0 && usedPercent) return formatMixedTotals(minutes, percent);
-    if (minutes > 0) return formatMinutes(minutes);
+    if (minutes > 0 && usedPercent) return formatWorkspaceTotals(minutes, percent, unit);
+    if (minutes > 0) return unit === 'percent' ? formatWorkspaceTotals(minutes, 0, 'percent') : formatMinutes(minutes);
     return '';
   };
 
@@ -481,12 +492,13 @@ export function TimesheetsScreen() {
     today: expectedThrough,
     startOn: timesheetsStartOn,
   });
-  const daysFilled = days.filter((date) => {
-    const ymd = formatYmd(date);
-    if (date.getTime() > expectedThrough.getTime()) return false;
-    if (!isWorkingDay(date, workingDays) || holidayByDate.has(ymd) || offByDate.has(ymd)) return false;
-    return dayHasTime(period === 'daily' ? ymd : from);
-  }).length;
+  const daysFilled = period === 'weekly'
+    ? (dayHasTime(from) ? 1 : 0)
+    : days.filter((date) => {
+      const ymd = formatYmd(date);
+      if (offByDate.has(ymd)) return false;
+      return dayHasTime(ymd);
+    }).length;
 
   const offWhich = days.filter((d) => offByDate.has(formatYmd(d))).map((d) => DAY_SHORT[d.getUTCDay()]).join(', ');
 
@@ -550,7 +562,10 @@ export function TimesheetsScreen() {
         ? 'Weekly entries in hours, against projects · set by your workspace'
         : 'Weekly entries as a percentage, against projects · set by your workspace';
 
-  const fmtParts = (parts: { minutes: number; percent: number }) => formatMixedTotals(parts.minutes, parts.percent);
+  const fmtParts = (parts: { minutes: number; percent: number }) => formatWorkspaceTotals(parts.minutes, parts.percent, unit);
+  const workingDayNames = workingDays
+    .map((key) => ({ mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }[key] ?? key))
+    .join(', ');
 
   if (guest) {
     return (
@@ -694,6 +709,9 @@ export function TimesheetsScreen() {
           }
         />
       </div>
+      <p style={{ margin: '-6px 0 0', fontSize: 12.5, color: color.muted }}>
+        Working days: {workingDayNames}. Days that are not on this pattern are marked not working.
+      </p>
 
       {period === 'weekly' && !readOnly && !weekLocked && (
         <section style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
@@ -784,6 +802,7 @@ export function TimesheetsScreen() {
           hideOffKind={viewingOther && !canAdmin}
           dayTimeLabel={dayTimeLabel}
           clearLoggedCell={clearLoggedCell}
+          workspaceUnit={unit}
         />
       )}
 
@@ -925,6 +944,7 @@ function WeeklyGrid({
                 style={{ width: cell.unit === 'percent' ? 64 : 76, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
               />
               {cell.unit === 'percent' && <span style={{ fontSize: 13, color: color.muted }}>%</span>}
+              {unit === 'percent' && cell.unit === 'time' && <span style={{ fontSize: 12, color: color.muted }}>leftover</span>}
             </span>
           </div>
         );
@@ -932,7 +952,7 @@ function WeeklyGrid({
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderTop: `1px solid ${color.divider}`, background: color.subtle }}>
         <span style={{ flex: 1, fontWeight: 600 }}>Total</span>
         <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: weekParts.minutes === 0 && pctTotal > 0 && pctTotal !== 100 ? color.warning : color.ink }}>
-          {formatMixedTotals(weekParts.minutes, weekParts.percent)}
+          {formatWorkspaceTotals(weekParts.minutes, weekParts.percent, unit)}
         </span>
       </div>
       {weekParts.minutes === 0 && pctTotal > 0 && pctTotal !== 100 && (
@@ -971,6 +991,7 @@ function DailyGrid({
   hideOffKind,
   dayTimeLabel,
   clearLoggedCell,
+  workspaceUnit,
 }: {
   projects: { id: string; name: string; key: string; color: string; leadId: string }[];
   days: Date[];
@@ -995,14 +1016,50 @@ function DailyGrid({
   hideOffKind: boolean;
   dayTimeLabel: (ymd: string) => string;
   clearLoggedCell: (projectId: string, periodStart: string) => void;
+  workspaceUnit: 'time' | 'percent';
 }) {
   const [holidayEdit, setHolidayEdit] = useState<string | null>(null);
-  const cols = `minmax(200px, 1.6fr) repeat(7, minmax(64px, 1fr)) 84px`;
+  const [weekHint, setWeekHint] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const todayColRef = useRef<HTMLSpanElement>(null);
+  const cols = `minmax(132px, 1.4fr) repeat(7, minmax(72px, 1fr)) 84px`;
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const todayCol = todayColRef.current;
+    if (!scroller) return;
+    const updateHint = () => setWeekHint(scroller.scrollWidth > scroller.clientWidth + 8);
+    const alignWeek = () => {
+      updateHint();
+      if (!todayCol || scroller.scrollWidth <= scroller.clientWidth + 8) {
+        scroller.scrollLeft = 0;
+        return;
+      }
+      const sticky = Math.min(132, Math.round(scroller.clientWidth * 0.36));
+      scroller.scrollLeft = Math.max(0, todayCol.offsetLeft - sticky);
+    };
+    alignWeek();
+    const frame = window.requestAnimationFrame(alignWeek);
+    scroller.addEventListener('scroll', updateHint, { passive: true });
+    window.addEventListener('resize', alignWeek);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      scroller.removeEventListener('scroll', updateHint);
+      window.removeEventListener('resize', alignWeek);
+    };
+  }, [days, today]);
+
   return (
-    <section aria-label="Time per project and day" style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflowX: 'auto' }}>
+    <section aria-label="Time per project and day" style={{ background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, overflow: 'hidden' }}>
+      {weekHint && (
+        <p style={{ margin: 0, padding: '8px 16px', fontSize: 12.5, color: color.muted, borderBottom: `1px solid ${color.divider}`, background: color.subtle }}>
+          This week is wider than the screen. Today is in view; swipe sideways for the rest of the days.
+        </p>
+      )}
+      <div ref={scrollerRef} className="bt-timesheet-week">
       <div style={{ minWidth: 860 }}>
         <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'end', borderBottom: `1px solid ${color.divider}` }}>
-          <span style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: color.muted }}>Project</span>
+          <span className="bt-timesheet-sticky" style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: color.muted }}>Project</span>
           {days.map((date) => {
             const ymd = formatYmd(date);
             const isToday = ymd === formatYmd(today);
@@ -1023,7 +1080,7 @@ function DailyGrid({
                       { key: 'other', label: 'Mark as day off: Other', onClick: () => markOff(ymd, 'other') },
                     ];
             return (
-              <span key={ymd} style={{ position: 'relative', padding: '6px 4px', textAlign: 'center', background: holiday ? color.infoTint : isToday ? color.brandTint : 'transparent', borderRadius: '8px 8px 0 0' }}>
+              <span ref={isToday ? todayColRef : undefined} key={ymd} style={{ position: 'relative', padding: '6px 4px', textAlign: 'center', background: holiday ? color.infoTint : isToday ? color.brandTint : weekend ? color.subtle : 'transparent', borderRadius: '8px 8px 0 0' }}>
                 <Dropdown
                   trigger={['click']}
                   disabled={locked}
@@ -1052,6 +1109,7 @@ function DailyGrid({
                     </span>
                     <span style={{ display: 'block', fontSize: 11.5, color: color.muted }}>{dayLabel(date)}</span>
                     {holiday && <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: color.info }}>Public holiday</span>}
+                    {weekend && !holiday && <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: color.muted }}>Not working</span>}
                   </button>
                 </Dropdown>
                 {off && (
@@ -1073,7 +1131,7 @@ function DailyGrid({
           }, { minutes: 0, percent: 0 });
           return (
             <div key={p.id} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', borderBottom: `1px solid ${color.divider}` }}>
-              <ProjectCell name={p.name} colorSwatch={p.color} meta={p.key} />
+              <span className="bt-timesheet-sticky"><ProjectCell name={p.name} colorSwatch={p.color} meta={p.key} /></span>
               {days.map((date) => {
                 const ymd = formatYmd(date);
                 const isToday = ymd === formatYmd(today);
@@ -1089,7 +1147,7 @@ function DailyGrid({
                       <span aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]}: day off`} style={{ display: 'grid', placeItems: 'center', height: 38, borderRadius: 8, background: color.chip, fontSize: 12, fontWeight: 500, color: color.muted }}>Off</span>
                     ) : readOnly || dayLocked(ymd) ? (
                       <span style={{ display: 'grid', placeItems: 'center', height: 38, fontVariantNumeric: 'tabular-nums', color: filled ? color.ink : color.faint }}>
-                        {filled ? (cell.unit === 'percent' ? `${cell.text}%` : cell.text) : holiday ? 'Holiday' : '-'}
+                        {filled ? (cell.unit === 'percent' ? `${cell.text}%` : workspaceUnit === 'percent' ? `${cell.text} leftover` : cell.text) : holiday ? 'Holiday' : weekend ? 'Not working' : '-'}
                       </span>
                     ) : (
                       <Popover
@@ -1134,11 +1192,21 @@ function DailyGrid({
                           >
                             Holiday
                           </button>
+                        ) : weekend && !filled && holidayEdit !== `${p.id}:${ymd}` ? (
+                          <button
+                            type="button"
+                            aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}: not a working day. Click to log extra time.`}
+                            onClick={() => setHolidayEdit(`${p.id}:${ymd}`)}
+                            style={{ display: 'grid', placeItems: 'center', width: '100%', height: 38, border: `1px dashed ${color.dashed}`, borderRadius: 8, background: color.subtle, font: 'inherit', fontSize: 12, fontWeight: 500, color: color.muted, cursor: 'pointer' }}
+                          >
+                            Not working
+                          </button>
                         ) : (
+                        <span>
                         <Input
                           inputMode="decimal"
                           value={cell.text}
-                          placeholder={holiday && !filled ? 'Holiday' : '-'}
+                          placeholder={holiday && !filled ? 'Holiday' : weekend && !filled ? 'Not working' : workspaceUnit === 'percent' && cell.unit === 'percent' ? '%' : '-'}
                           status={invalidCells[cellKey(p.id, ymd)] ? 'error' : undefined}
                           aria-invalid={Boolean(invalidCells[cellKey(p.id, ymd)])}
                           aria-label={`${p.name}, ${DAY_SHORT[date.getUTCDay()]} ${dayLabel(date)}`}
@@ -1151,8 +1219,15 @@ function DailyGrid({
                           onKeyDown={(e) => {
                             if (e.key === 'Tab' || e.key === 'Enter') commitCell(p.id, ymd);
                           }}
-                          style={{ height: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderColor: invalidCells[cellKey(p.id, ymd)] ? color.danger : isToday ? color.brandBorder : color.border, background: holiday && !filled ? color.infoTint : color.surface }}
+                          style={{ height: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderColor: invalidCells[cellKey(p.id, ymd)] ? color.danger : isToday ? color.brandBorder : color.border, background: holiday && !filled ? color.infoTint : weekend ? color.subtle : color.surface }}
                         />
+                        {workspaceUnit === 'percent' && cell.unit === 'time' && filled && (
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, fontWeight: 500, color: color.muted }}>leftover h</span>
+                        )}
+                        {workspaceUnit === 'percent' && cell.unit === 'percent' && filled && (
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, fontWeight: 500, color: color.muted }}>%</span>
+                        )}
+                        </span>
                         )}
                       </Popover>
                     )}
@@ -1163,13 +1238,13 @@ function DailyGrid({
                 );
               })}
               <span style={{ padding: '0 16px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                {formatMixedTotals(rowParts.minutes, rowParts.percent)}
+                {formatWorkspaceTotals(rowParts.minutes, rowParts.percent, workspaceUnit, true)}
               </span>
             </div>
           );
         })}
         <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', background: color.subtle }}>
-          <span style={{ padding: '14px 16px', fontSize: 13, fontWeight: 600 }}>Day total</span>
+          <span className="bt-timesheet-sticky is-foot" style={{ padding: '14px 16px', fontSize: 13, fontWeight: 600 }}>Day total</span>
           {dayTotals.map((t, i) => {
             const date = days[i];
             if (!date) return null;
@@ -1177,7 +1252,7 @@ function DailyGrid({
             const empty = t.minutes === 0 && t.percent === 0;
             const pastEmpty = t.kind === 'sum' && empty && date.getTime() <= today.getTime() && isWorkingDay(date, workingDays) && !holidayByDate.has(ymd);
             const short = t.kind === 'sum' && t.minutes === 0 && t.percent > 0 && t.percent < 100;
-            const label = t.kind === 'off' ? t.label : formatMixedTotals(t.minutes, t.percent);
+            const label = t.kind === 'off' ? t.label : formatWorkspaceTotals(t.minutes, t.percent, workspaceUnit, true);
             return (
               <span key={ymd} style={{ padding: '14px 4px', textAlign: 'center', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: t.kind === 'off' ? color.muted : short || pastEmpty ? color.warning : !empty ? (t.minutes === 0 && t.percent === 100 ? color.brandStrong : color.ink) : color.faint }}>
                 {label}
@@ -1186,9 +1261,10 @@ function DailyGrid({
             );
           })}
           <span style={{ padding: '14px 16px', textAlign: 'right', fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {formatMixedTotals(weekParts.minutes, weekParts.percent)}
+            {formatWorkspaceTotals(weekParts.minutes, weekParts.percent, workspaceUnit, true)}
           </span>
         </div>
+      </div>
       </div>
     </section>
   );

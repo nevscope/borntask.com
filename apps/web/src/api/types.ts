@@ -70,8 +70,49 @@ export const MeSchema = z.object({
       }),
     )
     .optional(),
+  isPlatformAdmin: z.boolean().optional(),
 });
 export type Me = z.infer<typeof MeSchema>;
+
+export const PlatformWorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  url: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  ownerName: z.string().nullable(),
+  ownerEmail: z.string().nullable(),
+  memberCount: z.number(),
+  roleCounts: z.object({
+    owner: z.number(),
+    admin: z.number(),
+    member: z.number(),
+    guest: z.number(),
+    viewer: z.number(),
+  }),
+  projectCount: z.number(),
+  taskCount: z.number(),
+  openTaskCount: z.number(),
+  lastActivityAt: z.string().nullable(),
+  invitationCount: z.number(),
+  lastImport: z
+    .object({
+      status: z.string(),
+      createdAt: z.string(),
+      fileName: z.string(),
+    })
+    .nullable(),
+  isInternal: z.boolean(),
+  allowGoogle: z.boolean(),
+  allowMicrosoft: z.boolean(),
+  allowedDomains: z.array(z.string()),
+});
+export type PlatformWorkspace = z.infer<typeof PlatformWorkspaceSchema>;
+
+export const PlatformWorkspaceListSchema = z.object({
+  workspaces: z.array(PlatformWorkspaceSchema),
+});
 
 // ---------- workflow ----------
 export const WorkflowStatusSchema = z.object({
@@ -135,6 +176,10 @@ export const ProjectSchema = z.object({
   acceptsTimesheets: z.boolean().optional(),
   /** False when an admin can see the project but has not been given a seat. */
   canOpen: z.boolean().optional(),
+  /** True when the viewer is a member or the project lead. */
+  joined: z.boolean().optional(),
+  /** True after the viewer has opened the project. */
+  opened: z.boolean().optional(),
   accessRequested: z.boolean().optional(),
   pendingInvite: z.boolean().optional(),
 });
@@ -185,6 +230,8 @@ export const TaskSchema = z.object({
   priority: PrioritySchema,
   /** Calendar date, YYYY-MM-DD. */
   dueDate: z.string().nullable(),
+  /** Optional effort note, for example 2h or 1 day. Not a timesheet entry. */
+  estimate: z.string().nullable().optional(),
   labels: z.array(z.string()),
   /** Order within its section. The API should use fractional-index strings; a float is enough for the mock. */
   position: z.number(),
@@ -420,6 +467,7 @@ export const UpdateTaskInputSchema = z
     assigneeId: z.string().nullable(),
     priority: PrioritySchema,
     dueDate: z.string().nullable(),
+    estimate: z.string().trim().max(40).nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),
     planningParentId: z.string().nullable(),

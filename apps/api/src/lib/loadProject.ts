@@ -1,7 +1,8 @@
+import { openedProjectIds } from './applyProjectInvite.js';
 import { prisma } from '../db.js';
 import type { TenantClient } from '../tenantPrisma.js';
 import { stripTags } from './descriptionHtml.js';
-import { comparePosition, mapStatus, mapUser, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
+import { comparePosition, mapStatus, mapUser, mapUsers, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
 
 const EMPTY_COUNTS = { backlog: 0, active: 0, review: 0, done: 0 };
 
@@ -39,7 +40,7 @@ export async function mapProjectCards(
   if (!rows.length) return [];
   const ids = rows.map((p) => p.id);
   const leadIds = [...new Set(rows.map((p) => p.leadId).filter((id): id is string => !!id))];
-  const [grouped, statuses, favs, leads, members] = await Promise.all([
+  const [grouped, statuses, favs, leads, members, opens] = await Promise.all([
     db.task.groupBy({
       by: ['projectId', 'statusId'],
       where: { deletedAt: null, projectId: { in: ids } },
@@ -49,6 +50,7 @@ export async function mapProjectCards(
     db.favourite.findMany({ where: { userId }, select: { projectId: true } }),
     leadIds.length ? prisma.user.findMany({ where: { id: { in: leadIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
     db.projectMember.findMany({ where: { projectId: { in: ids } }, select: { projectId: true, userId: true } }),
+    openedProjectIds(userId, ids),
   ]);
   const memberIds = [...new Set(members.map((m) => m.userId))];
   const guestRows = memberIds.length
@@ -60,6 +62,7 @@ export async function mapProjectCards(
   const guestIds = new Set(guestRows.map((g) => g.userId));
   const categoryOf = new Map(statuses.map((s) => [s.id, s.category]));
   const starred = new Set(favs.map((f) => f.projectId));
+  const opened = opens;
   const leadName = new Map(leads.map((u) => [u.id, u.name]));
 
   return rows.map((p) => {
@@ -70,6 +73,7 @@ export async function mapProjectCards(
       if (cat === 'backlog' || cat === 'active' || cat === 'review' || cat === 'done') counts[cat] += g._count._all;
     }
     const guestCount = members.filter((m) => m.projectId === p.id && guestIds.has(m.userId)).length;
+    const joined = p.leadId === userId || members.some((m) => m.projectId === p.id && m.userId === userId);
     return {
       id: p.id,
       key: p.key,
@@ -86,6 +90,8 @@ export async function mapProjectCards(
       archived: Boolean(p.archivedAt),
       acceptsTimesheets: Boolean(p.acceptsTimesheets),
       canOpen: true,
+      joined,
+      opened: opened.has(p.id),
       accessRequested: false,
     };
   });
@@ -183,6 +189,7 @@ export function mapTask(row: {
   reporterId: string;
   priority: 'urgent' | 'high' | 'medium' | 'low' | 'none';
   dueDate: Date | null;
+  estimate?: string | null;
   position: string;
   createdAt: Date;
   updatedAt: Date;
@@ -213,6 +220,7 @@ export function mapTask(row: {
     reporterId: row.reporterId,
     priority: row.priority,
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+    estimate: row.estimate?.trim() || null,
     labels: (row.labels ?? []).map((l) => l.label.name),
     position: positionNumber(row.position),
     subtaskCount: { done: sub.filter((s) => s.completedAt).length, total: sub.length },
@@ -321,7 +329,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
       roles: m.roles.map((r) => remapRoleSlug(r.role.slug)),
       workspaceRole: wsRole.get(m.userId) ?? 'member',
     })),
-    users: users.map(mapUser),
+    users: mapUsers(users),
     disabledTypes: project.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
     workBreakdown: project.workBreakdown,
     storiesNeedApproval: project.storiesNeedApproval,
@@ -334,4 +342,4 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
   };
 }
 
-export { mapUser };
+export { mapUser, mapUsers };

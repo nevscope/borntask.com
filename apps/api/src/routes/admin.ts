@@ -76,6 +76,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get('/billing', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      requireOwnerAdmin(auth.workspaceRole);
+      const members = await auth.db.tenantMember.findMany({ where: { isActive: true }, select: { tenantRole: true } });
+      const paid = members.filter((m) => m.tenantRole !== 'guest').length;
+      const guests = members.filter((m) => m.tenantRole === 'guest').length;
+      return { paid, guests, amount: paid, currency: 'EUR' };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.patch('/workspace', async (req, reply) => {
     try {
       const auth = await requireAuth(req);

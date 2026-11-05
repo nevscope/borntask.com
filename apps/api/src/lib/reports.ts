@@ -15,9 +15,11 @@ import {
   timesheetExpectedStart,
   calendarDayInZone,
   workingDatesInRange,
+  personInitials,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
 import { holidayYmidsForCountry, holidaysInRange, isOwnerAdmin, workspaceTimesheetSettings, ymdOf } from './timesheets.js';
+import { weeklyCreatedClosed } from './weeklyFlow.js';
 import { forbidden } from '../errors.js';
 
 function averageDays(values: number[]): number | null {
@@ -81,7 +83,7 @@ function missingDetail(missingDates: Date[], leaveDates: Date[]): string {
 }
 
 function initialsOf(name: string): string {
-  return name.split(/\s+/).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase();
+  return personInitials(name);
 }
 
 function msToDays(ms: number): number {
@@ -466,6 +468,12 @@ export async function workspaceReports(
         close: daysPhrase(medianDays(closeDaysByProject.get(projectId) ?? []), 'd'),
         start: daysPhrase(medianDays(startDaysByProject.get(projectId) ?? []), 'd'),
       })),
+      weekly: weeklyCreatedClosed(
+        opened.map((task) => task.createdAt),
+        closed.flatMap((task) => (task.completedAt ? [task.completedAt] : [])),
+        range.from,
+        range.to,
+      ),
       byPerson: [...byPerson.entries()].map(([userId, row]) => ({
         userId,
         name: row.name,

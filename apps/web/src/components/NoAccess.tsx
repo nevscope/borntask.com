@@ -13,12 +13,36 @@ function Lock() {
   );
 }
 
-export function NoAccess({ projectKey, error }: { projectKey: string; error: unknown }) {
+export function NoAccess({
+  projectKey,
+  error,
+  kind = 'project',
+  title,
+  message,
+}: {
+  projectKey?: string;
+  error?: unknown;
+  kind?: 'project' | 'settings';
+  title?: string;
+  message?: string;
+}) {
   const location = useLocation();
   const requestAccess = useRequestProjectAccess();
   if (error instanceof ApiError && error.status === 401) {
     const dest = safeNext(`${location.pathname}${location.search}`);
     return <Navigate to={dest ? `/sign-in?next=${encodeURIComponent(dest)}` : '/sign-in'} replace />;
+  }
+  if (kind === 'settings') {
+    return (
+      <div className="bt-card" style={{ minHeight: 270, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 10, padding: 24 }}>
+        <Lock />
+        <span style={{ fontFamily: font.display, fontSize: 17, fontWeight: 600 }}>{title ?? 'You cannot open this page'}</span>
+        <span style={{ fontSize: 13.5, color: color.ink3, maxWidth: 320, lineHeight: 1.45 }}>
+          {message ?? 'Only a workspace owner or admin can open this page.'}
+        </span>
+        <Link to="/" style={{ fontSize: 13 }}>Back to My tasks</Link>
+      </div>
+    );
   }
   const missing = error instanceof ApiError && error.status === 404;
   const sent = requestAccess.isSuccess;
@@ -41,7 +65,7 @@ export function NoAccess({ projectKey, error }: { projectKey: string; error: unk
         </span>
         {!missing && sent ? (
           <span style={{ fontSize: 13.5, color: color.brandStrong }}>Request sent.</span>
-        ) : !missing ? (
+        ) : !missing && projectKey ? (
           <button type="button" onClick={() => requestAccess.mutate(projectKey)} disabled={requestAccess.isPending} style={{ height: 36, padding: '0 14px', marginTop: 4, border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: requestAccess.isPending ? 'wait' : 'pointer' }}>
             {requestAccess.isPending ? 'Sending…' : 'Request access'}
           </button>

@@ -266,8 +266,8 @@ export function ProjectViewBar({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, minWidth: 0 }}>{viewTabs}</div>
+      <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8, overflowX: isPhone ? 'visible' : 'auto' }}>
+        <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 4, minWidth: 0 }}>{viewTabs}</div>
         <div ref={panelRef} style={{ position: 'relative' }}>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: color.ink3, cursor: 'pointer' }}>
             <FilterIcon /> Filter
@@ -299,8 +299,7 @@ export function ProjectViewBar({
           </span>
         ))}
         {mode === 'list' && !isPhone && (
-          <>
-            <span style={{ flex: 1 }} />
+          <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             <span style={{ fontSize: 13, color: color.muted }}>Group</span>
             <select aria-label="Group" value={allowedGroup(view.group, detail.workBreakdown)} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
               <option value="section">Section</option>
@@ -321,11 +320,10 @@ export function ProjectViewBar({
               <option value="title">Title</option>
             </select>
             <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
-          </>
+          </span>
         )}
         {mode === 'board' && !isPhone && (
-          <>
-            <span style={{ flex: 1 }} />
+          <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             <span style={{ fontSize: 13, color: color.muted }}>Columns</span>
             <select aria-label="Columns" value={view.columns} onChange={(e) => onView({ columns: readColumns(e.target.value) })} style={controlStyle}>
               <option value="status">Status</option>
@@ -333,7 +331,7 @@ export function ProjectViewBar({
               <option value="assignee">Assignee</option>
               <option value="priority">Priority</option>
             </select>
-          </>
+          </span>
         )}
       </div>
       <SaveViewDialog

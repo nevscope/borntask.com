@@ -7,11 +7,14 @@ import type { User, WorkspaceRole } from '../api/types';
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
+import { NoAccess } from '../components/NoAccess';
 import { WorkingPatternFields } from '../components/WorkingPatternFields';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { WorkspaceRolesAside } from '../components/WorkspaceRolesAside';
 import { color } from '../theme/tokens';
+import { assignUniqueInitials } from '@borntask/shared';
+import { formatInviteExpiry } from '../lib/formatInviteExpiry';
 
 const NON_OWNER_ROLES: { value: WorkspaceRole; label: string }[] = [
   { value: 'admin', label: 'Admin' },
@@ -50,6 +53,7 @@ export function AdminPeopleScreen() {
   const me = useMe().data;
   const isOwner = me?.workspaceRole === 'owner';
   const canAdmin = isOwner || me?.workspaceRole === 'admin';
+  const canSeePeople = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [pendingInviteRevoke, setPendingInviteRevoke] = useState<{ id: string; email: string } | null>(null);
@@ -60,9 +64,13 @@ export function AdminPeopleScreen() {
   const [domainDraft, setDomainDraft] = useState('');
   const people = useQuery({
     queryKey: ['people'],
+    enabled: canSeePeople,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/people`, { credentials: 'include' });
-      if (!res.ok) return [] as Person[];
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(json.message ?? 'You cannot view people.');
+      }
       return (await res.json()) as Person[];
     },
   });
@@ -231,6 +239,13 @@ export function AdminPeopleScreen() {
     void qc.invalidateQueries({ queryKey: ['workspace-settings'] });
   };
 
+  const signInLabel = (value: string | undefined) => {
+    if (!value || value === '-') return 'Developer sign-in';
+    return value;
+  };
+  const uniqueInitials = assignUniqueInitials((people.data ?? []).map((p) => p.name));
+  const initialsById = new Map((people.data ?? []).map((p, i) => [p.id, uniqueInitials[i] ?? p.initials]));
+
   const rows = (people.data ?? []).filter((p) => {
     const n = q.trim().toLowerCase();
     if (!n) return true;
@@ -240,25 +255,30 @@ export function AdminPeopleScreen() {
   const guests = (people.data ?? []).filter((p) => p.workspaceRole === 'guest').length;
 
   return (
-    <SettingsFrame canAdmin={canAdmin} isOwner={isOwner}>
+    <SettingsFrame canAdmin={canAdmin} isOwner={isOwner} canSeePeople={canSeePeople}>
+      {me && !canSeePeople ? (
+        <NoAccess kind="settings" message="Guests and viewers cannot view people in this workspace." />
+      ) : (
+        <>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <h1 className="bt-h1">People and invitations</h1>
           <p style={{ color: color.muted, margin: '6px 0 0' }}>
             {me?.workspace.name}
-            {people.data ? ` · ${members} ${members === 1 ? 'member' : 'members'} · ${guests} ${guests === 1 ? 'guest' : 'guests'}` : ''}
+            {people.isSuccess && people.data ? ` · ${members} ${members === 1 ? 'member' : 'members'} · ${guests} ${guests === 1 ? 'guest' : 'guests'}` : ''}
           </p>
         </div>
         <InvitePeopleButton variant="primary" />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 20 }}>
       <div style={{ flex: '999 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {!canAdmin && <Alert type="warning" message="You can view people. Only an owner or admin can change workspace roles." />}
+      {!canAdmin && canSeePeople && <Alert type="warning" message="You can view people. Only an owner or admin can change workspace roles." />}
       {canAdmin && !isOwner && <Alert type="info" message="Admins can change member, guest, viewer and admin roles. Only the workspace owner can transfer ownership." />}
+      {people.isError && <Alert type="error" message={people.error instanceof Error ? people.error.message : 'Could not load people.'} />}
       <section className="bt-card" style={{ padding: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <span style={{ flex: '1 1 260px' }}>
           <span style={{ display: 'block', fontWeight: 600 }}>Sign-in</span>
-          <span style={{ fontSize: 13, color: color.muted }}>People sign in with Google or Microsoft. Your own domain joins without an invitation.</span>
+          <span style={{ fontSize: 13, color: color.muted }}>People sign in with Google or Microsoft. A saved company domain can join without an invitation.</span>
         </span>
         {liveDomains.map((d) => (
           <span key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: 8, background: color.chip, fontSize: 13 }}>
@@ -269,7 +289,7 @@ export function AdminPeopleScreen() {
           </span>
         ))}
         {domainsKnown && liveDomains.length === 0 && (
-          <span style={{ fontSize: 13, color: color.muted }}>No sign-in domain is saved yet.</span>
+          <span style={{ fontSize: 13, color: color.muted }}>No company domain is listed. Add one below if people on that address should join without an invitation.</span>
         )}
         {canAdmin && (
           <span style={{ display: 'inline-flex', gap: 6 }}>
@@ -306,7 +326,7 @@ export function AdminPeopleScreen() {
             <div key={p.id} style={{ padding: '10px 16px', borderBottom: `1px solid ${color.divider}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) 130px 120px minmax(110px, 1fr) 88px', gap: 12, alignItems: 'center', minHeight: 44 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <Avatar user={p} size={30} />
+                  <Avatar user={{ ...p, initials: initialsById.get(p.id) ?? p.initials }} size={30} />
                   <span style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
                     <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.email}</span>
@@ -332,7 +352,7 @@ export function AdminPeopleScreen() {
                     setRole.mutate({ userId: p.id, tenantRole });
                   }}
                 />
-                <span style={{ fontSize: 13, color: color.ink3 }}>{p.signsInWith ?? '-'}</span>
+                <span style={{ fontSize: 13, color: color.ink3 }}>{signInLabel(p.signsInWith)}</span>
                 <span style={{ fontSize: 13, color: color.ink3 }}>{p.projects ?? '-'}</span>
                 {canAdmin && p.workspaceRole !== 'owner' && p.id !== me?.user.id && (isOwner || p.workspaceRole !== 'admin') ? (
                   <Button type="link" danger onClick={() => setPendingPersonRevoke(p)}>Revoke</Button>
@@ -381,7 +401,7 @@ export function AdminPeopleScreen() {
                   <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
                 </span>
                 <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
-                  {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
+                  {expired ? 'Expired' : `Expires ${formatInviteExpiry(i.expiresAt)}`}
                 </span>
                 <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
                 <Button type="link" danger onClick={() => setPendingInviteRevoke({ id: i.id, email: i.email })}>Revoke</Button>
@@ -470,6 +490,8 @@ export function AdminPeopleScreen() {
       >
         People on this domain will need an invitation to join.
       </ConfirmDialog>
+        </>
+      )}
     </SettingsFrame>
   );
 }

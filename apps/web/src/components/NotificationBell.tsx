@@ -2,7 +2,7 @@ import { Popover } from 'antd';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAcceptProjectInvite, useMarkNotificationsRead, useNotifications } from '../api/queries';
+import { useAcceptProjectInvite, useMarkNotificationsRead, useMe, useNotifications } from '../api/queries';
 import { readLastViewed } from '../lib/lastViewed';
 import type { Notification, NotificationKind } from '../api/types';
 import { formatWhen } from '../lib/relativeTime';
@@ -103,6 +103,8 @@ function NotificationRow({
 export function NotificationPanel({ onClose, phone = false }: { onClose: () => void; phone?: boolean }) {
   const navigate = useNavigate();
   const toast = useStatusToast();
+  const userId = useMe().data?.user.id;
+  const lastViewed = readLastViewed(userId);
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
   const accept = useAcceptProjectInvite();
@@ -157,9 +159,31 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
         whiteSpace: 'normal',
       }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
-        <span style={{ fontWeight: 600, flex: 'none' }}>Notifications</span>
-        <div role="tablist" style={{ display: 'flex', flex: '1 1 auto', minWidth: 0, gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>Notifications</span>
+          <button
+            type="button"
+            disabled={unreadCount === 0}
+            onClick={() => mark.mutate({ all: true })}
+            style={{
+              height: 30,
+              padding: '0 8px',
+              border: 0,
+              background: 'transparent',
+              font: 'inherit',
+              fontSize: 12.5,
+              color: unreadCount === 0 ? color.faint : color.brandStrong,
+              fontWeight: 600,
+              cursor: unreadCount === 0 ? 'default' : 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            Mark all read
+          </button>
+        </div>
+        <div role="tablist" style={{ display: 'flex', alignSelf: 'flex-start', maxWidth: '100%', gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
           <button
             type="button"
             role="tab"
@@ -177,7 +201,6 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               color: tab === 'unread' ? color.ink : color.ink3,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              flex: 'none',
             }}
           >
             Unread {unreadCount}
@@ -199,7 +222,6 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               color: tab === 'all' ? color.ink : color.ink3,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              flex: 'none',
             }}
           >
             All
@@ -221,39 +243,17 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               color: tab === 'viewed' ? color.ink : color.ink3,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              flex: 'none',
             }}
           >
             Last viewed
           </button>
         </div>
-        <button
-          type="button"
-          disabled={unreadCount === 0}
-          onClick={() => mark.mutate({ all: true })}
-          style={{
-            height: 30,
-            marginLeft: 'auto',
-            padding: '0 8px',
-            border: 0,
-            background: 'transparent',
-            font: 'inherit',
-            fontSize: 12.5,
-            color: unreadCount === 0 ? color.faint : color.brandStrong,
-            fontWeight: 600,
-            cursor: unreadCount === 0 ? 'default' : 'pointer',
-            whiteSpace: 'nowrap',
-            flex: 'none',
-          }}
-        >
-          Mark all read
-        </button>
       </div>
       {tab === 'viewed' ? (
         <div style={{ flex: phone ? 1 : undefined, maxHeight: phone ? undefined : 420, overflow: 'auto' }}>
-          {readLastViewed().length === 0 ? (
+          {lastViewed.length === 0 ? (
             <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center' }}>No recently viewed tasks.</div>
-          ) : readLastViewed().map((row) => (
+          ) : lastViewed.map((row) => (
             <button
               key={row.key}
               type="button"

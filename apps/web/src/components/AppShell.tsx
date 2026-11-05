@@ -3,15 +3,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { USE_PROJECT_MOCKS, USE_TASK_MOCKS, useMe, useMyTasks, useNotifications, useProjects } from '../api/queries';
-import { readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
+import { RECENT_PROJECTS_EVENT, readRecentProjectKeys, recordRecentProject } from '../lib/recentProjects';
 import { readSidebarCollapsed, writeSidebarCollapsed } from '../lib/sidebarPrefs';
 import { readWelcome } from '../lib/welcome';
 import { color, font, radius } from '../theme/tokens';
 import { Avatar, NewFeatureTag, WorkspaceMark } from './Chips';
+import { hasSeenNewFeature, markNewFeatureSeen } from '../lib/newFeatureSeen';
 import { ProjectStar } from './ProjectStar';
 import { Logo, LogoMark } from './Logo';
 import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
+import { withTaskQuery } from './useTaskParam';
 import { AccountMenu, YouSheet } from './AccountMenu';
 import { InboxSheet, NotificationBell } from './NotificationBell';
 import { TopSearch } from './TopSearch';
@@ -25,13 +27,18 @@ import { InstallPrompt, usePwaInstall } from './InstallPrompt';
 export function AppShell({ children }: { children: ReactNode }) {
   const meQuery = useMe();
   const me = meQuery.data;
-  const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
+  const listedProjects = useProjects().data ?? [];
+  const projects = listedProjects.filter((p) => p.canOpen !== false);
+  const invitedProjects = listedProjects.filter((p) => p.pendingInvite);
   const myTasks = useMyTasks().data;
   const quickAdd = useQuickAdd();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const welcome = params.get('welcome');
+  const taskKey = params.get('task');
+  const taskOpen = Boolean(taskKey);
+  const keepTask = (to: string) => withTaskQuery(to, taskKey);
   const isPhone = useIsPhone();
   const [shortcuts, setShortcuts] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -46,6 +53,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
   const joined = useStatusToast();
   const stored = welcome ? readWelcome() : null;
+  const userId = me?.user.id;
+  const [seenNew, setSeenNew] = useState(() => ({
+    timesheets: hasSeenNewFeature(me?.user.id, 'timesheets'),
+    reports: hasSeenNewFeature(me?.user.id, 'reports'),
+  }));
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
@@ -53,19 +65,39 @@ export function AppShell({ children }: { children: ReactNode }) {
   const settingsTo = canAdmin ? '/settings/workspace' : '/settings/people';
   const canWriteTasks = !viewer;
   const workspaceId = me?.workspace.id;
-  const favourites = projects.filter((p) => p.starred);
+  const favourites = projects.filter((p) => p.starred && !p.pendingInvite);
   const favouriteKeys = new Set(favourites.map((p) => p.key));
+  const invitedKeys = new Set(invitedProjects.map((p) => p.key));
   const [recentKeys, setRecentKeys] = useState<string[]>([]);
   const recentDisplayReady = useRef(false);
   const recentWorkspaceId = useRef<string | undefined>(undefined);
   const recent = recentKeys
     .map((key) => projects.find((p) => p.key === key))
-    .filter((p): p is NonNullable<typeof p> => p !== undefined && !favouriteKeys.has(p.key))
+    .filter((p): p is NonNullable<typeof p> => p !== undefined && !favouriteKeys.has(p.key) && !invitedKeys.has(p.key))
     .slice(0, 10);
   const myCount = (myTasks?.assigned.length ?? 0) + (myTasks?.approvals.length ?? 0);
   useLiveUpdates(Boolean(me));
   const workspaces = me?.workspaces ?? [];
   const pinned = guest ? projects : favourites;
+
+  useEffect(() => {
+    setSeenNew({
+      timesheets: hasSeenNewFeature(userId, 'timesheets'),
+      reports: hasSeenNewFeature(userId, 'reports'),
+    });
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (pathname.startsWith('/timesheets')) {
+      markNewFeatureSeen(userId, 'timesheets');
+      setSeenNew((current) => (current.timesheets ? current : { ...current, timesheets: true }));
+    }
+    if (pathname.startsWith('/reports')) {
+      markNewFeatureSeen(userId, 'reports');
+      setSeenNew((current) => (current.reports ? current : { ...current, reports: true }));
+    }
+  }, [pathname, userId]);
 
   useEffect(() => {
     if (me?.host?.kind === 'workspace' && !me.host.allowed) return;
@@ -103,12 +135,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       if (armed && event.key.toLowerCase() === 'm') {
         armed = false;
-        navigate('/');
+        navigate(withTaskQuery('/', params.get('task')));
         return;
       }
       if (event.key.toLowerCase() === 'v') {
         const match = pathname.match(/^\/p\/([^/]+)\/(list|board)/);
-        if (match?.[1] && match[2]) navigate(`/p/${match[1]}/${match[2] === 'list' ? 'board' : 'list'}`);
+        if (match?.[1] && match[2]) {
+          navigate(withTaskQuery(`/p/${match[1]}/${match[2] === 'list' ? 'board' : 'list'}`, params.get('task')));
+        }
       }
       if (event.key === '[') {
         event.preventDefault();
@@ -124,7 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       window.removeEventListener('keydown', onKey);
       window.clearTimeout(timer);
     };
-  }, [navigate, pathname]);
+  }, [navigate, pathname, params]);
 
   useEffect(() => {
     setInboxOpen(false);
@@ -156,6 +190,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     setRecentKeys(readRecentProjectKeys(workspaceId));
     recentDisplayReady.current = true;
   }, [pathname, workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const sync = () => setRecentKeys(readRecentProjectKeys(workspaceId));
+    window.addEventListener(RECENT_PROJECTS_EVENT, sync);
+    return () => window.removeEventListener(RECENT_PROJECTS_EVENT, sync);
+  }, [workspaceId]);
 
   const phoneTitle = (() => {
     if (pathname === '/') return 'My tasks';
@@ -217,7 +258,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={`bt-shell${isPhone ? ' is-phone' : ''}`}>
+    <div className={`bt-shell${isPhone ? ' is-phone' : ''}${isPhone && taskOpen ? ' task-open' : ''}`}>
       <OfflineBanner />
       <div className="bt-shell-body">
       <nav aria-label="Main" aria-hidden={isPhone} className={`bt-sidebar${collapsed ? ' is-collapsed' : ''}`}>
@@ -288,40 +329,59 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </button>
         </Dropdown>
-        <NavLink to="/" end className="bt-nav-link" title="My tasks">
+        <NavLink to={keepTask('/')} end className="bt-nav-link" title="My tasks">
           <span className="bt-nav-icon"><NavIcon kind="tasks" /></span>
           <span className="bt-sidebar-label" style={{ flex: 1 }}>My tasks</span>
           <span className="bt-sidebar-label" style={{ fontSize: 12, fontWeight: 600 }}>{myCount || ''}</span>
         </NavLink>
-        <NavLink to="/views" className="bt-nav-link" title="Views">
+        <NavLink to={keepTask('/views')} className="bt-nav-link" title="Views">
           <span className="bt-nav-icon"><NavIcon kind="views" /></span>
           <span className="bt-sidebar-label">Views</span>
         </NavLink>
         {showTimesheetsNav && (
-          <NavLink to="/timesheets" className="bt-nav-link" title="Timesheets">
+          <NavLink to={keepTask('/timesheets')} className="bt-nav-link" title="Timesheets">
             <span className="bt-nav-icon"><NavIcon kind="timesheets" /></span>
             <span className="bt-sidebar-label" style={{ flex: 1 }}>Timesheets</span>
-            <NewFeatureTag />
+            {!seenNew.timesheets && <NewFeatureTag />}
           </NavLink>
         )}
         {!guest && !viewer && (
-          <NavLink to="/reports" className="bt-nav-link" title="Reports">
+          <NavLink to={keepTask('/reports')} className="bt-nav-link" title="Reports">
             <span className="bt-nav-icon"><NavIcon kind="reports" /></span>
             <span className="bt-sidebar-label" style={{ flex: 1 }}>Reports</span>
-            <NewFeatureTag />
+            {!seenNew.reports && <NewFeatureTag />}
           </NavLink>
         )}
-        <NavLink to="/search" className="bt-nav-link" title="Search">
+        <NavLink to={keepTask('/search')} className="bt-nav-link" title="Search">
           <span className="bt-nav-icon"><NavIcon kind="search" /></span>
           <span className="bt-sidebar-label">Search</span>
         </NavLink>
         {!guest && (
-          <NavLink to="/projects" className="bt-nav-link" title="Projects">
+          <NavLink to={keepTask('/projects')} className="bt-nav-link" title="Projects">
             <span className="bt-nav-icon"><NavIcon kind="projects" /></span>
-            <span className="bt-sidebar-label">Projects</span>
+            <span className="bt-sidebar-label" style={{ flex: 1 }}>Projects</span>
+            {invitedProjects.length > 0 && (
+              <span className="bt-sidebar-label" style={{ fontSize: 12, fontWeight: 600 }}>{invitedProjects.length}</span>
+            )}
           </NavLink>
         )}
-        <div className="bt-nav-heading">{guest ? 'Your project' : 'Favourites'}</div>
+        {!guest && invitedProjects.length > 0 && (
+          <>
+            <div className="bt-nav-heading">Invited</div>
+            {invitedProjects.map((p) => (
+              <NavLink
+                key={p.key}
+                to={keepTask(`/p/${p.key}/list`)}
+                title={p.name}
+                className={() => `bt-nav-link bt-nav-sub${pathname.startsWith(`/p/${p.key}/`) ? ' active' : ''}`}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} />
+                <span className="bt-sidebar-label" style={{ flex: 1 }}>{p.name}</span>
+              </NavLink>
+            ))}
+          </>
+        )}
+        <div className="bt-nav-heading">{guest ? (pinned.length === 1 ? 'Your project' : 'Your projects') : 'Favourites'}</div>
         {pinned.length === 0 ? (
           <div className="bt-sidebar-copy" style={{ padding: '4px 10px', fontSize: 12.5, color: color.muted, lineHeight: 1.45 }}>
             {guest ? 'No project yet.' : 'Star a project to pin it here.'}
@@ -329,7 +389,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : pinned.map((p) => (
           <NavLink
             key={p.key}
-            to={`/p/${p.key}/list`}
+            to={keepTask(`/p/${p.key}/list`)}
             title={p.name}
             className={() => `bt-nav-link bt-nav-sub${pathname.startsWith(`/p/${p.key}/`) ? ' active' : ''}`}
           >
@@ -344,7 +404,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {recent.map((p) => (
               <NavLink
                 key={p.key}
-                to={`/p/${p.key}/list`}
+                to={keepTask(`/p/${p.key}/list`)}
                 title={p.name}
                 className={() => `bt-nav-link bt-nav-sub${pathname.startsWith(`/p/${p.key}/`) ? ' active' : ''}`}
               >
@@ -363,7 +423,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         {!guest && (
-          <NavLink to={settingsTo} className="bt-nav-link" title="Settings">
+          <NavLink to={keepTask(settingsTo)} className="bt-nav-link" title="Settings">
             <span className="bt-nav-icon"><NavIcon kind="settings" /></span>
             <span className="bt-sidebar-label">Settings</span>
           </NavLink>
@@ -400,7 +460,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="bt-main-scroll">{children}</main>
       </div>
-      <nav className="bt-phone-tabs" aria-label="Main" hidden={!isPhone}>
+      <nav className="bt-phone-tabs" aria-label="Main" hidden={!isPhone || taskOpen}>
         <NavLink to="/" end className={({ isActive }) => `bt-phone-tab${isActive ? ' active' : ''}`}>
           <PhoneIcon kind="tasks" />
           My tasks
@@ -448,7 +508,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         onInstall={openInstall}
       />
       <InstallPrompt reopenNonce={installReopen} install={pwaInstall} />
-      <button type="button" className="bt-fab" aria-label="New task" hidden={!isPhone || !canWriteTasks} onClick={openQuickAdd}>
+      <button type="button" className="bt-fab" aria-label="New task" hidden={!isPhone || !canWriteTasks || taskOpen} onClick={openQuickAdd}>
         <PhoneIcon kind="plus" />
       </button>
       <TaskDrawer />

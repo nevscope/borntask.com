@@ -105,7 +105,7 @@ export function ProjectListScreen() {
 
   const list = (
     <div className="bt-card bt-list-card" style={{ overflowX: isPhone ? 'hidden' : 'auto' }}>
-      <div className="bt-list-table" style={{ minWidth: isPhone ? 0 : undefined }}>
+      <div className="bt-list-table" style={{ minWidth: isPhone ? 0 : 1120 }}>
         {!isPhone && (
         <div className="bt-row bt-list-head" style={{ minHeight: 36, fontSize: 12, fontWeight: 600, color: color.muted }}>
           <span style={{ width: 32 }} />

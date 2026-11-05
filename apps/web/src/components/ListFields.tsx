@@ -104,12 +104,12 @@ export function ListFields({
         </span>
       )}
       {show('type') && (
-      <span style={{ width: LIST_FIELD_WIDTH.type }}>
+      <span className="bt-list-field" style={{ width: LIST_FIELD_WIDTH.type, minWidth: LIST_FIELD_WIDTH.type }}>
         <TypePicker allowed={allowed} bare trigger={<TypeTag type={task.type} />} value={task.type} onChange={(type) => save({ type })} />
       </span>
       )}
       {show('status') && (
-      <span style={{ width: LIST_FIELD_WIDTH.status, display: 'inline-flex', alignItems: 'center' }}>
+      <span className="bt-list-field" style={{ width: LIST_FIELD_WIDTH.status, minWidth: LIST_FIELD_WIDTH.status, display: 'inline-flex', alignItems: 'center' }}>
         <StatusMenu
           bare
           name={status?.name ?? task.statusId}
@@ -121,7 +121,7 @@ export function ListFields({
       </span>
       )}
       {show('assignee') && (
-      <span style={{ width: LIST_FIELD_WIDTH.assignee }}>
+      <span className="bt-list-field" style={{ width: LIST_FIELD_WIDTH.assignee, minWidth: LIST_FIELD_WIDTH.assignee }}>
         <AssigneePicker
           bare
           value={task.assigneeId}
@@ -138,12 +138,12 @@ export function ListFields({
       </span>
       )}
       {show('due') && (
-      <span className="bt-col-due" style={{ width: LIST_FIELD_WIDTH.due, color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 13 }}>
+      <span className="bt-list-field bt-col-due" style={{ width: LIST_FIELD_WIDTH.due, minWidth: LIST_FIELD_WIDTH.due, color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 13 }}>
         <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
       </span>
       )}
       {show('priority') && (
-      <span className="bt-col-priority" style={{ width: LIST_FIELD_WIDTH.priority }}>
+      <span className="bt-list-field bt-col-priority" style={{ width: LIST_FIELD_WIDTH.priority, minWidth: LIST_FIELD_WIDTH.priority }}>
         <PriorityPicker bare value={task.priority} trigger={<PriorityLabel priority={task.priority} />} onChange={(priority) => save({ priority })} />
       </span>
       )}

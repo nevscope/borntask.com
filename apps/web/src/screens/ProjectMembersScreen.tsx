@@ -13,6 +13,7 @@ import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { statusById } from '../lib/workflow';
 import { color } from '../theme/tokens';
+import { formatInviteExpiry } from '../lib/formatInviteExpiry';
 
 const FALLBACK_ROLES: ProjectRole[] = ['lead', 'business', 'developer', 'tester', 'observer'];
 
@@ -153,7 +154,7 @@ export function ProjectMembersScreen() {
                 <span style={{ fontSize: 12.5, color: color.muted }}>{i.tenantRole}</span>
               </span>
               <span style={{ fontSize: 12.5, fontWeight: expired ? 600 : 400, color: expired ? color.danger : color.ink3 }}>
-                {expired ? 'Expired' : `Expires ${i.expiresAt.slice(0, 10)}`}
+                {expired ? 'Expired' : `Expires ${formatInviteExpiry(i.expiresAt)}`}
               </span>
               <Button onClick={() => void actInvite(i.id, i.email, 'resend')}>Resend</Button>
               <Button type="link" danger onClick={() => setPendingRevoke({ id: i.id, email: i.email })}>Revoke</Button>

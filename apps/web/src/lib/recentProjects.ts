@@ -17,8 +17,11 @@ export function readRecentProjectKeys(workspaceId: string): string[] {
   }
 }
 
+export const RECENT_PROJECTS_EVENT = 'bt-recent-projects';
+
 export function recordRecentProject(workspaceId: string, projectKey: string): string[] {
   const next = [projectKey, ...readRecentProjectKeys(workspaceId).filter((key) => key !== projectKey)].slice(0, LIMIT);
   localStorage.setItem(storageKey(workspaceId), JSON.stringify(next));
+  window.dispatchEvent(new Event(RECENT_PROJECTS_EVENT));
   return next;
 }

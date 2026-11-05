@@ -16,6 +16,7 @@ import { taskRoutes } from './routes/tasks.js';
 import { workflowRoutes } from './routes/workflow.js';
 import { searchRoutes } from './routes/search.js';
 import { adminRoutes } from './routes/admin.js';
+import { platformRoutes } from './routes/platform.js';
 import { importRoutes } from './routes/import.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { profileRoutes } from './routes/profile.js';
@@ -68,6 +69,7 @@ async function main() {
   await app.register(workflowRoutes);
   await app.register(searchRoutes);
   await app.register(adminRoutes);
+  await app.register(platformRoutes);
   await app.register(importRoutes);
   await app.register(notificationRoutes);
   await app.register(profileRoutes);

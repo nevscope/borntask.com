@@ -50,7 +50,6 @@ export function MyTasksScreen() {
 
   const [tab, setTab] = useState<'assigned' | 'created' | 'watching'>('assigned');
   const [prefs, setPrefs] = useState(readMyTasksPrefs);
-  const lastViewed = useMemo(() => readLastViewed(), [mine.dataUpdatedAt, params.get('task')]);
   const assignedBase = (tab === 'created' ? mine.data?.created : tab === 'watching' ? mine.data?.watching : mine.data?.assigned) ?? mine.data?.assigned ?? [];
   const unassigned = tab === 'assigned' && prefs.showUnassigned ? (mine.data?.unassigned ?? []) : [];
   const assigned = useMemo(() => {
@@ -67,6 +66,10 @@ export function MyTasksScreen() {
     });
   }, [assignedBase, unassigned, prefs, tab]);
   const approvals = tab === 'assigned' ? (mine.data?.approvals ?? []) : [];
+  const lastViewed = useMemo(() => {
+    const onTab = new Set([...assigned, ...approvals].map((t) => t.key));
+    return readLastViewed(me?.user.id).filter((row) => !onTab.has(row.key));
+  }, [me?.user.id, assigned, approvals, mine.dataUpdatedAt, params.get('task')]);
   const buckets = useMemo(
     () =>
       prefs.sort === 'due'

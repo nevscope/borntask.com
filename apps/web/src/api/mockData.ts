@@ -115,6 +115,7 @@ function seed(s: Seed, position: number): Task {
     reporterId: 'u_daniela',
     priority: 'medium',
     dueDate: null,
+    estimate: null,
     labels: [],
     position,
     subtaskCount: { done: 0, total: 0 },

@@ -9,7 +9,7 @@ import { badgesForTasks } from '../lib/githubBadge.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, planningMetaForProject, taskKey } from '../lib/loadProject.js';
 import { blockedTaskIds, createTaskLink, listTaskLinks, removeTaskLink } from '../lib/taskLinks.js';
 import { resolvePlanningParent } from '../lib/planning.js';
-import { mapUser, nextPosition } from '../lib/mappers.js';
+import { mapUsers, nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { enqueueTaskEventEmail } from '../lib/enqueueTaskEmail.js';
 import { moveTask } from '../lib/moveTask.js';
@@ -67,6 +67,7 @@ const updateTaskSchema = z
     assigneeId: z.string().nullable(),
     priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
     dueDate: z.string().nullable(),
+    estimate: z.string().trim().max(40).nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),
     planningParentId: z.string().nullable(),
@@ -127,7 +128,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       });
       return {
         tasks,
-        users: people.map(mapUser),
+        users: mapUsers(people),
         statuses: [...statusSeen.values()],
         sections: [...sectionSeen.values()],
         labels: [...labels].sort((a, b) => a.localeCompare(b, 'en-GB')),
@@ -555,6 +556,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           assigneeId: input.assigneeId === undefined ? undefined : input.assigneeId,
           priority: input.priority,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
+          estimate: input.estimate === undefined ? undefined : input.estimate?.trim() || null,
           sectionId: input.sectionId,
           planningParentId,
         },

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { useProject } from '../api/queries';
+import { useMe, useProject } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { color } from '../theme/tokens';
 
@@ -13,13 +13,14 @@ const projectLinks = (key: string) => [
   { to: `/p/${key}/settings/github`, label: 'GitHub' },
 ];
 
-const workspaceLinks = (canAdmin: boolean, isOwner: boolean) => [
+const workspaceLinks = (canAdmin: boolean, isOwner: boolean, canSeePeople: boolean, isPlatformAdmin: boolean) => [
   { to: '/settings/workspace', label: 'General', show: canAdmin },
   { to: '/settings/timesheets', label: 'Timesheets', show: canAdmin },
-  { to: '/settings/people', label: 'People and invitations', show: true },
+  { to: '/settings/people', label: 'People and invitations', show: canSeePeople },
   { to: '/settings/defaults', label: 'Roles, types and workflows', show: canAdmin },
   { to: '/settings/workflow', label: 'Workflow editor', show: canAdmin },
   { to: '/settings/billing', label: 'Billing', show: isOwner || canAdmin },
+  { to: '/settings/admin', label: 'Admin', show: isPlatformAdmin },
 ];
 
 const youLinks = [
@@ -33,12 +34,15 @@ export function SettingsNav({
   projectKey,
   canAdmin,
   isOwner,
+  canSeePeople = true,
 }: {
   projectKey?: string;
   canAdmin: boolean;
   isOwner?: boolean;
+  canSeePeople?: boolean;
 }) {
   const project = useProject(projectKey ?? '');
+  const isPlatformAdmin = Boolean(useMe().data?.isPlatformAdmin);
   const heading = project.data?.project.name ?? (projectKey ? 'This project' : undefined);
 
   return (
@@ -55,7 +59,7 @@ export function SettingsNav({
       ) : (
         <>
           <div className="bt-nav-heading">Workspace</div>
-          {workspaceLinks(canAdmin, !!isOwner).filter((l) => l.show).map((l) => (
+          {workspaceLinks(canAdmin, !!isOwner, canSeePeople, isPlatformAdmin).filter((l) => l.show).map((l) => (
             <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
               {l.label}
             </NavLink>
@@ -76,11 +80,13 @@ export function SettingsFrame({
   projectKey,
   canAdmin,
   isOwner,
+  canSeePeople = true,
   children,
 }: {
   projectKey?: string;
   canAdmin: boolean;
   isOwner?: boolean;
+  canSeePeople?: boolean;
   children: ReactNode;
 }) {
   const project = useProject(projectKey ?? '');
@@ -115,7 +121,7 @@ export function SettingsFrame({
         }}
       >
         <Link to={backTo} style={{ fontSize: 13, color: color.muted, textDecoration: 'none' }}>← Back to {backLabel}</Link>
-        <SettingsNav projectKey={projectKey} canAdmin={canAdmin} isOwner={isOwner} />
+        <SettingsNav projectKey={projectKey} canAdmin={canAdmin} isOwner={isOwner} canSeePeople={canSeePeople} />
       </div>
       <div style={{ flex: isPhone ? '1 1 auto' : '999 1 560px', minWidth: 0, width: isPhone ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 16 }}>{children}</div>
     </div>

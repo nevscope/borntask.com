@@ -119,9 +119,4 @@ export function withTenant<T extends object>(tenantId: string, data: T): T & { t
   return { ...data, tenantId };
 }
 
-export function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '?';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
-  return (first + last).toUpperCase();
-}
+export { initialsOf } from './lib/mappers.js';

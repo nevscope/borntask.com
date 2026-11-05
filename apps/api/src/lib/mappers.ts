@@ -1,6 +1,8 @@
 // Map DB rows to the web contract. Status ids in the contract are slugs so the
 // existing workflow helpers (on_hold, idea, approved) keep working.
 
+import { assignUniqueInitials, personInitials } from '@borntask/shared';
+
 type StatusTone = 'neutral' | 'indigo' | 'blue' | 'amber' | 'orange' | 'green' | 'slate';
 type StatusCategory = 'backlog' | 'active' | 'review' | 'done';
 const TONE_BY_SLUG: Record<string, StatusTone> = {
@@ -10,6 +12,7 @@ const TONE_BY_SLUG: Record<string, StatusTone> = {
   ready_for_testing: 'amber',
   testing: 'orange',
   deployed: 'green',
+  verified: 'green',
   on_hold: 'slate',
   rejected: 'slate',
   todo: 'neutral',
@@ -30,14 +33,16 @@ export function typeIsDisabled(raw: string | null | undefined, slug: string): bo
 }
 
 export function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '?';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
-  return (first + last).toUpperCase();
+  return personInitials(name);
 }
 
 export function mapUser(u: { id: string; name: string; email: string }) {
-  return { id: u.id, name: u.name, email: u.email, initials: initialsOf(u.name) };
+  return { id: u.id, name: u.name, email: u.email, initials: personInitials(u.name) };
+}
+
+export function mapUsers(users: { id: string; name: string; email: string }[]) {
+  const initials = assignUniqueInitials(users.map((u) => u.name));
+  return users.map((u, i) => ({ id: u.id, name: u.name, email: u.email, initials: initials[i] ?? personInitials(u.name) }));
 }
 
 export function statusTone(slug: string): StatusTone {
@@ -78,7 +83,7 @@ export function nextPosition(after: string | null): string {
   if (!after) return rankKey(0);
   if (/^\d+$/.test(after)) return String(BigInt(after) + 1n);
   const digits = after.match(/^a(\d+)$/);
-  if (digits) {
+  if (digits?.[1]) {
     const next = Number(digits[1]) + 1;
     if (String(next).length <= digits[1].length) {
       return `a${String(next).padStart(digits[1].length, '0')}`;

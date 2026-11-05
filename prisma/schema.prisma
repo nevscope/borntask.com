@@ -162,6 +162,7 @@ model User {
   oauthGrants   OAuthGrant[]
   savedViews    SavedView[]
   favourites    Favourite[]
+  projectOpens  ProjectOpen[]
   accessRequests AccessRequest[]
   inviteRequests InviteRequest[] @relation("InviteRequester")
   activities    ActivityLog[]
@@ -214,6 +215,7 @@ model Workspace {
   notifications    Notification[]
   savedViews       SavedView[]
   favourites       Favourite[]
+  projectOpens     ProjectOpen[]
   sections         Section[]
   labels           Label[]
   comments         Comment[]
@@ -340,6 +342,7 @@ model Project {
   labels       Label[]
   savedViews   SavedView[]
   favourites   Favourite[]
+  opens        ProjectOpen[]
   invitations  Invitation[]
   accessRequests AccessRequest[]
   importJobs   ImportJob[]
@@ -717,6 +720,21 @@ model Favourite {
   tenantId  String
   userId    String
   projectId String
+
+  tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([tenantId])
+}
+
+model ProjectOpen {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  projectId String
+  openedAt  DateTime @default(now())
 
   tenant  Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)

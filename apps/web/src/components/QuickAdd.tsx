@@ -7,7 +7,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type C
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCreateTask, useMe, useMoveTask, useProject, useProjectTasks, useProjects } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
-import type { BuiltinTaskType, Priority, ProjectRole, TaskType, User } from '../api/types';
+import type { BuiltinTaskType, Priority, Project, ProjectRole, TaskType, User } from '../api/types';
+import { readRecentProjectKeys } from '../lib/recentProjects';
 import { dueLabel } from '../lib/dates';
 import {
   mentionHandle,
@@ -92,6 +93,32 @@ function projectKeyFromPath(pathname: string) {
   return pathname.match(/^\/p\/([^/]+)/)?.[1];
 }
 
+function canWriteToProject(project: Project, viewer: boolean) {
+  if (viewer) return false;
+  if (project.pendingInvite) return false;
+  if (project.canOpen === false) return false;
+  if (project.archived) return false;
+  return true;
+}
+
+function defaultQuickAddProjectKey(input: {
+  optsKey?: string;
+  pathKey?: string;
+  recentKeys: string[];
+  projects: Project[];
+  viewer: boolean;
+}): string {
+  const writable = input.projects.filter((project) => canWriteToProject(project, input.viewer));
+  const known = (key: string | undefined) => !!key && writable.some((project) => project.key === key);
+  if (known(input.optsKey)) return input.optsKey!;
+  if (known(input.pathKey)) return input.pathKey!;
+  const lastViewed = input.recentKeys.find(known);
+  if (lastViewed) return lastViewed;
+  const favourite = writable.find((project) => project.starred);
+  if (favourite) return favourite.key;
+  return writable[0]?.key ?? '';
+}
+
 function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => void }) {
   const toast = useStatusToast();
   const navigate = useNavigate();
@@ -99,7 +126,16 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const { pathname } = useLocation();
   const me = useMe().data;
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
-  const [projectKey, setProjectKey] = useState(opts.projectKey ?? projectKeyFromPath(pathname) ?? '');
+  const viewer = me?.workspaceRole === 'viewer';
+  const workspaceId = me?.workspace.id;
+  const recentKeys = useMemo(() => (workspaceId ? readRecentProjectKeys(workspaceId) : []), [workspaceId]);
+  const [projectKey, setProjectKey] = useState(() => defaultQuickAddProjectKey({
+    optsKey: opts.projectKey,
+    pathKey: projectKeyFromPath(pathname),
+    recentKeys,
+    projects,
+    viewer,
+  }));
   const detail = useProject(projectKey).data;
   const projectTasks = useProjectTasks(projectKey).data ?? [];
   const [sectionId, setSectionId] = useState<string | undefined>(opts.sectionId);
@@ -129,11 +165,17 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
 
   useEffect(() => {
     if (!projects.length) return;
-    const known = (key: string | undefined) => !!key && projects.some((p) => p.key === key);
-    if (known(projectKey)) return;
-    const next = [opts.projectKey, projectKeyFromPath(pathname), projects[0]?.key].find(known);
+    const writable = projects.filter((project) => canWriteToProject(project, viewer));
+    if (writable.some((project) => project.key === projectKey)) return;
+    const next = defaultQuickAddProjectKey({
+      optsKey: opts.projectKey,
+      pathKey: projectKeyFromPath(pathname),
+      recentKeys,
+      projects,
+      viewer,
+    });
     if (next) setProjectKey(next);
-  }, [projects, projectKey, opts.projectKey, pathname]);
+  }, [projects, projectKey, opts.projectKey, pathname, recentKeys, viewer]);
 
   useEffect(() => {
     if (!detail) return;
@@ -695,7 +737,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
             Cancel {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 6 }}>Esc</kbd>}
           </Button>
           <Button type="primary" onClick={() => submit(false)} disabled={!parsed.title || descTooLong} loading={create.isPending || move.isPending} style={{ height: 36, fontSize: 13, fontWeight: 600 }}>
-            Create Task {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>↵</kbd>}
+            Create task {!isPhone && <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>↵</kbd>}
           </Button>
         </div>
       </div>

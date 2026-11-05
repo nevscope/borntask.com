@@ -16,6 +16,7 @@ import {
   type WorkspaceSettings,
 } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { NoAccess } from '../components/NoAccess';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -109,6 +110,7 @@ function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
   const me = useMe().data;
   const chatApp = useChatAppStatus();
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const canSeePeople = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
   const qc = useQueryClient();
   const [form] = Form.useForm();
   const [logoVersion, setLogoVersion] = useState(0);
@@ -352,7 +354,11 @@ function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
   );
 
   return (
-    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
+    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'} canSeePeople={canSeePeople}>
+      {me && !canAdmin ? (
+        <NoAccess kind="settings" message="Only a workspace owner or admin can open workspace settings." />
+      ) : (
+        <>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: '1 1 280px' }}>
           <h1 className="bt-h1">{page === 'timesheets' ? 'Timesheets' : 'Workspace'}</h1>
@@ -369,7 +375,6 @@ function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
           </div>
         )}
       </div>
-      {!canAdmin && <Alert type="warning" message="You can view this page, but only an owner or admin can save changes." />}
       {ws.error && <Alert type="error" showIcon message={ws.error.message} />}
       {saveError && <Alert type="error" showIcon message={saveError} />}
       <Form
@@ -922,6 +927,8 @@ function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
         <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} aria-label="Workspace name" />
       </ConfirmDialog>
       {unsaved}
+        </>
+      )}
     </SettingsFrame>
   );
 }

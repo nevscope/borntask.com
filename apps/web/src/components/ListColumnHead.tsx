@@ -56,7 +56,7 @@ export function ListColumnHead({
   const rows = (choices ?? []).filter((item) => !needle || item.label.toLowerCase().includes(needle));
 
   return (
-    <span ref={box} className={className} style={{ width, position: 'relative', flex: width ? 'none' : '1 1 220px', minWidth: width ? undefined : 220 }}>
+    <span ref={box} className={className} style={{ width, position: 'relative', flex: width ? 'none' : '1 1 220px', minWidth: width ?? 220 }}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

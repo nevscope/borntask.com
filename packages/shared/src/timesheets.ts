@@ -293,6 +293,22 @@ export function formatMixedTotals(minutes: number, percent: number): string {
   return timePart || pctPart || '-';
 }
 
+/** Workspace unit leads. Leftover hour rows stay labelled leftover, never silent hours in a % workspace. */
+export function formatWorkspaceTotals(
+  minutes: number,
+  percent: number,
+  workspaceUnit: 'time' | 'percent',
+  compact = false,
+): string {
+  if (workspaceUnit === 'percent') {
+    const leftover = minutes > 0 ? `${formatMinutes(minutes)}${compact ? ' h' : ' leftover'}` : '';
+    const pctPart = percent > 0 ? `${Math.round(percent)}%` : '';
+    if (leftover && pctPart) return `${leftover} + ${pctPart}`;
+    return leftover || pctPart || '-';
+  }
+  return formatMixedTotals(minutes, percent);
+}
+
 export function workingDatesInRange(input: {
   from: Date;
   to: Date;

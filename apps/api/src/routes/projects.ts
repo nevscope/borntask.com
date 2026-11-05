@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireAuth, type Authed } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
-import { loadProjectDetail, mapProjectCards, mapUser } from '../lib/loadProject.js';
+import { loadProjectDetail, mapProjectCards, mapUsers } from '../lib/loadProject.js';
 import { rankKey } from '../lib/mappers.js';
 import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
-import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
+import { acceptProjectInvite, joinOpenProject, recordProjectOpen } from '../lib/applyProjectInvite.js';
 import { hoursPerWeekToNumber, memberFillsTimesheets, normaliseProjectKey, parseOptionalWorkingDays, resolveProjectCreatePlan, workBreakdownSchema } from '@borntask/shared';
 import { ensurePlanningTypes } from '../lib/planning.js';
 import { inAppAllowed } from '../lib/notifyInApp.js';
@@ -103,6 +103,8 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         canOpen: canOpenListed(openIds, card.id) || invited.has(card.id),
         pendingInvite: invited.has(card.id),
         accessRequested: requested.has(card.id),
+        joined: card.joined === true,
+        opened: card.opened === true,
       }));
     } catch (err) {
       return sendError(reply, err);
@@ -114,11 +116,12 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
       const project = await requireOpenProject(auth, key);
+      await recordProjectOpen(auth.db, { tenantId: auth.tenantId, userId: auth.userId, projectId: project.id });
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
       const pendingInvite = Boolean(await findPendingProjectInvite(auth, project.id))
         && !(await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } }));
-      return { ...detail, project: { ...detail.project, pendingInvite } };
+      return { ...detail, project: { ...detail.project, pendingInvite, opened: true } };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -131,11 +134,17 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const project = await auth.db.project.findFirst({ where: { key } });
       if (!project) throw notFound('Project not found.');
       const invite = await findPendingProjectInvite(auth, project.id);
-      if (!invite) throw validation('There is no invitation for you on this project.');
-      await acceptProjectInvite(auth.db, { tenantId: auth.tenantId, userId: auth.userId, invite });
+      if (invite) {
+        await acceptProjectInvite(auth.db, { tenantId: auth.tenantId, userId: auth.userId, invite });
+      } else if (auth.workspaceRole === 'owner') {
+        await joinOpenProject(auth.db, { tenantId: auth.tenantId, userId: auth.userId, projectId: project.id });
+      } else {
+        throw validation('There is no invitation for you on this project.');
+      }
+      await recordProjectOpen(auth.db, { tenantId: auth.tenantId, userId: auth.userId, projectId: project.id });
       const detail = await loadProjectDetail(auth.db, key, auth.userId);
       if (!detail) throw notFound('Project not found.');
-      return { ...detail, project: { ...detail.project, pendingInvite: false } };
+      return { ...detail, project: { ...detail.project, pendingInvite: false, joined: true, opened: true } };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -602,7 +611,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
   app.get('/people', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      if (auth.workspaceRole === 'guest') throw forbidden();
+      if (auth.workspaceRole === 'guest' || auth.workspaceRole === 'viewer') throw forbidden();
       const members = await auth.db.tenantMember.findMany({ where: { isActive: true } });
       const users = await prisma.user.findMany({ where: { id: { in: members.map((m) => m.userId) } } });
       const openIds = await openProjectIds(auth);
@@ -624,10 +633,14 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         ids.push(row.projectId);
         projectIdsByUser.set(row.userId, ids);
       }
-      return members.map((m) => {
+      const mapped = mapUsers(members.map((m) => {
+        const u = users.find((x) => x.id === m.userId);
+        return u ?? { id: m.userId, name: 'Unknown', email: '' };
+      }));
+      return members.map((m, i) => {
         const u = users.find((x) => x.id === m.userId);
         return {
-          ...mapUser(u ?? { id: m.userId, name: 'Unknown', email: '' }),
+          ...mapped[i]!,
           workspaceRole: m.tenantRole,
           signsInWith:
             u?.authProvider === 'microsoft'
@@ -636,7 +649,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
                 ? 'Google'
                 : u?.authProvider === 'email'
                   ? 'Email'
-                  : '-',
+                  : 'Developer sign-in',
           workingDays: parseOptionalWorkingDays(m.workingDays),
           hoursPerWeek: hoursPerWeekToNumber(m.hoursPerWeek),
           holidayCountry: m.holidayCountry,

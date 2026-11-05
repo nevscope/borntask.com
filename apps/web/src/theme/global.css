@@ -57,6 +57,18 @@ a { color: var(--bt-brand-strong); }
 .bt-sidebar.is-collapsed .bt-project-star { display: none; }
 .bt-nav-link:hover { background: var(--bt-subtle); }
 .bt-nav-link.active { background: var(--bt-brand-tint); color: var(--bt-brand-strong); font-weight: 600; }
+/* Ant Design's focus ring is a 3px outline with a transition. In Chrome that
+   transition draws a square and ignores border-radius, so a focused nav item
+   or button looks like it has a stray border. */
+#root a:focus-visible,
+#root button:focus-visible,
+.ant-popover button:focus-visible,
+.ant-dropdown button:focus-visible,
+.ant-modal button:focus-visible {
+  outline: 2px solid var(--bt-brand);
+  outline-offset: 0;
+  transition: none;
+}
 .bt-nav-heading { padding: 18px 10px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bt-muted); }
 
 .bt-h1 { margin: 0; font-family: var(--bt-display); font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
@@ -72,15 +84,13 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-row:hover { background: var(--bt-subtle); }
 .bt-row.drop-before,
 .bt-group-head.drop-before { box-shadow: inset 0 2px 0 var(--bt-brand); }
-.bt-list-card { container-type: inline-size; container-name: list; }
+.bt-list-card { overflow-x: auto; }
+.bt-list-table { min-width: 1120px; }
 .bt-list-head { flex-wrap: nowrap; }
+.bt-list-table .bt-row { flex-wrap: nowrap; }
+.bt-list-field { flex: none; min-width: 0; }
+.bt-col-due, .bt-col-priority { flex: none; }
 .bt-title-cluster { flex: 1 1 220px; min-width: 220px; position: relative; display: flex; align-items: center; gap: 4px; }
-@container list (max-width: 1100px) {
-  .bt-col-priority { display: none; }
-}
-@container list (max-width: 980px) {
-  .bt-col-due { display: none; }
-}
 .bt-title-cluster .bt-row-title { flex: 1 1 auto; max-width: 100%; }
 .bt-row-actions {
   position: absolute;
@@ -227,6 +237,11 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 
 .ant-drawer-content,
 .ant-drawer-body { overflow-x: hidden; }
+.bt-task-drawer-desktop { pointer-events: none; }
+.bt-task-drawer-desktop .ant-drawer-content-wrapper {
+  width: 600px;
+  pointer-events: auto;
+}
 .bt-task-fields {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr);
@@ -325,6 +340,26 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   opacity: 0.82;
 }
 
+.bt-timesheet-week {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+.bt-timesheet-week::-webkit-scrollbar { height: 10px; }
+.bt-timesheet-week::-webkit-scrollbar-thumb {
+  background: var(--bt-ink3);
+  border-radius: 999px;
+}
+.bt-timesheet-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bt-surface);
+  box-shadow: 8px 0 12px -12px var(--bt-shadow);
+}
+.bt-timesheet-sticky.is-foot { background: var(--bt-subtle); }
+
 .bt-desktop-search { display: flex; flex: 1 1 auto; max-width: 520px; min-width: 0; }
 .bt-desktop-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; margin-left: auto; }
 .bt-phone-title,
@@ -335,7 +370,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 @media (max-width: 767px) {
   .bt-sidebar,
   .bt-sidebar.is-collapsed { display: none; }
-  .bt-page { padding: 16px; }
+  .bt-page { padding: 16px; min-width: 0; }
   .bt-topbar { min-height: 56px; padding: 8px 12px; gap: 8px; }
   .bt-desktop-search,
   .bt-desktop-actions { display: none; }
@@ -395,13 +430,47 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
     cursor: pointer;
   }
   .bt-phone-tab.active { color: var(--bt-brand-strong); font-weight: 600; }
+  .bt-shell.task-open .bt-phone-tabs,
+  .bt-shell.task-open .bt-fab { display: none; }
+  .bt-task-drawer .ant-drawer-content,
+  .bt-task-drawer .ant-drawer-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  .bt-task-drawer .ant-drawer-body > * {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .bt-phone-move-bar {
+    position: relative;
+    z-index: 1;
+    flex: none;
+  }
   .bt-board.is-phone {
     flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     padding-bottom: 0;
   }
+  .bt-board-phone-strip {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
   .bt-board.is-phone .bt-column {
     width: 100%;
+    min-width: 0;
     min-height: 280px;
   }
   .bt-fab {

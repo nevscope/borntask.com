@@ -1,28 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { useMe } from '../api/queries';
-import type { User, WorkspaceRole } from '../api/types';
+import { NoAccess } from '../components/NoAccess';
 import { SettingsFrame } from '../components/SettingsNav';
 import { color, font } from '../theme/tokens';
-
-type Person = User & { workspaceRole: WorkspaceRole };
 
 export function AdminBillingScreen() {
   const me = useMe().data;
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
-  const people = useQuery({
-    queryKey: ['people'],
+  const canSeePeople = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
+  const billing = useQuery({
+    queryKey: ['billing'],
+    enabled: canAdmin,
     queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/people`, { credentials: 'include' });
-      if (!res.ok) return [] as Person[];
-      return (await res.json()) as Person[];
+      const res = await fetch(`${BASE_URL}/billing`, { credentials: 'include' });
+      if (!res.ok) throw new Error('You cannot open billing.');
+      return (await res.json()) as { paid: number; guests: number };
     },
   });
-  const paid = (people.data ?? []).filter((p) => p.workspaceRole !== 'guest').length;
-  const guests = (people.data ?? []).filter((p) => p.workspaceRole === 'guest').length;
+  const paid = billing.data?.paid ?? 0;
+  const guests = billing.data?.guests ?? 0;
 
   return (
-    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
+    <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'} canSeePeople={canSeePeople}>
+      {me && !canAdmin ? (
+        <NoAccess kind="settings" message="Only a workspace owner or admin can open billing." />
+      ) : (
+        <>
       <h1 className="bt-h1">Billing</h1>
       <p style={{ color: color.muted, margin: '6px 0 0' }}>Visible to workspace owners and admins. Card collection is not connected yet.</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'stretch' }}>
@@ -52,6 +56,8 @@ export function AdminBillingScreen() {
           <p style={{ margin: 0, fontSize: 13, color: color.muted }}>A payment card is not on file. Seat counts above are live; invoicing ships with the billing provider.</p>
         </section>
       </div>
+        </>
+      )}
     </SettingsFrame>
   );
 }

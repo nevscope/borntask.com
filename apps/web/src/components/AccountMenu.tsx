@@ -5,6 +5,7 @@ import { BASE_URL } from '../api/http';
 import type { Me } from '../api/types';
 import { color } from '../theme/tokens';
 import { Avatar, NewFeatureTag } from './Chips';
+import { hasSeenNewFeature } from '../lib/newFeatureSeen';
 
 export function AccountMenu({
   me,
@@ -39,13 +40,13 @@ export function AccountMenu({
       {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
         <MenuLink phone={phone} onClick={() => go('/timesheets')}>
           <span style={{ flex: 1 }}>Timesheets</span>
-          <NewFeatureTag />
+          {!hasSeenNewFeature(me?.user.id, 'timesheets') && <NewFeatureTag />}
         </MenuLink>
       )}
       {me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer' && (
         <MenuLink phone={phone} onClick={() => go('/reports')}>
           <span style={{ flex: 1 }}>Reports</span>
-          <NewFeatureTag />
+          {!hasSeenNewFeature(me?.user.id, 'reports') && <NewFeatureTag />}
         </MenuLink>
       )}
       <MenuLink phone={phone} onClick={() => go('/settings/profile')}>Profile and notifications</MenuLink>

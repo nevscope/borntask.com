@@ -31,6 +31,7 @@ import { ProjectStructureScreen } from './screens/ProjectStructureScreen';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { WorkspaceGeneralScreen, WorkspaceTimesheetsSettingsScreen } from './screens/WorkspaceGeneralScreen';
 import { AdminBillingScreen } from './screens/AdminBillingScreen';
+import { PlatformAdminScreen } from './screens/PlatformAdminScreen';
 import { WorkspaceReportsScreen } from './screens/WorkspaceReportsScreen';
 import { ApiTokensScreen } from './screens/ApiTokensScreen';
 import { GitHubSettingsScreen } from './screens/GitHubSettingsScreen';
@@ -116,6 +117,7 @@ function Shell() {
         <Route path="/settings/workspace" element={<WorkspaceGeneralScreen />} />
         <Route path="/settings/timesheets" element={<WorkspaceTimesheetsSettingsScreen />} />
         <Route path="/settings/billing" element={<AdminBillingScreen />} />
+        <Route path="/settings/admin" element={<PlatformAdminScreen />} />
         <Route path="/settings/reports" element={<Navigate to="/reports" replace />} />
         <Route path="/settings/profile" element={<ProfileSettingsScreen />} />
         <Route path="/settings/tokens" element={<ApiTokensScreen />} />

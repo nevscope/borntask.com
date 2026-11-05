@@ -155,7 +155,7 @@ export function WorkingPatternFields({
             disabled={disabled}
             allowClear
             value={holidayCountry ?? undefined}
-            placeholder={workspaceHolidayCountry ? `Default (${holidayCountryName(workspaceHolidayCountry)})` : 'Everyone only'}
+            placeholder={workspaceHolidayCountry ? `Workspace default (${holidayCountryName(workspaceHolidayCountry)})` : 'None - only Everyone holidays'}
             aria-label="Holiday country"
             style={{ width: '100%' }}
             options={holidayCountryOptions().map((row) => ({ value: row.code, label: row.name }))}

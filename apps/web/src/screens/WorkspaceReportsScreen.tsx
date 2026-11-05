@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { color, font } from '../theme/tokens';
-import { expectedDays, formatMinutes, holidayDatesForCountry, parseTimeToMinutes, parseWorkingDays, parseYmd, utcDay } from '@borntask/shared';
+import { expectedDays, formatMinutes, holidayDatesForCountry, parseTimeToMinutes, parseWorkingDays, parseYmd, personInitials, utcDay } from '@borntask/shared';
 
 type SheetView = 'time' | 'percent';
 
@@ -129,7 +129,62 @@ function formatRangeCopy(from: string, to: string, working: number, holidays: { 
       : holidays.length === 1
         ? `after subtracting ${holidays[0]!.name}`
         : `after subtracting ${holidays.length} public holidays`;
-  return `${dates} · ${working} expected working days so far (${hol}; days off come off each person) · times in ${tz}`;
+  const dayWord = working === 1 ? 'day' : 'days';
+  return {
+    dates,
+    detail: `${working} expected working ${dayWord} so far (${hol}; days off come off each person). Times in ${tz}.`,
+  };
+}
+
+function RangeLine({
+  from,
+  to,
+  working,
+  holidays,
+  timeZone,
+}: {
+  from: string;
+  to: string;
+  working: number;
+  holidays: { name: string }[];
+  timeZone: string;
+}) {
+  const copy = formatRangeCopy(from, to, working, holidays, timeZone);
+  return (
+    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: color.muted }}>
+      <span style={{ color: color.ink2, fontWeight: 500 }}>{copy.dates}</span>
+      <span style={{ display: 'block', marginTop: 2 }}>{copy.detail}</span>
+    </p>
+  );
+}
+
+function CreatedClosedChart({ weeks }: { weeks: WorkspaceReports['tasks']['weekly'] }) {
+  const peak = Math.max(1, ...weeks.flatMap((week) => [week.opened, week.closed]));
+  return (
+    <section className="bt-card" style={{ padding: '14px 16px 16px' }} aria-label="Created and closed by week">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+        <h3 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>Created and closed</h3>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: color.ink3 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: color.ink }} /> Created
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: color.ink3 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: color.brandFill }} /> Closed
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', overflowX: 'auto', minHeight: 140 }}>
+        {weeks.map((week) => (
+          <div key={week.week} style={{ position: 'relative', flex: '1 0 56px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }} aria-hidden="true">
+              <span title={`${week.opened} created`} style={{ width: 14, height: `${Math.round((week.opened / peak) * 96)}px`, minHeight: week.opened ? 4 : 0, borderRadius: 3, background: color.ink }} />
+              <span title={`${week.closed} closed`} style={{ width: 14, height: `${Math.round((week.closed / peak) * 96)}px`, minHeight: week.closed ? 4 : 0, borderRadius: 3, background: color.brandFill }} />
+            </div>
+            <span style={{ fontSize: 12, color: color.muted }}>{week.label}</span>
+            <span className="bt-sr" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>{week.label}: {week.opened} created, {week.closed} closed</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function Tile({
@@ -164,7 +219,7 @@ function CssBar({ pct, fill, height = 6 }: { pct: number; fill: string; height?:
 }
 
 function initialsOf(name: string, fallback: string) {
-  return fallback || name.split(/\s+/).map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase();
+  return fallback || personInitials(name);
 }
 
 export function WorkspaceReportsScreen() {
@@ -200,18 +255,18 @@ export function WorkspaceReportsScreen() {
 
   return (
     <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 }}>
-        <div style={{ flex: '1 1 300px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
           <h1 className="bt-h1">Reports</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: color.muted }}>
+          <p style={{ margin: '8px 0 0', maxWidth: 560, fontSize: 13.5, lineHeight: 1.45, color: color.muted }}>
             {selfOnly
               ? 'Your assigned tasks and your time only. Trash excluded.'
               : 'Everyone\'s tasks and time. Trash excluded. Members see only their own numbers.'}
           </p>
         </div>
         {canSeeReports && (
-          <>
-            <div role="group" aria-label="Period" style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', padding: 3, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, rowGap: 10 }}>
+            <div role="group" aria-label="Period" style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', padding: 4, gap: 2, border: `1px solid ${color.border}`, borderRadius: 9, background: color.surface }}>
               {PERIODS.map((p) => {
                 const on = period === p.id;
                 return (
@@ -221,8 +276,8 @@ export function WorkspaceReportsScreen() {
                     aria-pressed={on}
                     onClick={() => setPeriod(p.id)}
                     style={{
-                      height: 30,
-                      padding: '0 12px',
+                      height: 32,
+                      padding: '0 14px',
                       border: 0,
                       borderRadius: 6,
                       background: on ? color.brandFill : 'transparent',
@@ -249,19 +304,19 @@ export function WorkspaceReportsScreen() {
                 allowClear={false}
               />
             )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: color.ink2 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 4, fontSize: 13, color: color.ink2 }}>
               Project
               <Select
                 value={projectId ?? 'all'}
                 onChange={(v) => setProjectId(v === 'all' ? undefined : v)}
-                style={{ minWidth: 180 }}
+                style={{ minWidth: 200 }}
                 options={[
                   { value: 'all', label: 'All projects' },
                   ...(projects.data ?? []).map((p) => ({ value: p.id, label: p.name })),
                 ]}
               />
             </label>
-          </>
+          </div>
         )}
       </div>
 
@@ -317,9 +372,7 @@ function ReportsBody({
   const timesheetsNotStarted = workingDaysSoFar === 0 && (ts.people.length === 0 || ts.people.every((p) => p.expected === 0));
   return (
     <>
-      <p style={{ margin: '-4px 0 0', fontSize: 12.5, color: color.muted }}>
-        {formatRangeCopy(data.range.from, data.range.to, workingDaysSoFar, data.holidays, timeZone)}
-      </p>
+      <RangeLine from={data.range.from} to={data.range.to} working={workingDaysSoFar} holidays={data.holidays} timeZone={timeZone} />
 
       <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Tasks</h2>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -333,6 +386,8 @@ function ReportsBody({
         <Tile label="Time to close" value={t.closeDays} hint={closeTileHint(t.closeHint, projectFiltered)} />
         <Tile label="Time to start" value={t.startDays} hint={t.startHint} />
       </div>
+
+      {(t.weekly?.length ?? 0) > 0 && <CreatedClosedChart weeks={t.weekly} />}
 
       <section className="bt-card" style={{ padding: 0, overflowX: 'auto' }}>
         <div style={{ minWidth: 760 }}>

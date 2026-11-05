@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
+import { ensureVerifiedStage } from './ensureVerified.js';
 
 const prisma = new PrismaClient();
 
@@ -139,7 +140,8 @@ async function seedDelivery(tenantId: string, roleIds: Record<string, string>) {
     { slug: 'wip', name: 'WIP', category: 'active', position: 2 },
     { slug: 'ready_for_testing', name: 'Ready for testing', category: 'review', position: 3 },
     { slug: 'testing', name: 'Testing', category: 'review', position: 4 },
-    { slug: 'deployed', name: 'Deployed', category: 'done', position: 5 },
+    { slug: 'deployed', name: 'Deployed', category: 'review', position: 5 },
+    { slug: 'verified', name: 'Verified', category: 'done', position: 6 },
     { slug: 'on_hold', name: 'On hold', category: 'backlog', position: 90 },
     { slug: 'rejected', name: 'Rejected', category: 'done', position: 91 },
   ];
@@ -164,6 +166,8 @@ async function seedDelivery(tenantId: string, roleIds: Record<string, string>) {
     { from: 'ready_for_testing', to: 'testing', roles: tes },
     { from: 'testing', to: 'deployed', roles: tes, label: 'Pass' },
     { from: 'testing', to: 'wip', roles: tes, requireComment: true, label: 'Fail' },
+    { from: 'deployed', to: 'verified', roles: tes, label: 'Checked on live' },
+    { from: 'deployed', to: 'wip', roles: tes, requireComment: true, label: 'Reopen' },
     { from: 'idea', to: 'on_hold', roles: any },
     { from: 'approved', to: 'on_hold', roles: any },
     { from: 'wip', to: 'on_hold', roles: any },
@@ -241,6 +245,7 @@ async function main() {
     ownerEmail: 'owner@acme.test',
     ownerName: 'Acme Owner',
   });
+  await ensureVerifiedStage();
   console.log('Seeded workspaces: internal (is_internal), acme; Delivery + Simple workflows; roles; types.');
 }
 

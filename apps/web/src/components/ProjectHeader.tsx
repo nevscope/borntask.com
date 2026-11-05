@@ -13,12 +13,14 @@ import { ProjectStar } from './ProjectStar';
 import { projectViewSearch } from './ProjectViewBar';
 import { useStatusToast } from './StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
+import { assignUniqueInitials } from '@borntask/shared';
 
 export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const { project } = detail;
   const listed = useProjects().data?.find((p) => p.key === project.key);
   const starred = listed?.starred ?? project.starred;
   const people = detail.members.map((m) => detail.users.find((u) => u.id === m.userId)).filter((u) => !!u);
+  const peopleInitials = assignUniqueInitials(people.map((u) => u.name));
   const [params] = useSearchParams();
   const search = projectViewSearch(params);
   const navigate = useNavigate();
@@ -83,6 +85,8 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
 
   const accept = useAcceptProjectInvite();
   const pendingInvite = Boolean(project.pendingInvite || listed?.pendingInvite);
+  const joined = listed?.joined ?? project.joined;
+  const showJoin = pendingInvite || (me?.workspaceRole === 'owner' && joined === false);
   const isPhone = useIsPhone();
   const views = (['list', 'board', 'trash', 'members', 'structure'] as const);
   const phoneViews = (['list', 'board'] as const);
@@ -90,9 +94,13 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {pendingInvite && (
+      {showJoin && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: radius.md, background: color.brandTint, color: color.ink }}>
-          <span style={{ flex: 1, fontSize: 13.5 }}>You have been invited to this project. Join to add and change tasks.</span>
+          <span style={{ flex: 1, fontSize: 13.5 }}>
+            {pendingInvite
+              ? 'You have been invited to this project. Join to add and change tasks.'
+              : 'You can view this project. Join to add it to your projects.'}
+          </span>
           <button
             type="button"
             onClick={() => {
@@ -190,7 +198,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {people.map((u, i) => (
             <span key={u.id} style={{ marginLeft: i === 0 ? 0 : -8, borderRadius: '50%', border: `2px solid ${color.canvas}`, display: 'inline-flex' }}>
-              <Avatar user={u} size={28} />
+              <Avatar user={{ ...u, initials: peopleInitials[i] ?? u.initials }} size={28} />
             </span>
           ))}
           <InvitePeopleButton projectId={project.id} projectName={project.name} />

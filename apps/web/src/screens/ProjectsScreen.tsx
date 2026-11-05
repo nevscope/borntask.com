@@ -1,5 +1,5 @@
 import { Button, Empty, Segmented } from 'antd';
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
@@ -24,8 +24,25 @@ export function ProjectsScreen() {
   const acceptInvite = useAcceptProjectInvite();
   const role = useMe().data?.workspaceRole;
   const canCreate = role !== 'viewer' && role !== 'guest';
+  const canSelfJoin = role === 'owner';
   const listed = tab === 'archived' ? (USE_PROJECT_MOCKS ? [] : archived.data ?? []) : live.data ?? [];
-  const rows = [...listed].sort((a, b) => Number(b.starred) - Number(a.starred));
+  const byStar = (a: Project, b: Project) => Number(b.starred) - Number(a.starred);
+  const invited = listed.filter((p) => p.pendingInvite).sort(byStar);
+  const yours = listed.filter((p) => !p.pendingInvite && isYours(p)).sort(byStar);
+  const others = listed.filter((p) => !p.pendingInvite && !isYours(p)).sort(byStar);
+  const split = invited.length > 0 || others.length > 0;
+
+  const card = (p: Project) => (
+    <ProjectCard
+      key={p.id}
+      project={p}
+      onRequest={() => requestAccess.mutate(p.key)}
+      requesting={requestAccess.isPending && requestAccess.variables === p.key}
+      onJoin={() => acceptInvite.mutate(p.key)}
+      joining={acceptInvite.isPending && acceptInvite.variables === p.key}
+      canSelfJoin={canSelfJoin}
+    />
+  );
 
   return (
     <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
@@ -48,20 +65,29 @@ export function ProjectsScreen() {
           </>
         )}
       </div>
-      {rows.length === 0 ? (
+      {listed.length === 0 ? (
         <Empty description={tab === 'archived' ? 'No archived projects.' : 'No projects yet.'} />
+      ) : split ? (
+        <>
+          {invited.length > 0 && (
+            <ProjectGroup title="Invited" hint="Join these to add them to your projects.">
+              {invited.map(card)}
+            </ProjectGroup>
+          )}
+          {yours.length > 0 && (
+            <ProjectGroup title="Your projects">
+              {yours.map(card)}
+            </ProjectGroup>
+          )}
+          {others.length > 0 && (
+            <ProjectGroup title="Other projects" hint="Projects you have not opened or joined yet.">
+              {others.map(card)}
+            </ProjectGroup>
+          )}
+        </>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-          {rows.map((p) => (
-            <ProjectCard
-              key={p.id}
-              project={p}
-              onRequest={() => requestAccess.mutate(p.key)}
-              requesting={requestAccess.isPending && requestAccess.variables === p.key}
-              onJoin={() => acceptInvite.mutate(p.key)}
-              joining={acceptInvite.isPending && acceptInvite.variables === p.key}
-            />
-          ))}
+          {yours.map(card)}
         </div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12.5, color: color.muted }}>
@@ -74,8 +100,29 @@ export function ProjectsScreen() {
   );
 }
 
-function ProjectCard({ project: p, onRequest, requesting, onJoin, joining }: { project: Project; onRequest: () => void; requesting: boolean; onJoin: () => void; joining: boolean }) {
+function isYours(p: Project) {
+  if (p.joined === true || p.opened === true) return true;
+  if (p.joined === false) return false;
+  return p.canOpen !== false;
+}
+
+function ProjectGroup({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <h2 style={{ margin: 0, fontFamily: font.display, fontSize: 16, fontWeight: 600 }}>{title}</h2>
+        {hint && <p style={{ margin: '4px 0 0', fontSize: 12.5, color: color.muted }}>{hint}</p>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function ProjectCard({ project: p, onRequest, requesting, onJoin, joining, canSelfJoin }: { project: Project; onRequest: () => void; requesting: boolean; onJoin: () => void; joining: boolean; canSelfJoin: boolean }) {
   const locked = p.canOpen === false;
+  const showJoin = Boolean(p.pendingInvite) || (canSelfJoin && p.joined === false);
   const body = (
     <>
       <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -84,7 +131,7 @@ function ProjectCard({ project: p, onRequest, requesting, onJoin, joining }: { p
           <span style={{ display: 'block', fontWeight: 600, fontSize: 15 }}>{p.name}</span>
           <span style={{ display: 'block', fontSize: 12.5, color: color.muted }}>{p.leadName ? `Lead: ${p.leadName}` : 'No lead'}</span>
         </span>
-        {p.pendingInvite && (
+        {showJoin && (
           <button
             type="button"
             onClick={(event) => { event.preventDefault(); event.stopPropagation(); onJoin(); }}
@@ -132,7 +179,7 @@ function ProjectCard({ project: p, onRequest, requesting, onJoin, joining }: { p
     gap: 14,
     padding: 18,
     background: color.surface,
-    border: `1px solid ${color.border}`,
+    border: `1px solid ${showJoin ? color.brand : color.border}`,
     borderRadius: 12,
     color: color.ink,
     textDecoration: 'none',
