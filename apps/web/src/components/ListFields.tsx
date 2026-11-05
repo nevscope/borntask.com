@@ -22,7 +22,7 @@ export function CompleteTick({
   onComplete: (task: Task) => void;
   always?: boolean;
 }) {
-  const target = completeTarget(detail.workflow, task);
+  const target = completeTarget(detail.workflow, task, _roles);
   if (!target) return null;
   return (
     <button
@@ -76,7 +76,7 @@ export function ListFields({
     );
   }
 
-  const canComplete = Boolean(completeTarget(detail.workflow, task));
+  const canComplete = Boolean(completeTarget(detail.workflow, task, roles));
 
   if (compact) {
     return (

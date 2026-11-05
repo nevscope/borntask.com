@@ -111,7 +111,7 @@ export async function createTaskFromChat(
   const sectionId = await defaultSectionId(scoped, project.id);
   const last = await scoped.db.task.findFirst({ where: { projectId: project.id }, orderBy: { number: 'desc' } });
   const lastInSection = await scoped.db.task.findFirst({
-    where: { sectionId, deletedAt: null },
+    where: { sectionId, deletedAt: null, parentId: null },
     orderBy: { position: 'desc' },
   });
   const description = persistDescription(input.description);

@@ -402,7 +402,7 @@ const iconBtn: CSSProperties = {
   font: 'inherit',
 };
 
-function FilterBuilder({
+export function FilterBuilder({
   detail,
   labels,
   filters,

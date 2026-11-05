@@ -3,6 +3,7 @@ import {
   parseYmd,
   putDaysOffSchema,
   putTimesheetsSchema,
+  memberFillsTimesheets,
   resolveMemberWorkingDays,
   timesheetExpectedStart,
   timesheetRangeQuerySchema,
@@ -55,7 +56,7 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         }),
         holidaysInRange(auth, from, to),
         workspaceTimesheetSettings(auth),
-        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true, holidayCountry: true, timesheetsExempt: true } }),
+        auth.db.tenantMember.findFirst({ where: { userId }, select: { createdAt: true, workingDays: true, hoursPerWeek: true, holidayCountry: true, timesheetsExempt: true, tenantRole: true } }),
         userId === auth.userId
           ? Promise.resolve([])
           : auth.db.activityLog.findMany({
@@ -81,6 +82,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
         workingDays,
         hoursPerWeek: mapHoursPerWeek(member?.hoursPerWeek),
         timesheetsExempt: member?.timesheetsExempt ?? false,
+        fillsTimesheets: memberFillsTimesheets({
+          workspaceRole: member?.tenantRole,
+          timesheetsExempt: member?.timesheetsExempt ?? false,
+        }),
         holidayCountry,
         memberSince: member ? ymdOf(member.createdAt) : null,
         timesheetsStartOn: settings.timesheetsStartOn ? ymdOf(settings.timesheetsStartOn) : null,
@@ -122,8 +127,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const body = putTimesheetsSchema.parse(req.body);
       const userId = await resolveTimesheetWriteUserId(auth, body.userId);
       if (userId === auth.userId) {
-        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true } });
-        if (self?.timesheetsExempt) throw validation('You do not fill timesheets.');
+        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true, tenantRole: true } });
+        if (!memberFillsTimesheets({ workspaceRole: self?.tenantRole ?? auth.workspaceRole, timesheetsExempt: self?.timesheetsExempt })) {
+          throw validation('You do not fill timesheets.');
+        }
       }
       const settings = await workspaceTimesheetSettings(auth);
       const saved = [];
@@ -196,8 +203,10 @@ export const timesheetRoutes: FastifyPluginAsync = async (app) => {
       const body = putDaysOffSchema.parse(req.body);
       const userId = await resolveTimesheetWriteUserId(auth, body.userId);
       if (userId === auth.userId) {
-        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true } });
-        if (self?.timesheetsExempt) throw validation('You do not fill timesheets.');
+        const self = await auth.db.tenantMember.findFirst({ where: { userId }, select: { timesheetsExempt: true, tenantRole: true } });
+        if (!memberFillsTimesheets({ workspaceRole: self?.tenantRole ?? auth.workspaceRole, timesheetsExempt: self?.timesheetsExempt })) {
+          throw validation('You do not fill timesheets.');
+        }
       }
       const settings = await workspaceTimesheetSettings(auth);
       const holidayRows = await auth.db.workspaceHoliday.findMany();

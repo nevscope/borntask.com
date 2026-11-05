@@ -8,7 +8,7 @@ import { actorName, enqueueChat, enqueuePersonalChat, taskUrl, userName } from '
 import { badgesForTasks } from '../lib/githubBadge.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, planningMetaForProject, taskKey } from '../lib/loadProject.js';
 import { resolvePlanningParent } from '../lib/planning.js';
-import { nextPosition } from '../lib/mappers.js';
+import { mapUser, nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { enqueueTaskEventEmail } from '../lib/enqueueTaskEmail.js';
 import { moveTask } from '../lib/moveTask.js';
@@ -78,6 +78,63 @@ function trashCutoff(): Date {
 }
 
 export const taskRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/workspace/tasks', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const openIds = await openProjectIds(auth);
+      if (openIds && openIds.size === 0) {
+        return { tasks: [], users: [], statuses: [], sections: [], labels: [] };
+      }
+      const rows = await auth.db.task.findMany({
+        where: {
+          deletedAt: null,
+          parentId: null,
+          ...(openIds ? { projectId: { in: [...openIds] } } : {}),
+        },
+        include: {
+          type: true,
+          status: true,
+          previousStatus: true,
+          section: true,
+          project: true,
+          labels: { include: { label: true } },
+          subtasks: { where: { deletedAt: null } },
+          attachments: { select: { id: true } },
+          comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+          _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 2500,
+      });
+      const userIds = [...new Set(rows.flatMap((row) => [row.assigneeId, row.reporterId].filter((id): id is string => Boolean(id))))];
+      const people = userIds.length ? await prisma.user.findMany({ where: { id: { in: userIds } } }) : [];
+      const statusSeen = new Map<string, { id: string; name: string; category: 'backlog' | 'active' | 'review' | 'done' }>();
+      const sectionSeen = new Map<string, { id: string; name: string; hidden?: boolean }>();
+      const labels = new Set<string>();
+      const tasks = rows.map((row) => {
+        const category = row.status.category;
+        const safeCategory = category === 'backlog' || category === 'active' || category === 'review' || category === 'done' ? category : 'active';
+        statusSeen.set(row.status.slug, { id: row.status.slug, name: row.status.name, category: safeCategory });
+        sectionSeen.set(row.sectionId, { id: row.sectionId, name: row.section?.name ?? 'No section', hidden: row.section?.hidden ?? undefined });
+        for (const tag of row.labels) labels.add(tag.label.name);
+        return {
+          ...mapTask(row),
+          statusName: row.status.name,
+          statusCategory: safeCategory,
+        };
+      });
+      return {
+        tasks,
+        users: people.map(mapUser),
+        statuses: [...statusSeen.values()],
+        sections: [...sectionSeen.values()],
+        labels: [...labels].sort((a, b) => a.localeCompare(b, 'en-GB')),
+      };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.get('/projects/:key/tasks', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
@@ -309,7 +366,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { number: 'desc' },
       });
       const lastInSection = await auth.db.task.findFirst({
-        where: { sectionId: input.sectionId, deletedAt: null },
+        where: { sectionId: input.sectionId, deletedAt: null, parentId: null },
         orderBy: { position: 'desc' },
       });
       const created = await auth.db.task.create({
@@ -608,7 +665,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { number: 'desc' },
       });
       const lastInSection = await auth.db.task.findFirst({
-        where: { sectionId: source.sectionId, deletedAt: null },
+        where: { sectionId: source.sectionId, deletedAt: null, parentId: null },
         orderBy: { position: 'desc' },
       });
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });

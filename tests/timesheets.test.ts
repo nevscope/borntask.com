@@ -6,6 +6,9 @@ import {
   dayOffKindSchema,
   clipTimesheetFrom,
   expectedDays,
+  lastEndedDayInZone,
+  memberFillsTimesheets,
+  calendarDayInZone,
   holidayDatesForCountry,
   resolveHolidayCountry,
   timesheetExpectedStart,
@@ -328,5 +331,42 @@ describe('closed and reopen', () => {
     expect(completedAtForMove('done')).toBeInstanceOf(Date);
     expect(completedAtForMove('active')).toBeNull();
     expect(completedAtForMove('review')).toBeNull();
+  });
+});
+
+describe('who fills timesheets', () => {
+  test('members and owners fill unless exempt; guests and viewers never fill', () => {
+    expect(memberFillsTimesheets({ workspaceRole: 'owner' })).toBe(true);
+    expect(memberFillsTimesheets({ workspaceRole: 'admin' })).toBe(true);
+    expect(memberFillsTimesheets({ workspaceRole: 'member' })).toBe(true);
+    expect(memberFillsTimesheets({ workspaceRole: 'member', timesheetsExempt: false })).toBe(true);
+    expect(memberFillsTimesheets({ workspaceRole: 'member', timesheetsExempt: true })).toBe(false);
+    expect(memberFillsTimesheets({ workspaceRole: 'owner', timesheetsExempt: true })).toBe(false);
+    expect(memberFillsTimesheets({ workspaceRole: 'guest' })).toBe(false);
+    expect(memberFillsTimesheets({ workspaceRole: 'viewer' })).toBe(false);
+    expect(memberFillsTimesheets({ workspaceRole: 'guest', timesheetsExempt: false })).toBe(false);
+  });
+});
+
+describe('missing days wait until the day has ended', () => {
+  test('workspace Europe/Malta: Thursday morning does not count Thursday', () => {
+    const now = new Date('2026-11-05T08:30:00.000Z');
+    expect(calendarDayInZone(now, 'Europe/Malta').toISOString().slice(0, 10)).toBe('2026-11-05');
+    expect(lastEndedDayInZone(now, 'Europe/Malta').toISOString().slice(0, 10)).toBe('2026-11-04');
+    expect(
+      expectedDays({
+        from: parseYmd('2026-11-01'),
+        to: parseYmd('2026-11-30'),
+        workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        today: lastEndedDayInZone(now, 'Europe/Malta'),
+      }),
+    ).toBe(3);
+  });
+
+  test('same instant uses the named zone, not UTC', () => {
+    const now = new Date('2026-11-05T00:30:00.000Z');
+    expect(lastEndedDayInZone(now, 'Europe/Malta').toISOString().slice(0, 10)).toBe('2026-11-04');
+    expect(lastEndedDayInZone(now, 'UTC').toISOString().slice(0, 10)).toBe('2026-11-04');
+    expect(lastEndedDayInZone(now, 'Pacific/Honolulu').toISOString().slice(0, 10)).toBe('2026-11-03');
   });
 });

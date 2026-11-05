@@ -31,8 +31,18 @@ export function ListColumnHead({
     const onDoc = (event: MouseEvent) => {
       if (!box.current?.contains(event.target as Node)) setOpen(false);
     };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onEscape, true);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onEscape, true);
+    };
   }, [open]);
 
   const apply = (values: string[], op: FilterCondition['op'] = field === 'title' ? 'contains' : 'any') => {
@@ -74,6 +84,11 @@ export function ListColumnHead({
             onChange={(event) => setQ(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && field === 'title') apply([q], 'contains');
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                setOpen(false);
+              }
             }}
             style={{ width: '100%', height: 32, marginBottom: 6, padding: '0 8px', border: `1px solid ${color.border}`, borderRadius: 8, font: 'inherit', fontSize: 13 }}
           />

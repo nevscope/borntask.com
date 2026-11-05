@@ -41,6 +41,7 @@ import { McpConsentScreen } from './screens/auth/McpConsentScreen';
 import { PublicLegalScreen } from './screens/auth/PublicLegalScreen';
 import { LegalSettingsScreen } from './screens/LegalSettingsScreen';
 import { TimesheetsScreen } from './screens/TimesheetsScreen';
+import { WorkspaceViewsScreen } from './screens/WorkspaceViewsScreen';
 
 const DEMO_SCREENS: Record<string, { path: string; task?: string; quickAdd?: boolean }> = {
   'my-tasks': { path: '/' },
@@ -102,6 +103,7 @@ function Shell() {
       <CommandPalette />
       <Routes>
         <Route path="/" element={<MyTasksScreen />} />
+        <Route path="/views" element={<WorkspaceViewsScreen />} />
         <Route path="/timesheets" element={<TimesheetsScreen />} />
         <Route path="/reports" element={<WorkspaceReportsScreen />} />
         <Route path="/search" element={<SearchScreen />} />

@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { shouldBlockUnsavedNav } from './unsavedNav';
 
 export function useUnsavedChanges(dirty: boolean) {
-  const blocker = useBlocker(dirty);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (
+    shouldBlockUnsavedNav(dirty, currentLocation, nextLocation)
+  ));
 
   useEffect(() => {
     if (!dirty) return;

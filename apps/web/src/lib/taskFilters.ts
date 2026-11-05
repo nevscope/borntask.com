@@ -1,6 +1,6 @@
 // One filter model for the project list and board. The URL holds the conditions.
 import dayjs from 'dayjs';
-import type { BuiltinProjectRole, BuiltinTaskType, Priority, ProjectDetail, Task } from '../api/types';
+import type { BuiltinProjectRole, BuiltinTaskType, Priority, Project, ProjectDetail, Task, WorkspaceTasks } from '../api/types';
 import { priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
 import { dueBucket, dueTone } from './dates';
 import { stripTags } from './descriptionHtml';
@@ -399,8 +399,16 @@ export function taskMatches(task: Task, filters: FilterCondition[], detail: Proj
   return filters.every((f) => {
     if (f.op !== 'empty' && f.values.length === 0) return true;
     if (f.field === 'type') return listHit([task.type], f.values, f.op);
-    if (f.field === 'status') return listHit([task.statusId], f.values, f.op);
-    if (f.field === 'category') return listHit([statusById(detail.workflow, task.statusId)?.category ?? ''], f.values, f.op);
+    if (f.field === 'status') {
+      const have = [task.statusId, task.statusName].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase());
+      if (f.values.length === 0) return true;
+      const hit = f.values.some((value) => have.includes(value.toLowerCase()));
+      return f.op === 'not' ? !hit : hit;
+    }
+    if (f.field === 'category') {
+      const category = task.statusCategory ?? statusById(detail.workflow, task.statusId)?.category ?? '';
+      return listHit([category], f.values, f.op);
+    }
     if (f.field === 'section') return listHit([task.sectionId], f.values, f.op);
     if (f.field === 'priority') return listHit([task.priority], f.values, f.op);
     if (f.field === 'label') return listHit(task.labels, f.values, f.op);
@@ -522,6 +530,194 @@ export function readSavedViews(workspaceId: string, projectKey: string): SavedVi
 
 export function writeSavedViews(workspaceId: string, projectKey: string, views: SavedView[]): void {
   localStorage.setItem(VIEW_KEY(workspaceId, projectKey), JSON.stringify(views));
+}
+
+export type WorkspaceGroup = 'project' | 'status' | 'assignee' | 'none';
+
+export type WorkspaceSavedView = {
+  id: string;
+  name: string;
+  group: WorkspaceGroup;
+  sort: SortBy;
+  filters: FilterCondition[];
+};
+
+export const WORKSPACE_PRESET_VIEWS: Array<Omit<WorkspaceSavedView, 'id'> & { id: string }> = [
+  {
+    id: 'ws-mine',
+    name: 'My work',
+    group: 'project',
+    sort: 'updated',
+    filters: [hideDone, { id: 'mine', field: 'assignee', op: 'is', values: ['me'] }],
+  },
+  {
+    id: 'ws-bugs',
+    name: 'Open bugs',
+    group: 'project',
+    sort: 'updated',
+    filters: [hideDone, { id: 'bugs', field: 'type', op: 'is', values: ['bug'] }],
+  },
+  {
+    id: 'ws-testing',
+    name: 'Waiting for testing',
+    group: 'status',
+    sort: 'updated',
+    filters: [hideDone, { id: 'review', field: 'category', op: 'is', values: ['review'] }],
+  },
+];
+
+function isWorkspaceGroup(value: string): value is WorkspaceGroup {
+  return value === 'project' || value === 'status' || value === 'assignee' || value === 'none';
+}
+
+export function readWorkspaceGroup(raw: string | null): WorkspaceGroup {
+  return raw && isWorkspaceGroup(raw) ? raw : 'project';
+}
+
+const WS_VIEW_KEY = (workspaceId: string) => `bt.views.ws.${workspaceId}`;
+
+function isWorkspaceSavedView(value: unknown): value is WorkspaceSavedView {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Partial<WorkspaceSavedView>;
+  return typeof row.id === 'string' && typeof row.name === 'string' && Array.isArray(row.filters)
+    && !!row.group && isWorkspaceGroup(row.group) && !!row.sort && isSort(row.sort);
+}
+
+export function readWorkspaceViews(workspaceId: string): WorkspaceSavedView[] {
+  try {
+    const raw = localStorage.getItem(WS_VIEW_KEY(workspaceId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isWorkspaceSavedView) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeWorkspaceViews(workspaceId: string, views: WorkspaceSavedView[]): void {
+  localStorage.setItem(WS_VIEW_KEY(workspaceId), JSON.stringify(views));
+}
+
+const LAST_WS_VIEW_KEY = (workspaceId: string) => `bt-last-workspace-view.${workspaceId}`;
+
+export type LastWorkspaceView = {
+  filters: FilterCondition[];
+  group: WorkspaceGroup;
+  sort: SortBy;
+  viewId: string | null;
+};
+
+export function readLastWorkspaceView(workspaceId: string): LastWorkspaceView | null {
+  try {
+    const raw = localStorage.getItem(LAST_WS_VIEW_KEY(workspaceId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const row = parsed as Partial<LastWorkspaceView>;
+    if (!Array.isArray(row.filters) || !row.group || !isWorkspaceGroup(row.group) || !row.sort || !isSort(row.sort)) return null;
+    return {
+      filters: row.filters.filter((item) => item && typeof item === 'object' && isField(item.field) && isOp(item.op) && Array.isArray(item.values)),
+      group: row.group,
+      sort: row.sort,
+      viewId: typeof row.viewId === 'string' ? row.viewId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastWorkspaceView(workspaceId: string, view: LastWorkspaceView): void {
+  localStorage.setItem(LAST_WS_VIEW_KEY(workspaceId), JSON.stringify(view));
+}
+
+export function workspaceFilterDetail(data: WorkspaceTasks, projects: Project[]): ProjectDetail {
+  const project = projects[0] ?? {
+    id: 'ws',
+    key: 'WS',
+    name: 'Workspace',
+    color: '',
+    leadId: '',
+    workflowId: '',
+    openCount: 0,
+    starred: false,
+    counts: { backlog: 0, active: 0, review: 0, done: 0 },
+  };
+  return {
+    project,
+    sections: data.sections.map((section, index) => ({
+      id: section.id,
+      projectKey: 'WS',
+      name: section.name,
+      position: index,
+      hidden: section.hidden,
+    })),
+    members: data.users.map((user) => ({ userId: user.id, roles: [] })),
+    users: data.users,
+    workflow: {
+      id: 'ws',
+      name: 'Workspace',
+      statuses: data.statuses.map((status, index) => ({
+        id: status.id,
+        name: status.name,
+        category: status.category,
+        tone: 'neutral',
+        position: index + 1,
+        wipLimit: null,
+        side: false,
+      })),
+      transitions: [],
+    },
+  };
+}
+
+export function groupWorkspaceTasks(
+  tasks: Task[],
+  group: WorkspaceGroup,
+  projects: Project[],
+  users: WorkspaceTasks['users'],
+): TaskGroup[] {
+  if (group === 'none') return [{ id: 'all', name: 'All tasks', tasks }];
+  if (group === 'project') {
+    const order: string[] = [];
+    const by = new Map<string, Task[]>();
+    for (const task of tasks) {
+      if (!by.has(task.projectKey)) {
+        by.set(task.projectKey, []);
+        order.push(task.projectKey);
+      }
+      by.get(task.projectKey)!.push(task);
+    }
+    return order.map((key) => ({
+      id: key,
+      name: projects.find((project) => project.key === key)?.name ?? key,
+      tasks: by.get(key)!,
+    }));
+  }
+  if (group === 'status') {
+    const order: string[] = [];
+    const by = new Map<string, { name: string; tasks: Task[] }>();
+    for (const task of tasks) {
+      const id = task.statusId;
+      if (!by.has(id)) {
+        by.set(id, { name: task.statusName ?? id, tasks: [] });
+        order.push(id);
+      }
+      by.get(id)!.tasks.push(task);
+    }
+    return order.map((id) => ({ id, name: by.get(id)!.name, tasks: by.get(id)!.tasks }));
+  }
+  const ids = [...new Set(tasks.map((task) => task.assigneeId ?? 'none'))];
+  return ids.map((id) => ({
+    id,
+    name: id === 'none' ? 'Unassigned' : users.find((user) => user.id === id)?.name ?? 'Unknown',
+    tasks: tasks.filter((task) => (task.assigneeId ?? 'none') === id),
+  }));
+}
+
+export function activeWorkspacePresetId(filters: FilterCondition[], viewId: string | null): string | null {
+  if (viewId && WORKSPACE_PRESET_VIEWS.some((preset) => preset.id === viewId)) return viewId;
+  if (viewId) return null;
+  return WORKSPACE_PRESET_VIEWS.find((preset) => sameFilters(filters, preset.filters))?.id ?? null;
 }
 
 const LAST_VIEW_KEY = 'bt-last-project-view';

@@ -58,7 +58,7 @@ export async function moveTaskToProject(
   let nextNumber = (last?.number ?? 0) + 1;
   const firstNumber = nextNumber;
   const lastInSection = await auth.db.task.findFirst({
-    where: { sectionId: section.id, deletedAt: null },
+    where: { sectionId: section.id, deletedAt: null, parentId: null },
     orderBy: { position: 'desc' },
   });
   let position = lastInSection?.position ?? null;

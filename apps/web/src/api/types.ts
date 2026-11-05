@@ -48,6 +48,7 @@ export const MeSchema = z.object({
   workspace: z.object({ id: z.string(), name: z.string(), slug: z.string().optional(), logo: z.boolean().optional() }),
   workspaceRole: WorkspaceRoleSchema,
   timesheetsExempt: z.boolean().optional(),
+  fillsTimesheets: z.boolean().optional(),
   host: z
     .object({
       kind: z.enum(['app', 'workspace']),
@@ -200,8 +201,27 @@ export const TaskSchema = z.object({
   planningParentKey: z.string().nullable().optional(),
   planningParentTitle: z.string().nullable().optional(),
   planningChildCount: z.object({ done: z.number().int(), total: z.number().int() }).optional(),
+  statusName: z.string().optional(),
+  statusCategory: StatusCategorySchema.optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
+
+export const WorkspaceTasksSchema = z.object({
+  tasks: z.array(TaskSchema),
+  users: z.array(UserSchema),
+  statuses: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    category: StatusCategorySchema,
+  })),
+  sections: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    hidden: z.boolean().optional(),
+  })),
+  labels: z.array(z.string()),
+});
+export type WorkspaceTasks = z.infer<typeof WorkspaceTasksSchema>;
 
 export const SubtaskSchema = z.object({
   id: z.string(),
@@ -432,6 +452,7 @@ export interface Api {
   getProject(key: string): Promise<ProjectDetail>; // GET /projects/:key
   listProjectTasks(key: string): Promise<Task[]>; // GET /projects/:key/tasks
   listMyTasks(): Promise<MyTasks>; // GET /me/tasks
+  listWorkspaceTasks(): Promise<WorkspaceTasks>; // GET /workspace/tasks
   search(q: string): Promise<SearchResponse>; // GET /search?q=
   getTask(key: string): Promise<TaskDetail>; // GET /tasks/:key
   createTask(input: CreateTaskInput): Promise<Task>; // POST /projects/:projectKey/tasks

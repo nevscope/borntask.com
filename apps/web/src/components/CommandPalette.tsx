@@ -39,6 +39,7 @@ export function CommandPalette() {
       { id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', hint: 'Q', kind: 'action' as const, run: () => quickAdd.open() },
       { id: 'new-project', label: 'New project', hint: '', kind: 'action' as const, run: () => navigate('/projects/new') },
       { id: 'my', label: 'Go to My tasks', hint: 'G then M', kind: 'action' as const, run: () => navigate('/') },
+      { id: 'views', label: 'Go to Views', hint: '', kind: 'action' as const, run: () => navigate('/views') },
       ...(canTimesheets ? [{ id: 'timesheets', label: 'Go to Timesheets', hint: '', kind: 'action' as const, run: () => navigate('/timesheets') }] : []),
       ...(canTimesheets ? [{ id: 'reports', label: 'Go to Reports', hint: '', kind: 'action' as const, run: () => navigate('/reports') }] : []),
       { id: 'board', label: 'Switch to board view', hint: 'V', kind: 'action' as const, run: () => { if (boardKey) navigate(`/p/${boardKey}/board`); } },

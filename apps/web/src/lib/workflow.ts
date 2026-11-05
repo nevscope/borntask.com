@@ -24,12 +24,30 @@ export function isOpenWorkflow(wf: Workflow): boolean {
   return wf.transitions.length > 0 && wf.transitions.every((row) => row.roles.length === 0);
 }
 
-/** Status to send a list-row complete click to, or null if the task is already finished. */
-export function completeTarget(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>): WorkflowStatus | null {
+/**
+ * List-row Completed target: the next legal move, never an override to Deployed.
+ * Hidden when Testing (or another review stage) sits on the path and Done is not allowed.
+ */
+export function completeTarget(
+  wf: Workflow,
+  task: Pick<Task, 'statusId' | 'previousStatusId'>,
+  myRoles: ProjectRole[] = [],
+): WorkflowStatus | null {
   const done = primaryDoneStatus(wf);
   const from = statusById(wf, task.statusId);
   if (!done || !from || from.id === done.id || from.category === 'done' || from.side) return null;
-  return done;
+  const toDone = checkMove(wf, task, done.id, myRoles);
+  if (toDone.kind === 'allowed' && !toDone.transition.requireComment) return done;
+  const hasReview = wf.statuses.some((status) => status.category === 'review' && !status.side);
+  if (hasReview) return null;
+  const next = wf.statuses
+    .filter((status) => !status.side && status.id !== from.id && status.position > from.position)
+    .sort((a, b) => a.position - b.position)
+    .find((status) => {
+      const check = checkMove(wf, task, status.id, myRoles);
+      return check.kind === 'allowed' && !check.transition.requireComment;
+    });
+  return next ?? null;
 }
 
 export function findTransition(wf: Workflow, task: Pick<Task, 'statusId' | 'previousStatusId'>, toId: string): Transition | null {

@@ -159,6 +159,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const phoneTitle = (() => {
     if (pathname === '/') return 'My tasks';
+    if (pathname.startsWith('/views')) return 'Views';
     if (pathname.startsWith('/timesheets')) return 'Timesheets';
     if (pathname.startsWith('/reports')) return 'Reports';
     if (pathname.startsWith('/search')) return 'Search';
@@ -291,6 +292,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="bt-nav-icon"><NavIcon kind="tasks" /></span>
           <span className="bt-sidebar-label" style={{ flex: 1 }}>My tasks</span>
           <span className="bt-sidebar-label" style={{ fontSize: 12, fontWeight: 600 }}>{myCount || ''}</span>
+        </NavLink>
+        <NavLink to="/views" className="bt-nav-link" title="Views">
+          <span className="bt-nav-icon"><NavIcon kind="views" /></span>
+          <span className="bt-sidebar-label">Views</span>
         </NavLink>
         {showTimesheetsNav && (
           <NavLink to="/timesheets" className="bt-nav-link" title="Timesheets">
@@ -513,9 +518,10 @@ function PhoneIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'plus' | 
   );
 }
 
-function NavIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'settings' | 'timesheets' | 'reports' }) {
+function NavIcon({ kind }: { kind: 'tasks' | 'views' | 'search' | 'projects' | 'settings' | 'timesheets' | 'reports' }) {
   const path = {
     tasks: 'M4 7.5h8M4 11h5.5M4.8 4.4 6.2 5.8 8.8 3.2',
+    views: 'M3.2 4.2h9.6v2.2H3.2zM3.2 7.6h9.6v2.2H3.2zM3.2 11h6.4v2.2H3.2z',
     search: 'M10.6 10.6 13.2 13.2M7.2 11.2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z',
     projects: 'M3.5 4.2h4.1v4.1H3.5zM8.4 4.2h4.1v4.1H8.4zM3.5 9.1h4.1v4.1H3.5zM8.4 9.1h4.1v4.1H8.4z',
     settings: 'M8 10.2A2.2 2.2 0 1 0 8 5.8a2.2 2.2 0 0 0 0 4.4zM8 2.6v1.4M8 12v1.4M3.8 4.4l1 1M11.2 10.6l1 1M2.6 8h1.4M12 8h1.4M3.8 11.6l1-1M11.2 5.4l1-1',

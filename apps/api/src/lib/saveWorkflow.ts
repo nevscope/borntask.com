@@ -1,3 +1,4 @@
+import { duplicateMoveIndexes } from '@borntask/shared';
 import type { Authed } from '../context.js';
 import { forbidden, notFound, validation } from '../errors.js';
 import { colourSchema } from './adminCatalog.js';
@@ -181,10 +182,14 @@ function parseColour(value: string | null | undefined): string | null {
 }
 
 async function replaceTransitions(auth: Authed, workflowId: string, transitions: TransitionInput[]) {
+  if (duplicateMoveIndexes(transitions).length) {
+    throw validation('That move is already listed.');
+  }
   const wf = await loadWorkflow(auth.db, workflowId);
   const roles = await auth.db.projectRole.findMany();
   const roleIdBySlug = Object.fromEntries(roles.map((r) => [r.slug, r.id]));
   await auth.db.workflowTransition.deleteMany({ where: { workflowId } });
+  const written = new Set<string>();
   for (const t of transitions) {
     const fromSlugs = t.from === '*'
       ? wf.statuses.filter((s) => s.category !== 'done' && s.id !== t.to).map((s) => s.id)
@@ -194,6 +199,9 @@ async function replaceTransitions(auth: Authed, workflowId: string, transitions:
     for (const fromSlug of fromSlugs) {
       const fromId = wf.statusIdBySlug[fromSlug];
       if (!fromId || fromId === toId) continue;
+      const pair = `${fromId}->${toId}`;
+      if (written.has(pair)) continue;
+      written.add(pair);
       await auth.db.workflowTransition.create({
         data: {
           tenantId: auth.tenantId,

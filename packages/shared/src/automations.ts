@@ -12,9 +12,13 @@ export const automationRuleSchema = z.object({
 export type AutomationRule = z.infer<typeof automationRuleSchema>;
 
 export const DEFAULT_AUTOMATION_TEMPLATES: AutomationRule[] = [
-  { onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: false },
+  { onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: true },
   { onStatusSlug: 'deployed', action: 'notify_role', roleSlug: 'business', enabled: false },
 ];
+
+export function noAssigneeActivity(roleSlug: string): string {
+  return roleSlug === 'tester' ? 'no tester to assign' : `no ${roleSlug} to assign`;
+}
 
 export function mergeDefaultAutomations(rows: AutomationRule[]): AutomationRule[] {
   const keyed = new Map(rows.map((row) => [`${row.onStatusSlug}:${row.action}`, row] as const));

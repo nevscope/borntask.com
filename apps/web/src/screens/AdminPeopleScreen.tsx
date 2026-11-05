@@ -28,6 +28,7 @@ type Person = User & {
   hoursPerWeek?: number | null;
   holidayCountry?: string | null;
   timesheetsExempt?: boolean;
+  fillsTimesheets?: boolean;
   projectIds?: string[];
 };
 type Invite = {
@@ -349,7 +350,7 @@ export function AdminPeopleScreen() {
                   holidayCountry={p.holidayCountry ?? null}
                   workspaceHolidayCountry={ws.data && 'defaultHolidayCountry' in ws.data ? ws.data.defaultHolidayCountry ?? null : null}
                   showHolidayCountry
-                  timesheetsExempt={p.timesheetsExempt ?? false}
+                  timesheetsExempt={p.timesheetsExempt ?? p.fillsTimesheets === false}
                   showTimesheetsExempt
                   disabled={!canAdmin}
                   onSave={(next) => savePattern.mutate({ userId: p.id, ...next })}
