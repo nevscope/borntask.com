@@ -112,6 +112,8 @@ export const api: Api = {
   deleteTask: (key) => tasksApi().deleteTask(key),
   restoreTask: (key) => tasksApi().restoreTask(key),
   setWatching: (key, watch) => tasksApi().setWatching(key, watch),
+  addTaskLink: (key, input) => tasksApi().addTaskLink(key, input),
+  removeTaskLink: (key, id) => tasksApi().removeTaskLink(key, id),
   listNotifications: async () => {
     if (!USE_MOCKS || !USE_TASK_MOCKS) {
       try {
@@ -579,6 +581,32 @@ export function useSetWatching() {
       void qc.invalidateQueries({ queryKey: qk.task(key) });
       void qc.invalidateQueries({ queryKey: qk.myTasks });
       void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
+    },
+  });
+}
+
+export function useAddTaskLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, type, otherKey }: { key: string; type: string; otherKey: string }) => api.addTaskLink(key, { type, otherKey }),
+    onSuccess: (link, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.task(link.key) });
+      void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKeyOf(key)) });
+      void qc.invalidateQueries({ queryKey: qk.projectTasks(link.projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
+    },
+  });
+}
+
+export function useRemoveTaskLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, id }: { key: string; id: string }) => api.removeTaskLink(key, id),
+    onSuccess: (_d, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKeyOf(key)) });
+      void qc.invalidateQueries({ queryKey: qk.myTasks });
     },
   });
 }

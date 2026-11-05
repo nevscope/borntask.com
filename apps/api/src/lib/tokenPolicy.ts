@@ -25,6 +25,8 @@ const WRITE_PATHS: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/subtasks$/ },
   { method: 'PATCH', pattern: /^\/tasks\/[^/]+\/subtasks\/[^/]+$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/watchers$/ },
+  { method: 'POST', pattern: /^\/tasks\/[^/]+\/links$/ },
+  { method: 'DELETE', pattern: /^\/tasks\/[^/]+\/links\/[^/]+$/ },
   { method: 'PUT', pattern: /^\/timesheets$/ },
 ];
 
@@ -40,6 +42,7 @@ export function tokenAllows(
       : { ok: false, message: 'This token cannot read that.' };
   }
   if (method === 'DELETE') {
+    if (scope === 'read_write' && /^\/tasks\/[^/]+\/links\/[^/]+$/.test(path)) return { ok: true };
     return { ok: false, message: 'Personal tokens and MCP cannot delete tasks.' };
   }
   if (scope === 'read') return { ok: false, message: 'This token is read only.' };

@@ -44,7 +44,8 @@ import { DescriptionEditor, type EmbeddedImage } from './DescriptionEditor';
 import { useMentionInvite } from './useMentionInvite';
 import { ConfirmDialog } from './ConfirmDialog';
 import { MoveToProjectDialog } from './MoveToProjectDialog';
-import { AddReactionIcon, Avatar, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, SeenReactionIcon, StatusPill, TypeTag, YesReactionIcon } from './Chips';
+import { AddReactionIcon, Avatar, BlockedMark, CelebrateReactionIcon, LikeReactionIcon, LoveReactionIcon, SeenReactionIcon, StatusPill, TypeTag, YesReactionIcon } from './Chips';
+import { TaskLinks } from './TaskLinks';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
@@ -605,6 +606,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               onMove={(statusId) => flow.requestMove(task, statusId)}
             />
             <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+            {task.isBlocked && <BlockedMark />}
           </div>
         )}
 
@@ -612,6 +614,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
             <StatusPill status={status} />
             <TypeTag type={task.type} />
+            {task.isBlocked && <BlockedMark />}
           </div>
         )}
       </div>
@@ -748,6 +751,8 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             />
           </div>
         </Section>
+
+        <TaskLinks task={task} readOnly={readOnly || inTrash} />
 
         <Subtasks task={task} detail={detail} readOnly={readOnly || inTrash} onDraftChange={setSubtaskDraft} />
         {(task.type === 'story' || task.type === 'epic') && (

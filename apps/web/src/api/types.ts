@@ -203,6 +203,7 @@ export const TaskSchema = z.object({
   planningChildCount: z.object({ done: z.number().int(), total: z.number().int() }).optional(),
   statusName: z.string().optional(),
   statusCategory: StatusCategorySchema.optional(),
+  isBlocked: z.boolean().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -222,6 +223,15 @@ export const WorkspaceTasksSchema = z.object({
   labels: z.array(z.string()),
 });
 export type WorkspaceTasks = z.infer<typeof WorkspaceTasksSchema>;
+
+export const TaskLinkSchema = z.object({
+  id: z.string(),
+  type: z.enum(['blocks', 'blocked_by', 'relates', 'duplicates', 'duplicated_by']),
+  key: z.string(),
+  title: z.string(),
+  projectKey: z.string(),
+});
+export type TaskLink = z.infer<typeof TaskLinkSchema>;
 
 export const SubtaskSchema = z.object({
   id: z.string(),
@@ -309,6 +319,7 @@ export const TaskDetailSchema = TaskSchema.extend({
   deletedAt: z.string().nullable().optional(),
   development: TaskDevelopmentSchema.optional(),
   planningChildren: z.array(z.object({ key: z.string(), title: z.string(), type: TaskTypeSchema })).optional(),
+  links: z.array(TaskLinkSchema).optional(),
 });
 
 export const SearchHitSchema = z.object({
@@ -472,6 +483,8 @@ export interface Api {
   deleteTask(key: string): Promise<void>; // DELETE /tasks/:key  (soft delete → Trash)
   restoreTask(key: string): Promise<Task>; // POST /tasks/:key/restore
   setWatching(key: string, watch: boolean): Promise<{ ok: boolean }>; // POST /tasks/:key/watchers
+  addTaskLink(key: string, input: { type: string; otherKey: string }): Promise<TaskLink>; // POST /tasks/:key/links
+  removeTaskLink(key: string, id: string): Promise<void>; // DELETE /tasks/:key/links/:id
   listNotifications(): Promise<NotificationList>; // GET /me/notifications
   markNotificationsRead(input: { id?: string; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
 }

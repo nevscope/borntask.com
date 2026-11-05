@@ -44,6 +44,7 @@ export const TENANT_SCOPED_MODELS = new Set<Prisma.ModelName>([
   'WorkspaceHoliday',
   'TimesheetEntry',
   'TimesheetDayOff',
+  'TaskLink',
 ]);
 
 function andTenant(where: unknown, tenantId: string): Record<string, unknown> {

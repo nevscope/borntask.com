@@ -4,7 +4,8 @@
 import dayjs from 'dayjs';
 import { ApiError } from './http';
 import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
-import { groupCommentReactions, isTaskDescriptionTooLong, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
+import { directedTaskLink, groupCommentReactions, isTaskBlocked, isTaskDescriptionTooLong, isTaskLinkRelation, TASK_DESCRIPTION_TOO_LONG, viewTaskLink } from '@borntask/shared';
+import type { TaskLink } from './types';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
@@ -124,6 +125,7 @@ function seed(s: Seed, position: number): Task {
     planningParentKey: null,
     planningParentTitle: null,
     planningChildCount: { done: 0, total: 0 },
+    isBlocked: false,
     createdAt: ago(240),
     updatedAt: ago(4),
     ...s,
@@ -324,10 +326,40 @@ const clone = <T>(v: T): T => structuredClone(v);
 let seq = 1000;
 const uid = (p: string) => `${p}_${++seq}`;
 
+type StoredLink = { id: string; fromId: string; toId: string; kind: 'blocks' | 'relates' | 'duplicates' };
+const storedLinks: StoredLink[] = [];
+
 function findTask(key: string): Task {
   const t = tasks.find((x) => x.key === key);
   if (!t) throw new ApiError(404, 'NOT_FOUND', `Task ${key} not found`);
   return t;
+}
+
+function refreshBlocked() {
+  const done = new Set(tasks.filter((task) => statusById(deliveryWorkflow, task.statusId)?.category === 'done').map((task) => task.id));
+  for (const task of tasks) {
+    task.isBlocked = isTaskBlocked(task.id, storedLinks.map((link) => ({
+      fromTaskId: link.fromId,
+      toTaskId: link.toId,
+      kind: link.kind,
+    })), (id) => !done.has(id) && tasks.some((row) => row.id === id));
+  }
+}
+
+function linksFor(task: Task): TaskLink[] {
+  return storedLinks.flatMap((link) => {
+    if (link.fromId !== task.id && link.toId !== task.id) return [];
+    const otherId = link.fromId === task.id ? link.toId : link.fromId;
+    const other = tasks.find((row) => row.id === otherId);
+    if (!other) return [];
+    return [{
+      id: link.id,
+      type: viewTaskLink(task.id, link.fromId, link.toId, link.kind),
+      key: other.key,
+      title: other.title,
+      projectKey: other.projectKey,
+    }];
+  });
 }
 function projectOf(key: string): Project {
   const p = projects.find((x) => x.key === key);
@@ -403,6 +435,7 @@ export const mockApi: Api = {
   async listProjectTasks(key) {
     await wait();
     projectOf(key);
+    refreshBlocked();
     return clone(sorted(tasks.filter((t) => t.projectKey === key)));
   },
 
@@ -475,6 +508,7 @@ export const mockApi: Api = {
 
   async listMyTasks() {
     await wait();
+    refreshBlocked();
     const assigned = tasks.filter((t) => t.assigneeId === me.user.id && statusById(deliveryWorkflow, t.statusId)?.category !== 'done');
     const approvals = tasks.filter((t) => t.statusId === 'idea' && myRolesIn(t.projectKey).includes('business'));
     const created = tasks.filter((t) => t.reporterId === me.user.id && statusById(deliveryWorkflow, t.statusId)?.category !== 'done');
@@ -486,8 +520,10 @@ export const mockApi: Api = {
   async getTask(key): Promise<TaskDetail> {
     await wait();
     const t = findTask(key);
+    refreshBlocked();
     return clone({
       ...t,
+      links: linksFor(t),
       subtasks: subtasks[key] ?? [],
       comments: comments[key] ?? [],
       activity: activity[key] ?? [],
@@ -552,6 +588,7 @@ export const mockApi: Api = {
       planningParentKey: null,
       planningParentTitle: null,
       planningChildCount: { done: 0, total: 0 },
+      isBlocked: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -779,6 +816,31 @@ export const mockApi: Api = {
     const t = findTask(key);
     tasks = tasks.filter((x) => x.key !== key);
     deleted.set(key, t);
+  },
+
+  async addTaskLink(key, input) {
+    await wait();
+    const from = findTask(key);
+    const other = findTask(input.otherKey);
+    if (!isTaskLinkRelation(input.type)) throw new ApiError(400, 'VALIDATION', 'Use blocks, blocked by, relates to or duplicates.');
+    if (from.id === other.id) throw new ApiError(400, 'VALIDATION', 'A task cannot link to itself.');
+    const directed = directedTaskLink(from.id, other.id, input.type);
+    let row = storedLinks.find((link) => link.fromId === directed.fromTaskId && link.toId === directed.toTaskId && link.kind === directed.kind);
+    if (!row) {
+      row = { id: uid('lk'), fromId: directed.fromTaskId, toId: directed.toTaskId, kind: directed.kind };
+      storedLinks.push(row);
+    }
+    refreshBlocked();
+    return clone(linksFor(from).find((link) => link.id === row.id)!);
+  },
+
+  async removeTaskLink(key, id) {
+    await wait();
+    findTask(key);
+    const i = storedLinks.findIndex((link) => link.id === id);
+    if (i < 0) throw new ApiError(404, 'NOT_FOUND', 'That link was not found.');
+    storedLinks.splice(i, 1);
+    refreshBlocked();
   },
 
   async setWatching(key, watch) {

@@ -226,6 +226,7 @@ export function mapTask(row: {
     planningParentKey: planning?.parentKey ?? null,
     planningParentTitle: planning?.parentTitle ?? null,
     planningChildCount: planning?.childCount ?? { done: 0, total: 0 },
+    isBlocked: false,
   };
 }
 

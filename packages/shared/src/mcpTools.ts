@@ -10,6 +10,8 @@ export const MCP_TOOL_NAMES = [
   'move_task',
   'move_task_to_project',
   'add_comment',
+  'add_task_link',
+  'remove_task_link',
   'get_attachment',
   'list_timesheets',
   'get_report',

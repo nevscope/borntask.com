@@ -33,6 +33,12 @@ enum WeekStart {
   sunday
 }
 
+enum TaskLinkKind {
+  blocks
+  relates
+  duplicates
+}
+
 enum TimesheetPeriod {
   daily
   weekly
@@ -229,6 +235,7 @@ model Workspace {
   holidays         WorkspaceHoliday[]
   timesheetEntries TimesheetEntry[]
   timesheetDaysOff TimesheetDayOff[]
+  taskLinks        TaskLink[]
 }
 
 model TenantMember {
@@ -542,6 +549,8 @@ model Task {
   activity       ActivityLog[]
   notifications  Notification[]
   devLinks       DevLink[]
+  linksFrom      TaskLink[] @relation("TaskLinksFrom")
+  linksTo        TaskLink[] @relation("TaskLinksTo")
 
   @@unique([projectId, number])
   @@index([tenantId, projectId])
@@ -549,6 +558,23 @@ model Task {
   @@index([tenantId, asanaTaskId])
   @@index([planningParentId])
   @@fulltext([title, description])
+}
+
+model TaskLink {
+  id         String       @id @default(cuid())
+  tenantId   String
+  fromTaskId String
+  toTaskId   String
+  kind       TaskLinkKind
+  createdAt  DateTime     @default(now())
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  from   Task      @relation("TaskLinksFrom", fields: [fromTaskId], references: [id], onDelete: Cascade)
+  to     Task      @relation("TaskLinksTo", fields: [toTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([fromTaskId, toTaskId, kind])
+  @@index([tenantId, toTaskId])
+  @@index([tenantId, fromTaskId])
 }
 
 model TaskWatcher {

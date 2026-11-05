@@ -159,18 +159,47 @@ export function AttachmentIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function TaskHints({ task }: { task: Pick<Task, 'commentCount' | 'lastComment'> }) {
+export function BlockedMark() {
+  return (
+    <span
+      aria-label="Blocked"
+      title="Blocked"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        height: 20,
+        padding: '0 7px',
+        borderRadius: 6,
+        background: color.warningTint,
+        color: color.warning,
+        fontSize: 11.5,
+        fontWeight: 600,
+        flex: 'none',
+      }}
+    >
+      <LockIcon size={11} />
+      Blocked
+    </span>
+  );
+}
+
+export function TaskHints({ task }: { task: Pick<Task, 'commentCount' | 'lastComment' | 'isBlocked'> }) {
   const comments = task.commentCount ?? 0;
-  if (comments < 1) return null;
+  const blocked = Boolean(task.isBlocked);
+  if (comments < 1 && !blocked) return null;
   const last = (task.lastComment ?? '').trim();
   const commentTip = last || (comments === 1 ? '1 comment' : `${comments} comments`);
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: color.muted, flex: 'none' }}>
-      <Tooltip title={commentTip}>
-        <span aria-label={commentTip} style={{ display: 'inline-flex' }}>
-          <CommentIcon />
-        </span>
-      </Tooltip>
+      {blocked && <BlockedMark />}
+      {comments > 0 && (
+        <Tooltip title={commentTip}>
+          <span aria-label={commentTip} style={{ display: 'inline-flex' }}>
+            <CommentIcon />
+          </span>
+        </Tooltip>
+      )}
     </span>
   );
 }
