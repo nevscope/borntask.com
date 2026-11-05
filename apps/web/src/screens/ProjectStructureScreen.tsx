@@ -7,6 +7,7 @@ import { qk, USE_TASK_MOCKS, useMe, useProject, useProjectTasks, useProjectTrash
 import { BASE_URL } from '../api/http';
 import { SettingsFrame } from '../components/SettingsNav';
 import { TypeTag } from '../components/Chips';
+import { SECTION_WHEN_RULE } from '@borntask/shared';
 import { color } from '../theme/tokens';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { BuiltinTaskType } from '../api/types';
@@ -178,6 +179,7 @@ export function ProjectStructureScreen() {
             <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Sections</h2>
             <span style={{ fontSize: 12.5, color: color.muted }}>Drag to reorder</span>
           </div>
+          <p style={{ margin: 0, padding: '10px 16px', fontSize: 12.5, color: color.muted }}>{SECTION_WHEN_RULE}</p>
           <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           {sectionError && <p style={{ margin: 0, padding: '10px 16px', color: color.danger, fontSize: 12.5 }}>{sectionError}</p>}
           {sections.map((s) => (

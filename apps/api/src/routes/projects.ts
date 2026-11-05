@@ -9,7 +9,7 @@ import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
-import { hoursPerWeekToNumber, memberFillsTimesheets, normaliseProjectKey, parseOptionalWorkingDays, workBreakdownSchema } from '@borntask/shared';
+import { hoursPerWeekToNumber, memberFillsTimesheets, normaliseProjectKey, parseOptionalWorkingDays, resolveProjectCreatePlan, workBreakdownSchema } from '@borntask/shared';
 import { ensurePlanningTypes } from '../lib/planning.js';
 import { inAppAllowed } from '../lib/notifyInApp.js';
 import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
@@ -50,6 +50,7 @@ const createProjectSchema = z.object({
   colour: colourSchema.optional(),
   workflowId: z.string().optional(),
   workflow: z.enum(['delivery', 'simple']).optional(),
+  template: z.enum(['product_dev', 'launch_ops']).optional(),
   sections: z.array(z.string().trim().min(1)).optional(),
   memberIds: z.array(z.string()).optional(),
   members: z.array(z.object({
@@ -224,10 +225,15 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       }
       const clash = await auth.db.project.findFirst({ where: { key } });
       if (clash) throw validation(`Project key ${key} is already used.`);
+      const plan = resolveProjectCreatePlan({
+        template: input.template,
+        workflow: input.workflow,
+        sections: input.sections,
+      });
       const ws = await auth.db.workspace.findUnique({ where: { id: auth.tenantId } });
       let workflowId = input.workflowId ?? ws?.defaultWorkflowId;
-      if (input.workflow) {
-        const named = await auth.db.workflow.findFirst({ where: { slug: input.workflow } });
+      if (input.template || input.workflow) {
+        const named = await auth.db.workflow.findFirst({ where: { slug: plan.workflow } });
         if (named) workflowId = named.id;
       }
       if (!workflowId) throw validation('No workflow available.');
@@ -246,7 +252,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           storiesNeedApproval: input.storiesNeedApproval ?? true,
         },
       });
-      const names = input.sections?.length ? input.sections : ['Inbox'];
+      const names = plan.sections;
       for (let i = 0; i < names.length; i++) {
         await auth.db.section.create({
           data: { tenantId: auth.tenantId, projectId: project.id, name: names[i]!, position: rankKey(i) },
