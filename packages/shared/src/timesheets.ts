@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateKeyInZone } from './digest.js';
 
 export const timesheetPeriodSchema = z.enum(['daily', 'weekly']);
 export const timesheetUnitSchema = z.enum(['time', 'percent']);
@@ -177,6 +178,29 @@ export function holidayDatesForCountry(
     if (holidayAppliesToCountry(row.countryCode ?? null, country)) dates.add(row.date);
   }
   return [...dates];
+}
+
+/** Guests and viewers never fill. Everyone else does unless they are marked exempt. */
+export function memberFillsTimesheets(input: {
+  workspaceRole?: string | null;
+  timesheetsExempt?: boolean | null;
+}): boolean {
+  const role = input.workspaceRole ?? '';
+  if (role === 'guest' || role === 'viewer') return false;
+  return input.timesheetsExempt !== true;
+}
+
+/** Calendar date in `timeZone` for this instant. Workspace time zone is the source for missing days. */
+export function calendarDayInZone(now: Date, timeZone: string): Date {
+  return parseYmd(dateKeyInZone(now, timeZone));
+}
+
+/**
+ * Last calendar day that has already ended in `timeZone`.
+ * A working day is missing only after that midnight has passed.
+ */
+export function lastEndedDayInZone(now: Date, timeZone: string): Date {
+  return addUtcDays(calendarDayInZone(now, timeZone), -1);
 }
 
 export function hoursPerWeekToNumber(value: unknown): number | null {

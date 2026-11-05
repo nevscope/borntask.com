@@ -171,7 +171,7 @@ export function WorkingPatternFields({
           disabled={disabled}
           value={hoursDraft}
           inputMode="decimal"
-          placeholder="None"
+          placeholder="Not set"
           aria-label="Hours per week"
           style={{ height: 32 }}
           onChange={(e) => setHoursDraft(e.target.value)}
@@ -179,13 +179,16 @@ export function WorkingPatternFields({
         />
       </label>
       {showTimesheetsExempt ? (
-        <Checkbox
-          disabled={disabled}
-          checked={timesheetsExempt}
-          onChange={(e) => persist({ timesheetsExempt: e.target.checked })}
-        >
-          Does not fill timesheets
-        </Checkbox>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11.5, fontWeight: 600, color: color.muted }}>
+          Timesheets
+          <Checkbox
+            disabled={disabled}
+            checked={!timesheetsExempt}
+            onChange={(e) => persist({ timesheetsExempt: !e.target.checked })}
+          >
+            Fills timesheets
+          </Checkbox>
+        </label>
       ) : (
         <span />
       )}

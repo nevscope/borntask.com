@@ -2,6 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { tokenAllows } from '../apps/api/src/lib/tokenPolicy.ts';
 
 describe('token allow list', () => {
+  test('lets a personal token read workspace tasks', () => {
+    expect(tokenAllows('GET', '/workspace/tasks', 'read')).toEqual({ ok: true });
+  });
+
   test('lets a personal token download a task attachment', () => {
     expect(tokenAllows('GET', '/tasks/BOR-19/attachments/cmvsar2ou008kqb01sd374rrb', 'read')).toEqual({ ok: true });
     expect(tokenAllows('GET', '/tasks/BOR-19/attachments/cmvsar2ou008kqb01sd374rrb?download=1', 'read_write')).toEqual({ ok: true });

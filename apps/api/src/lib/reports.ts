@@ -9,10 +9,11 @@ import {
   parseYmd,
   holidayDatesForCountry,
   hoursPerWeekToNumber,
+  memberFillsTimesheets,
   resolveHolidayCountry,
   resolveMemberWorkingDays,
   timesheetExpectedStart,
-  utcDay,
+  calendarDayInZone,
   workingDatesInRange,
 } from '@borntask/shared';
 import type { Authed } from '../context.js';
@@ -89,7 +90,7 @@ function msToDays(ms: number): number {
 
 export async function workspaceReports(
   auth: Authed,
-  range: { from: string; to: string; projectId?: string; today?: Date },
+  range: { from: string; to: string; projectId?: string; today?: Date; now?: Date },
 ) {
   if (auth.workspaceRole === 'guest' || auth.workspaceRole === 'viewer') {
     throw forbidden('Guests and viewers cannot view reports.');
@@ -97,8 +98,11 @@ export async function workspaceReports(
   const selfOnly = !isOwnerAdmin(auth.workspaceRole);
   const from = parseYmd(range.from);
   const to = parseYmd(range.to);
-  const today = range.today ?? utcDay();
   const settings = await workspaceTimesheetSettings(auth);
+  const now = range.now ?? new Date();
+  const today = range.today ?? calendarDayInZone(now, settings.timeZone);
+  // Missing / expected days use the workspace time zone. The current local day is excluded until it ends.
+  const expectedThrough = addUtcDays(today, -1);
   const holidayRows = await holidaysInRange(auth, from, to);
   const mappedHolidays = holidayRows.map((row) => ({
     date: ymdOf(row.date),
@@ -115,7 +119,7 @@ export async function workspaceReports(
     ...(selfOnly ? { assigneeId: auth.userId } : {}),
   };
 
-  const [tasks, members, entries, daysOff, projects] = await Promise.all([
+  const [tasks, memberRows, entries, daysOff, projects] = await Promise.all([
     auth.db.task.findMany({
       where: taskWhere,
       include: {
@@ -127,7 +131,6 @@ export async function workspaceReports(
     auth.db.tenantMember.findMany({
       where: {
         isActive: true,
-        timesheetsExempt: false,
         tenantRole: { notIn: ['guest', 'viewer'] },
         ...(selfOnly ? { userId: auth.userId } : {}),
       },
@@ -156,6 +159,9 @@ export async function workspaceReports(
       select: { id: true, name: true, colour: true, key: true },
     }),
   ]);
+  const members = memberRows.filter((m) =>
+    memberFillsTimesheets({ workspaceRole: m.tenantRole, timesheetsExempt: m.timesheetsExempt }),
+  );
 
   const startMoves = await auth.db.activityLog.findMany({
     where: {
@@ -296,7 +302,7 @@ export async function workspaceReports(
           mappedHolidays,
           resolveHolidayCountry(member?.holidayCountry, settings.defaultHolidayCountry),
         ),
-        today,
+        today: expectedThrough,
         startOn: timesheetExpectedStart({
           workspaceStart: settings.timesheetsStartOn,
           joinedAt: member?.createdAt,
@@ -324,7 +330,7 @@ export async function workspaceReports(
         mappedHolidays,
         resolveHolidayCountry(m.holidayCountry, settings.defaultHolidayCountry),
       ),
-      today,
+      today: expectedThrough,
       startOn: personStart,
     }).filter((date) => !(offByUser.get(m.userId)?.has(formatYmd(date)) ?? false));
     const logged = timeByUserDay.get(m.userId) ?? new Set<string>();
@@ -396,7 +402,7 @@ export async function workspaceReports(
     to,
     workingDays: settings.workingDays,
     holidays: workspaceHolidaySet,
-    today,
+    today: expectedThrough,
     startOn: settings.timesheetsStartOn,
   });
 

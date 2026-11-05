@@ -39,6 +39,7 @@ import {
   type SavedView,
   type SortBy,
 } from '../lib/taskFilters';
+import { useClampToViewport } from '../lib/clampToViewport';
 import { color, radius } from '../theme/tokens';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useBackLayer } from '../lib/backLayer';
@@ -278,6 +279,7 @@ export function ProjectViewBar({
               filters={view.filters}
               count={count}
               onChange={(filters) => change({ filters })}
+              open={open}
             />
           )}
         </div>
@@ -400,25 +402,28 @@ const iconBtn: CSSProperties = {
   font: 'inherit',
 };
 
-function FilterBuilder({
+export function FilterBuilder({
   detail,
   labels,
   filters,
   count,
   onChange,
+  open,
 }: {
   detail: ProjectDetail;
   labels: string[];
   filters: FilterCondition[];
   count: number;
   onChange: (filters: FilterCondition[]) => void;
+  open: boolean;
 }) {
   const titleId = useId();
+  const panel = useClampToViewport<HTMLDivElement>(open);
   const update = (id: string, patch: Partial<FilterCondition>) => {
     onChange(filters.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
   return (
-    <div role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, left: 0, width: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: color.shadow, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div ref={panel} role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, left: 0, width: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: color.shadow, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span id={titleId} className="bt-sr-only">Filter builder</span>
       {filters.map((row, index) => (
         <ConditionRow

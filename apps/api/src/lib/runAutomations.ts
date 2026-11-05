@@ -1,4 +1,4 @@
-import { pickAssigneeForRole, type AutomationRule } from '@borntask/shared';
+import { mergeDefaultAutomations, noAssigneeActivity, pickAssigneeForRole, type AutomationRule } from '@borntask/shared';
 import type { Authed } from '../context.js';
 import { actorName, enqueueChat, enqueuePersonalChat, taskUrl, userName } from './chatNotify.js';
 import { taskKey } from './loadProject.js';
@@ -41,10 +41,16 @@ export async function runProjectAutomations(
     currentAssigneeId: string | null;
   },
 ): Promise<void> {
-  const rules = await auth.db.automation.findMany({
-    where: { projectId: input.projectId, onStatusSlug: input.toSlug, enabled: true },
-  });
-  for (const rule of rules as AutomationRule[]) {
+  const stored = await auth.db.automation.findMany({ where: { projectId: input.projectId } });
+  const rules = mergeDefaultAutomations(
+    stored.map((row) => ({
+      onStatusSlug: row.onStatusSlug,
+      action: row.action as AutomationRule['action'],
+      roleSlug: row.roleSlug,
+      enabled: row.enabled,
+    })),
+  ).filter((rule) => rule.enabled && rule.onStatusSlug === input.toSlug);
+  for (const rule of rules) {
     try {
       if (rule.action === 'assign_role') {
         await assignForRole(auth, input, rule.roleSlug);
@@ -64,7 +70,21 @@ async function assignForRole(
 ) {
   const members = await projectMembers(auth, input.projectId, input.leadId);
   const userId = pickAssigneeForRole(members, roleSlug);
-  if (!userId || userId === input.currentAssigneeId) return;
+  if (!userId) {
+    await auth.db.activityLog.create({
+      data: {
+        tenantId: auth.tenantId,
+        taskId: input.taskId,
+        actorId: auth.userId,
+        actorType: 'automation',
+        via: 'automation',
+        action: noAssigneeActivity(roleSlug),
+        toJson: { roleSlug },
+      },
+    });
+    return;
+  }
+  if (userId === input.currentAssigneeId) return;
 
   await auth.db.task.update({ where: { id: input.taskId }, data: { assigneeId: userId } });
   const assignee = await userName(userId);

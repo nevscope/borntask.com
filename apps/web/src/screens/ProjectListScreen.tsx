@@ -104,10 +104,10 @@ export function ProjectListScreen() {
   }
 
   const list = (
-    <div className="bt-card" style={{ overflowX: isPhone ? 'hidden' : 'auto' }}>
-      <div style={{ minWidth: isPhone ? 0 : 980 }}>
+    <div className="bt-card bt-list-card" style={{ overflowX: isPhone ? 'hidden' : 'auto' }}>
+      <div className="bt-list-table" style={{ minWidth: isPhone ? 0 : undefined }}>
         {!isPhone && (
-        <div className="bt-row" style={{ minHeight: 36, fontSize: 12, fontWeight: 600, color: color.muted }}>
+        <div className="bt-row bt-list-head" style={{ minHeight: 36, fontSize: 12, fontWeight: 600, color: color.muted }}>
           <span style={{ width: 32 }} />
           <span style={{ width: 24 }} />
           <span className="bt-key">Key</span>
@@ -123,6 +123,7 @@ export function ProjectListScreen() {
               label={LIST_FIELD_LABEL[field]}
               width={LIST_FIELD_WIDTH[field]}
               field={field}
+              className={field === 'due' ? 'bt-col-due' : field === 'priority' ? 'bt-col-priority' : undefined}
               filters={view.filters}
               choices={columnChoices(field, d, labels)}
               onFilters={(filters) => view.setView({ filters })}
@@ -504,7 +505,7 @@ function Row({
           {task.githubBadge && <span style={{ flex: 'none' }}><GitHubBadge kind={task.githubBadge} compact /></span>}
           <TaskHints task={task} />
         </button>
-        {rowActions}
+        <span className="bt-row-actions">{rowActions}</span>
       </span>
       <ListFields task={task} detail={detail} meId={meId} roles={roles} onMove={onMove} onComplete={onComplete} hiddenCols={hiddenCols} />
     </div>

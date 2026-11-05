@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -75,6 +75,16 @@ export const api: Api = {
       throw err;
     }
   },
+  listWorkspaceTasks: async () => {
+    try {
+      return await tasksApi().listWorkspaceTasks();
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.listWorkspaceTasks();
+      }
+      throw err;
+    }
+  },
   getTask: async (key) => {
     try {
       return await tasksApi().getTask(key);
@@ -135,6 +145,7 @@ export const qk = {
   project: (key: string) => ['projects', key] as const,
   projectTasks: (key: string) => ['projects', key, 'tasks'] as const,
   myTasks: ['me', 'tasks'] as const,
+  workspaceTasks: ['workspace', 'tasks'] as const,
   search: (q: string) => ['search', q] as const,
   task: (key: string) => ['tasks', key] as const,
   notifications: ['me', 'notifications'] as const,
@@ -245,6 +256,7 @@ export function useAcceptProjectInvite() {
       void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKey) });
       void qc.invalidateQueries({ queryKey: qk.notifications });
       void qc.invalidateQueries({ queryKey: qk.myTasks });
+      void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
     },
   });
 }
@@ -269,6 +281,7 @@ export function useRequestProjectAccess() {
 export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key), enabled: key.length > 0 });
 export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key), enabled: key.length > 0 });
 export const useMyTasks = () => useQuery({ queryKey: qk.myTasks, queryFn: () => api.listMyTasks() });
+export const useWorkspaceTasks = () => useQuery<WorkspaceTasks>({ queryKey: qk.workspaceTasks, queryFn: () => api.listWorkspaceTasks() });
 export const useSearch = (q: string) =>
   useQuery<SearchResponse>({
     queryKey: qk.search(q),
@@ -342,6 +355,7 @@ function invalidateNotificationsSoon(qc: QueryClient) {
 export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?: { skipTask?: boolean }) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(event.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
+  void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
   invalidateNotificationsSoon(qc);
   if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
 }
@@ -363,6 +377,7 @@ function upsertProjectTask(qc: QueryClient, task: Task) {
 function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectKey'>) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(task.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
+  void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
   void qc.invalidateQueries({ queryKey: qk.task(task.key) });
   void qc.invalidateQueries({ queryKey: qk.projects, exact: true });
 }
@@ -563,6 +578,7 @@ export function useSetWatching() {
     onSuccess: (_d, { key }) => {
       void qc.invalidateQueries({ queryKey: qk.task(key) });
       void qc.invalidateQueries({ queryKey: qk.myTasks });
+      void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
     },
   });
 }
@@ -729,7 +745,7 @@ export type AutomationRule = z.infer<typeof AutomationRuleSchema>;
 
 const mockAutomations = {
   automations: [
-    { onStatusSlug: 'ready_for_testing', action: 'assign_role' as const, roleSlug: 'tester', enabled: false },
+    { onStatusSlug: 'ready_for_testing', action: 'assign_role' as const, roleSlug: 'tester', enabled: true },
     { onStatusSlug: 'deployed', action: 'notify_role' as const, roleSlug: 'business', enabled: false },
   ],
   canManage: true,
@@ -999,6 +1015,7 @@ export const TimesheetRangeSchema = z.object({
   workingDays: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).optional(),
   hoursPerWeek: z.number().nullable().optional(),
   timesheetsExempt: z.boolean().optional(),
+  fillsTimesheets: z.boolean().optional(),
   entries: z.array(TimesheetEntrySchema),
   daysOff: z.array(TimesheetDayOffSchema),
   holidays: z.array(z.object({ date: z.string(), name: z.string(), countryCode: z.string().nullable().optional() })),

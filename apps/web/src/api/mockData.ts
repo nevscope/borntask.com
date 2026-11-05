@@ -459,6 +459,20 @@ export const mockApi: Api = {
     return { hits, tookMs: Date.now() - started };
   },
 
+  async listWorkspaceTasks() {
+    await wait();
+    return clone({
+      tasks: tasks.map((t) => {
+        const status = statusById(deliveryWorkflow, t.statusId);
+        return { ...t, statusName: status?.name, statusCategory: status?.category };
+      }),
+      users,
+      statuses: deliveryWorkflow.statuses.map((s) => ({ id: s.id, name: s.name, category: s.category })),
+      sections: sections.map((s) => ({ id: s.id, name: s.name, hidden: s.hidden })),
+      labels: [...new Set(tasks.flatMap((t) => t.labels))],
+    });
+  },
+
   async listMyTasks() {
     await wait();
     const assigned = tasks.filter((t) => t.assigneeId === me.user.id && statusById(deliveryWorkflow, t.statusId)?.category !== 'done');

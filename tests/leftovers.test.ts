@@ -21,7 +21,7 @@ import {
 } from '../packages/shared/src/inboundMail.ts';
 import { signReplyToken, verifyReplyToken } from '../apps/api/src/lib/replyToken.ts';
 import { trashToldCopy } from '../apps/web/src/lib/toldPeople.ts';
-import { mergeDefaultAutomations, pickAssigneeForRole } from '../packages/shared/src/automations.ts';
+import { mergeDefaultAutomations, noAssigneeActivity, pickAssigneeForRole } from '../packages/shared/src/automations.ts';
 
 describe('trash purge cutoff', () => {
   test('keeps tasks inside 30 days and hard-deletes older ones', () => {
@@ -264,9 +264,31 @@ describe('project automations', () => {
       { onStatusSlug: 'deployed', action: 'notify_role', roleSlug: 'business', enabled: true },
       { onStatusSlug: 'wip', action: 'assign_role', roleSlug: 'developer', enabled: true },
     ]);
-    expect(merged[0]).toEqual({ onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: false });
+    expect(merged[0]).toEqual({ onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: true });
     expect(merged[1]?.enabled).toBe(true);
     expect(merged[2]?.onStatusSlug).toBe('wip');
+  });
+
+  test('runs the tester default when a project never saved automations', () => {
+    expect(mergeDefaultAutomations([])[0]).toEqual({
+      onStatusSlug: 'ready_for_testing',
+      action: 'assign_role',
+      roleSlug: 'tester',
+      enabled: true,
+    });
+  });
+
+  test('keeps an explicit off switch for assign Tester', () => {
+    expect(
+      mergeDefaultAutomations([
+        { onStatusSlug: 'ready_for_testing', action: 'assign_role', roleSlug: 'tester', enabled: false },
+      ])[0]?.enabled,
+    ).toBe(false);
+  });
+
+  test('writes no tester to assign when the role is empty', () => {
+    expect(noAssigneeActivity('tester')).toBe('no tester to assign');
+    expect(noAssigneeActivity('developer')).toBe('no developer to assign');
   });
 });
 

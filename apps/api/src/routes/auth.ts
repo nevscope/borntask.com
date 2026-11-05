@@ -12,7 +12,7 @@ import { clientIp, enforceRateLimit } from '../lib/rateLimit.js';
 import { sendLoginCodeEmail } from '../lib/sendLoginCode.js';
 import { hashToken } from '../lib/tokens.js';
 import { hubOrigin, loginAbsoluteUrl, loginDestination, originForSlug, requestWebOrigin, workspaceSlugFromRequest } from '../lib/workspaceHost.js';
-import { isAllowedWebOrigin } from '@borntask/shared';
+import { isAllowedWebOrigin, memberFillsTimesheets } from '@borntask/shared';
 
 const devLoginSchema = z.object({
   email: z.string().email(),
@@ -223,6 +223,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           : { id: '', name: '', slug: '', logo: false },
         workspaceRole: current?.tenantRole ?? 'member',
         timesheetsExempt: current?.timesheetsExempt ?? false,
+        fillsTimesheets: memberFillsTimesheets({
+          workspaceRole: current?.tenantRole,
+          timesheetsExempt: current?.timesheetsExempt ?? false,
+        }),
         host: hostSlug
           ? {
               kind: 'workspace' as const,

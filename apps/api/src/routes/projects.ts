@@ -9,7 +9,7 @@ import { switchProjectWorkflow } from '../lib/switchProjectWorkflow.js';
 import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 import { acceptProjectInvite } from '../lib/applyProjectInvite.js';
-import { hoursPerWeekToNumber, normaliseProjectKey, parseOptionalWorkingDays, workBreakdownSchema } from '@borntask/shared';
+import { hoursPerWeekToNumber, memberFillsTimesheets, normaliseProjectKey, parseOptionalWorkingDays, workBreakdownSchema } from '@borntask/shared';
 import { ensurePlanningTypes } from '../lib/planning.js';
 import { inAppAllowed } from '../lib/notifyInApp.js';
 import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
@@ -635,6 +635,10 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           hoursPerWeek: hoursPerWeekToNumber(m.hoursPerWeek),
           holidayCountry: m.holidayCountry,
           timesheetsExempt: m.timesheetsExempt,
+          fillsTimesheets: memberFillsTimesheets({
+            workspaceRole: m.tenantRole,
+            timesheetsExempt: m.timesheetsExempt,
+          }),
           projectIds: projectIdsByUser.get(m.userId) ?? [],
           projects: (projectsByUser.get(m.userId) ?? []).join(', ') || 'None',
         };

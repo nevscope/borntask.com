@@ -1,6 +1,7 @@
 import {
   addUtcDays,
   expectedDays,
+  lastEndedDayInZone,
   formatMinutes,
   formatMixedTotals,
   formatYmd,
@@ -456,6 +457,7 @@ export function TimesheetsScreen() {
   }, { minutes: 0, percent: 0 });
 
   const todayYmd = formatYmd(today);
+  const expectedThrough = lastEndedDayInZone(new Date(), settings.data?.timeZone ?? 'Europe/Malta');
   const todayParts = period === 'daily'
     ? projects.reduce((acc, p) => addParts(acc, partsOf(p.id, todayYmd)), { minutes: 0, percent: 0 })
     : weekParts;
@@ -476,12 +478,12 @@ export function TimesheetsScreen() {
     workingDays,
     holidays: holidaySet,
     daysOff: offSet,
-    today,
+    today: expectedThrough,
     startOn: timesheetsStartOn,
   });
   const daysFilled = days.filter((date) => {
     const ymd = formatYmd(date);
-    if (date.getTime() > today.getTime()) return false;
+    if (date.getTime() > expectedThrough.getTime()) return false;
     if (!isWorkingDay(date, workingDays) || holidayByDate.has(ymd) || offByDate.has(ymd)) return false;
     return dayHasTime(period === 'daily' ? ymd : from);
   }).length;

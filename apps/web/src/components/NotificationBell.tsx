@@ -80,7 +80,7 @@ function NotificationRow({
         }}
       >
         <Avatar user={note.actor} size={30} />
-        <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13.5, lineHeight: 1.4 }}>
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13.5, lineHeight: 1.4, whiteSpace: 'normal', overflowWrap: 'break-word' }}>
           <span>{note.text}</span>
           <span style={{ fontSize: 12, color: color.muted }}>{refLabel(note)} · {formatWhen(note.createdAt)}</span>
         </span>
@@ -154,11 +154,12 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
         borderRadius: phone ? 0 : radius.xl,
         boxShadow: phone ? 'none' : color.shadow,
         overflow: 'hidden',
+        whiteSpace: 'normal',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
-        <span style={{ fontWeight: 600 }}>Notifications</span>
-        <div role="tablist" style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
+        <span style={{ fontWeight: 600, flex: 'none' }}>Notifications</span>
+        <div role="tablist" style={{ display: 'flex', flex: '1 1 auto', minWidth: 0, gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
           <button
             type="button"
             role="tab"
@@ -175,6 +176,8 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               fontWeight: tab === 'unread' ? 600 : 400,
               color: tab === 'unread' ? color.ink : color.ink3,
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
             }}
           >
             Unread {unreadCount}
@@ -195,6 +198,8 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               fontWeight: tab === 'all' ? 600 : 400,
               color: tab === 'all' ? color.ink : color.ink3,
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
             }}
           >
             All
@@ -215,18 +220,20 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
               fontWeight: tab === 'viewed' ? 600 : 400,
               color: tab === 'viewed' ? color.ink : color.ink3,
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
             }}
           >
             Last viewed
           </button>
         </div>
-        <div style={{ flex: 1 }} />
         <button
           type="button"
           disabled={unreadCount === 0}
           onClick={() => mark.mutate({ all: true })}
           style={{
             height: 30,
+            marginLeft: 'auto',
             padding: '0 8px',
             border: 0,
             background: 'transparent',
@@ -235,6 +242,8 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
             color: unreadCount === 0 ? color.faint : color.brandStrong,
             fontWeight: 600,
             cursor: unreadCount === 0 ? 'default' : 'pointer',
+            whiteSpace: 'nowrap',
+            flex: 'none',
           }}
         >
           Mark all read
@@ -354,7 +363,7 @@ export function NotificationBell() {
       placement="bottomRight"
       arrow={false}
       destroyOnHidden
-      styles={{ container: { padding: 0 } }}
+      styles={{ container: { padding: 0, whiteSpace: 'normal' } }}
       content={<NotificationPanel onClose={() => setOpen(false)} />}
     >
       <button

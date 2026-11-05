@@ -324,8 +324,16 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const options = moveOptions(wf, task, flow.myRoles);
   const quick = options
     .filter((o) => o.check.kind === 'allowed')
-    .sort((a, b) => Number(a.status.side) - Number(b.status.side))
+    .sort((a, b) => {
+      const rank = (status: (typeof a)['status']) =>
+        status.side ? 4 : status.category === 'done' ? 0 : status.category === 'review' ? 1 : status.category === 'active' ? 2 : 3;
+      return rank(a.status) - rank(b.status);
+    })
     .slice(0, 3);
+  const happyNext =
+    quick.find((o) => !o.status.side && o.status.category === 'done') ??
+    quick.find((o) => !o.status.side && o.status.category === 'review') ??
+    null;
   const memberUsers = (() => {
     const seated = detail.users.filter((u) => detail.members.some((m) => m.userId === u.id));
     if (me?.user && !seated.some((u) => u.id === me.user.id)) return [me.user, ...seated];
@@ -645,10 +653,10 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               Choose one next step
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {quick.map((o, i) => (
+              {quick.map((o) => (
                 <Button
                   key={o.status.id}
-                  type={i === 0 && !o.status.side ? 'primary' : 'default'}
+                  type={happyNext && o.status.id === happyNext.status.id ? 'primary' : 'default'}
                   onClick={() => flow.requestMove(task, o.status.id)}
                 >
                   {o.check.kind === 'allowed' && o.check.transition.label && !o.status.side ? `${o.check.transition.label} · ${o.status.name}` : o.status.name}

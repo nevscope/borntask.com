@@ -17,6 +17,22 @@ function canOverride(role: Authed['workspaceRole'], projectRoles: string[]): boo
   return role === 'owner' || role === 'admin' || projectRoles.includes('lead');
 }
 
+export function previousStatusIdForMove(fromSlug: string, currentStatusId: string): string | null {
+  return fromSlug === 'on_hold' ? null : currentStatusId;
+}
+
+export function moveActivityAction(input: {
+  undo?: boolean;
+  overrideReason?: string;
+  transitionLabel: string | null;
+  statusName: string;
+}): string {
+  if (input.undo) return `undid the move, back to ${input.statusName}`;
+  if (input.overrideReason) return `overrode to ${input.statusName}: ${input.overrideReason}`;
+  if (input.transitionLabel) return `${input.transitionLabel.toLowerCase()} → ${input.statusName}`;
+  return `moved to ${input.statusName}`;
+}
+
 function rolesForBlockedMove(
   transitions: { from: string; to: string; roles: string[] }[],
   fromSlug: string,
@@ -121,14 +137,13 @@ export async function moveTask(
   }
 
   const onHoldId = wf.statusIdBySlug.on_hold;
-  const previousStatusId =
-    toSlug === 'on_hold' ? row.statusId : fromSlug === 'on_hold' ? null : row.previousStatusId;
+  const previousStatusId = previousStatusIdForMove(fromSlug, row.statusId);
 
   const updated = await auth.db.task.update({
     where: { id: row.id },
     data: {
       statusId: toId,
-      previousStatusId: toSlug === 'on_hold' ? row.statusId : previousStatusId,
+      previousStatusId,
       completedAt: completedAtForMove(wf.statuses.find((s) => s.id === toSlug)?.category ?? ''),
     },
     include: {
@@ -154,13 +169,12 @@ export async function moveTask(
       actorId: auth.userId,
       actorType: auth.actorType,
       via: auth.via,
-      action: input.undo
-        ? `undid the move, back to ${toSlug}`
-        : input.overrideReason
-          ? `overrode to ${toSlug}: ${input.overrideReason}`
-          : transitionLabel
-            ? `${transitionLabel.toLowerCase()} → ${toSlug}`
-            : `moved to ${toSlug}`,
+      action: moveActivityAction({
+        undo: input.undo,
+        overrideReason: input.overrideReason,
+        transitionLabel,
+        statusName: updated.status.name,
+      }),
       fromJson: { status: fromSlug },
       toJson: { status: toSlug, override: Boolean(input.overrideReason) },
     },

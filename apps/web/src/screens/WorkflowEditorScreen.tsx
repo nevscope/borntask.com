@@ -1,3 +1,4 @@
+import { bypassApproveWarning, isDuplicateMove, unusedMove } from '@borntask/shared';
 import { Alert, Checkbox, Select } from 'antd';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -148,6 +149,10 @@ export function WorkflowEditorScreen() {
       setError(`Choose where the tasks on ${missing.stage.name} should go.`);
       return;
     }
+    if (rows.some((row, index) => isDuplicateMove(rows, row.from, row.to, index))) {
+      setError('That move is already listed.');
+      return;
+    }
     const res = await fetch(`${BASE_URL}/workflows/${encodeURIComponent(id)}`, {
       method: 'PUT',
       credentials: 'include',
@@ -177,10 +182,26 @@ export function WorkflowEditorScreen() {
   };
   const usedBy = usedByLine(wf?.projectNames, wf?.projectCount, projectName);
   const pendingRow = pendingMove === null ? null : rows[pendingMove];
+  const nextUnused = unusedMove(stages, rows);
+  const approveWarning = bypassApproveWarning(rows, stages);
+
+  const changeMove = (index: number, next: Transition) => {
+    if (isDuplicateMove(rows, next.from, next.to, index)) {
+      setError('That move is already listed.');
+      return;
+    }
+    setError(null);
+    const list = [...rows];
+    list[index] = next;
+    setRows(list);
+  };
 
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me?.workspaceRole === 'owner'}>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
+    <form
+      style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}
+      onSubmit={(e) => e.preventDefault()}
+    >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 300px' }}>
           <h1 className="bt-h1">Workflow</h1>
@@ -214,6 +235,7 @@ export function WorkflowEditorScreen() {
       </div>
       {!canEdit && <Alert type="warning" showIcon message="You can view this page, but only an owner or admin can save changes." />}
       {error && <Alert type="error" showIcon message={error} />}
+      {approveWarning && <Alert type="warning" showIcon message={approveWarning} />}
 
       {removals.map((r) => (
         <div key={r.stage.id} role="alert" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '12px 14px', border: `1px solid ${color.warningBorder}`, borderRadius: 10, background: color.warningTint, fontSize: 13.5, color: color.warning }}>
@@ -314,91 +336,103 @@ export function WorkflowEditorScreen() {
             <h2 style={{ flex: '1 1 200px', margin: 0, fontSize: 15, fontWeight: 600 }}>Who can move tasks</h2>
             <span style={{ fontSize: 12.5, color: color.muted }}>Admins and project leads can always override. Overrides are logged.</span>
           </div>
-          {rows.map((r, i) => (
-            <div key={`${r.from}-${r.to}-${r.label ?? ''}-${i}`} style={{ display: 'grid', gridTemplateColumns: moveColumns, gap: 12, alignItems: 'center', minHeight: 46, padding: '0 16px', borderBottom: `1px solid ${color.divider}` }}>
-              {canEdit ? (
-                <StageSelect
-                  aria-label={`From stage for move ${i + 1}`}
-                  value={r.from}
-                  stages={stages}
-                  allowAny
-                  onChange={(from) => {
-                    const next = [...rows];
-                    next[i] = { ...r, from };
-                    setRows(next);
-                  }}
-                />
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.from), flex: 'none' }} />{nameOf(r.from)}</span>
-              )}
-              <MoveArrow />
-              {canEdit ? (
-                <StageSelect
-                  aria-label={`To stage for move ${i + 1}`}
-                  value={r.to}
-                  stages={stages}
-                  onChange={(to) => {
-                    const next = [...rows];
-                    next[i] = { ...r, to };
-                    setRows(next);
-                  }}
-                />
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.to), flex: 'none' }} />{nameOf(r.to)}</span>
-              )}
-              <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-                {canEdit ? (
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    aria-label={`Roles that may move from ${nameOf(r.from)} to ${nameOf(r.to)}`}
-                    placeholder="Any member"
-                    value={r.roles}
-                    options={catalog.roles.map((role) => ({ value: role.slug, label: role.name }))}
-                    onChange={(roles) => {
-                      const next = [...rows];
-                      next[i] = { ...r, roles };
-                      setRows(next);
+          {groupMoves(rows).map((group) => (
+            <div key={group.from}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 2px' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(group.from), flex: 'none' }} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>From {nameOf(group.from)}</span>
+                {canEdit && unusedTo(group.from, stages, rows) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const to = unusedTo(group.from, stages, rows);
+                      if (!to) return;
+                      setRows([...rows, { from: group.from, to, roles: [], requireComment: false, label: null }]);
                     }}
-                    style={{ minWidth: 180, flex: '1 1 160px' }}
-                    tagRender={(props) => (
-                      <span style={{ marginRight: 4 }}>
-                        <RoleTag role={props.value} />
-                      </span>
-                    )}
-                  />
-                ) : r.roles.length === 0 ? (
-                  <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: color.chip, color: color.ink3 }}>Any member</span>
-                ) : (
-                  r.roles.map((role) => <RoleTag key={role} role={role} />)
+                    style={{ height: 28, padding: '0 8px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Add
+                  </button>
                 )}
-                {r.label ? <span style={{ fontSize: 12, color: color.muted }}>{r.label}</span> : null}
-                <Checkbox
-                  checked={r.requireComment}
-                  disabled={!canEdit}
-                  onChange={(e) => {
-                    const next = [...rows];
-                    next[i] = { ...r, requireComment: e.target.checked };
-                    setRows(next);
-                  }}
-                >
-                  Comment
-                </Checkbox>
-              </span>
-              <button type="button" aria-label={`Remove move from ${nameOf(r.from)} to ${nameOf(r.to)}`} disabled={!canEdit} onClick={() => setPendingMove(i)} style={{ ...removeBtn, cursor: canEdit ? 'pointer' : 'not-allowed', color: canEdit ? color.danger : color.faint }}>
-                Remove
-              </button>
+              </div>
+              {group.indexes.map((i) => {
+                const r = rows[i];
+                if (!r) return null;
+                return (
+                  <div key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, minHeight: 44, padding: '4px 16px 4px 28px', borderBottom: `1px solid ${color.divider}` }}>
+                    <MoveArrow />
+                    {canEdit ? (
+                      <StageSelect
+                        aria-label={`To stage for move from ${nameOf(r.from)}`}
+                        value={r.to}
+                        stages={stages}
+                        compact
+                        onChange={(to) => changeMove(i, { ...r, to })}
+                      />
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: dotOf(r.to), flex: 'none' }} />{nameOf(r.to)}</span>
+                    )}
+                    <span style={{ flex: '1 1 280px', minWidth: 280, maxWidth: '100%' }}>
+                      {canEdit ? (
+                        <Select
+                          mode="multiple"
+                          allowClear
+                          variant="borderless"
+                          aria-label={`Roles that may move from ${nameOf(r.from)} to ${nameOf(r.to)}`}
+                          placeholder="Any member"
+                          value={r.roles}
+                          options={catalog.roles.map((role) => ({ value: role.slug, label: role.name }))}
+                          onChange={(roles) => {
+                            const next = [...rows];
+                            next[i] = { ...r, roles };
+                            setRows(next);
+                          }}
+                          popupMatchSelectWidth={280}
+                          style={{ width: '100%' }}
+                          tagRender={(props) => (
+                            <span style={{ marginRight: 4 }}>
+                              <RoleTag role={props.value} />
+                            </span>
+                          )}
+                        />
+                      ) : r.roles.length === 0 ? (
+                        <span style={{ fontSize: 12, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: color.chip, color: color.ink3 }}>Any member</span>
+                      ) : (
+                        <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                          {r.roles.map((role) => <RoleTag key={role} role={role} />)}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 20 }}>
+                      <span style={{ minWidth: 64, fontSize: 13, color: color.muted, whiteSpace: 'nowrap' }}>{r.label ?? ''}</span>
+                      <Checkbox
+                        checked={r.requireComment}
+                        disabled={!canEdit}
+                        onChange={(e) => {
+                          const next = [...rows];
+                          next[i] = { ...r, requireComment: e.target.checked };
+                          setRows(next);
+                        }}
+                      >
+                        Comment
+                      </Checkbox>
+                      <button type="button" aria-label={`Remove move from ${nameOf(r.from)} to ${nameOf(r.to)}`} disabled={!canEdit} onClick={() => setPendingMove(i)} style={{ ...removeBtn, cursor: canEdit ? 'pointer' : 'not-allowed', color: canEdit ? color.danger : color.faint }}>
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ))}
           <button
             type="button"
-            disabled={!canEdit || stages.length < 2}
+            disabled={!canEdit || stages.length < 2 || !nextUnused}
             onClick={() => {
-              const next = unusedMove(stages, rows);
-              if (!next) return;
-              setRows([...rows, { ...next, roles: [], requireComment: false, label: null }]);
+              if (!nextUnused) return;
+              setRows([...rows, { ...nextUnused, roles: [], requireComment: false, label: null }]);
             }}
-            style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit ? 'pointer' : 'not-allowed' }}
+            style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: canEdit && nextUnused ? 'pointer' : 'not-allowed' }}
           >
             + Add a move
           </button>
@@ -454,7 +488,7 @@ export function WorkflowEditorScreen() {
       >
         People will not be able to make that move after you save.
       </ConfirmDialog>
-    </div>
+    </form>
     </SettingsFrame>
   );
 }
@@ -468,7 +502,26 @@ function normalise(wf: EditorWorkflow): EditorWorkflow {
 }
 
 const stageColumns = '28px minmax(110px, 1.4fr) minmax(160px, 1.2fr) minmax(100px, 1fr) 64px 40px 68px';
-const moveColumns = 'minmax(72px, 1fr) 20px minmax(72px, 1fr) minmax(220px, 1.6fr) 64px';
+
+function unusedTo(from: string, stages: Stage[], rows: Transition[]): string | null {
+  const used = new Set(rows.filter((row) => row.from === from).map((row) => row.to));
+  return stages.find((stage) => stage.id !== from && !used.has(stage.id))?.id ?? null;
+}
+
+function groupMoves(rows: Transition[]): { from: string; indexes: number[] }[] {
+  const groups: { from: string; indexes: number[] }[] = [];
+  const byFrom = new Map<string, number[]>();
+  rows.forEach((row, index) => {
+    let indexes = byFrom.get(row.from);
+    if (!indexes) {
+      indexes = [];
+      byFrom.set(row.from, indexes);
+      groups.push({ from: row.from, indexes });
+    }
+    indexes.push(index);
+  });
+  return groups;
+}
 
 function usedByLine(names: string[] | undefined, count: number | undefined, prefer?: string) {
   const list = [...(names ?? [])];
@@ -487,28 +540,18 @@ function usedByLine(names: string[] | undefined, count: number | undefined, pref
   return `${first} and ${rest} other ${rest === 1 ? 'project' : 'projects'}`;
 }
 
-function unusedMove(stages: Stage[], rows: Transition[]): { from: string; to: string } | null {
-  const used = new Set(rows.map((r) => `${r.from}->${r.to}`));
-  for (const from of stages) {
-    for (const to of stages) {
-      if (from.id === to.id) continue;
-      if (!used.has(`${from.id}->${to.id}`)) return { from: from.id, to: to.id };
-    }
-  }
-  if (stages[0] && !used.has(`*->${stages[0].id}`)) return { from: '*', to: stages[0].id };
-  return stages[0] && stages[1] ? { from: stages[0].id, to: stages[1].id } : null;
-}
-
 function StageSelect({
   value,
   stages,
   allowAny,
+  compact,
   onChange,
   'aria-label': ariaLabel,
 }: {
   value: string;
   stages: Stage[];
   allowAny?: boolean;
+  compact?: boolean;
   onChange: (id: string) => void;
   'aria-label': string;
 }) {
@@ -522,7 +565,9 @@ function StageSelect({
       value={value}
       options={options}
       onChange={onChange}
-      style={{ minWidth: 120, width: '100%' }}
+      variant={compact ? 'borderless' : 'outlined'}
+      popupMatchSelectWidth={260}
+      style={{ width: compact ? 260 : '100%', flex: 'none' }}
     />
   );
 }

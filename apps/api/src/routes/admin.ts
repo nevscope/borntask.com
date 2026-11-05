@@ -9,6 +9,7 @@ import { forbidden, notFound, sendError, validation } from '../errors.js';
 import {
   hoursPerWeekSchema,
   hoursPerWeekToNumber,
+  memberFillsTimesheets,
   isIanaTimeZone,
   optionalCountryCodeSchema,
   parseOptionalWorkingDays,
@@ -374,6 +375,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           hoursPerWeek: hoursPerWeekToNumber(next?.hoursPerWeek),
           holidayCountry: next?.holidayCountry ?? null,
           timesheetsExempt: next?.timesheetsExempt ?? false,
+          fillsTimesheets: memberFillsTimesheets({
+            workspaceRole: next?.tenantRole ?? member.tenantRole,
+            timesheetsExempt: next?.timesheetsExempt ?? false,
+          }),
         };
       }
       if (body.tenantRole === 'owner') {
