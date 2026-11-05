@@ -7,6 +7,7 @@ import { forbidden, notFound, sendError, validation } from '../errors.js';
 import { actorName, enqueueChat, enqueuePersonalChat, taskUrl, userName } from '../lib/chatNotify.js';
 import { badgesForTasks } from '../lib/githubBadge.js';
 import { findTaskByKey, loadWorkflow, mapTask, parseTaskKey, planningMetaForProject, taskKey } from '../lib/loadProject.js';
+import { blockedTaskIds, createTaskLink, listTaskLinks, removeTaskLink } from '../lib/taskLinks.js';
 import { resolvePlanningParent } from '../lib/planning.js';
 import { nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
@@ -101,7 +102,12 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       });
       const badges = await badgesForTasks(auth.db, rows.map((row) => row.id));
       const planning = await planningMetaForProject(auth.db, project.id);
-      return rows.map((row) => ({ ...mapTask(row, planning.get(row.id)), githubBadge: badges.get(row.id) ?? null }));
+      const blocked = await blockedTaskIds(auth.db, rows.map((row) => row.id));
+      return rows.map((row) => ({
+        ...mapTask(row, planning.get(row.id)),
+        githubBadge: badges.get(row.id) ?? null,
+        isBlocked: blocked.has(row.id),
+      }));
     } catch (err) {
       return sendError(reply, err);
     }
@@ -191,13 +197,19 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
 
       const visible = <T extends { projectId: string }>(rows: T[]) =>
         rows.filter((row) => canOpenListed(openIds, row.projectId));
+      const assignedOpen = visible(assigned);
+      const createdOpen = visible(created);
+      const watchingOpen = visible(watching);
+      const unassignedOpen = visible(unassigned);
+      const blocked = await blockedTaskIds(auth.db, [...assignedOpen, ...createdOpen, ...watchingOpen, ...unassignedOpen, ...approvals].map((row) => row.id));
+      const mark = (row: typeof assigned[number]) => ({ ...mapTask(row), isBlocked: blocked.has(row.id) });
 
       return {
-        assigned: visible(assigned).map((row) => mapTask(row)),
-        created: visible(created).map((row) => mapTask(row)),
-        watching: visible(watching).map((row) => mapTask(row)),
-        unassigned: visible(unassigned).map((row) => mapTask(row)),
-        approvals: approvals.map((row) => mapTask(row)),
+        assigned: assignedOpen.map(mark),
+        created: createdOpen.map(mark),
+        watching: watchingOpen.map(mark),
+        unassigned: unassignedOpen.map(mark),
+        approvals: approvals.map(mark),
       };
     } catch (err) {
       return sendError(reply, err);
@@ -242,8 +254,13 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         include: { type: true, project: true },
         orderBy: { position: 'asc' },
       });
+      const openIds = await openProjectIds(auth);
+      const taskLinks = await listTaskLinks(auth.db, row.id, (projectId) => canOpenListed(openIds, projectId));
+      const blocked = await blockedTaskIds(auth.db, [row.id]);
       return {
         ...mapTask({ ...row, subtasks: children }, planning.get(row.id)),
+        isBlocked: blocked.has(row.id),
+        links: taskLinks,
         githubBadge: badges.get(row.id) ?? null,
         planningChildren: planningKids.map((kid) => ({
           key: taskKey(kid.project.key, kid.number),
@@ -280,6 +297,31 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         attachments: attachments.map((att) => mapAttachment(mappedKey, att)),
         deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
       };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/links', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const input = z.object({
+        type: z.string(),
+        otherKey: z.string().trim().min(1),
+      }).parse(req.body);
+      return await createTaskLink(auth, key, input.type, input.otherKey);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.delete('/tasks/:key/links/:id', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      await removeTaskLink(auth, key, id);
+      return { ok: true };
     } catch (err) {
       return sendError(reply, err);
     }

@@ -13,6 +13,7 @@ import {
   SearchResponseSchema,
   SubtaskSchema,
   TaskDetailSchema,
+  TaskLinkSchema,
   TaskSchema,
   type Api,
   type ApiErrorCode,
@@ -93,6 +94,8 @@ export const httpApi: Api = {
   deleteTask: (key) => request('DELETE', `/tasks/${enc(key)}`, null),
   restoreTask: (key) => request('POST', `/tasks/${enc(key)}/restore`, TaskSchema),
   setWatching: (key, watch) => request('POST', `/tasks/${enc(key)}/watchers`, z.object({ ok: z.boolean() }), { watch }),
+  addTaskLink: (key, input) => request('POST', `/tasks/${enc(key)}/links`, TaskLinkSchema, input),
+  removeTaskLink: (key, id) => request('DELETE', `/tasks/${enc(key)}/links/${enc(id)}`, null),
   listNotifications: () => request('GET', '/me/notifications', NotificationListSchema),
   markNotificationsRead: (input) => request('POST', '/me/notifications/read', NotificationListSchema, input),
 };

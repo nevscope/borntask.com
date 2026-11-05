@@ -22,7 +22,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'get_task',
-    description: 'Read one task, including description, subtasks, comments, activity, attachment list and a url you can open in the browser.',
+    description: 'Read one task, including description, subtasks, comments, activity, links, attachment list and a url you can open in the browser.',
     inputSchema: {
       type: 'object',
       properties: { key: { type: 'string', description: 'Task key, such as WEB-142.' } },
@@ -113,6 +113,31 @@ export const TOOLS: ToolDef[] = [
         sectionId: { type: 'string', description: 'Section id. Omit to use the first section.' },
       },
       required: ['key', 'projectKey'],
+    },
+  },
+  {
+    name: 'add_task_link',
+    description: 'Link two tasks. Types: blocks, blocked_by, relates, duplicates. Works across projects in the same workspace. Use get_task to read existing links.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Task key, such as WEB-142.' },
+        type: { type: 'string', enum: ['blocks', 'blocked_by', 'relates', 'duplicates'] },
+        otherKey: { type: 'string', description: 'The other task key, such as MOB-18.' },
+      },
+      required: ['key', 'type', 'otherKey'],
+    },
+  },
+  {
+    name: 'remove_task_link',
+    description: 'Remove a task link. Pass the link id from get_task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Task key, such as WEB-142.' },
+        id: { type: 'string', description: 'Link id from get_task.' },
+      },
+      required: ['key', 'id'],
     },
   },
   {
@@ -323,6 +348,13 @@ export async function callTool(token: string, name: string, args: Record<string,
         projectKey: str('projectKey'),
         sectionId: str('sectionId'),
       }));
+    case 'add_task_link':
+      return text(await api(token, 'POST', `/tasks/${encodeURIComponent(str('key') ?? '')}/links`, {
+        type: str('type'),
+        otherKey: str('otherKey'),
+      }));
+    case 'remove_task_link':
+      return text(await api(token, 'DELETE', `/tasks/${encodeURIComponent(str('key') ?? '')}/links/${encodeURIComponent(str('id') ?? '')}`));
     case 'add_comment': {
       const key = str('key') ?? '';
       const created = await api(token, 'POST', `/tasks/${encodeURIComponent(key)}/comments`, {
