@@ -26,6 +26,7 @@ import {
 } from '../lib/attachments.js';
 import { canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite, requireProjectWrite } from '../lib/projectAccess.js';
 import { setTaskLabels } from '../lib/setTaskLabels.js';
+import { convertTaskToSubtask, promoteSubtask } from '../lib/convertTaskNesting.js';
 
 function mapSubtask(row: {
   id: string;
@@ -208,7 +209,19 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const row = await findTaskByKey(auth.db, key);
+      let row = await findTaskByKey(auth.db, key);
+      let redirectedFrom: string | null = null;
+      if (row?.parentId && !row.deletedAt) {
+        const parentRef = await auth.db.task.findFirst({
+          where: { id: row.parentId, deletedAt: null },
+          include: { project: true },
+        });
+        if (!parentRef) throw notFound();
+        const parent = await findTaskByKey(auth.db, taskKey(parentRef.project.key, parentRef.number));
+        if (!parent || parent.deletedAt) throw notFound();
+        redirectedFrom = key;
+        row = parent;
+      }
       if (!row || (row.deletedAt && row.deletedAt < trashCutoff())) throw notFound();
       await requireOpenProject(auth, row.project.key);
       const comments = await auth.db.comment.findMany({
@@ -279,6 +292,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         watcherIds: watchers.map((w) => w.userId),
         attachments: attachments.map((att) => mapAttachment(mappedKey, att)),
         deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+        redirectedFrom,
       };
     } catch (err) {
       return sendError(reply, err);
@@ -746,6 +760,20 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/tasks/:key/convert-to-subtask', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const key = (req.params as { key: string }).key;
+      const body = z.object({
+        parentKey: z.string().trim().min(1),
+        confirm: z.boolean().optional(),
+      }).parse(req.body);
+      return await convertTaskToSubtask(auth, key, body);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post('/tasks/:key/subtasks', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
@@ -803,6 +831,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       });
       publishTaskChange(auth, { key: parentKey, projectKey: parent.project.key }, 'patch');
       return mapSubtask(child);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/tasks/:key/subtasks/:id/promote', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const { key, id } = req.params as { key: string; id: string };
+      return await promoteSubtask(auth, key, id);
     } catch (err) {
       return sendError(reply, err);
     }

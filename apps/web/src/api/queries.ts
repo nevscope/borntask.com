@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CommentReactionKind, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
+import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput } from './types';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -96,6 +96,8 @@ export const api: Api = {
   deleteComment: (key, commentId) => tasksApi().deleteComment(key, commentId),
   toggleCommentReaction: (key, commentId, emoji) => tasksApi().toggleCommentReaction(key, commentId, emoji),
   addSubtask: (key, title) => tasksApi().addSubtask(key, title),
+  convertTaskToSubtask: (key, input) => tasksApi().convertTaskToSubtask(key, input),
+  promoteSubtask: (key, id) => tasksApi().promoteSubtask(key, id),
   setSubtaskDone: (key, id, done) => tasksApi().setSubtaskDone(key, id, done),
   patchSubtask: (key, id, input) => tasksApi().patchSubtask(key, id, input),
   deleteSubtask: (key, id) => tasksApi().deleteSubtask(key, id),
@@ -510,6 +512,30 @@ export function useAddSubtask() {
   return useMutation({
     mutationFn: ({ key, title }: { key: string; title: string }) => api.addSubtask(key, title),
     onSuccess: (_s, { key }) => invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) }),
+  });
+}
+
+export function useConvertTaskToSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: ConvertToSubtaskInput }) => api.convertTaskToSubtask(key, input),
+    onSuccess: (result, { key }) => {
+      void qc.removeQueries({ queryKey: qk.task(key) });
+      invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) });
+      invalidateTaskViews(qc, { key: result.parentKey, projectKey: projectKeyOf(result.parentKey) });
+    },
+  });
+}
+
+export function usePromoteSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, id }: { key: string; id: string }) => api.promoteSubtask(key, id),
+    onSuccess: (task, { key }) => {
+      invalidateTaskViews(qc, { key, projectKey: projectKeyOf(key) });
+      invalidateTaskViews(qc, task);
+      void qc.prefetchQuery({ queryKey: qk.task(task.key), queryFn: () => api.getTask(task.key) });
+    },
   });
 }
 

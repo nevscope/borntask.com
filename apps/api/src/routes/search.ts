@@ -97,8 +97,15 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         if (project && canOpenListed(openIds, project.id)) {
           const row = await auth.db.task.findFirst({
             where: { projectId: project.id, number: key.number, deletedAt: null },
-            include: taskInclude,
+            include: { ...taskInclude, parent: { include: { project: true } } },
           });
+          if (row?.parentId && row.parent) {
+            const parent = await auth.db.task.findFirst({
+              where: { id: row.parentId, deletedAt: null },
+              include: taskInclude,
+            });
+            if (parent) return { hits: [toHit(parent, 'key', parent.title, null)], tookMs: Date.now() - started };
+          }
           if (row) return { hits: [toHit(row, 'key', row.title, null)], tookMs: Date.now() - started };
         }
       }
