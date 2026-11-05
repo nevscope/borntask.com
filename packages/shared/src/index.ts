@@ -12,7 +12,6 @@ export * from './chatDm.js';
 export * from './github.js';
 export * from './automations.js';
 export * from './workspacePacks.js';
-export * from './projectTemplates.js';
 export * from './projectKey.js';
 export * from './commentReactions.js';
 export * from './timesheets.js';
