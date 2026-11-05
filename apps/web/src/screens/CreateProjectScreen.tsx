@@ -1,5 +1,14 @@
-import { suggestProjectKey, normaliseProjectKey } from '@borntask/shared';
-import { Button, Input, Radio, Select, Switch } from 'antd';
+import {
+  formatReleaseSectionName,
+  normaliseProjectKey,
+  projectTemplateById,
+  projectTemplates,
+  sectionNameLooksLikeStatus,
+  suggestProjectKey,
+  SECTION_WHEN_RULE,
+  type ProjectTemplateId,
+} from '@borntask/shared';
+import { Button, DatePicker, Input, Radio, Select, Switch } from 'antd';
 import type { WorkBreakdown } from '../api/types';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,12 +37,15 @@ export function CreateProjectScreen() {
   const [keyTouched, setKeyTouched] = useState(false);
   const [colour, setColour] = useState<string>(defaultProjectColour);
   const [hexDraft, setHexDraft] = useState(colour);
-  const [workflow, setWorkflow] = useState<'delivery' | 'simple'>('delivery');
+  const [templateId, setTemplateId] = useState<ProjectTemplateId>('product_dev');
   const [workBreakdown, setWorkBreakdown] = useState<WorkBreakdown>('off');
   const [storiesNeedApproval, setStoriesNeedApproval] = useState(true);
-  const [sections, setSections] = useState<string[]>(['Inbox']);
+  const [sections, setSections] = useState<string[]>(() => projectTemplateById('product_dev')?.sections ?? ['Inbox']);
   const [sectionDraft, setSectionDraft] = useState('');
+  const [releaseDate, setReleaseDate] = useState<string | null>(null);
   const [addingSection, setAddingSection] = useState(false);
+  const template = projectTemplateById(templateId) ?? projectTemplates[0]!;
+  const workflow = template.workflow;
   const [picked, setPicked] = useState<{ userId: string; roles: ProjectRole[] }[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<ProjectRole>('business');
@@ -68,11 +80,29 @@ export function CreateProjectScreen() {
 
   const close = () => navigate('/projects');
 
-  const addSection = () => {
-    const next = sectionDraft.trim();
-    if (!next || sections.includes(next)) return;
-    setSections([...sections, next]);
+  const pickTemplate = (id: ProjectTemplateId) => {
+    setTemplateId(id);
+    setSections(projectTemplateById(id)?.sections ?? ['Inbox']);
     setSectionDraft('');
+    setReleaseDate(null);
+    setAddingSection(false);
+  };
+
+  const addSection = () => {
+    const next = template.sectionKind === 'releases'
+      ? formatReleaseSectionName(sectionDraft, releaseDate)
+      : sectionDraft.trim();
+    if (!next || sections.includes(next)) return;
+    if (template.sectionKind === 'releases') {
+      const inbox = sections[0] === 'Inbox' ? ['Inbox'] : [];
+      const backlog = sections.includes('Backlog') ? ['Backlog'] : [];
+      const middle = sections.filter((name) => name !== 'Inbox' && name !== 'Backlog');
+      setSections([...inbox, ...middle, next, ...backlog]);
+    } else {
+      setSections([...sections, next]);
+    }
+    setSectionDraft('');
+    setReleaseDate(null);
     setAddingSection(false);
   };
 
@@ -96,6 +126,7 @@ export function CreateProjectScreen() {
           name: name.trim(),
           key: derivedKey || undefined,
           colour: parseProjectHex(colour) ?? colour,
+          template: templateId,
           workflow,
           workBreakdown,
           storiesNeedApproval: workBreakdown === 'off' ? undefined : storiesNeedApproval,
@@ -204,24 +235,50 @@ export function CreateProjectScreen() {
               <span style={{ fontWeight: 400, color: color.muted }}>3 letters</span>
             </label>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
-            <ProjectColourField
-              colour={colour}
-              hexDraft={hexDraft}
-              onColour={setColour}
-              onHexDraft={setHexDraft}
-            />
-            <label style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
-              Workflow
-              <Select
-                value={workflow}
-                onChange={setWorkflow}
-                options={[
-                  { value: 'delivery', label: 'Delivery: Idea to Deployed, plus On hold and Rejected' },
-                  { value: 'simple', label: 'Simple: To do, Doing, Done' },
-                ]}
-              />
-            </label>
+          <ProjectColourField
+            colour={colour}
+            hexDraft={hexDraft}
+            onColour={setColour}
+            onHexDraft={setHexDraft}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>Template</span>
+            <div role="radiogroup" aria-label="Project template" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+              {projectTemplates.map((option) => {
+                const on = templateId === option.id;
+                return (
+                  <label
+                    key={option.id}
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      padding: '12px 14px',
+                      border: `1px solid ${on ? color.brandBorder : color.border}`,
+                      borderRadius: 10,
+                      background: on ? color.brandTint : color.surface,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="project-template"
+                      checked={on}
+                      onChange={() => pickTemplate(option.id)}
+                      style={{ width: 16, height: 16, marginTop: 2 }}
+                    />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 600 }}>{option.title}</span>
+                      <span style={{ fontSize: 12.5, color: on ? color.ink3 : color.muted }}>{option.summary}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <span style={{ fontWeight: 400, color: color.muted, fontSize: 12.5 }}>
+              {workflow === 'delivery'
+                ? 'Uses the Delivery workflow: Idea to Deployed, plus On hold and Rejected. Opens on the Open list, grouped by section.'
+                : 'Uses the Simple workflow: To do, Doing, Done. Opens on the Open list, grouped by section.'}
+            </span>
           </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 500 }}>
             Work breakdown
@@ -245,7 +302,11 @@ export function CreateProjectScreen() {
             </label>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>Sections</span>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>
+              {template.sectionKind === 'releases' ? 'Sections (releases)' : 'Sections (phases)'}
+            </span>
+            <p style={{ margin: 0, fontWeight: 400, color: color.muted, fontSize: 12.5 }}>{SECTION_WHEN_RULE}</p>
+            <p style={{ margin: 0, fontWeight: 400, color: color.muted, fontSize: 12.5 }}>{template.sectionHint}</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
               {sections.map((s) => (
                 <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', borderRadius: 8, background: color.chip, fontSize: 13 }}>
@@ -261,25 +322,40 @@ export function CreateProjectScreen() {
                 </span>
               ))}
               {addingSection ? (
-                <Input
-                  autoFocus
-                  value={sectionDraft}
-                  onChange={(e) => setSectionDraft(e.target.value)}
-                  onPressEnter={addSection}
-                  onBlur={addSection}
-                  placeholder="Section name"
-                  style={{ width: 160, height: 30 }}
-                />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Input
+                    autoFocus
+                    value={sectionDraft}
+                    onChange={(e) => setSectionDraft(e.target.value)}
+                    onPressEnter={addSection}
+                    placeholder={template.sectionKind === 'releases' ? 'Release name' : 'Phase name'}
+                    style={{ width: 160, height: 30 }}
+                  />
+                  {template.sectionKind === 'releases' && (
+                    <DatePicker
+                      aria-label="Release date"
+                      placeholder="Date"
+                      onChange={(value) => setReleaseDate(value ? value.format('YYYY-MM-DD') : null)}
+                      style={{ height: 30 }}
+                    />
+                  )}
+                  <Button size="small" onClick={addSection}>Add</Button>
+                </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => setAddingSection(true)}
                   style={{ height: 30, padding: '0 10px', border: `1px dashed ${color.dashed}`, borderRadius: 8, background: 'transparent', font: 'inherit', fontSize: 13, color: color.muted, cursor: 'pointer' }}
                 >
-                  + Section
+                  {template.sectionKind === 'releases' ? '+ Release' : '+ Phase'}
                 </button>
               )}
             </div>
+            {sections.some(sectionNameLooksLikeStatus) && (
+              <p style={{ margin: 0, color: color.danger, fontSize: 12.5 }}>
+                That section name sounds like a status. Use a release or phase instead.
+              </p>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 500 }}>Members and project roles</span>
