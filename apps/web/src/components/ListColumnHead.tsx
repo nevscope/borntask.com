@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useClampToViewport } from '../lib/clampToViewport';
 import type { FilterCondition, FilterField } from '../lib/taskFilters';
 import { color } from '../theme/tokens';
 
@@ -6,6 +7,7 @@ export function ListColumnHead({
   label,
   width,
   field,
+  className,
   filters,
   choices,
   onFilters,
@@ -13,13 +15,15 @@ export function ListColumnHead({
   label: string;
   width?: number;
   field: FilterField | 'title';
+  className?: string;
   filters: FilterCondition[];
   choices?: { value: string; label: string }[];
   onFilters: (filters: FilterCondition[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const box = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLSpanElement>(null);
+  const panel = useClampToViewport<HTMLDivElement>(open);
   const active = filters.some((row) => (field === 'title' ? row.field === 'text' : row.field === field) && row.values.length > 0);
 
   useEffect(() => {
@@ -42,7 +46,7 @@ export function ListColumnHead({
   const rows = (choices ?? []).filter((item) => !needle || item.label.toLowerCase().includes(needle));
 
   return (
-    <span ref={box} style={{ width, position: 'relative', flex: width ? 'none' : '1 1 240px', minWidth: 0 }}>
+    <span ref={box} className={className} style={{ width, position: 'relative', flex: width ? 'none' : '1 1 220px', minWidth: width ? undefined : 220 }}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -61,7 +65,7 @@ export function ListColumnHead({
         {label}
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 28, left: 0, zIndex: 24, width: 220, padding: 8, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, boxShadow: color.shadow }}>
+        <div ref={panel} style={{ position: 'absolute', top: 28, left: 0, zIndex: 24, width: 220, padding: 8, background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, boxShadow: color.shadow }}>
           <input
             autoFocus
             value={q}

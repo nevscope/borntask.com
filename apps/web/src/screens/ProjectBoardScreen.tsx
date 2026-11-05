@@ -294,9 +294,9 @@ function Column({ status, detail, tasks, dragState, blockedReason, droppable = t
 
   return (
     <section ref={setNodeRef} aria-label={status.name} className={cls} style={isOver && dragState === 'allowed' ? { boxShadow: `inset 0 0 0 2px ${color.brand}` } : undefined}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 4px', fontSize: 13, fontWeight: 600 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: toneStyle[status.tone].dot }} />
-        <span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '2px 4px 4px', fontSize: 13, fontWeight: 600 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: toneStyle[status.tone].dot, marginTop: 5, flex: 'none' }} />
+        <span className="bt-column-title">
           {status.name}{' '}
           <span style={{ fontWeight: 500, color: over ? color.danger : color.muted }}>
             {status.wipLimit !== null ? `${tasks.length} / ${status.wipLimit}` : tasks.length}
@@ -323,9 +323,9 @@ function StaticColumn({ name, tasks, detail }: { name: string; tasks: Task[]; de
   const { openTask } = useTaskParam();
   return (
     <section aria-label={name} className="bt-column">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 4px', fontSize: 13, fontWeight: 600 }}>
-        {name}
-        <span style={{ fontWeight: 500, color: color.muted }}>{tasks.length}</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '2px 4px 4px', fontSize: 13, fontWeight: 600 }}>
+        <span className="bt-column-title">{name}</span>
+        <span style={{ fontWeight: 500, color: color.muted, flex: 'none' }}>{tasks.length}</span>
       </div>
       {tasks.map((task) => (
         <button key={task.key} type="button" onClick={() => openTask(task.key)} style={{ border: 0, padding: 0, background: 'transparent', textAlign: 'left' }}>

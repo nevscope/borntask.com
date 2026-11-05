@@ -138,12 +138,12 @@ export function ListFields({
       </span>
       )}
       {show('due') && (
-      <span style={{ width: LIST_FIELD_WIDTH.due, color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 13 }}>
+      <span className="bt-col-due" style={{ width: LIST_FIELD_WIDTH.due, color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 13 }}>
         <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
       </span>
       )}
       {show('priority') && (
-      <span style={{ width: LIST_FIELD_WIDTH.priority }}>
+      <span className="bt-col-priority" style={{ width: LIST_FIELD_WIDTH.priority }}>
         <PriorityPicker bare value={task.priority} trigger={<PriorityLabel priority={task.priority} />} onChange={(priority) => save({ priority })} />
       </span>
       )}
