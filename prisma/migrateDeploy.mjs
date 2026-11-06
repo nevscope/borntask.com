@@ -30,6 +30,11 @@ export const CHECKS = [
   { name: '20261101223000_holiday_country', kind: 'column', table: 'Workspace', column: 'defaultHolidayCountry' },
   { name: '20261102100000_timesheets_exempt', kind: 'column', table: 'TenantMember', column: 'timesheetsExempt' },
   { name: '20261104150000_section_hidden', kind: 'column', table: 'Section', column: 'hidden' },
+  { name: '20261105140000_task_links', kind: 'table', table: 'TaskLink' },
+  { name: '20261105220000_project_open', kind: 'table', table: 'ProjectOpen' },
+  { name: '20261106120000_custom_fields', kind: 'table', table: 'CustomField' },
+  { name: '20261106130000_workspace_releases', kind: 'table', table: 'WorkspaceRelease' },
+  { name: '20261106160700_email_cadence', kind: 'column', table: 'NotificationPreference', column: 'emailCadence' },
 ];
 
 function prisma(args) {

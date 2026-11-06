@@ -2,7 +2,7 @@ import { prisma } from '../db.js';
 import { config } from '../env.js';
 import type { Authed } from '../context.js';
 import { enqueueMail } from './enqueueMail.js';
-import { htmlToPlain, replyMailbox } from '@borntask/shared';
+import { htmlToPlain, replyMailbox, resolveEmailCadence } from '@borntask/shared';
 import { signReplyToken } from './replyToken.js';
 
 function firstName(name: string): string {
@@ -16,8 +16,13 @@ export async function emailAllowed(auth: Authed, userId: string, event: string):
   const pref = await auth.db.notificationPreference.findFirst({
     where: { userId, event, channel: 'email' },
   });
-  if (pref) return pref.enabled;
-  return user.emailPerTask && event !== 'digest_ready';
+  const cadence = resolveEmailCadence({
+    event,
+    stored: pref?.emailCadence,
+    emailEnabled: pref?.enabled,
+    emailPerTask: user.emailPerTask,
+  });
+  return cadence === 'instantly';
 }
 
 export async function enqueueTaskEventEmail(

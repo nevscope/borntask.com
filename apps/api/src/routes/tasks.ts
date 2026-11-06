@@ -177,6 +177,9 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         ...mapTask(row, planning.get(row.id)),
         githubBadge: badges.get(row.id) ?? null,
         isBlocked: blocked.has(row.id),
+        statusName: row.status.name,
+        statusCategory: row.status.category,
+        sectionName: row.section?.name ?? null,
       }));
     } catch (err) {
       return sendError(reply, err);

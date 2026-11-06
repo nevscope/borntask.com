@@ -24,6 +24,7 @@ const WRITE_PATHS: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/reorder$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/subtasks$/ },
   { method: 'PATCH', pattern: /^\/tasks\/[^/]+\/subtasks\/[^/]+$/ },
+  { method: 'POST', pattern: /^\/tasks\/[^/]+\/attachments$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/watchers$/ },
   { method: 'POST', pattern: /^\/tasks\/[^/]+\/links$/ },
   { method: 'DELETE', pattern: /^\/tasks\/[^/]+\/links\/[^/]+$/ },

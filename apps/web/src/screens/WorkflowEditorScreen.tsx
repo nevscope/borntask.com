@@ -1,5 +1,5 @@
 import { bypassApproveWarning, isDuplicateMove, unusedMove } from '@borntask/shared';
-import { Alert, Checkbox, Select } from 'antd';
+import { Alert, Checkbox, Select, Skeleton } from 'antd';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useWorkspaceCatalog } from '../api/catalog';
@@ -200,11 +200,17 @@ export function WorkflowEditorScreen() {
     setRows(list);
   };
 
+  if (!me) return <div className="bt-page"><Skeleton active paragraph={{ rows: 8 }} /></div>;
+  if (!canEdit) {
+    return (
+      <SettingsFrame projectKey={projectKey} canAdmin={false} isOwner={false} canSeePeople={canSeePeople}>
+        <NoAccess kind="settings" message="Only a workspace owner or admin can open the workflow editor." />
+      </SettingsFrame>
+    );
+  }
+
   return (
-    <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me?.workspaceRole === 'owner'} canSeePeople={canSeePeople}>
-    {me && !canEdit ? (
-      <NoAccess kind="settings" message="Only a workspace owner or admin can open the workflow editor." />
-    ) : (
+    <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me.workspaceRole === 'owner'} canSeePeople={canSeePeople}>
     <form
       style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}
       onSubmit={(e) => e.preventDefault()}
@@ -495,7 +501,6 @@ export function WorkflowEditorScreen() {
         People will not be able to make that move after you save.
       </ConfirmDialog>
     </form>
-    )}
     </SettingsFrame>
   );
 }

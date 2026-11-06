@@ -11,7 +11,7 @@ import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
 import { useThemePreference } from '../theme/ThemeProvider';
-import { timeZoneSelectOptions } from '@borntask/shared';
+import { defaultEmailCadence, timeZoneSelectOptions, type EmailCadence } from '@borntask/shared';
 import { color } from '../theme/tokens';
 
 const EVENTS = [
@@ -21,7 +21,6 @@ const EVENTS = [
   { key: 'watched_comment', label: 'Someone comments on a task I watch' },
   { key: 'reported_deployed', label: 'A task I reported is deployed' },
   { key: 'access_request', label: 'Someone requests access to a project' },
-  { key: 'digest_ready', label: 'Daily digest is ready' },
 ] as const;
 
 const CHAT_KEY: Partial<Record<(typeof EVENTS)[number]['key'], keyof PersonalChatPrefs>> = {
@@ -76,32 +75,26 @@ function saveErrorMessage(raw: unknown): string {
 }
 
 type DigestMode = 'workdays' | 'daily' | 'off';
-type Pref = { event: string; inApp: boolean; email: boolean };
+type Pref = { event: string; inApp: boolean; emailCadence: EmailCadence };
 type Profile = {
   name: string;
   email: string;
   timeZone: string;
   digestMode: DigestMode;
-  emailPerTask: boolean;
   prefs: Pref[];
 };
 
-function snapshot(draft: { name: string; timeZone: string; digestMode: DigestMode; emailPerTask: boolean; prefs: Pref[] }) {
+function snapshot(draft: { name: string; timeZone: string; digestMode: DigestMode; prefs: Pref[] }) {
   return JSON.stringify({
     name: draft.name.trim(),
     timeZone: draft.timeZone,
     digestMode: draft.digestMode,
-    emailPerTask: draft.emailPerTask,
     prefs: draft.prefs,
   });
 }
 
 function emptyPrefs(): Pref[] {
-  return EVENTS.map((row) => ({ event: row.key, inApp: true, email: false }));
-}
-
-function eventEmailOn(list: Pref[]) {
-  return list.some((row) => row.event !== 'digest_ready' && row.email);
+  return EVENTS.map((row) => ({ event: row.key, inApp: true, emailCadence: defaultEmailCadence(row.key) }));
 }
 
 export function ProfileSettingsScreen() {
@@ -111,7 +104,6 @@ export function ProfileSettingsScreen() {
   const [name, setName] = useState(me?.user.name ?? '');
   const [timeZone, setTimeZone] = useState<string>('Europe/Malta');
   const [digestMode, setDigestMode] = useState<DigestMode>('workdays');
-  const [emailPerTask, setEmailPerTask] = useState(false);
   const [prefs, setPrefs] = useState<Pref[]>(emptyPrefs);
   const [baseline, setBaseline] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -159,41 +151,25 @@ export function ProfileSettingsScreen() {
     setName(profile.data.name);
     setTimeZone(profile.data.timeZone);
     setDigestMode(profile.data.digestMode);
-    setEmailPerTask(profile.data.emailPerTask);
     setPrefs(profile.data.prefs);
     setBaseline(snapshot(profile.data));
     setSaved(false);
   }, [profile.data]);
 
-  const dirty = Boolean(baseline) && snapshot({ name, timeZone, digestMode, emailPerTask, prefs }) !== baseline;
+  const dirty = Boolean(baseline) && snapshot({ name, timeZone, digestMode, prefs }) !== baseline;
   const unsaved = useUnsavedChanges(dirty || urlDirty);
 
-  const prefOf = (event: string) => prefs.find((row) => row.event === event) ?? { event, inApp: true, email: true };
+  const prefOf = (event: string) => prefs.find((row) => row.event === event) ?? { event, inApp: true, emailCadence: defaultEmailCadence(event) };
 
   const patchPref = (event: string, next: Partial<Pref>) => {
     setSaved(false);
-    setPrefs((list) => {
-      const updated = list.map((row) => (row.event === event ? { ...row, ...next } : row));
-      if (event === 'digest_ready' && next.email !== undefined) {
-        setDigestMode(next.email ? (digestMode === 'off' ? 'workdays' : digestMode) : 'off');
-      }
-      if (event !== 'digest_ready' && next.email !== undefined) {
-        setEmailPerTask(eventEmailOn(updated));
-      }
-      return updated;
-    });
+    setPrefs((list) => list.map((row) => (row.event === event ? { ...row, ...next } : row)));
+    if (next.emailCadence === 'digest' && digestMode === 'off') setDigestMode('workdays');
   };
 
   const setDigest = (value: DigestMode) => {
     setDigestMode(value);
     setSaved(false);
-    setPrefs((list) => list.map((row) => (row.event === 'digest_ready' ? { ...row, email: value !== 'off' } : row)));
-  };
-
-  const setPerTask = (on: boolean) => {
-    setEmailPerTask(on);
-    setSaved(false);
-    setPrefs((list) => list.map((row) => (row.event === 'digest_ready' ? row : { ...row, email: on })));
   };
 
   const save = async () => {
@@ -207,7 +183,7 @@ export function ProfileSettingsScreen() {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), timeZone, digestMode, emailPerTask, prefs }),
+      body: JSON.stringify({ name: name.trim(), timeZone, digestMode, prefs }),
     });
     const json = await res.json().catch(() => ({})) as Profile & { message?: string };
     setBusy(false);
@@ -223,7 +199,6 @@ export function ProfileSettingsScreen() {
     setName(json.name);
     setTimeZone(json.timeZone);
     setDigestMode(json.digestMode);
-    setEmailPerTask(json.emailPerTask);
     setPrefs(json.prefs);
     setBaseline(snapshot(json));
     setSaved(true);
@@ -391,21 +366,30 @@ export function ProfileSettingsScreen() {
         <div style={{ minWidth: 620 }}>
           <div style={{ padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Notify me when</h2>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: color.muted }}>Tick Email for the events you want in your inbox. The daily digest has its own setting below.</p>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: color.muted }}>Pick Instantly, In digest or Off for each email. Mentions and assignments start on Instantly.</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 90px 90px 110px', gap: 8, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 90px 220px 110px', gap: 8, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: color.muted, borderBottom: `1px solid ${color.divider}` }}>
             <span /><span style={{ textAlign: 'center' }}>In app</span><span style={{ textAlign: 'center' }}>Email</span><span style={{ textAlign: 'center' }}>Google Chat</span>
           </div>
           {EVENTS.map((row) => {
             const pref = prefOf(row.key);
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 90px 90px 110px', gap: 8, alignItems: 'center', minHeight: 44, padding: '0 16px', borderBottom: `1px solid ${color.divider}`, fontSize: 13.5 }}>
+              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 90px 220px 110px', gap: 8, alignItems: 'center', minHeight: 44, padding: '0 16px', borderBottom: `1px solid ${color.divider}`, fontSize: 13.5 }}>
                 <span>{row.label}</span>
                 <span style={{ textAlign: 'center' }}>
                   <Checkbox checked={pref.inApp} onChange={(event) => patchPref(row.key, { inApp: event.target.checked })} />
                 </span>
                 <span style={{ textAlign: 'center' }}>
-                  <Checkbox checked={pref.email} onChange={(event) => patchPref(row.key, { email: event.target.checked })} />
+                  <Segmented
+                    size="small"
+                    value={pref.emailCadence}
+                    onChange={(value) => patchPref(row.key, { emailCadence: value as EmailCadence })}
+                    options={[
+                      { label: 'Instantly', value: 'instantly' },
+                      { label: 'In digest', value: 'digest' },
+                      { label: 'Off', value: 'off' },
+                    ]}
+                  />
                 </span>
                 <span style={{ textAlign: 'center' }}>
                   <Checkbox
@@ -436,7 +420,7 @@ export function ProfileSettingsScreen() {
       <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
         <span style={{ flex: '1 1 280px' }}>
           <span style={{ display: 'block', fontWeight: 600 }}>Daily digest email</span>
-          <span style={{ fontSize: 13, color: color.muted }}>What's due and what mentions you, once a day. Turn on one email per ticket below if you also want an email as things happen.</span>
+          <span style={{ fontSize: 13, color: color.muted }}>Due work and events set to In digest, once a day. Choose when it sends.</span>
         </span>
         <Select
           value={digestMode}
@@ -448,15 +432,6 @@ export function ProfileSettingsScreen() {
             { value: 'off', label: 'Off' },
           ]}
         />
-      </section>
-      <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>
-        <span style={{ flex: '1 1 280px' }}>
-          <span style={{ display: 'block', fontWeight: 600 }}>One email per ticket</span>
-          <span style={{ fontSize: 13, color: color.muted }}>Send an email when you are assigned, mentioned or someone comments on a task you watch. Reply to that email to add a comment.</span>
-        </span>
-        <Checkbox checked={emailPerTask} onChange={(event) => setPerTask(event.target.checked)}>
-          Send one email per event
-        </Checkbox>
       </section>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Button type="primary" loading={busy} disabled={!dirty} onClick={() => void save()}>

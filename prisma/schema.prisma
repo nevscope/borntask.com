@@ -831,6 +831,7 @@ model NotificationPreference {
   event   String
   channel NotifyChannel
   enabled Boolean       @default(true)
+  emailCadence String?
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -30,9 +30,32 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'get_project',
+    description: 'Read one project: members (id and name), sections, statuses and types. Use this to resolve assigneeId and sectionId for create_task.',
+    inputSchema: {
+      type: 'object',
+      properties: { projectKey: { type: 'string', description: 'Project key, such as BOR.' } },
+      required: ['projectKey'],
+    },
+  },
+  {
     name: 'list_projects',
     description: 'List projects you can see in the workspace this token belongs to.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_project_tasks',
+    description: 'List tasks in a project. Omit statusId to skip Deployed and other done stages. Pass openOnly false to include done work.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectKey: { type: 'string', description: 'Project key, such as BOR.' },
+        statusId: { type: 'string', description: 'Status slug, such as wip or approved.' },
+        sectionId: { type: 'string' },
+        openOnly: { type: 'boolean', description: 'Default true. Set false to include done tasks.' },
+      },
+      required: ['projectKey'],
+    },
   },
   {
     name: 'list_my_tasks',
@@ -54,6 +77,19 @@ export const TOOLS: ToolDef[] = [
         assigneeId: { type: 'string' },
         priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low', 'none'] },
         dueDate: { type: 'string', description: 'YYYY-MM-DD' },
+        attachments: {
+          type: 'array',
+          description: 'Optional files as name, mime and base64 data.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              mime: { type: 'string' },
+              data: { type: 'string' },
+            },
+            required: ['name', 'data'],
+          },
+        },
       },
       required: ['projectKey', 'title'],
     },
@@ -68,6 +104,19 @@ export const TOOLS: ToolDef[] = [
         title: { type: 'string' },
       },
       required: ['key', 'title'],
+    },
+  },
+  {
+    name: 'complete_subtask',
+    description: 'Tick or untick a checklist item on a task. You cannot delete subtasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Parent task key, such as WEB-142.' },
+        id: { type: 'string', description: 'Subtask id from get_task.' },
+        done: { type: 'boolean', description: 'Default true.' },
+      },
+      required: ['key', 'id'],
     },
   },
   {
@@ -166,6 +215,20 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'add_attachment',
+    description: 'Attach a file or screenshot to a task. Pass name, mime type and base64 content. Same size and type limits as the app (25 MB). Activity is logged via MCP.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Task key, such as WEB-142.' },
+        name: { type: 'string', description: 'File name, such as screenshot.png.' },
+        mime: { type: 'string', description: 'MIME type, such as image/png.' },
+        data: { type: 'string', description: 'Base64 file content.' },
+      },
+      required: ['key', 'name', 'data'],
+    },
+  },
+  {
     name: 'list_timesheets',
     description: 'Read timesheet entries, days off and holidays for a date range. You always see your own sheet. Owners and admins may pass person. Project leads see only projects they lead.',
     inputSchema: {
@@ -252,6 +315,25 @@ function withTaskUrl(value: unknown) {
   return text({ ...row, url });
 }
 
+async function postAttachment(token: string, key: string, name: string, mime: string, data: string) {
+  const buf = Buffer.from(data, 'base64');
+  if (!buf.length) throw new Error('The attachment was empty.');
+  const form = new FormData();
+  form.append('file', new Blob([buf], { type: mime || 'application/octet-stream' }), name);
+  const res = await fetch(`${apiBase()}/tasks/${encodeURIComponent(key)}/attachments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'X-BornTask-Via': 'mcp' },
+    body: form,
+  });
+  const textBody = await res.text();
+  const json: unknown = textBody ? JSON.parse(textBody) : null;
+  if (!res.ok) {
+    const message = json && typeof json === 'object' && 'message' in json ? String((json as { message: unknown }).message) : res.statusText;
+    throw new Error(message || `Request failed (${res.status})`);
+  }
+  return json;
+}
+
 async function fetchAttachment(token: string, key: string, id: string) {
   const res = await fetch(`${apiBase()}/tasks/${encodeURIComponent(key)}/attachments/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${token}`, 'X-BornTask-Via': 'mcp' },
@@ -281,8 +363,64 @@ export async function callTool(token: string, name: string, args: Record<string,
     }
     case 'get_task':
       return withTaskUrl(await api(token, 'GET', `/tasks/${encodeURIComponent(str('key') ?? '')}`));
+    case 'get_project': {
+      const projectKey = str('projectKey') ?? '';
+      const project = await api(token, 'GET', `/projects/${encodeURIComponent(projectKey)}`) as {
+        project?: { key?: string; name?: string };
+        members?: Array<{ userId: string }>;
+        users?: Array<{ id: string; name: string }>;
+        sections?: Array<{ id: string; name: string; hidden?: boolean }>;
+        workflow?: { statuses?: Array<{ id: string; name: string; slug?: string }> };
+      };
+      const names = new Map((project.users ?? []).map((user) => [user.id, user.name]));
+      return text({
+        key: project.project?.key ?? projectKey,
+        name: project.project?.name,
+        members: (project.members ?? []).map((row) => ({
+          id: row.userId,
+          name: names.get(row.userId) ?? row.userId,
+        })),
+        sections: (project.sections ?? []).filter((row) => !row.hidden).map((row) => ({ id: row.id, name: row.name })),
+        statuses: (project.workflow?.statuses ?? []).map((row) => ({ id: row.slug ?? row.id, name: row.name })),
+      });
+    }
     case 'list_projects':
       return text(await api(token, 'GET', '/projects'));
+    case 'list_project_tasks': {
+      const projectKey = str('projectKey') ?? '';
+      const statusId = str('statusId');
+      const sectionId = str('sectionId');
+      const openOnly = args.openOnly !== false;
+      const rows = await api(token, 'GET', `/projects/${encodeURIComponent(projectKey)}/tasks`) as Array<{
+        key: string;
+        title: string;
+        statusId: string;
+        statusName?: string;
+        statusCategory?: string;
+        sectionId: string;
+        sectionName?: string;
+        assigneeName?: string | null;
+        type?: string;
+        url?: string;
+        projectKey?: string;
+      }>;
+      const filtered = rows.filter((row) => {
+        if (statusId && row.statusId !== statusId) return false;
+        if (sectionId && row.sectionId !== sectionId) return false;
+        if (openOnly && row.statusCategory === 'done') return false;
+        return true;
+      });
+      return text(filtered.map((row) => ({
+        key: row.key,
+        title: row.title,
+        type: row.type,
+        statusId: row.statusId,
+        statusName: row.statusName,
+        sectionName: row.sectionName,
+        assigneeName: row.assigneeName ?? null,
+        url: row.projectKey ? webUrl(row.projectKey, row.key) : webUrl(projectKey, row.key),
+      })));
+    }
     case 'list_my_tasks': {
       const mine = await api(token, 'GET', '/me/tasks') as {
         assigned?: unknown[];
@@ -300,7 +438,7 @@ export async function callTool(token: string, name: string, args: Record<string,
       if (!sectionId) throw new Error('This project has no section to put the task in.');
       const disabled = new Set(project.disabledTypes ?? []);
       const defaultType = ['idea', 'bug', 'improvement', 'feature', 'task'].find((slug) => !disabled.has(slug)) ?? 'idea';
-      return withTaskUrl(await api(token, 'POST', `/projects/${encodeURIComponent(projectKey)}/tasks`, {
+      const created = await api(token, 'POST', `/projects/${encodeURIComponent(projectKey)}/tasks`, {
         projectKey,
         sectionId,
         type: str('type') ?? defaultType,
@@ -312,7 +450,17 @@ export async function callTool(token: string, name: string, args: Record<string,
         labels: [],
         attachmentIds: [],
         planningParentId: str('planningParentId') ?? null,
-      }));
+      });
+      const key = created && typeof created === 'object' && 'key' in created ? String((created as { key: string }).key) : '';
+      if (key && Array.isArray(args.attachments)) {
+        for (const item of args.attachments) {
+          if (!item || typeof item !== 'object') continue;
+          const file = item as { name?: unknown; mime?: unknown; data?: unknown };
+          if (typeof file.name !== 'string' || typeof file.data !== 'string') continue;
+          await postAttachment(token, key, file.name, typeof file.mime === 'string' ? file.mime : 'application/octet-stream', file.data);
+        }
+      }
+      return withTaskUrl(created);
     }
     case 'create_subtask': {
       const key = str('key') ?? '';
@@ -325,6 +473,12 @@ export async function callTool(token: string, name: string, args: Record<string,
         parentKey: key,
         url: task.projectKey ? webUrl(task.projectKey, key) : undefined,
       });
+    }
+    case 'complete_subtask': {
+      const key = str('key') ?? '';
+      const id = str('id') ?? '';
+      const done = args.done !== false;
+      return text(await api(token, 'PATCH', `/tasks/${encodeURIComponent(key)}/subtasks/${encodeURIComponent(id)}`, { done }));
     }
     case 'update_task': {
       const key = str('key') ?? '';
@@ -378,6 +532,14 @@ export async function callTool(token: string, name: string, args: Record<string,
         };
       }
       return text({ name: file.name, mime: file.mime, size: file.buf.length, note: 'Not an image. Open the task url from get_task to download it.' });
+    }
+    case 'add_attachment': {
+      const key = str('key') ?? '';
+      const name = str('name') ?? 'attachment';
+      const mime = str('mime') ?? 'application/octet-stream';
+      const data = str('data') ?? '';
+      if (!data) throw new Error('Pass base64 file content as data.');
+      return text(await postAttachment(token, key, name, mime, data));
     }
     case 'list_timesheets': {
       const from = str('from') ?? '';

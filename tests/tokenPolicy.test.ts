@@ -6,6 +6,14 @@ describe('token allow list', () => {
     expect(tokenAllows('GET', '/workspace/tasks', 'read')).toEqual({ ok: true });
   });
 
+  test('lets a personal token upload a task attachment', () => {
+    expect(tokenAllows('POST', '/tasks/BOR-19/attachments', 'read_write')).toEqual({ ok: true });
+    expect(tokenAllows('POST', '/tasks/BOR-19/attachments', 'read')).toEqual({
+      ok: false,
+      message: 'This token is read only.',
+    });
+  });
+
   test('lets a personal token download a task attachment', () => {
     expect(tokenAllows('GET', '/tasks/BOR-19/attachments/cmvsar2ou008kqb01sd374rrb', 'read')).toEqual({ ok: true });
     expect(tokenAllows('GET', '/tasks/BOR-19/attachments/cmvsar2ou008kqb01sd374rrb?download=1', 'read_write')).toEqual({ ok: true });

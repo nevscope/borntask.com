@@ -1,5 +1,10 @@
 /** Project keys are always three letters, unique within a workspace. */
 
+export function isProjectKey(raw: string): boolean {
+  return /^[A-Za-z]{3}$/.test(raw);
+}
+
+
 export function lettersFromName(name: string): string {
   return name.toUpperCase().replace(/[^A-Z]/g, '');
 }

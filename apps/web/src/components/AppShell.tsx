@@ -453,7 +453,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="bt-main">
         <header className="bt-topbar">
           {isPhone && <LogoMark size={24} />}
-          {isPhone ? (
+          {isPhone && !taskOpen ? (
             <h1 className="bt-phone-title">{phoneTitle}</h1>
           ) : (
             <span className="bt-phone-title">{phoneTitle}</span>

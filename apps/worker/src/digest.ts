@@ -3,6 +3,7 @@ import {
   clipDigestQuote,
   dateKeyInZone,
   DEFAULT_DIGEST_HOUR,
+  resolveEmailCadence,
   shouldSendDigest,
   workingDaysBetween,
   type MailJob,
@@ -117,9 +118,15 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
     },
     take: 40,
   });
+  const mentionCadence = resolveEmailCadence({
+    event: 'mention',
+    stored: user.notifyPrefs.find((row) => row.event === 'mention' && row.channel === 'email')?.emailCadence,
+    emailEnabled: user.notifyPrefs.find((row) => row.event === 'mention' && row.channel === 'email')?.enabled,
+    emailPerTask: user.emailPerTask,
+  });
   const needle = `@${user.name}`.toLowerCase();
   const seenMentions = new Set<string>();
-  const mentions = comments
+  const mentions = mentionCadence !== 'digest' ? [] : comments
     .filter((c) => c.body.toLowerCase().includes(needle))
     .flatMap((c) => {
       if (seenMentions.has(c.id)) return [];

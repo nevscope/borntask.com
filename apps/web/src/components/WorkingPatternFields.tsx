@@ -132,8 +132,8 @@ export function WorkingPatternFields({
         </span>
         <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12, color: color.muted }}>
           {inherited
-            ? `Same as workspace · ${formatWorkingDayNames(workspacePattern)}`
-            : `Custom pattern · ${formatWorkingDayNames(days)}`}
+            ? `Timesheets follow workspace days · ${formatWorkingDayNames(workspacePattern)}`
+            : `Timesheets · ${formatWorkingDayNames(days)}`}
           {!disabled && !inherited && (
             <button
               type="button"

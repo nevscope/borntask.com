@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import { renderMail } from '../apps/worker/src/mail.ts';
 import { isDueForHardDelete, TRASH_MS } from '../apps/worker/src/trashPurge.ts';
 import { clipDigestQuote, digestSubject, shouldSendDigest, workingDaysBetween } from '../packages/shared/src/digest.ts';
+import { defaultEmailCadence, resolveEmailCadence } from '../packages/shared/src/emailCadence.ts';
+import { isProjectKey } from '../packages/shared/src/projectKey.ts';
 import { readdirSync } from 'node:fs';
 import { createTaskStartSlug, planningParentAllowed, planningTypeAllowed } from '../packages/shared/src/domain.ts';
 import { CHECKS } from '../prisma/migrateDeploy.mjs';
@@ -29,6 +31,23 @@ describe('trash purge cutoff', () => {
     expect(isDueForHardDelete(new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000), now)).toBe(false);
     expect(isDueForHardDelete(new Date(now.getTime() - TRASH_MS), now)).toBe(true);
     expect(isDueForHardDelete(null, now)).toBe(false);
+  });
+});
+
+describe('email cadence defaults', () => {
+  test('mentions and assignments start instantly', () => {
+    expect(defaultEmailCadence('mention')).toBe('instantly');
+    expect(defaultEmailCadence('assigned')).toBe('instantly');
+    expect(defaultEmailCadence('watched_stage')).toBe('digest');
+    expect(resolveEmailCadence({ event: 'mention' })).toBe('instantly');
+    expect(resolveEmailCadence({ event: 'mention', stored: 'off' })).toBe('off');
+  });
+});
+
+describe('project keys', () => {
+  test('rejects keys that are not three letters', () => {
+    expect(isProjectKey('BOR')).toBe(true);
+    expect(isProjectKey('NONEXISTENT')).toBe(false);
   });
 });
 
