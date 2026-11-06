@@ -138,7 +138,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const key = (req.params as { key: string }).key;
       const project = await requireOpenProject(auth, key);
       await recordProjectOpen(auth.db, { tenantId: auth.tenantId, userId: auth.userId, projectId: project.id });
-      const detail = await loadProjectDetail(auth.db, key, auth.userId);
+      const detail = await loadProjectDetail(auth.db, project.key, auth.userId);
       if (!detail) throw notFound('Project not found.');
       const pendingInvite = Boolean(await findPendingProjectInvite(auth, project.id))
         && !(await auth.db.projectMember.findFirst({ where: { projectId: project.id, userId: auth.userId } }));

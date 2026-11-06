@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { qk, USE_TASK_MOCKS, useMe, useProject, useProjectTasks, useProjectTrash, useRestoreTask } from '../api/queries';
 import { BASE_URL } from '../api/http';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { TypeTag } from '../components/Chips';
 import { SECTION_WHEN_RULE } from '@borntask/shared';
@@ -252,7 +253,7 @@ export function ProjectStructureScreen() {
 
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
-      <h1 className="bt-h1">Sections, types and trash</h1>
+      <PageHeading hideOnPhone={false}>Sections, types and trash</PageHeading>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
         <section className="bt-card" style={{ flex: '1 1 320px' }}>
           <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>

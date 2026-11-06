@@ -1,13 +1,22 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useIsPhone } from '../hooks/useIsPhone';
 
-/** Visible h1 on desktop. On phone the shell top bar is the heading, so this is omitted. */
-export function PageHeading({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+/** Desktop page h1. On phone the shell top bar is the h1; this is omitted unless `hideOnPhone` is false, in which case it stays visible as a styled div. */
+export function PageHeading({
+  children,
+  style,
+  hideOnPhone = true,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+  hideOnPhone?: boolean;
+}) {
   const isPhone = useIsPhone();
-  if (isPhone) return null;
+  if (isPhone && hideOnPhone) return null;
+  const Tag = isPhone ? 'div' : 'h1';
   return (
-    <h1 className="bt-h1" style={style}>
+    <Tag className="bt-h1" style={style}>
       {children}
-    </h1>
+    </Tag>
   );
 }

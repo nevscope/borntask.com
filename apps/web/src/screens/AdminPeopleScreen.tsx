@@ -2,18 +2,19 @@ import { Alert, Button, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe } from '../api/queries';
+import { qk, useMe, useWorkspaceSettings } from '../api/queries';
 import type { User, WorkspaceRole } from '../api/types';
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
 import { NoAccess } from '../components/NoAccess';
 import { WorkingPatternFields } from '../components/WorkingPatternFields';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { WorkspaceRolesAside } from '../components/WorkspaceRolesAside';
 import { color } from '../theme/tokens';
-import { assignUniqueInitials } from '@borntask/shared';
+import { assignUniqueInitials, parseOptionalWorkingDays, parseWorkingDays } from '@borntask/shared';
 import { formatInviteExpiry } from '../lib/formatInviteExpiry';
 
 const NON_OWNER_ROLES: { value: WorkspaceRole; label: string }[] = [
@@ -84,21 +85,12 @@ export function AdminPeopleScreen() {
       return json.invites ?? [];
     },
   });
-  const ws = useQuery({
-    queryKey: ['workspace-settings'],
-    queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
-      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'], defaultHolidayCountry: null as string | null };
-      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[]; defaultHolidayCountry?: string | null };
-    },
-  });
+  const ws = useWorkspaceSettings();
   const [domains, setDomains] = useState<string[] | null>(null);
   const liveDomains = domains ?? storedDomains(ws.data?.allowedDomains);
   const domainsKnown = domains !== null || ws.isSuccess;
 
-  const workspaceDays = (ws.data && 'workingDays' in ws.data && Array.isArray(ws.data.workingDays) && ws.data.workingDays.length
-    ? ws.data.workingDays
-    : ['mon', 'tue', 'wed', 'thu', 'fri']) as string[];
+  const workspaceDays = parseWorkingDays(ws.data?.workingDays);
 
   const savePattern = useMutation({
     mutationFn: async ({
@@ -262,7 +254,7 @@ export function AdminPeopleScreen() {
         <>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <h1 className="bt-h1">People and invitations</h1>
+          <PageHeading hideOnPhone={false}>People and invitations</PageHeading>
           <p style={{ color: color.muted, margin: '6px 0 0' }}>
             {me?.workspace.name}
             {people.isSuccess && people.data ? ` · ${members} ${members === 1 ? 'member' : 'members'} · ${guests} ${guests === 1 ? 'guest' : 'guests'}` : ''}
@@ -364,11 +356,11 @@ export function AdminPeopleScreen() {
                 <p style={{ margin: 0, fontSize: 12.5, color: color.muted }}>Guests and viewers do not fill timesheets.</p>
               ) : (
                 <WorkingPatternFields
-                  workingDays={p.workingDays ?? null}
+                  workingDays={parseOptionalWorkingDays(p.workingDays)}
                   workspaceDays={workspaceDays}
                   hoursPerWeek={p.hoursPerWeek ?? null}
                   holidayCountry={p.holidayCountry ?? null}
-                  workspaceHolidayCountry={ws.data && 'defaultHolidayCountry' in ws.data ? ws.data.defaultHolidayCountry ?? null : null}
+                  workspaceHolidayCountry={ws.data?.defaultHolidayCountry ?? null}
                   showHolidayCountry
                   timesheetsExempt={p.timesheetsExempt ?? p.fillsTimesheets === false}
                   showTimesheetsExempt
@@ -407,7 +399,7 @@ export function AdminPeopleScreen() {
                 <Button type="link" danger onClick={() => setPendingInviteRevoke({ id: i.id, email: i.email })}>Revoke</Button>
               </div>
               <WorkingPatternFields
-                workingDays={i.workingDays ?? null}
+                workingDays={parseOptionalWorkingDays(i.workingDays)}
                 workspaceDays={workspaceDays}
                 hoursPerWeek={i.hoursPerWeek ?? null}
                 onSave={(next) => saveInvitePattern.mutate({ id: i.id, ...next })}

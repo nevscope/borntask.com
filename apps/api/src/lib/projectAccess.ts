@@ -79,8 +79,18 @@ export function canDiscoverWorkspaceProjects(role: string): boolean {
   return role === 'owner' || role === 'admin' || role === 'member' || role === 'viewer';
 }
 
+/** Three-letter project keys only. Extra letters (for example NONEXISTENT) must not match NON. */
+export function exactProjectKey(raw: string): string | null {
+  const letters = raw.toUpperCase().replace(/[^A-Z]/g, '');
+  const key = normaliseProjectKey(raw);
+  if (key.length !== 3 || letters !== key) return null;
+  return key;
+}
+
 export async function requireOpenProject(auth: Authed, key: string) {
-  const project = await auth.db.project.findFirst({ where: { key: normaliseProjectKey(key) } });
+  const exact = exactProjectKey(key);
+  if (!exact) throw notFound('Project not found.');
+  const project = await auth.db.project.findFirst({ where: { key: exact } });
   if (!project) throw notFound('Project not found.');
   if (auth.workspaceRole === 'owner') return project;
   await grantPendingProjectSeats(auth);

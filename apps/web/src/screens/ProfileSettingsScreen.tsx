@@ -5,6 +5,7 @@ import { ApiError, BASE_URL } from '../api/http';
 import { qk, useDisconnectMyChat, useMe, useMyChat, useSaveMyChat, useTestMyChat, type PersonalChatPrefs } from '../api/queries';
 import { Avatar } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -232,7 +233,7 @@ export function ProfileSettingsScreen() {
 
   return (
     <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
-      <h1 className="bt-h1">Profile and notifications</h1>
+      <PageHeading hideOnPhone={false}>Profile and notifications</PageHeading>
       {profile.error && <Alert type="error" message={profile.error.message} style={{ marginTop: 12 }} />}
       {error && <Alert type="error" message={error} style={{ marginTop: 12 }} />}
       <section className="bt-card" style={{ padding: 18, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>

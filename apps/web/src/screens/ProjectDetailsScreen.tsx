@@ -7,6 +7,7 @@ import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProjectColourField } from '../components/ProjectColourField';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -46,8 +47,12 @@ export function ProjectDetailsScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const myRoles = detail.data?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
+  const canManage = canAdmin || myRoles.includes('lead') || project?.leadId === me?.user.id;
   const workflows = useQuery({
     queryKey: ['workflows'],
+    enabled: canManage,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/workflows`, { credentials: 'include' });
       if (!res.ok) return [] as WorkflowOption[];
@@ -73,9 +78,6 @@ export function ProjectDetailsScreen() {
     setError(null);
   }, [project, projectKey, readyKey]);
 
-  const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
-  const myRoles = detail.data?.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
-  const canManage = canAdmin || myRoles.includes('lead') || project?.leadId === me?.user.id;
   const workflowChanged = Boolean(saved && workflowId && workflowId !== saved.workflowId);
   const dirty = Boolean(
     saved && readyKey === projectKey && (
@@ -162,7 +164,7 @@ export function ProjectDetailsScreen() {
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       {unsaved}
-      <h1 className="bt-h1">Name, colour and workflow</h1>
+      <PageHeading hideOnPhone={false}>Name, colour and workflow</PageHeading>
       <p style={{ color: color.muted, margin: '6px 0 0', fontSize: 13.5 }}>
         Project leads and workspace admins can change these. The key stays the same, so existing task numbers keep working.
       </p>

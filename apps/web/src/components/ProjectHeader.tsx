@@ -9,6 +9,7 @@ import { color, font, radius } from '../theme/tokens';
 import { Avatar, EditIcon } from './Chips';
 import { MenuPicker } from './FieldPickers';
 import { InvitePeopleButton } from './InvitePeople';
+import { PageHeading } from './PageHeading';
 import { ProjectStar } from './ProjectStar';
 import { projectViewSearch } from './ProjectViewBar';
 import { useStatusToast } from './StatusToast';
@@ -118,7 +119,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ flex: '1 1 240px', minWidth: 0 }}>
           <div style={{ fontSize: 12.5, color: color.muted }}>Projects / {project.key}</div>
-          <h1 className="bt-h1" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <PageHeading hideOnPhone={false} style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{ width: 12, height: 12, borderRadius: 4, background: project.color, flex: 'none' }} />
             {editing ? (
               <Input
@@ -191,7 +192,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
             >
               <EditIcon />
             </Link>
-          </h1>
+          </PageHeading>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flex: '0 1 auto' }}>
         <ProjectStar projectKey={project.key} name={project.name} starred={starred} />

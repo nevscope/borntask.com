@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { useMe } from '../api/queries';
 import { NoAccess } from '../components/NoAccess';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { color, font } from '../theme/tokens';
 
@@ -27,7 +28,7 @@ export function AdminBillingScreen() {
         <NoAccess kind="settings" message="Only a workspace owner or admin can open billing." />
       ) : (
         <>
-      <h1 className="bt-h1">Billing</h1>
+      <PageHeading hideOnPhone={false}>Billing</PageHeading>
       <p style={{ color: color.muted, margin: '6px 0 0' }}>Visible to workspace owners and admins. Card collection is not connected yet.</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'stretch' }}>
         <section className="bt-card" style={{ flex: '1.2 1 380px', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>

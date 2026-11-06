@@ -7,7 +7,7 @@ import { mockApi } from './mockData';
 import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, Me, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, PlatformWorkspace, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
 import { PlatformWorkspaceListSchema } from './types';
 import { recordRecentProject } from '../lib/recentProjects';
-import { personInitials } from '@borntask/shared';
+import { parseWorkingDays, personInitials } from '@borntask/shared';
 
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true';
 /** Stage 4: set VITE_MOCK_PROJECTS=false to use the real projects API while tasks stay mocked. */
@@ -306,8 +306,30 @@ export function useRequestProjectAccess() {
     },
   });
 }
-export const useProject = (key: string) => useQuery({ queryKey: qk.project(key), queryFn: () => api.getProject(key), enabled: key.length > 0 });
-export const useProjectTasks = (key: string) => useQuery({ queryKey: qk.projectTasks(key), queryFn: () => api.listProjectTasks(key), enabled: key.length > 0 });
+function retryUnlessDenied(count: number, err: unknown) {
+  if (err instanceof ApiError && (err.status === 401 || err.status === 403 || err.status === 404)) return false;
+  return count < 1;
+}
+
+export function projectQueryUnavailable(query: { isError: boolean; isFetched: boolean; isFetching: boolean; data?: unknown }): boolean {
+  if (query.isError) return true;
+  return query.isFetched && !query.isFetching && query.data === undefined;
+}
+
+export const missingProjectError = (key: string) => new ApiError(404, 'NOT_FOUND', `${key} is not a project in this workspace.`);
+
+export const useProject = (key: string) => useQuery({
+  queryKey: qk.project(key),
+  queryFn: () => api.getProject(key),
+  enabled: key.length > 0,
+  retry: retryUnlessDenied,
+});
+export const useProjectTasks = (key: string) => useQuery({
+  queryKey: qk.projectTasks(key),
+  queryFn: () => api.listProjectTasks(key),
+  enabled: key.length > 0,
+  retry: retryUnlessDenied,
+});
 export const useMyTasks = () => useQuery({ queryKey: qk.myTasks, queryFn: () => api.listMyTasks() });
 export const useWorkspaceTasks = () => useQuery<WorkspaceTasks>({ queryKey: qk.workspaceTasks, queryFn: () => api.listWorkspaceTasks() });
 export const useSearch = (q: string) =>
@@ -1037,6 +1059,7 @@ export type WorkspaceSettings = {
   timesheetsStartOn: string | null;
   workingDays: Array<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'>;
   defaultHolidayCountry: string | null;
+  allowedDomains?: string[];
   logo?: boolean;
   workflows: { id: string; name: string; slug: string }[];
 };
@@ -1059,6 +1082,7 @@ const MOCK_WORKSPACE_SETTINGS: WorkspaceSettings = {
   timesheetsStartOn: '2026-11-02',
   workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
   defaultHolidayCountry: 'MT',
+  allowedDomains: [],
   workflows: [],
 };
 
@@ -1081,6 +1105,8 @@ export function useWorkspaceSettings() {
         ...json,
         timesheetsStartOn: json.timesheetsStartOn ?? null,
         defaultHolidayCountry: json.defaultHolidayCountry ?? null,
+        workingDays: parseWorkingDays(json.workingDays),
+        allowedDomains: Array.isArray(json.allowedDomains) ? json.allowedDomains.filter((d) => typeof d === 'string' && d.trim()) : [],
       };
     },
   });

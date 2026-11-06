@@ -9,6 +9,7 @@ import type { ProjectRole } from '../api/types';
 import { Avatar, RemovableRoleChip } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { InvitePeopleButton } from '../components/InvitePeople';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { statusById } from '../lib/workflow';
@@ -93,7 +94,7 @@ export function ProjectMembersScreen() {
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <h1 className="bt-h1">Members</h1>
+          <PageHeading hideOnPhone={false}>Members</PageHeading>
           <p style={{ color: color.muted, margin: '6px 0 0', fontSize: 13.5 }}>Project roles decide who can move tasks between stages.</p>
         </div>
         <InvitePeopleButton variant="primary" projectId={detail.data?.project.id} projectName={detail.data?.project.name} />

@@ -55,14 +55,16 @@ export function NoAccess({
     <div className="bt-page">
       <div className="bt-card" style={{ minHeight: 270, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 10, padding: 24 }}>
         <Lock />
-        <span style={{ fontFamily: font.display, fontSize: 17, fontWeight: 600 }}>You're not on this project</span>
-        <span style={{ fontSize: 13.5, color: color.ink3, maxWidth: 320, lineHeight: 1.45 }}>
-          {missing
-            ? `${projectKey} is not a project in this workspace.`
-            : lead
+        <span style={{ fontFamily: font.display, fontSize: 17, fontWeight: 600 }}>
+          {missing ? `${projectKey} is not a project in this workspace.` : "You're not on this project"}
+        </span>
+        {!missing && (
+          <span style={{ fontSize: 13.5, color: color.ink3, maxWidth: 320, lineHeight: 1.45 }}>
+            {lead
               ? `Ask the project lead, ${lead}, to add you.`
               : 'Ask a project lead to add you.'}
-        </span>
+          </span>
+        )}
         {!missing && sent ? (
           <span style={{ fontSize: 13.5, color: color.brandStrong }}>Request sent.</span>
         ) : !missing && projectKey ? (

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useMe, useMoveTask, useMyTasks, useProject, useProjectTasks, useProjects } from '../api/queries';
 import type { BuiltinProjectRole, Task } from '../api/types';
 import { StatusPill, TypeTag } from './Chips';
+import { PageHeading } from './PageHeading';
 import { useQuickAdd } from './QuickAdd';
 import { useTaskParam } from './useTaskParam';
 import { readWelcome } from '../lib/welcome';
@@ -87,10 +88,10 @@ export function GuestWelcome() {
     <div className="bt-page" style={{ maxWidth: 1100, margin: '0 auto', width: '100%', gap: 16 }}>
       <div>
         <div style={{ fontSize: 12.5, color: color.muted }}>{project?.key ?? 'Project'}</div>
-        <h1 className="bt-h1" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <PageHeading hideOnPhone={false} style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ width: 12, height: 12, borderRadius: 4, background: project?.color ?? categoryBar.done }} />
           {projectName}
-        </h1>
+        </PageHeading>
       </div>
       {cardOpen && (
       <section aria-label="Welcome" style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start', padding: '20px 22px', border: `1px solid ${color.brandBorder}`, borderRadius: 14, background: color.brandTint }}>

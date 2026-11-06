@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react';
+import { Skeleton } from 'antd';
 import { Link, NavLink } from 'react-router-dom';
-import { useMe, useProject } from '../api/queries';
+import { missingProjectError, projectQueryUnavailable, useMe, useProject } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { color } from '../theme/tokens';
+import { NoAccess } from './NoAccess';
 
-const projectLinks = (key: string) => [
+const projectLinks = (key: string, canAdmin: boolean) => [
   { to: `/p/${key}/settings/details`, label: 'Name, colour and workflow' },
   { to: `/p/${key}/settings/members`, label: 'Members' },
   { to: `/p/${key}/settings/structure`, label: 'Sections, types and trash' },
-  { to: `/p/${key}/settings/workflow`, label: 'Workflow' },
+  { to: `/p/${key}/settings/workflow`, label: 'Workflow', show: canAdmin },
   { to: `/p/${key}/settings/chat`, label: 'Google Chat' },
   { to: `/p/${key}/settings/github`, label: 'GitHub' },
 ];
@@ -50,7 +52,7 @@ export function SettingsNav({
       {projectKey ? (
         <>
           <div className="bt-nav-heading" style={{ paddingTop: 0 }}>{heading}</div>
-          {projectLinks(projectKey).map((l) => (
+          {projectLinks(projectKey, canAdmin).filter((l) => l.show !== false).map((l) => (
             <NavLink key={l.to} to={l.to} className={({ isActive }) => `bt-nav-link bt-nav-sub${isActive ? ' active' : ''}`}>
               {l.label}
             </NavLink>
@@ -93,6 +95,12 @@ export function SettingsFrame({
   const isPhone = useIsPhone();
   const backTo = projectKey ? `/p/${projectKey}/list` : '/';
   const backLabel = projectKey ? (project.data?.project.name ?? 'the project') : 'My tasks';
+  if (projectKey && projectQueryUnavailable(project)) {
+    return <NoAccess projectKey={projectKey} error={project.error ?? missingProjectError(projectKey)} />;
+  }
+  if (projectKey && !project.data) {
+    return <div className="bt-page"><Skeleton active paragraph={{ rows: 8 }} /></div>;
+  }
   return (
     <div
       className="bt-page"

@@ -4,10 +4,12 @@ import {
   lastEndedDayInZone,
   formatMinutes,
   formatWorkspaceTotals,
+  formatWorkingDayNames,
   formatYmd,
   isTimesheetLocked,
   isWorkingDay,
   parseTimeToMinutes,
+  parseWorkingDays,
   parseYmd,
   timesheetLockLabel,
   weekStartFor,
@@ -73,7 +75,7 @@ export function TimesheetsScreen() {
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false && p.acceptsTimesheets);
   const people = usePeople();
   const weekStartSetting = settings.data?.weekStart ?? 'monday';
-  const workspaceWorkingDays = settings.data?.workingDays ?? ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const workspaceWorkingDays = parseWorkingDays(settings.data?.workingDays);
   const editDays = settings.data?.timesheetEditDays ?? 7;
   const guest = me?.workspaceRole === 'guest' || me?.workspaceRole === 'viewer';
 
@@ -564,9 +566,7 @@ export function TimesheetsScreen() {
         : 'Weekly entries as a percentage, against projects · set by your workspace';
 
   const fmtParts = (parts: { minutes: number; percent: number }) => formatWorkspaceTotals(parts.minutes, parts.percent, unit);
-  const workingDayNames = workingDays
-    .map((key) => ({ mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }[key] ?? key))
-    .join(', ');
+  const workingDayNames = formatWorkingDayNames(workingDays);
 
   if (guest) {
     return (

@@ -1,21 +1,23 @@
 import { Checkbox, Input, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { holidayCountryName, holidayCountryOptions } from '@borntask/shared';
+import {
+  formatWorkingDayNames,
+  holidayCountryName,
+  holidayCountryOptions,
+  parseOptionalWorkingDays,
+  parseWorkingDays,
+} from '@borntask/shared';
 import { color, radius } from '../theme/tokens';
 
 const DAY_CHIPS = [
-  { key: 'mon', label: 'M', name: 'Mon' },
-  { key: 'tue', label: 'T', name: 'Tue' },
-  { key: 'wed', label: 'W', name: 'Wed' },
-  { key: 'thu', label: 'T', name: 'Thu' },
-  { key: 'fri', label: 'F', name: 'Fri' },
-  { key: 'sat', label: 'S', name: 'Sat' },
-  { key: 'sun', label: 'S', name: 'Sun' },
+  { key: 'mon', label: 'M' },
+  { key: 'tue', label: 'T' },
+  { key: 'wed', label: 'W' },
+  { key: 'thu', label: 'T' },
+  { key: 'fri', label: 'F' },
+  { key: 'sat', label: 'S' },
+  { key: 'sun', label: 'S' },
 ] as const;
-
-function formatDays(days: string[]) {
-  return DAY_CHIPS.filter((day) => days.includes(day.key)).map((day) => day.name).join(', ');
-}
 
 function sameDays(a: string[], b: string[]) {
   return [...a].sort().join(',') === [...b].sort().join(',');
@@ -44,8 +46,10 @@ export function WorkingPatternFields({
   disabled?: boolean;
   onSave: (next: { workingDays: string[] | null; hoursPerWeek: number | null; holidayCountry?: string | null; timesheetsExempt?: boolean }) => void;
 }) {
-  const inherited = workingDays == null;
-  const days = workingDays ?? workspaceDays;
+  const workspacePattern = parseWorkingDays(workspaceDays);
+  const personPattern = parseOptionalWorkingDays(workingDays);
+  const inherited = personPattern == null;
+  const days = personPattern ?? workspacePattern;
   const [hoursDraft, setHoursDraft] = useState(hoursPerWeek == null ? '' : String(hoursPerWeek));
   useEffect(() => {
     setHoursDraft(hoursPerWeek == null ? '' : String(hoursPerWeek));
@@ -61,7 +65,7 @@ export function WorkingPatternFields({
   }
 
   function saveDays(next: string[]) {
-    if (next.length === 0 || sameDays(next, workspaceDays)) {
+    if (next.length === 0 || sameDays(next, workspacePattern)) {
       persist({ workingDays: null });
       return;
     }
@@ -128,8 +132,8 @@ export function WorkingPatternFields({
         </span>
         <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12, color: color.muted }}>
           {inherited
-            ? `Same as workspace · ${formatDays(workspaceDays)}`
-            : `Custom pattern · ${formatDays(days)}`}
+            ? `Same as workspace · ${formatWorkingDayNames(workspacePattern)}`
+            : `Custom pattern · ${formatWorkingDayNames(days)}`}
           {!disabled && !inherited && (
             <button
               type="button"

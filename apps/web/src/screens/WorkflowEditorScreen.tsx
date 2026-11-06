@@ -9,6 +9,8 @@ import type { StatusCategory, Transition, WorkflowStatus } from '../api/types';
 import { AutomationsCard } from '../components/AutomationsCard';
 import { RoleTag } from '../components/Chips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { NoAccess } from '../components/NoAccess';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -54,6 +56,7 @@ export function WorkflowEditorScreen() {
   const wantedId = params.get('id');
   const me = useMe().data;
   const canEdit = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
+  const canSeePeople = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
   const catalog = useWorkspaceCatalog();
   const [workflows, setWorkflows] = useState<EditorWorkflow[]>([]);
   const [id, setId] = useState('');
@@ -71,6 +74,7 @@ export function WorkflowEditorScreen() {
   const projectName = useProject(projectKey ?? '').data?.project.name;
 
   useEffect(() => {
+    if (!canEdit) return;
     void fetch(`${BASE_URL}/workflows`, { credentials: 'include' })
       .then(async (r) => {
         if (!r.ok) throw new Error('Workflows need a signed-in session and the API.');
@@ -83,7 +87,7 @@ export function WorkflowEditorScreen() {
         if (first) setId(first.id);
       })
       .catch((e: Error) => setError(e.message));
-  }, [wantedId]);
+  }, [wantedId, canEdit]);
 
   useEffect(() => {
     const wf = workflows.find((w) => w.id === id);
@@ -197,14 +201,17 @@ export function WorkflowEditorScreen() {
   };
 
   return (
-    <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me?.workspaceRole === 'owner'}>
+    <SettingsFrame projectKey={projectKey} canAdmin={canEdit} isOwner={me?.workspaceRole === 'owner'} canSeePeople={canSeePeople}>
+    {me && !canEdit ? (
+      <NoAccess kind="settings" message="Only a workspace owner or admin can open the workflow editor." />
+    ) : (
     <form
       style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}
       onSubmit={(e) => e.preventDefault()}
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 300px' }}>
-          <h1 className="bt-h1">Workflow</h1>
+          <PageHeading hideOnPhone={false}>Workflow</PageHeading>
           <p style={{ margin: '6px 0 0', fontSize: 13.5, color: color.muted }}>
             Stages, colours and who can move tasks · used by {usedBy}
           </p>
@@ -228,12 +235,11 @@ export function WorkflowEditorScreen() {
             placeholder="Choose a workflow"
           />
         )}
-        <button type="button" disabled={!canEdit || !id} onClick={() => void save()} style={{ ...saveBtn, ...((!canEdit || !id) ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}>Save workflow</button>
+        <button type="button" disabled={!id} onClick={() => void save()} style={{ ...saveBtn, ...(!id ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}>Save workflow</button>
         {canEdit && workflows.length > 1 && (
           <button type="button" onClick={() => setPendingDelete(true)} style={{ ...removeBtn, textAlign: 'left' }}>Delete workflow</button>
         )}
       </div>
-      {!canEdit && <Alert type="warning" showIcon message="You can view this page, but only an owner or admin can save changes." />}
       {error && <Alert type="error" showIcon message={error} />}
       {approveWarning && <Alert type="warning" showIcon message={approveWarning} />}
 
@@ -489,6 +495,7 @@ export function WorkflowEditorScreen() {
         People will not be able to make that move after you save.
       </ConfirmDialog>
     </form>
+    )}
     </SettingsFrame>
   );
 }

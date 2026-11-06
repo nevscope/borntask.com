@@ -2,12 +2,13 @@ import { Modal, Select } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
-import { qk, useMe, useProjects } from '../api/queries';
+import { qk, useMe, useProjects, useWorkspaceSettings } from '../api/queries';
 import { useWorkspaceCatalog } from '../api/catalog';
 import type { ProjectRole, User } from '../api/types';
 import { RoleTag } from './Chips';
 import { WorkingPatternFields } from './WorkingPatternFields';
 import { inviteSentText, useStatusToast } from './StatusToast';
+import { parseWorkingDays } from '@borntask/shared';
 import { categoryBar, color, font, radius, roleStyle } from '../theme/tokens';
 
 const FALLBACK_ROLES: ProjectRole[] = ['business', 'developer', 'tester', 'observer'];
@@ -271,18 +272,8 @@ export function InvitePeopleButton({
       return (await res.json()) as Person[];
     },
   });
-  const workspace = useQuery({
-    queryKey: ['workspace-settings'],
-    enabled: open,
-    queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/workspace`, { credentials: 'include' });
-      if (!res.ok) return { allowedDomains: [] as unknown, workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'] };
-      return (await res.json()) as { allowedDomains: unknown; workingDays?: string[] };
-    },
-  });
-  const allowedDomains = Array.isArray(workspace.data?.allowedDomains)
-    ? workspace.data.allowedDomains.filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
-    : [];
+  const workspace = useWorkspaceSettings();
+  const allowedDomains = workspace.data?.allowedDomains ?? [];
 
   const ownDomain = me?.user.email ? emailDomain(me.user.email) : '';
   const guests = emails.filter((e) => ownDomain && emailDomain(e) !== ownDomain);
@@ -305,9 +296,7 @@ export function InvitePeopleButton({
   const sendLabel = count === 0 ? 'Send invitations' : count === 1 ? 'Send 1 invitation' : `Send ${count} invitations`;
   const canInvite = !!me && me.workspaceRole !== 'guest' && me.workspaceRole !== 'viewer';
   const canSetPattern = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
-  const workspaceDays = Array.isArray(workspace.data?.workingDays) && workspace.data.workingDays.length
-    ? workspace.data.workingDays
-    : ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const workspaceDays = parseWorkingDays(workspace.data?.workingDays);
   const title = projectName ? `Share "${projectName}"` : 'Add member';
 
   function toggleRole(role: ProjectRole) {

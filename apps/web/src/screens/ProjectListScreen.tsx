@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, u
 import { Dropdown, Skeleton, Tooltip } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAddSubtask, useCopyTask, useMe, useProject, useProjectTasks, useReorderTask, useSetWatching } from '../api/queries';
+import { missingProjectError, projectQueryUnavailable, useAddSubtask, useCopyTask, useMe, useProject, useProjectTasks, useReorderTask, useSetWatching } from '../api/queries';
 import { useStatusToast } from '../components/StatusToast';
 import type { ProjectDetail, Task } from '../api/types';
 import { CopyIcon, GitHubBadge, TaskHints } from '../components/Chips';
@@ -66,7 +66,9 @@ export function ProjectListScreen() {
   };
   const windowed = takeGroupedTasks(groups, shown, collapsedIds);
 
-  if (detail.isError || tasks.isError) return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error} />;
+  if (projectQueryUnavailable(detail) || projectQueryUnavailable(tasks)) {
+    return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error ?? missingProjectError(projectKey)} />;
+  }
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
   const d = detail.data;
   const active = activeKey ? tasks.data.find((task) => task.key === activeKey) : undefined;

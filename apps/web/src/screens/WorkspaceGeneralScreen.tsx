@@ -17,6 +17,7 @@ import {
 } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NoAccess } from '../components/NoAccess';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useStatusToast } from '../components/StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -361,7 +362,7 @@ function WorkspaceSettingsBody({ page }: { page: SettingsPage }) {
         <>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: '1 1 280px' }}>
-          <h1 className="bt-h1">{page === 'timesheets' ? 'Timesheets' : 'Workspace'}</h1>
+          <PageHeading hideOnPhone={false}>{page === 'timesheets' ? 'Timesheets' : 'Workspace'}</PageHeading>
           <p style={{ color: color.muted, margin: '6px 0 0' }}>
             {page === 'timesheets' ? 'How people log time, working days and public holidays.' : 'Owners and admins only.'}
           </p>

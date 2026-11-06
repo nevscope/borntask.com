@@ -234,6 +234,21 @@ export function weekdayKey(date: Date): z.infer<typeof weekdayKeySchema> {
   return WEEKDAY_KEYS[date.getUTCDay()] as z.infer<typeof weekdayKeySchema>;
 }
 
+const WEEKDAY_SHORT: Record<string, string> = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+
+/** Live pattern labels for People and Timesheets. Preserves API order. */
+export function formatWorkingDayNames(days: string[]): string {
+  return days.map((key) => WEEKDAY_SHORT[key] ?? key).join(', ');
+}
+
 export function isWorkingDay(date: Date, workingDays: string[]): boolean {
   return workingDays.includes(weekdayKey(date));
 }

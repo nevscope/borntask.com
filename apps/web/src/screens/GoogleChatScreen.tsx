@@ -5,6 +5,7 @@ import { ApiError } from '../api/http';
 import { useChatSettings, useDisconnectChat, useMe, useProject, useSaveChat, useTestChat, type ChatEvents } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LogoMark } from '../components/Logo';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatWhen } from '../lib/relativeTime';
@@ -77,7 +78,7 @@ export function GoogleChatScreen() {
 
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
-      <h1 className="bt-h1">Google Chat</h1>
+      <PageHeading hideOnPhone={false}>Google Chat</PageHeading>
       <p style={{ color: color.muted, margin: '6px 0 0' }}>Post task updates from this project into a Chat space.</p>
       {chat.isError && (
         <p role="alert" style={{ margin: 0, color: color.danger, fontSize: 13.5 }}>

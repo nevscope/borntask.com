@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BASE_URL } from '../api/http';
 import { useGithubSettings, useMe, useSaveGithub } from '../api/queries';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { color, font, toneStyle } from '../theme/tokens';
 
@@ -44,7 +45,7 @@ export function GitHubSettingsScreen() {
 
   return (
     <SettingsFrame projectKey={projectKey} canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
-      <h1 className="bt-h1">GitHub</h1>
+      <PageHeading hideOnPhone={false}>GitHub</PageHeading>
       <p style={{ color: color.muted, margin: '6px 0 0' }}>Link branches, pull requests and commits to tasks, and move tasks automatically as code moves.</p>
 
       <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14 }}>

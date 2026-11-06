@@ -3,6 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useMe, usePlatformWorkspaces } from '../api/queries';
 import type { PlatformWorkspace } from '../api/types';
 import { NoAccess } from '../components/NoAccess';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { color } from '../theme/tokens';
 
@@ -73,7 +74,7 @@ export function PlatformAdminScreen() {
         <NoAccess kind="settings" message="This page is only for BornTask support." />
       ) : (
         <>
-          <h1 className="bt-h1">Admin</h1>
+          <PageHeading hideOnPhone={false}>Admin</PageHeading>
           <p style={{ color: color.muted, margin: '6px 0 0' }}>
             Workspaces on this BornTask instance. Use this when someone needs support. You cannot open their session from here.
           </p>

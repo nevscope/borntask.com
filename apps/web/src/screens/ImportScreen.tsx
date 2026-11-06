@@ -6,6 +6,7 @@ import { BASE_URL } from '../api/http';
 import { qk, useImportProgress, useProject, useProjects } from '../api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import type { WorkflowStatus } from '../api/types';
+import { PageHeading } from '../components/PageHeading';
 import { color } from '../theme/tokens';
 
 const FIELDS = [
@@ -169,7 +170,7 @@ export function ImportScreen() {
   return (
     <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <h1 className="bt-h1" style={{ flex: 1 }}>Import from Asana</h1>
+        <PageHeading hideOnPhone={false} style={{ flex: 1 }}>Import from Asana</PageHeading>
         <Link to="/projects"><Button>Cancel</Button></Link>
       </div>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 13 }}>

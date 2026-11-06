@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ApiError } from '../api/http';
 import { useApiTokens, useCreateToken, useMe, useRevokeGrant, useRevokeToken, type MintedToken } from '../api/queries';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PageHeading } from '../components/PageHeading';
 import { SettingsFrame } from '../components/SettingsNav';
 import { formatWhen } from '../lib/relativeTime';
 import { MCP_TOOL_NAMES } from '@borntask/shared';
@@ -45,7 +46,7 @@ export function ApiTokensScreen() {
     <SettingsFrame canAdmin={canAdmin} isOwner={me?.workspaceRole === 'owner'}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '1 1 300px' }}>
-          <h1 className="bt-h1">API tokens and MCP</h1>
+          <PageHeading hideOnPhone={false}>API tokens and MCP</PageHeading>
           <p style={{ margin: '6px 0 0', fontSize: 13.5, color: color.muted }}>Connect Claude, Cursor or your own scripts. They act as you, with your projects and workflow rules.</p>
         </div>
         <Button type="primary" onClick={() => { setName(''); setScope('read_write'); setError(null); setOpen(true); }}>Create token</Button>

@@ -6,7 +6,7 @@ import { Select, Skeleton } from 'antd';
 import { useMemo, useRef, useState } from 'react';
 import { readShowHiddenSections, writeShowHiddenSections } from '../lib/lastViewed';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useMe, useProject, useProjectTasks } from '../api/queries';
+import { missingProjectError, projectQueryUnavailable, useMe, useProject, useProjectTasks } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
 import { Avatar, GitHubBadge, LockIcon, TaskHints, TypeTag } from '../components/Chips';
@@ -44,7 +44,9 @@ export function ProjectBoardScreen() {
     return tasks.data.filter((task) => taskMatches(task, view.filters, detail.data, me?.user.id));
   }, [detail.data, tasks.data, view.filters, me?.user.id]);
 
-  if (detail.isError || tasks.isError) return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error} />;
+  if (projectQueryUnavailable(detail) || projectQueryUnavailable(tasks)) {
+    return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error ?? missingProjectError(projectKey)} />;
+  }
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
   const d = detail.data;
   const active = activeKey ? visible.find((task) => task.key === activeKey) : undefined;
