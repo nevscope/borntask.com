@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { renderMail } from '../apps/worker/src/mail.ts';
 import { isDueForHardDelete, TRASH_MS } from '../apps/worker/src/trashPurge.ts';
-import { digestSubject, shouldSendDigest, workingDaysBetween } from '../packages/shared/src/digest.ts';
+import { clipDigestQuote, digestSubject, shouldSendDigest, workingDaysBetween } from '../packages/shared/src/digest.ts';
 import { readdirSync } from 'node:fs';
 import { createTaskStartSlug, planningParentAllowed, planningTypeAllowed } from '../packages/shared/src/domain.ts';
 import { CHECKS } from '../prisma/migrateDeploy.mjs';
@@ -51,7 +51,7 @@ describe('daily digest', () => {
         timeZone: 'Europe/Malta',
       }),
     ).toBe(false);
-    expect(digestSubject(2, 1)).toBe('Today: 2 due, 1 mention');
+    expect(digestSubject(2, 1, 'Fri 16 Oct')).toBe('BornTask: 2 due and 1 mention for you, Fri 16 Oct');
   });
 
   test('counts more than 5 working days and renders digest mail', () => {
@@ -67,17 +67,22 @@ describe('daily digest', () => {
       profileUrl: 'http://localhost:5174/settings/profile',
       due: [{ key: 'WEB-142', title: 'Checkout fails', statusName: 'Testing', url: 'http://localhost:5174/p/WEB/list?task=WEB-142' }],
       overdue: [],
-      mentions: [{ key: 'WEB-133', title: 'Copy', extra: 'Karl on WEB-133: "ready"', url: 'http://localhost:5174/p/WEB/list?task=WEB-133' }],
+      mentions: [{ key: 'WEB-133', title: 'Karl on WEB-133', extra: '"ready"', url: 'http://localhost:5174/p/WEB/list?task=WEB-133' }],
       staleIdeas: [],
       footerNote: 'Sent at 08:00 on workdays.',
     });
-    expect(rendered.subject).toBe('Today: 1 due, 1 mention');
+    expect(rendered.subject).toBe('BornTask: 1 due and 1 mention for you, Fri 16 Oct');
     expect(rendered.text).toContain('Good morning, Maria');
     expect(rendered.html).toContain('Open My tasks');
     expect(rendered.html).toContain('borntask-logo-120.png');
     expect(rendered.html).toContain('<table role="presentation"');
     expect(rendered.html).toContain('Due today');
     expect(rendered.html).toContain('WEB-142');
+    expect(rendered.html).toContain('Karl on WEB-133');
+    expect(rendered.html.match(/Karl on WEB-133/g)?.length).toBe(1);
+    expect(rendered.text.match(/Karl on WEB-133/g)?.length).toBe(1);
+    expect(digestSubject(0, 4, 'Fri 6 Nov')).toBe('BornTask: 4 mentions for you, Fri 6 Nov');
+    expect(clipDigestQuote("let's use the Scope address for the public site launch copy", 24)).toBe("let's use the Scope...");
   });
 
   test('strips mention HTML for digest extras', () => {

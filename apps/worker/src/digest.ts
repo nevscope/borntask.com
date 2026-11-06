@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import {
+  clipDigestQuote,
   dateKeyInZone,
   DEFAULT_DIGEST_HOUR,
   shouldSendDigest,
@@ -123,9 +124,9 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
       const key = `${c.task.project.key}-${c.task.number}`;
       return {
         key,
-        title: c.task.title,
+        title: `${c.author.name} on ${key}`,
         url: itemUrl(c.task.project.key, c.task.number),
-        extra: `${c.author.name} on ${key}: "${htmlToPlain(c.body).slice(0, 140)}"`,
+        extra: `"${clipDigestQuote(htmlToPlain(c.body))}"`,
       };
     });
 
