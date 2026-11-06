@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { z } from 'zod';
 import { ApiError, BASE_URL, httpApi, request } from './http';
 import { mockApi } from './mockData';
-import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, Me, MoveTaskInput, MoveTaskToProjectInput, NotificationList, PatchSubtaskInput, PlatformWorkspace, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
+import type { Api, CommentReactionKind, ConvertToSubtaskInput, CreateTaskInput, Me, MoveTaskInput, MoveTaskToProjectInput, MyComments, NotificationList, PatchSubtaskInput, PlatformWorkspace, Project, ReorderTaskInput, SearchResponse, Task, UpdateTaskInput, WorkspaceTasks } from './types';
 import { PlatformWorkspaceListSchema } from './types';
 import { recordRecentProject } from '../lib/recentProjects';
 import { parseWorkingDays, personInitials } from '@borntask/shared';
@@ -31,7 +31,7 @@ export const api: Api = {
     try {
       return await projectsApi().listProjects();
     } catch (err) {
-      if (USE_MOCKS && !USE_PROJECT_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+      if (USE_MOCKS && !USE_PROJECT_MOCKS && err instanceof TypeError) {
         return mockApi.listProjects();
       }
       throw err;
@@ -42,7 +42,7 @@ export const api: Api = {
     try {
       return await projectsApi().getProject(key);
     } catch (err) {
-      if (USE_MOCKS && !USE_PROJECT_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+      if (USE_MOCKS && !USE_PROJECT_MOCKS && err instanceof TypeError) {
         return mockApi.getProject(key);
       }
       throw err;
@@ -52,7 +52,7 @@ export const api: Api = {
     try {
       return await tasksApi().listProjectTasks(key);
     } catch (err) {
-      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && err instanceof TypeError) {
         return mockApi.listProjectTasks(key);
       }
       throw err;
@@ -74,6 +74,16 @@ export const api: Api = {
     } catch (err) {
       if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
         return mockApi.listMyTasks();
+      }
+      throw err;
+    }
+  },
+  listMyComments: async () => {
+    try {
+      return await tasksApi().listMyComments();
+    } catch (err) {
+      if (USE_MOCKS && !USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+        return mockApi.listMyComments();
       }
       throw err;
     }
@@ -152,6 +162,7 @@ export const qk = {
   project: (key: string) => ['projects', key] as const,
   projectTasks: (key: string) => ['projects', key, 'tasks'] as const,
   myTasks: ['me', 'tasks'] as const,
+  myComments: ['me', 'comments'] as const,
   workspaceTasks: ['workspace', 'tasks'] as const,
   search: (q: string) => ['search', q] as const,
   task: (key: string) => ['tasks', key] as const,
@@ -318,6 +329,14 @@ export function projectQueryUnavailable(query: { isError: boolean; isFetched: bo
 
 export const missingProjectError = (key: string) => new ApiError(404, 'NOT_FOUND', `${key} is not a project in this workspace.`);
 
+/** 403 (not on the project) wins over 404 so a locked project is not labelled missing. */
+export function deniedProjectError(...errors: unknown[]): unknown {
+  const apiErrors = errors.filter((err): err is ApiError => err instanceof ApiError);
+  return apiErrors.find((err) => err.status === 403)
+    ?? apiErrors.find((err) => err.status === 404)
+    ?? errors.find((err) => err != null);
+}
+
 export const useProject = (key: string) => useQuery({
   queryKey: qk.project(key),
   queryFn: () => api.getProject(key),
@@ -331,6 +350,7 @@ export const useProjectTasks = (key: string) => useQuery({
   retry: retryUnlessDenied,
 });
 export const useMyTasks = () => useQuery({ queryKey: qk.myTasks, queryFn: () => api.listMyTasks() });
+export const useMyComments = () => useQuery<MyComments>({ queryKey: qk.myComments, queryFn: () => api.listMyComments() });
 export const useWorkspaceTasks = () => useQuery<WorkspaceTasks>({ queryKey: qk.workspaceTasks, queryFn: () => api.listWorkspaceTasks() });
 export const useSearch = (q: string) =>
   useQuery<SearchResponse>({
@@ -405,6 +425,7 @@ function invalidateNotificationsSoon(qc: QueryClient) {
 export function applyLiveTaskEvent(qc: QueryClient, event: LiveTaskEvent, opts?: { skipTask?: boolean }) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(event.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
+  void qc.invalidateQueries({ queryKey: qk.myComments });
   void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
   invalidateNotificationsSoon(qc);
   if (!opts?.skipTask) void qc.invalidateQueries({ queryKey: qk.task(event.taskKey) });
@@ -427,6 +448,7 @@ function upsertProjectTask(qc: QueryClient, task: Task) {
 function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectKey'>) {
   void qc.invalidateQueries({ queryKey: qk.projectTasks(task.projectKey) });
   void qc.invalidateQueries({ queryKey: qk.myTasks });
+  void qc.invalidateQueries({ queryKey: qk.myComments });
   void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
   void qc.invalidateQueries({ queryKey: qk.task(task.key) });
   void qc.invalidateQueries({ queryKey: qk.projects, exact: true });
@@ -561,7 +583,10 @@ export function useAddComment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, body, parentId }: { key: string; body: string; parentId?: string }) => api.addComment(key, body, parentId),
-    onSuccess: (_c, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+    onSuccess: (_c, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.myComments });
+    },
   });
 }
 
@@ -570,7 +595,10 @@ export function useUpdateComment() {
   return useMutation({
     mutationFn: ({ key, commentId, body }: { key: string; commentId: string; body: string }) =>
       api.updateComment(key, commentId, body),
-    onSuccess: (_c, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+    onSuccess: (_c, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.myComments });
+    },
   });
 }
 
@@ -578,7 +606,10 @@ export function useDeleteComment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, commentId }: { key: string; commentId: string }) => api.deleteComment(key, commentId),
-    onSuccess: (_d, { key }) => void qc.invalidateQueries({ queryKey: qk.task(key) }),
+    onSuccess: (_d, { key }) => {
+      void qc.invalidateQueries({ queryKey: qk.task(key) });
+      void qc.invalidateQueries({ queryKey: qk.myComments });
+    },
   });
 }
 

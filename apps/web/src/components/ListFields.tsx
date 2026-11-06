@@ -1,5 +1,5 @@
 import { useStatusToast } from './StatusToast';
-import { useUpdateTask } from '../api/queries';
+import { useMe, useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task, UpdateTaskInput } from '../api/types';
 import { allowedTypeSlugs, LIST_FIELD_WIDTH, type ListField } from '../lib/taskFilters';
 import { dueColor, dueLabel, dueTone } from '../lib/dates';
@@ -62,6 +62,8 @@ export function ListFields({
   const toast = useStatusToast();
   const catalog = useWorkspaceCatalog();
   const update = useUpdateTask();
+  const me = useMe().data;
+  const lookOnly = me?.workspaceRole === 'viewer' || me?.workspaceRole === 'guest';
   const allowed = allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic']);
   const show = (field: ListField) => !hiddenCols.includes(field);
   const status = statusById(detail.workflow, task.statusId);
@@ -90,7 +92,7 @@ export function ListFields({
           onMove={(statusId) => onMove(task, statusId)}
         />
         <span style={{ marginLeft: 'auto', color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 12 }}>
-          <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
+          <DuePicker bare disabled={lookOnly} value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
         </span>
       </>
     );
@@ -139,7 +141,7 @@ export function ListFields({
       )}
       {show('due') && (
       <span className="bt-list-field bt-col-due" style={{ width: LIST_FIELD_WIDTH.due, minWidth: LIST_FIELD_WIDTH.due, color: dueColor[tone], fontWeight: tone === 'overdue' || tone === 'today' ? 600 : 400, fontSize: 13 }}>
-        <DuePicker bare value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
+        <DuePicker bare disabled={lookOnly} value={task.dueDate} trigger={<span>{dueLabel(task.dueDate)}</span>} onChange={(dueDate) => save({ dueDate })} />
       </span>
       )}
       {show('priority') && (

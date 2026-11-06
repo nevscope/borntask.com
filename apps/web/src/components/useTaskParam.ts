@@ -19,12 +19,13 @@ export function useTaskParam() {
   const userId = useMe().data?.user.id;
   const taskKey = params.get('task');
   const commentId = params.get('comment');
-  const openTask = (key: string, meta?: { title?: string; projectKey?: string; replace?: boolean }) => {
+  const openTask = (key: string, meta?: { title?: string; projectKey?: string; replace?: boolean; commentId?: string }) => {
     recordLastViewed(userId, { key, title: meta?.title, projectKey: meta?.projectKey });
     setParams((p) => {
       const next = new URLSearchParams(p);
       next.set('task', key);
-      next.delete('comment');
+      if (meta?.commentId) next.set('comment', meta.commentId);
+      else next.delete('comment');
       return next;
     }, meta?.replace ? { replace: true } : undefined);
   };

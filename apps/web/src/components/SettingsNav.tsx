@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Skeleton } from 'antd';
 import { Link, NavLink } from 'react-router-dom';
 import { isProjectKey } from '@borntask/shared';
-import { missingProjectError, projectQueryUnavailable, useMe, useProject } from '../api/queries';
+import { deniedProjectError, missingProjectError, projectQueryUnavailable, useMe, useProject } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import { color } from '../theme/tokens';
 import { NoAccess } from './NoAccess';
@@ -97,7 +97,7 @@ export function SettingsFrame({
   const backTo = projectKey ? `/p/${projectKey}/list` : '/';
   const backLabel = projectKey ? (project.data?.project.name ?? 'the project') : 'My tasks';
   if (projectKey && (!isProjectKey(projectKey) || projectQueryUnavailable(project))) {
-    return <NoAccess projectKey={projectKey} error={project.error ?? missingProjectError(projectKey)} />;
+    return <NoAccess projectKey={projectKey} error={deniedProjectError(project.error) ?? missingProjectError(projectKey)} />;
   }
   if (projectKey && !project.data) {
     return <div className="bt-page"><Skeleton active paragraph={{ rows: 8 }} /></div>;

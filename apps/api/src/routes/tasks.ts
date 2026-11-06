@@ -16,6 +16,7 @@ import { moveTask } from '../lib/moveTask.js';
 import { moveTaskToProject } from '../lib/moveTaskToProject.js';
 import { publishTaskChange } from '../lib/live.js';
 import { notifyInApp } from '../lib/notifyInApp.js';
+import { listMyComments } from '../lib/myComments.js';
 import { mapComment, postComment } from '../lib/postComment.js';
 import {
   attachPendingToTask,
@@ -296,6 +297,15 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         unassigned: unassignedOpen.map(mark),
         approvals: approvals.map(mark),
       };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/me/comments', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      return await listMyComments(auth);
     } catch (err) {
       return sendError(reply, err);
     }

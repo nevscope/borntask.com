@@ -5,8 +5,8 @@ import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useWorkspaceCatalog } from '../api/catalog';
-import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
-import type { Priority, ProjectDetail, Task } from '../api/types';
+import { api, qk, useMe, useMoveTask, useMyComments, useMyTasks, useProjects } from '../api/queries';
+import type { MyCommentItem, Priority, ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TaskHints, TypeTag } from '../components/Chips';
 import { PageHeading } from '../components/PageHeading';
 import { useQuickAdd } from '../components/QuickAdd';
@@ -28,7 +28,20 @@ const BUCKETS: { id: DueBucket; label: string; color: string }[] = [
   { id: 'none', label: 'No date', color: color.muted },
 ];
 
-type Tab = 'assigned' | 'approve' | 'created' | 'watching';
+type TaskTab = 'assigned' | 'approve' | 'created' | 'watching';
+type CommentTab = 'replies' | 'assigned-comments' | 'mentions' | 'posts';
+type Tab = TaskTab | CommentTab;
+
+const TASK_TABS: Tab[] = ['assigned', 'approve', 'created', 'watching'];
+const COMMENT_TABS: Tab[] = ['replies', 'assigned-comments', 'mentions', 'posts'];
+
+function isTab(value: string | null): value is Tab {
+  return Boolean(value && ([...TASK_TABS, ...COMMENT_TABS] as string[]).includes(value));
+}
+
+function isCommentTab(tab: Tab): tab is CommentTab {
+  return COMMENT_TABS.includes(tab);
+}
 
 function sortTasks(list: Task[], prefs: ReturnType<typeof readMyTasksPrefs>) {
   return [...list].sort((a, b) => {
@@ -42,13 +55,14 @@ function sortTasks(list: Task[], prefs: ReturnType<typeof readMyTasksPrefs>) {
 export function MyTasksScreen() {
   const me = useMe().data;
   const mine = useMyTasks();
+  const myComments = useMyComments();
   const catalog = useWorkspaceCatalog();
   const projects = useProjects().data ?? [];
   const quickAdd = useQuickAdd();
   const { openTask } = useTaskParam();
   const move = useMoveTask();
   const toast = useStatusToast();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const isPhone = useIsPhone();
 
   const keys = [...new Set([
@@ -62,7 +76,15 @@ export function MyTasksScreen() {
   const detailOf = (key: string): ProjectDetail | undefined => details.find((d) => d.data?.project.key === key)?.data;
   const projectName = (key: string) => projects.find((p) => p.key === key)?.name ?? key;
 
-  const [tab, setTab] = useState<Tab>('assigned');
+  const tab: Tab = isTab(params.get('tab')) ? params.get('tab') as Tab : 'assigned';
+  const setTab = (next: Tab) => {
+    setParams((p) => {
+      const copy = new URLSearchParams(p);
+      if (next === 'assigned') copy.delete('tab');
+      else copy.set('tab', next);
+      return copy;
+    }, { replace: true });
+  };
   const [prefs, setPrefs] = useState(readMyTasksPrefs);
   const assignedCount = mine.data?.assigned.length ?? 0;
   const approvalCount = mine.data?.approvals.length ?? 0;
@@ -87,8 +109,18 @@ export function MyTasksScreen() {
     }), prefs);
   }, [mine.data, tab, prefs, unassignedPool, me?.user.id]);
 
+  const commentItems = useMemo(() => {
+    const source =
+      tab === 'replies' ? (myComments.data?.replies ?? [])
+      : tab === 'assigned-comments' ? (myComments.data?.assignedComments ?? [])
+      : tab === 'mentions' ? (myComments.data?.mentions ?? [])
+      : tab === 'posts' ? (myComments.data?.posts ?? [])
+      : [];
+    return source.filter((row) => !prefs.projectKey || row.projectKey === prefs.projectKey);
+  }, [tab, myComments.data, prefs.projectKey]);
+
   const lastViewed = useMemo(() => {
-    if (tab === 'approve') return [];
+    if (tab === 'approve' || isCommentTab(tab)) return [];
     const listKeys = new Set(list.map((t) => t.key));
     return readLastViewed(me?.user.id).filter((row) => listKeys.has(row.key));
   }, [me?.user.id, list, tab, mine.dataUpdatedAt, params.get('task')]);
@@ -115,7 +147,7 @@ export function MyTasksScreen() {
     writeMyTasksPrefs(next);
   };
 
-  if (mine.isLoading) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
+  if (mine.isLoading || (isCommentTab(tab) && myComments.isLoading)) return <div className="bt-page"><Skeleton active paragraph={{ rows: 10 }} /></div>;
   if (params.get('welcome') === 'guest') return <GuestWelcome />;
 
   let left = shown;
@@ -138,9 +170,17 @@ export function MyTasksScreen() {
     ? catalog.types.map((item) => ({ value: item.slug, label: item.name }))
     : Object.entries(typeStyle).map(([value, style]) => ({ value, label: style.label }));
 
+  const commentEmpty =
+    tab === 'replies' ? 'No replies to your comments yet.'
+    : tab === 'assigned-comments' ? 'No comments on work assigned to you.'
+    : tab === 'mentions' ? 'Nobody has mentioned you yet.'
+    : tab === 'posts' ? 'You have not posted a comment yet.'
+    : '';
   const subtitle =
     tab === 'approve'
       ? `${list.length} waiting for your approval`
+      : isCommentTab(tab)
+      ? `${commentItems.length} ${commentItems.length === 1 ? 'comment' : 'comments'}`
       : `${list.length} open`;
 
   return (
@@ -152,13 +192,24 @@ export function MyTasksScreen() {
         </p>
         <Segmented
           style={{ marginTop: 12 }}
-          value={tab}
+          value={isCommentTab(tab) ? undefined : tab}
           onChange={(v) => setTab(v as Tab)}
           options={[
             { label: assignedCount ? `Assigned to me ${assignedCount}` : 'Assigned to me', value: 'assigned' },
             { label: approvalCount ? `To approve ${approvalCount}` : 'To approve', value: 'approve' },
             { label: 'Created by me', value: 'created' },
             { label: 'Watching', value: 'watching' },
+          ]}
+        />
+        <Segmented
+          style={{ marginTop: 8 }}
+          value={isCommentTab(tab) ? tab : undefined}
+          onChange={(v) => setTab(v as Tab)}
+          options={[
+            { label: myComments.data?.replies.length ? `Replies ${myComments.data.replies.length}` : 'Replies', value: 'replies' },
+            { label: myComments.data?.assignedComments.length ? `Assigned comments ${myComments.data.assignedComments.length}` : 'Assigned comments', value: 'assigned-comments' },
+            { label: myComments.data?.mentions.length ? `Mentions ${myComments.data.mentions.length}` : 'Mentions', value: 'mentions' },
+            { label: myComments.data?.posts.length ? `My posts ${myComments.data.posts.length}` : 'My posts', value: 'posts' },
           ]}
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 12 }}>
@@ -171,7 +222,7 @@ export function MyTasksScreen() {
             style={{ minWidth: 180 }}
             options={projects.map((p) => ({ value: p.key, label: p.name }))}
           />
-          {tab === 'approve' ? (
+          {isCommentTab(tab) ? null : tab === 'approve' ? (
             <Select
               aria-label="Type"
               allowClear
@@ -192,29 +243,44 @@ export function MyTasksScreen() {
               options={(Object.keys(priorityStyle) as Priority[]).map((p) => ({ value: p, label: priorityStyle[p].label }))}
             />
           )}
-          <Select
-            aria-label="Sort"
-            value={prefs.sort}
-            onChange={(value) => setPref('sort', value)}
-            style={{ minWidth: 170 }}
-            options={[
-              { value: 'due', label: 'Due date' },
-              { value: 'priority', label: 'Priority' },
-              { value: 'updated', label: 'Last updated' },
-              { value: 'project', label: 'Project' },
-            ]}
-          />
+          {!isCommentTab(tab) && (
+            <Select
+              aria-label="Sort"
+              value={prefs.sort}
+              onChange={(value) => setPref('sort', value)}
+              style={{ minWidth: 170 }}
+              options={[
+                { value: 'due', label: 'Due date' },
+                { value: 'priority', label: 'Priority' },
+                { value: 'updated', label: 'Last updated' },
+                { value: 'project', label: 'Project' },
+              ]}
+            />
+          )}
           {tab === 'approve' && (
             <Checkbox checked={prefs.reportedByMe} onChange={(e) => setPref('reportedByMe', e.target.checked)}>
               Reported by me
             </Checkbox>
           )}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: color.ink3 }}>
-            <Switch size="small" checked={prefs.showUnassigned} onChange={(on) => setPref('showUnassigned', on)} />
-            Show unassigned
-          </label>
+          {!isCommentTab(tab) && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: color.ink3 }}>
+              <Switch size="small" checked={prefs.showUnassigned} onChange={(on) => setPref('showUnassigned', on)} />
+              Show unassigned
+            </label>
+          )}
         </div>
       </div>
+
+      {isCommentTab(tab) && commentItems.length === 0 && (
+        <p style={{ margin: 0, color: color.muted, fontSize: 13.5 }}>{commentEmpty}</p>
+      )}
+      {isCommentTab(tab) && commentItems.length > 0 && (
+        <section className="bt-card">
+          {commentItems.map((row) => (
+            <CommentInboxRow key={row.id} row={row} onOpen={() => openTask(row.taskKey, { title: row.taskTitle, projectKey: row.projectKey, commentId: row.id })} />
+          ))}
+        </section>
+      )}
 
       {tab === 'assigned' && approvalCount > 0 && (
         <button
@@ -266,7 +332,7 @@ export function MyTasksScreen() {
         <p style={{ margin: 0, color: color.muted, fontSize: 13.5 }}>Nothing waiting for your approval.</p>
       )}
 
-      {windowed.map((b) => {
+      {!isCommentTab(tab) && windowed.map((b) => {
         const rows = b.list;
         return (
           <section key={b.id} className="bt-card">
@@ -341,13 +407,13 @@ export function MyTasksScreen() {
         );
       })}
 
-      {remaining > 0 && (
+      {!isCommentTab(tab) && remaining > 0 && (
         <div ref={sentinelRef} style={{ padding: '4px 4px 0', fontSize: 12.5, color: color.muted }}>
           Showing {shown} of {list.length} tasks
         </div>
       )}
 
-      {!isPhone && !(list.length === 0 && tab === 'assigned') && tab !== 'approve' && (
+      {!isPhone && !isCommentTab(tab) && !(list.length === 0 && tab === 'assigned') && tab !== 'approve' && (
       <button
         onClick={() => quickAdd.open()}
         style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px', border: `1px dashed ${color.dashed}`, borderRadius: 12, background: 'transparent', color: color.muted, font: 'inherit', fontSize: 13.5, cursor: 'pointer' }}
@@ -357,5 +423,28 @@ export function MyTasksScreen() {
       )}
       {me && <span className="bt-sr-only"><Avatar user={me.user} /></span>}
     </div>
+  );
+}
+
+function CommentInboxRow({ row, onOpen }: { row: MyCommentItem; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="bt-row"
+      onClick={onOpen}
+      style={{ alignItems: 'flex-start', gap: 10, padding: '12px 16px', minHeight: 0, cursor: 'pointer', textAlign: 'left' }}
+    >
+      <Avatar user={row.author} size={28} />
+      <span style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          <span style={{ fontWeight: 600, fontSize: 13.5 }}>{row.author.name}</span>
+          <span className="bt-key">{row.taskKey}</span>
+          <span style={{ fontSize: 12.5, color: color.muted }}>{row.projectName}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: color.muted }}>{dayjs(row.createdAt).format('D MMM HH:mm')}</span>
+        </span>
+        <span style={{ fontSize: 13.5, color: color.ink, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{row.taskTitle}</span>
+        <span style={{ fontSize: 13, color: color.ink3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{row.body}</span>
+      </span>
+    </button>
   );
 }

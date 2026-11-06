@@ -148,9 +148,9 @@ function AssigneeList({
   );
 }
 
-export function DuePicker({ value, onChange, bare, trigger, ariaLabel = 'Change due date' }: { value: string | null; onChange: (date: string | null) => void; bare?: boolean; trigger?: ReactNode; ariaLabel?: string }) {
+export function DuePicker({ value, onChange, bare, trigger, ariaLabel = 'Change due date', disabled }: { value: string | null; onChange: (date: string | null) => void; bare?: boolean; trigger?: ReactNode; ariaLabel?: string; disabled?: boolean }) {
   return (
-    <Picker bare={bare} label={trigger ?? dueLabel(value)} ariaLabel={ariaLabel}>
+    <Picker bare={bare} label={trigger ?? dueLabel(value)} ariaLabel={ariaLabel} disabled={disabled}>
       {(close) => <DuePanel value={value} onChange={(date) => { onChange(date); close(); }} />}
     </Picker>
   );
@@ -362,6 +362,7 @@ function Picker({
   ariaLabel,
   pill = false,
   bare = false,
+  disabled = false,
   onKey,
   children,
 }: {
@@ -369,6 +370,7 @@ function Picker({
   ariaLabel: string;
   pill?: boolean;
   bare?: boolean;
+  disabled?: boolean;
   onKey?: (key: string, close: () => void) => boolean;
   children: (close: () => void) => ReactNode;
 }) {
@@ -443,7 +445,9 @@ function Picker({
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
+        disabled={disabled}
         onClick={() => {
+          if (disabled) return;
           const rect = btnRef.current?.getBoundingClientRect();
           if (rect) setPos(placeMenu(rect));
           setOpen((value) => !value);
@@ -460,7 +464,7 @@ function Picker({
           font: 'inherit',
           fontSize: 13,
           textAlign: 'left',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
         } : {
           display: 'inline-flex',
           alignItems: 'center',
@@ -475,7 +479,7 @@ function Picker({
           font: 'inherit',
           fontSize: 13,
           textAlign: 'left',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
         }}
       >
         {label}

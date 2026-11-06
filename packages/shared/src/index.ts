@@ -16,6 +16,7 @@ export * from './workflowMoves.js';
 export * from './projectTemplates.js';
 export * from './projectKey.js';
 export * from './commentReactions.js';
+export * from './myComments.js';
 export * from './timesheets.js';
 export * from './workspaceHost.js';
 export * from './timeZones.js';

@@ -12,7 +12,7 @@ import {
   isProjectKey,
   type GanttScale,
 } from '@borntask/shared';
-import { missingProjectError, projectQueryUnavailable, useMe, useProject, useProjectTasks, useWorkspaceSettings } from '../api/queries';
+import { deniedProjectError, missingProjectError, projectQueryUnavailable, useMe, useProject, useProjectTasks, useWorkspaceSettings } from '../api/queries';
 import type { ProjectDetail, Task } from '../api/types';
 import { Avatar } from '../components/Chips';
 import { GanttAddPopover, type GanttAddAnchor } from '../components/GanttAddPopover';
@@ -157,11 +157,11 @@ export function ProjectGanttScreen() {
   }, [days, today, dayPx, leftW]);
 
   if (!isProjectKey(projectKey) || projectQueryUnavailable(detail) || projectQueryUnavailable(tasks)) {
-    return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error ?? missingProjectError(projectKey)} />;
+    return <NoAccess projectKey={projectKey} error={deniedProjectError(detail.error, tasks.error) ?? missingProjectError(projectKey)} />;
   }
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
   const d = detail.data;
-  const canWrite = me?.workspaceRole !== 'viewer';
+  const canWrite = me?.workspaceRole !== 'viewer' && me?.workspaceRole !== 'guest';
   const defaultSectionId = d.sections[0]?.id ?? '';
   const myRoles = d.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
   const canShare = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin' || myRoles.includes('lead');
@@ -449,7 +449,9 @@ export function ProjectGanttScreen() {
                         {layout && (
                           <button
                             type="button"
+                            className="bt-gantt-bar"
                             aria-label={`${task.key} ${task.title} ${rangeLabel(bar.start, bar.end)}`}
+                            onPointerDown={() => setHoverKey(null)}
                             onClick={(event) => {
                               event.stopPropagation();
                               openTask(task.key);
@@ -480,7 +482,7 @@ export function ProjectGanttScreen() {
                               display: 'flex',
                               alignItems: 'center',
                               overflow: 'hidden',
-                              zIndex: 1,
+                              zIndex: 3,
                             }}
                           >
                             {layout.width > 40 && (
@@ -508,6 +510,7 @@ export function ProjectGanttScreen() {
       {hoverTask && !isPhone && (
         <div
           ref={hoverTip}
+          className="bt-gantt-hover-tip"
           role="dialog"
           aria-label="Task preview"
           style={{
@@ -535,13 +538,6 @@ export function ProjectGanttScreen() {
             {hoverTask.isBlocked && <span style={{ fontSize: 12, color: color.warning, fontWeight: 600 }}>Blocked</span>}
             {barOverdue(d, hoverTask, today) && <span style={{ fontSize: 12, color: color.danger, fontWeight: 600 }}>Overdue</span>}
           </span>
-          <button
-            type="button"
-            onClick={() => openTask(hoverTask.key)}
-            style={{ height: 32, border: 0, borderRadius: radius.md, background: color.brandFill, color: color.brandOn, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', pointerEvents: 'auto' }}
-          >
-            Open
-          </button>
         </div>
       )}
 

@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from 'react';
 import { readShowHiddenSections, writeShowHiddenSections } from '../lib/lastViewed';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { isProjectKey } from '@borntask/shared';
-import { missingProjectError, projectQueryUnavailable, useMe, useProject, useProjectTasks } from '../api/queries';
+import { deniedProjectError, missingProjectError, projectQueryUnavailable, useMe, useProject, useProjectTasks } from '../api/queries';
 import { useIsPhone } from '../hooks/useIsPhone';
 import type { ProjectDetail, Task, WorkflowStatus } from '../api/types';
 import { Avatar, GitHubBadge, LockIcon, TaskHints, TypeTag } from '../components/Chips';
@@ -46,7 +46,7 @@ export function ProjectBoardScreen() {
   }, [detail.data, tasks.data, view.filters, me?.user.id]);
 
   if (!isProjectKey(projectKey) || projectQueryUnavailable(detail) || projectQueryUnavailable(tasks)) {
-    return <NoAccess projectKey={projectKey} error={detail.error ?? tasks.error ?? missingProjectError(projectKey)} />;
+    return <NoAccess projectKey={projectKey} error={deniedProjectError(detail.error, tasks.error) ?? missingProjectError(projectKey)} />;
   }
   if (!detail.data || !tasks.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 12 }} /></div>;
   const d = detail.data;

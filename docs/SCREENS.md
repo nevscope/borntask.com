@@ -6,7 +6,7 @@ Visual specs: **`apps/web/docs/design/`** (INDEX.md lists built vs to-build). Do
 
 | Screen | File | Notes |
 | --- | --- | --- |
-| My tasks | `src/screens/MyTasksScreen.tsx` | Assigned / Created / Watching; approvals group in spec |
+| My tasks | `src/screens/MyTasksScreen.tsx` | Assigned / Created / Watching / approvals, plus Replies, Assigned comments, Mentions and My posts |
 | Project list | `src/screens/ProjectListScreen.tsx` | List drag = order/section only |
 | Project board | `src/screens/ProjectBoardScreen.tsx` | Board drag = status only |
 | Task drawer | `src/components/TaskDrawer.tsx` | Autosave; `?task=WEB-142` |

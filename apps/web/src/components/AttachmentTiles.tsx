@@ -72,6 +72,7 @@ export function AttachmentTiles({
   onRejected,
   hint = true,
   thumbHeight = 84,
+  readOnly = false,
 }: {
   items: AttachmentItem[];
   onAdd: (files: File[]) => void;
@@ -80,6 +81,7 @@ export function AttachmentTiles({
   onRejected?: (reason: string) => void;
   hint?: boolean;
   thumbHeight?: number;
+  readOnly?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -137,6 +139,7 @@ export function AttachmentTiles({
             {item.name}
             {item.progress != null && item.progress < 100 ? ' · uploading' : ` · ${sizeLabel(item.size)}`}
           </span>
+          {!readOnly && (
           <button
             type="button"
             aria-label={`Remove ${item.name}`}
@@ -162,8 +165,10 @@ export function AttachmentTiles({
           >
             ×
           </button>
+          )}
         </div>
       ))}
+      {!readOnly && (
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -189,7 +194,8 @@ export function AttachmentTiles({
         Attach file
         <input ref={inputRef} type="file" multiple className="bt-sr-only" onChange={(e) => e.target.files && take(e.target.files)} />
       </button>
-      {hint && (
+      )}
+      {hint && !readOnly && (
         <span style={{ flex: '1 1 180px', marginBottom: 21, fontSize: 12.5, lineHeight: 1.45, color: color.muted }}>
           Paste a screenshot with <kbd className="bt-kbd">Ctrl V</kbd> or drop files anywhere on this box. Up to 25 MB each. Executable files cannot be attached.
         </span>

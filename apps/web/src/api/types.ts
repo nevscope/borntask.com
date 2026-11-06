@@ -475,6 +475,27 @@ export const MyTasksSchema = z.object({
 });
 export type MyTasks = z.infer<typeof MyTasksSchema>;
 
+export const MyCommentItemSchema = z.object({
+  id: z.string(),
+  body: z.string(),
+  createdAt: z.string(),
+  parentId: z.string().nullable().optional(),
+  author: UserSchema,
+  taskKey: z.string(),
+  taskTitle: z.string(),
+  projectKey: z.string(),
+  projectName: z.string(),
+});
+export type MyCommentItem = z.infer<typeof MyCommentItemSchema>;
+
+export const MyCommentsSchema = z.object({
+  replies: z.array(MyCommentItemSchema),
+  assignedComments: z.array(MyCommentItemSchema),
+  mentions: z.array(MyCommentItemSchema),
+  posts: z.array(MyCommentItemSchema),
+});
+export type MyComments = z.infer<typeof MyCommentsSchema>;
+
 // ---------- inputs ----------
 export const CreateTaskInputSchema = z.object({
   projectKey: z.string(),
@@ -566,6 +587,7 @@ export interface Api {
   getProject(key: string): Promise<ProjectDetail>; // GET /projects/:key
   listProjectTasks(key: string): Promise<Task[]>; // GET /projects/:key/tasks
   listMyTasks(): Promise<MyTasks>; // GET /me/tasks
+  listMyComments(): Promise<MyComments>; // GET /me/comments
   listWorkspaceTasks(): Promise<WorkspaceTasks>; // GET /workspace/tasks
   search(q: string): Promise<SearchResponse>; // GET /search?q=
   getTask(key: string): Promise<TaskDetail>; // GET /tasks/:key

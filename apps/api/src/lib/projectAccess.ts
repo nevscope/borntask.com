@@ -100,10 +100,10 @@ export async function requireOpenProject(auth: Authed, key: string) {
   throw forbidden("You're not on this project.");
 }
 
-/** Viewers may open a project they have a seat on, but cannot change tasks or settings. */
+/** Guests and viewers may open a project they have a seat on, but cannot change tasks or settings. */
 export function requireProjectWrite(auth: Authed) {
-  if (auth.workspaceRole === 'viewer') {
-    throw forbidden('Viewers can look at this project but cannot change it.');
+  if (auth.workspaceRole === 'viewer' || auth.workspaceRole === 'guest') {
+    throw forbidden('Guests and viewers can look at this project but cannot change it.');
   }
 }
 

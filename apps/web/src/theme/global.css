@@ -107,6 +107,8 @@ a { color: var(--bt-brand-strong); }
   z-index: 3;
   background: var(--bt-surface);
 }
+.bt-gantt-bar { cursor: pointer; z-index: 3; }
+.bt-gantt-hover-tip, .bt-gantt-hover-tip * { pointer-events: none !important; }
 .bt-gantt-corner {
   position: sticky;
   top: 0;

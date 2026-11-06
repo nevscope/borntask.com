@@ -1,7 +1,7 @@
 import { Button, Empty, Skeleton } from 'antd';
 import { useParams } from 'react-router-dom';
 import { isProjectKey } from '@borntask/shared';
-import { missingProjectError, projectQueryUnavailable, USE_TASK_MOCKS, useProject, useProjectTrash, useRestoreTask } from '../api/queries';
+import { deniedProjectError, missingProjectError, projectQueryUnavailable, USE_TASK_MOCKS, useProject, useProjectTrash, useRestoreTask } from '../api/queries';
 import { NoAccess } from '../components/NoAccess';
 import { ProjectHeader } from '../components/ProjectHeader';
 import { useTaskParam } from '../components/useTaskParam';
@@ -14,7 +14,7 @@ export function TrashScreen() {
   const trash = useProjectTrash(projectKey);
   const restore = useRestoreTask();
 
-  if (!isProjectKey(projectKey) || projectQueryUnavailable(detail)) return <NoAccess projectKey={projectKey} error={detail.error ?? missingProjectError(projectKey)} />;
+  if (!isProjectKey(projectKey) || projectQueryUnavailable(detail)) return <NoAccess projectKey={projectKey} error={deniedProjectError(detail.error) ?? missingProjectError(projectKey)} />;
   if (!detail.data) return <div className="bt-page"><Skeleton active paragraph={{ rows: 8 }} /></div>;
 
   const rows = trash.data ?? [];

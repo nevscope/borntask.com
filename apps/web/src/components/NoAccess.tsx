@@ -1,6 +1,7 @@
+import { isProjectKey } from '@borntask/shared';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { ApiError } from '../api/http';
-import { useRequestProjectAccess } from '../api/queries';
+import { useMe, useProjects, useRequestProjectAccess } from '../api/queries';
 import { safeNext } from '../lib/safeNext';
 import { color, font, radius } from '../theme/tokens';
 
@@ -28,6 +29,8 @@ export function NoAccess({
 }) {
   const location = useLocation();
   const requestAccess = useRequestProjectAccess();
+  const listed = useProjects();
+  const me = useMe();
   if (error instanceof ApiError && error.status === 401) {
     const dest = safeNext(`${location.pathname}${location.search}`);
     return <Navigate to={dest ? `/sign-in?next=${encodeURIComponent(dest)}` : '/sign-in'} replace />;
@@ -44,7 +47,19 @@ export function NoAccess({
       </div>
     );
   }
-  const missing = error instanceof ApiError && error.status === 404;
+  const inWorkspace = Boolean(
+    projectKey && listed.data?.some((project) => project.key.toUpperCase() === projectKey.toUpperCase()),
+  );
+  const knownMissingKey = Boolean(projectKey && !isProjectKey(projectKey));
+  const canDiscoverLocked = ['owner', 'admin', 'member', 'viewer'].includes(me.data?.workspaceRole ?? '');
+  const missing = knownMissingKey
+    || (
+      !inWorkspace
+      && error instanceof ApiError
+      && error.status === 404
+      && canDiscoverLocked
+      && listed.isFetched
+    );
   const sent = requestAccess.isSuccess;
   const lead = requestAccess.data?.leadName ?? null;
   const note = requestAccess.isError
