@@ -59,6 +59,7 @@ async function markAccessRequestHandled(
       OR: [
         { kind: accessRequestKind(projectKey, request.id) },
         { kind: `access_request:${projectKey}`, actorId: request.requesterId },
+        { kind: { startsWith: `access_request:${projectKey}` }, actorId: request.requesterId },
       ],
     },
     data: { kind: handled, readAt: now },

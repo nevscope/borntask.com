@@ -153,6 +153,17 @@ export const api: Api = {
     }
     return mockApi.markNotificationsRead(input);
   },
+  hideNotifications: async (input) => {
+    if (!USE_MOCKS || !USE_TASK_MOCKS) {
+      try {
+        return await httpApi.hideNotifications(input);
+      } catch (err) {
+        if (USE_MOCKS && USE_TASK_MOCKS && (err instanceof ApiError || err instanceof TypeError)) return mockApi.hideNotifications(input);
+        throw err;
+      }
+    }
+    return mockApi.hideNotifications(input);
+  },
 };
 
 export const qk = {
@@ -731,6 +742,35 @@ export function useRemoveTaskLink() {
       void qc.invalidateQueries({ queryKey: qk.task(key) });
       void qc.invalidateQueries({ queryKey: qk.projectTasks(projectKeyOf(key)) });
       void qc.invalidateQueries({ queryKey: qk.myTasks });
+    },
+  });
+}
+
+export function useHideNotifications() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { ids?: string[]; read?: boolean }) => api.hideNotifications(input),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: qk.notifications });
+      const prev = qc.getQueryData<NotificationList>(qk.notifications);
+      if (prev) {
+        const ids = new Set(input.ids ?? []);
+        const items = prev.items.filter((n) => {
+          if (input.read) return !n.readAt;
+          return !ids.has(n.id);
+        });
+        qc.setQueryData<NotificationList>(qk.notifications, {
+          items,
+          unreadCount: items.filter((n) => !n.readAt).length,
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.notifications, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: qk.notifications });
     },
   });
 }

@@ -312,17 +312,26 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 .bt-notify-tabs::-webkit-scrollbar { display: none; }
 .bt-notify-chips {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   padding-bottom: 14px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  min-width: 0;
 }
-.bt-notify-chips::-webkit-scrollbar { display: none; }
 .bt-notify-chips button:focus-visible {
   outline: 2px solid var(--bt-ink);
   outline-offset: 2px;
+}
+.bt-notify-project-menu {
+  max-width: min(280px, calc(100vw - 24px));
+}
+.bt-notify-project-menu .ant-dropdown-menu {
+  max-height: min(360px, 50vh);
+  overflow: auto;
+}
+.bt-notify-project-menu .ant-dropdown-menu-title-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .bt-task-fields {
   display: grid;

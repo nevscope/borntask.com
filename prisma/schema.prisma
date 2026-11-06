@@ -813,6 +813,7 @@ model Notification {
   taskId    String?
   kind      String
   readAt    DateTime?
+  dismissedAt DateTime?
   createdAt DateTime  @default(now())
 
   tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)

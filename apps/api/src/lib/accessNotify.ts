@@ -31,3 +31,14 @@ export function parseAccessNotifyKind(kind: string): AccessNotifyKind | null {
   if (kind === 'access_request') return { state: 'pending', projectKey: '', requestId: null };
   return null;
 }
+
+export function accessStillPending(
+  access: AccessNotifyKind,
+  open: readonly { id: string; projectKey: string; requesterId: string }[],
+  actorId: string | null,
+): boolean {
+  if (access.state !== 'pending') return false;
+  if (access.requestId) return open.some((row) => row.id === access.requestId);
+  if (!access.projectKey) return open.length > 0;
+  return open.some((row) => row.projectKey === access.projectKey && (!actorId || row.requesterId === actorId));
+}

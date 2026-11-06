@@ -6,7 +6,7 @@ export type BellChip = 'reported' | 'assigned' | 'access';
 
 export function stillNeedsAction(note: Notification): boolean {
   if (note.outcome) return false;
-  if (note.kind === 'access_request') return true;
+  if (note.kind === 'access_request') return note.needsAction !== false;
   return Boolean(note.needsAccept) || Boolean(note.needsAction && note.kind !== 'assigned');
 }
 

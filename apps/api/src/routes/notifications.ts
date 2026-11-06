@@ -6,7 +6,7 @@ import { sendError, validation } from '../errors.js';
 import { DIGEST_SENT_KIND } from '../lib/presentNotification.js';
 import { taskKey } from '../lib/loadProject.js';
 import { mapStatus, mapUser } from '../lib/mappers.js';
-import { parseAccessNotifyKind } from '../lib/accessNotify.js';
+import { accessHandledKind, accessStillPending, parseAccessNotifyKind } from '../lib/accessNotify.js';
 import { parseMovedKind } from '../lib/stageNotify.js';
 
 const kindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request', 'comment']);
@@ -248,7 +248,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
   } as const;
 
   function inboxFilter(userId: string) {
-    return { userId, kind: { not: DIGEST_SENT_KIND } };
+    return { userId, kind: { not: DIGEST_SENT_KIND }, dismissedAt: null };
   }
 
   async function stagesFor(
@@ -322,6 +322,51 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     return merged;
   }
 
+  async function settleStaleAccess(
+    auth: Awaited<ReturnType<typeof requireAuth>>,
+    rows: { id: string; kind: string; actorId: string | null; readAt: Date | null }[],
+  ) {
+    const pending = rows.filter((row) => parseAccessNotifyKind(row.kind)?.state === 'pending');
+    if (!pending.length) return;
+    const keys = [...new Set(pending.map((row) => parseAccessNotifyKind(row.kind)?.projectKey).filter((key): key is string => Boolean(key)))];
+    const projects = keys.length
+      ? await auth.db.project.findMany({ where: { key: { in: keys } }, select: { id: true, key: true } })
+      : [];
+    const byId = new Map(projects.map((project) => [project.id, project.key]));
+    const openRows = projects.length
+      ? await auth.db.accessRequest.findMany({
+        where: { projectId: { in: projects.map((project) => project.id) }, resolvedAt: null },
+        select: { id: true, projectId: true, requesterId: true },
+      })
+      : [];
+    const open = openRows.flatMap((row) => {
+      const projectKey = byId.get(row.projectId);
+      return projectKey ? [{ id: row.id, projectKey, requesterId: row.requesterId }] : [];
+    });
+    const members = projects.length
+      ? await auth.db.projectMember.findMany({
+        where: { projectId: { in: projects.map((project) => project.id) } },
+        select: { projectId: true, userId: true },
+      })
+      : [];
+    const memberSet = new Set(members.map((row) => `${byId.get(row.projectId)}:${row.userId}`));
+    const now = new Date();
+    await Promise.all(pending.map(async (row) => {
+      const access = parseAccessNotifyKind(row.kind);
+      if (!access || accessStillPending(access, open, row.actorId)) return;
+      const projectKey = access.projectKey || keys[0] || 'PROJECT';
+      const approved = Boolean(row.actorId && memberSet.has(`${projectKey}:${row.actorId}`));
+      const outcome = approved ? 'approved' : 'declined';
+      const kind = accessHandledKind(projectKey, access.requestId || '', outcome, auth.userId);
+      row.kind = kind;
+      if (!row.readAt) row.readAt = now;
+      await auth.db.notification.update({
+        where: { id: row.id },
+        data: { kind, readAt: row.readAt },
+      });
+    }));
+  }
+
   async function handlersFor(rows: { kind: string }[]) {
     const ids = [...new Set(rows.flatMap((row) => {
       const access = parseAccessNotifyKind(row.kind);
@@ -334,6 +379,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
 
   async function payload(auth: Awaited<ReturnType<typeof requireAuth>>) {
     const rows = await listFor(auth);
+    await settleStaleAccess(auth, rows);
     const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
     const items = rows
       .map((row) => {
@@ -348,6 +394,40 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me/notifications', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
+      return payload(auth);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.post('/me/notifications/hide', async (req, reply) => {
+    try {
+      const auth = await requireAuth(req);
+      const input = z.object({
+        ids: z.array(z.string()).optional(),
+        read: z.boolean().optional(),
+      }).parse(req.body ?? {});
+      const ids = [...new Set(input.ids ?? [])];
+      if (!input.read && ids.length === 0) throw validation('Pass ids or read.');
+      const now = new Date();
+      await auth.db.notification.updateMany({
+        where: {
+          userId: auth.userId,
+          dismissedAt: null,
+          ...(input.read
+            ? {
+              readAt: { not: null },
+              NOT: {
+                OR: [
+                  { kind: { startsWith: 'access_request' } },
+                  { kind: { startsWith: 'project_invite:' } },
+                ],
+              },
+            }
+            : { id: { in: ids } }),
+        },
+        data: { dismissedAt: now, readAt: now },
+      });
       return payload(auth);
     } catch (err) {
       return sendError(reply, err);

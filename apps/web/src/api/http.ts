@@ -105,4 +105,5 @@ export const httpApi: Api = {
   removeTaskLink: (key, id) => request('DELETE', `/tasks/${enc(key)}/links/${enc(id)}`, null),
   listNotifications: () => request('GET', '/me/notifications', NotificationListSchema),
   markNotificationsRead: (input) => request('POST', '/me/notifications/read', NotificationListSchema, input),
+  hideNotifications: (input) => request('POST', '/me/notifications/hide', NotificationListSchema, input),
 };

@@ -35,6 +35,7 @@ export const CHECKS = [
   { name: '20261106120000_custom_fields', kind: 'table', table: 'CustomField' },
   { name: '20261106130000_workspace_releases', kind: 'table', table: 'Release' },
   { name: '20261106160700_email_cadence', kind: 'column', table: 'NotificationPreference', column: 'emailCadence' },
+  { name: '20261106234400_notification_dismissed', kind: 'column', table: 'Notification', column: 'dismissedAt' },
 ];
 
 function prisma(args) {

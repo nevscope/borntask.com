@@ -21,6 +21,7 @@ describe('bell tabs and filters', () => {
   test('needs action is assignments, access requests and invites to accept', () => {
     expect(inTab(note({ id: '1', kind: 'assigned' }), 'action')).toBe(true);
     expect(inTab(note({ id: '2', kind: 'access_request' }), 'action')).toBe(true);
+    expect(inTab(note({ id: '2b', kind: 'access_request', needsAction: false, taskKey: null }), 'action')).toBe(false);
     expect(inTab(note({ id: '3', kind: 'invite', needsAccept: true, taskKey: null }), 'action')).toBe(true);
     expect(inTab(note({ id: '4', kind: 'moved' }), 'action')).toBe(false);
     expect(inTab(note({ id: '7', kind: 'access_request', outcome: 'approved', taskKey: null }), 'action')).toBe(false);

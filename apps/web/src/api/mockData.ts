@@ -1144,4 +1144,14 @@ export const mockApi: Api = {
     }
     return notificationList();
   },
+
+  async hideNotifications(input) {
+    await wait();
+    const ids = new Set(input.ids ?? []);
+    notifications = notifications.filter((n) => {
+      if (input.read) return !n.readAt;
+      return !ids.has(n.id);
+    });
+    return notificationList();
+  },
 };

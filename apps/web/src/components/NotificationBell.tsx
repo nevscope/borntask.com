@@ -2,7 +2,7 @@ import { Dropdown } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAcceptProjectInvite, useMarkNotificationsRead, useMe, useNotifications, useProjects, useResolveAccessRequest } from '../api/queries';
+import { useAcceptProjectInvite, useHideNotifications, useMarkNotificationsRead, useMe, useNotifications, useProjects, useResolveAccessRequest } from '../api/queries';
 import type { Notification } from '../api/types';
 import {
   collapseBellItems,
@@ -11,6 +11,7 @@ import {
   isBellUnread,
   itemHeading,
   matchesFilters,
+  stillNeedsAction,
   updateSummary,
   type BellChip,
   type BellItem,
@@ -62,7 +63,7 @@ function Chip({
       onMouseDown={(event) => event.preventDefault()}
       style={{
         height: 30,
-        padding: '0 12px',
+        padding: '0 10px',
         border: `1px solid ${active ? color.ink : color.border}`,
         borderRadius: 999,
         background: active ? color.ink : color.surface,
@@ -73,6 +74,7 @@ function Chip({
         cursor: 'pointer',
         whiteSpace: 'nowrap',
         lineHeight: 1,
+        maxWidth: '100%',
       }}
     >
       {children}
@@ -99,6 +101,7 @@ function NotificationRow({
   busy,
   onOpen,
   onResolve,
+  onHide,
 }: {
   item: BellItem;
   active: boolean;
@@ -106,6 +109,7 @@ function NotificationRow({
   busy: boolean;
   onOpen: (item: BellItem) => void;
   onResolve: (item: BellItem, action: 'accept' | 'decline') => void;
+  onHide: (item: BellItem) => void;
 }) {
   const note = item.latest;
   const summary = updateSummary(item);
@@ -168,6 +172,29 @@ function NotificationRow({
           </span>
         </span>
       </button>
+      {!stillNeedsAction(note) && (
+        <button
+          type="button"
+          aria-label="Hide"
+          onClick={() => onHide(item)}
+          style={{
+            flex: 'none',
+            alignSelf: 'center',
+            height: 26,
+            padding: '0 8px',
+            border: 0,
+            borderRadius: radius.sm,
+            background: 'transparent',
+            color: color.muted,
+            font: 'inherit',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Hide
+        </button>
+      )}
       {pendingAccess && (
         <span style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 'none', justifyContent: 'center' }}>
           <button
@@ -233,6 +260,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
   const projects = useProjects().data ?? [];
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
+  const hide = useHideNotifications();
   const accept = useAcceptProjectInvite();
   const resolveAccess = useResolveAccessRequest();
   const [tab, setTab] = useState<BellTab>('action');
@@ -329,7 +357,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px 0', borderBottom: `1px solid ${color.divider}` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px 0', borderBottom: `1px solid ${color.divider}`, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: font.display, fontWeight: 600, fontSize: 16, flex: 1, minWidth: 0 }}>Notifications</span>
           <button
@@ -351,6 +379,26 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
             }}
           >
             Mark all read
+          </button>
+          <button
+            type="button"
+            disabled={items.every((note) => !note.readAt || stillNeedsAction(note))}
+            onClick={() => hide.mutate({ read: true })}
+            style={{
+              height: 30,
+              padding: '0 8px',
+              border: 0,
+              background: 'transparent',
+              font: 'inherit',
+              fontSize: 12.5,
+              color: items.every((note) => !note.readAt || stillNeedsAction(note)) ? color.faint : color.brandStrong,
+              fontWeight: 600,
+              cursor: items.every((note) => !note.readAt || stillNeedsAction(note)) ? 'default' : 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            Hide read
           </button>
           <button
             type="button"
@@ -429,6 +477,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
           <Chip active={chips.has('access')} onClick={() => toggleChip('access')}>Access</Chip>
           <Dropdown
             trigger={['click']}
+            placement="bottomRight"
+            overlayClassName="bt-notify-project-menu"
             menu={{
               items: [
                 { key: 'all', label: 'All projects' },
@@ -445,7 +495,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
               onMouseDown={(event) => event.preventDefault()}
               style={{
                 height: 30,
-                padding: '0 12px',
+                maxWidth: '100%',
+                padding: '0 10px',
                 border: `1px solid ${color.border}`,
                 borderRadius: 999,
                 background: color.surface,
@@ -456,6 +507,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 lineHeight: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               {projectLabel}
@@ -517,6 +570,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                     busy={resolveAccess.isPending && resolveAccess.variables?.id === item.latest.requestId}
                     onOpen={open}
                     onResolve={resolve}
+                    onHide={(row) => hide.mutate({ ids: row.ids })}
                   />
                 ))}
               </section>

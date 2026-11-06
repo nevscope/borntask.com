@@ -618,4 +618,5 @@ export interface Api {
   removeTaskLink(key: string, id: string): Promise<void>; // DELETE /tasks/:key/links/:id
   listNotifications(): Promise<NotificationList>; // GET /me/notifications
   markNotificationsRead(input: { id?: string; ids?: string[]; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
+  hideNotifications(input: { ids?: string[]; read?: boolean }): Promise<NotificationList>; // POST /me/notifications/hide
 }
