@@ -7,7 +7,7 @@ import type { Activity, Api, Comment, Me, MyCommentItem, Notification, Project, 
 import { directedTaskLink, groupCommentReactions, isTaskBlocked, isTaskDescriptionTooLong, isTaskLinkRelation, partitionMyComments, startNotAfterDue, TASK_DESCRIPTION_TOO_LONG, viewTaskLink } from '@borntask/shared';
 import type { TaskLink } from './types';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
-import { isBellUnread, stillNeedsAction } from '../lib/bellInbox';
+import { isBellUnread } from '../lib/bellInbox';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
 
@@ -243,10 +243,15 @@ const activity: Record<string, Activity[]> = {
 
 function noteMeta(taskKey: string | null) {
   const task = taskKey ? tasks.find((row) => row.key === taskKey) : undefined;
+  const status = task ? statusById(deliveryWorkflow, task.statusId) : undefined;
   return {
     taskTitle: task?.title ?? null,
     reporterId: task?.reporterId ?? null,
     assigneeId: task?.assigneeId ?? null,
+    statusName: status?.name ?? null,
+    statusCategory: status?.category ?? null,
+    statusTone: status?.tone ?? null,
+    statusColour: status?.colour ?? null,
   };
 }
 
@@ -1135,7 +1140,6 @@ export const mockApi: Api = {
     const now = new Date().toISOString();
     for (const n of notifications) {
       if (n.readAt) continue;
-      if (stillNeedsAction(n)) continue;
       if (input.all || n.id === input.id || input.ids?.includes(n.id)) n.readAt = now;
     }
     return notificationList();

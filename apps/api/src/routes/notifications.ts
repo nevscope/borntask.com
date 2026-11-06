@@ -5,7 +5,7 @@ import { prisma } from '../db.js';
 import { sendError, validation } from '../errors.js';
 import { DIGEST_SENT_KIND } from '../lib/presentNotification.js';
 import { taskKey } from '../lib/loadProject.js';
-import { mapUser } from '../lib/mappers.js';
+import { mapStatus, mapUser } from '../lib/mappers.js';
 import { parseAccessNotifyKind } from '../lib/accessNotify.js';
 import { parseMovedKind } from '../lib/stageNotify.js';
 
@@ -81,6 +81,15 @@ function present(
       title: string;
       reporterId: string;
       assigneeId: string | null;
+      deletedAt?: Date | null;
+      status?: {
+        slug: string;
+        name: string;
+        category: 'backlog' | 'active' | 'review' | 'done';
+        colour: string | null;
+        position: number;
+        wipLimit: number | null;
+      } | null;
       project: { key: string };
     } | null;
   },
@@ -92,6 +101,7 @@ function present(
   const kind = publicKind(row.kind);
   const key = row.task ? taskKey(row.task.project.key, row.task.number) : null;
   const pendingAccess = access?.state === 'pending';
+  const status = row.task?.status ? mapStatus(row.task.status) : null;
   return {
     id: row.id,
     kind,
@@ -103,6 +113,10 @@ function present(
     toStatus: stage.to,
     reporterId: row.task?.reporterId ?? null,
     assigneeId: row.task?.assigneeId ?? null,
+    statusName: status?.name ?? null,
+    statusCategory: status?.category ?? null,
+    statusTone: status?.tone ?? null,
+    statusColour: status?.colour ?? null,
     needsAccept: Boolean(invited),
     requestId: access?.requestId ?? null,
     outcome: access?.state === 'handled' ? access.outcome : null,
@@ -129,7 +143,7 @@ function presentOrSkip(
     || row.kind === 'comment'
     || parseMovedKind(row.kind)
     || row.kind.startsWith('moved');
-  if (taskKinds && !row.task) return null;
+  if (taskKinds && (!row.task || row.task.deletedAt)) return null;
   return present(row, stage, handler);
 }
 
@@ -220,6 +234,8 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         title: true,
         reporterId: true,
         assigneeId: true,
+        deletedAt: true,
+        status: { select: { slug: true, name: true, category: true, colour: true, position: true, wipLimit: true } },
         project: {
           select: {
             key: true,
@@ -326,10 +342,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         return presentOrSkip(row, stages.get(row.id) ?? { from: null, to: null }, handler);
       })
       .filter((row): row is NonNullable<typeof row> => row !== null);
-    return {
-      items,
-      unreadCount: items.filter((row) => !row.readAt || (row.needsAction && !row.outcome)).length,
-    };
+    return { items, unreadCount: items.filter((row) => !row.readAt).length };
   }
 
   app.get('/me/notifications', async (req, reply) => {
@@ -355,12 +368,6 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         where: {
           userId: auth.userId,
           readAt: null,
-          NOT: {
-            OR: [
-              { kind: { startsWith: 'access_request' } },
-              { kind: { startsWith: 'project_invite:' } },
-            ],
-          },
           ...(input.all ? {} : { id: { in: ids } }),
         },
         data: { readAt: new Date() },

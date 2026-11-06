@@ -16,13 +16,13 @@ export function TypeTag({ type, small = false }: { type: TaskType; small?: boole
   );
 }
 
-export function StatusPill({ status }: { status: WorkflowStatus | undefined }) {
+export function StatusPill({ status, small = false }: { status: WorkflowStatus | undefined; small?: boolean }) {
   if (!status) return null;
   const s = toneStyle[status.tone];
   const tint = status.colour ? projectTint(status.colour) : null;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 9px', borderRadius: 999, background: tint?.tint ?? s.bg, color: tint?.ink ?? s.fg, fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: tint?.hex ?? s.dot }} />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: small ? 5 : 6, height: small ? 20 : 24, padding: small ? '0 7px' : '0 9px', borderRadius: 999, background: tint?.tint ?? s.bg, color: tint?.ink ?? s.fg, fontSize: small ? 11.5 : 12.5, fontWeight: 500, whiteSpace: 'nowrap' }}>
+      <span style={{ width: small ? 5 : 6, height: small ? 5 : 6, borderRadius: '50%', background: tint?.hex ?? s.dot }} />
       {status.name}
     </span>
   );

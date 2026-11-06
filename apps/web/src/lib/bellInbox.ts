@@ -11,7 +11,7 @@ export function stillNeedsAction(note: Notification): boolean {
 }
 
 export function isBellUnread(note: Notification): boolean {
-  return !note.readAt || stillNeedsAction(note);
+  return !note.readAt;
 }
 
 export function inTab(note: Notification, tab: BellTab): boolean {
@@ -43,11 +43,13 @@ export function matchesFilters(
   chips: ReadonlySet<BellChip>,
   meId: string | undefined,
   projectKey: string | null,
+  openOnly = false,
 ): boolean {
   if (projectKey && note.projectKey !== projectKey) return false;
   if (chips.has('reported') && note.reporterId !== meId) return false;
   if (chips.has('assigned') && note.kind !== 'assigned') return false;
   if (chips.has('access') && note.kind !== 'access_request') return false;
+  if (openOnly && note.taskKey && note.statusCategory === 'done') return false;
   return true;
 }
 

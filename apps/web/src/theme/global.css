@@ -320,6 +320,10 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   -ms-overflow-style: none;
 }
 .bt-notify-chips::-webkit-scrollbar { display: none; }
+.bt-notify-chips button:focus-visible {
+  outline: 2px solid var(--bt-ink);
+  outline-offset: 2px;
+}
 .bt-task-fields {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr);

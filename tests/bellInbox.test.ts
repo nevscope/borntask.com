@@ -31,12 +31,13 @@ describe('bell tabs and filters', () => {
     expect(inTab(note({ id: '9', kind: 'assigned', readAt: '2026-11-06T11:00:00.000Z' }), 'updates')).toBe(true);
   });
 
-  test('pending access stays unread even after readAt', () => {
+  test('pending access can be marked read and still sits in Needs action', () => {
     const pending = note({ id: 'p', kind: 'access_request', taskKey: null, readAt: '2026-11-06T11:00:00.000Z' });
-    expect(isBellUnread(pending)).toBe(true);
+    expect(isBellUnread(pending)).toBe(false);
     expect(inTab(pending, 'action')).toBe(true);
+    const unread = note({ id: 'u', kind: 'access_request', taskKey: null, readAt: null });
+    expect(isBellUnread(unread)).toBe(true);
     const handled = note({ id: 'h', kind: 'access_request', taskKey: null, outcome: 'approved', readAt: '2026-11-06T11:00:00.000Z' });
-    expect(isBellUnread(handled)).toBe(false);
     expect(inTab(handled, 'action')).toBe(false);
   });
 
@@ -59,6 +60,9 @@ describe('bell tabs and filters', () => {
     expect(matchesFilters(note({ id: '3', kind: 'moved' }), new Set(['assigned']), 'me', null)).toBe(false);
     expect(matchesFilters(note({ id: '4', kind: 'access_request', taskKey: null }), new Set(['access']), 'me', null)).toBe(true);
     expect(matchesFilters(note({ id: '5', kind: 'moved', projectKey: 'WEB' }), new Set(), 'me', 'MOB')).toBe(false);
+    expect(matchesFilters(note({ id: '6', kind: 'moved', statusCategory: 'done' }), new Set(), 'me', null, true)).toBe(false);
+    expect(matchesFilters(note({ id: '7', kind: 'moved', statusCategory: 'active' }), new Set(), 'me', null, true)).toBe(true);
+    expect(matchesFilters(note({ id: '8', kind: 'access_request', taskKey: null }), new Set(), 'me', null, true)).toBe(true);
   });
 });
 

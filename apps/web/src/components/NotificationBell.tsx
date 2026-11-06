@@ -11,16 +11,16 @@ import {
   isBellUnread,
   itemHeading,
   matchesFilters,
-  stillNeedsAction,
   updateSummary,
   type BellChip,
   type BellItem,
   type BellTab,
 } from '../lib/bellInbox';
 import { formatWhen } from '../lib/relativeTime';
+import type { StatusCategory, StatusTone } from '../api/types';
 import { color, font, radius } from '../theme/tokens';
 import { useStatusToast } from './StatusToast';
-import { Avatar } from './Chips';
+import { Avatar, StatusPill } from './Chips';
 
 const TABS: { id: BellTab; label: string }[] = [
   { id: 'action', label: 'Needs action' },
@@ -59,6 +59,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={(event) => event.preventDefault()}
       style={{
         height: 30,
         padding: '0 12px',
@@ -111,6 +112,18 @@ function NotificationRow({
   const mention = note.kind === 'mention' ? note.text : null;
   const pendingAccess = note.kind === 'access_request' && !note.outcome && Boolean(note.requestId && note.projectKey);
   const resolved = Boolean(note.outcome);
+  const status = note.statusName && note.statusCategory && note.statusTone
+    ? {
+      id: note.statusName,
+      name: note.statusName,
+      category: note.statusCategory as StatusCategory,
+      tone: note.statusTone as StatusTone,
+      colour: note.statusColour ?? undefined,
+      position: 0,
+      wipLimit: null,
+      side: false,
+    }
+    : undefined;
   const sub = [
     resolved ? note.text : summary,
     !resolved && mention && !summary ? mention : null,
@@ -149,7 +162,10 @@ function NotificationRow({
         <Avatar user={note.actor} size={28} />
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontSize: 13.5, lineHeight: 1.45, fontWeight: unread ? 600 : 500, color: resolved ? color.brandStrong : color.ink }}>{itemHeading(item)}</span>
-          <span style={{ fontSize: 12, color: resolved ? color.brandStrong : color.muted, lineHeight: 1.45 }}>{sub}</span>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+            {status && <StatusPill status={status} small />}
+            <span style={{ fontSize: 12, color: resolved ? color.brandStrong : color.muted, lineHeight: 1.45 }}>{sub}</span>
+          </span>
         </span>
       </button>
       {pendingAccess && (
@@ -221,15 +237,16 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
   const resolveAccess = useResolveAccessRequest();
   const [tab, setTab] = useState<BellTab>('action');
   const [chips, setChips] = useState<Set<BellChip>>(() => new Set());
+  const [openOnly, setOpenOnly] = useState(true);
   const [projectKey, setProjectKey] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const items = list?.items ?? [];
-  const markableCount = items.filter((note) => !note.readAt && !stillNeedsAction(note)).length;
+  const unreadCount = list?.unreadCount ?? items.filter((note) => isBellUnread(note)).length;
   const currentTask = params.get('task');
 
   const filtered = useMemo(
-    () => items.filter((note) => matchesFilters(note, chips, meId, projectKey)),
-    [items, chips, meId, projectKey],
+    () => items.filter((note) => matchesFilters(note, chips, meId, projectKey, openOnly)),
+    [items, chips, meId, projectKey, openOnly],
   );
   const tabCounts = useMemo(() => ({
     action: filtered.filter((note) => inTab(note, 'action')).length,
@@ -255,10 +272,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
 
   const open = (item: BellItem) => {
     setActiveId(item.id);
-    const unreadIds = item.ids.filter((id) => {
-      const note = items.find((row) => row.id === id);
-      return note && !note.readAt && !stillNeedsAction(note);
-    });
+    const unreadIds = item.ids.filter((id) => items.find((note) => note.id === id && !note.readAt));
     if (unreadIds.length) mark.mutate({ ids: unreadIds });
     const note = item.latest;
     if (note.needsAccept && note.projectKey) {
@@ -320,7 +334,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
           <span style={{ fontFamily: font.display, fontWeight: 600, fontSize: 16, flex: 1, minWidth: 0 }}>Notifications</span>
           <button
             type="button"
-            disabled={markableCount === 0}
+            disabled={unreadCount === 0}
             onClick={() => mark.mutate({ all: true })}
             style={{
               height: 30,
@@ -329,9 +343,9 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
               background: 'transparent',
               font: 'inherit',
               fontSize: 12.5,
-              color: markableCount === 0 ? color.faint : color.brandStrong,
+              color: unreadCount === 0 ? color.faint : color.brandStrong,
               fontWeight: 600,
-              cursor: markableCount === 0 ? 'default' : 'pointer',
+              cursor: unreadCount === 0 ? 'default' : 'pointer',
               whiteSpace: 'nowrap',
               flex: 'none',
             }}
@@ -409,6 +423,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
           })}
         </div>
         <div className="bt-notify-chips">
+          <Chip active={openOnly} onClick={() => setOpenOnly((on) => !on)}>Open</Chip>
           <Chip active={chips.has('reported')} onClick={() => toggleChip('reported')}>Reported by me</Chip>
           <Chip active={chips.has('assigned')} onClick={() => toggleChip('assigned')}>Assigned</Chip>
           <Chip active={chips.has('access')} onClick={() => toggleChip('access')}>Access</Chip>
@@ -427,6 +442,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
           >
             <button
               type="button"
+              onMouseDown={(event) => event.preventDefault()}
               style={{
                 height: 30,
                 padding: '0 12px',
@@ -449,12 +465,12 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
       </div>
       {shown.length === 0 ? (
         <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center', flex: 1 }}>
-          {tab === 'action' ? 'Nothing waiting on you.' : 'No notifications in this tab.'}
+          {tab === 'action' ? 'Nothing waiting on you.' : openOnly ? 'No open tasks in this tab.' : 'No notifications in this tab.'}
         </div>
       ) : (
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {groups.map((group) => {
-            const unreadIds = group.items.flatMap((item) => item.ids).filter((id) => items.find((note) => note.id === id && !note.readAt && !stillNeedsAction(note)));
+            const unreadIds = group.items.flatMap((item) => item.ids).filter((id) => items.find((note) => note.id === id && !note.readAt));
             return (
               <section key={group.label} aria-label={group.label}>
                 <div
