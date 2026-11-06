@@ -5,6 +5,7 @@ import { taskKey } from './loadProject.js';
 import { publishTaskChange } from './live.js';
 import { notifyInApp } from './notifyInApp.js';
 import { enqueueTaskEventEmail } from './enqueueTaskEmail.js';
+import { ensureWatching } from './ensureWatching.js';
 import { forbidden, notFound, validation } from '../errors.js';
 import type { Authed } from '../context.js';
 
@@ -17,6 +18,7 @@ export async function postComment(
     title: string;
     project: { key: string; name: string };
     status: { name: string };
+    reporterId: string;
   },
   bodyHtml: string,
   parentId?: string | null,
@@ -83,6 +85,7 @@ export async function postComment(
       });
     }
   }
+  await ensureWatching(auth, row.id, [auth.userId, row.reporterId, ...mentionedIds]);
   const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
   const commentJob = {
     projectId: row.projectId,
@@ -93,21 +96,27 @@ export async function postComment(
     text: `${name} commented.`,
     url: commentUrl,
   };
+  const commentMail = {
+    taskId: row.id,
+    taskKey: commentKey,
+    title: row.title,
+    projectName: row.project.name,
+    statusName: row.status.name,
+    actorName: name,
+    eventLabel: 'commented',
+    comment: body,
+    url: commentUrl,
+  };
+  if (row.reporterId !== auth.userId && !mentionedIds.includes(row.reporterId)) {
+    await notifyInApp(auth, row.reporterId, 'reported_comment', { kind: 'reported_comment', taskId: row.id });
+    await enqueueTaskEventEmail(auth, row.reporterId, 'reported_comment', commentMail);
+  }
   for (const watcher of watchers) {
     if (skipWatcherBecauseMentioned(mentionedIds, watcher.userId)) continue;
+    if (watcher.userId === row.reporterId) continue;
     await notifyInApp(auth, watcher.userId, 'watched_comment', { kind: 'watched_comment', taskId: row.id });
     await enqueuePersonalChat(auth, watcher.userId, commentJob);
-    await enqueueTaskEventEmail(auth, watcher.userId, 'watched_comment', {
-      taskId: row.id,
-      taskKey: commentKey,
-      title: row.title,
-      projectName: row.project.name,
-      statusName: row.status.name,
-      actorName: name,
-      eventLabel: 'commented',
-      comment: body,
-      url: commentUrl,
-    });
+    await enqueueTaskEventEmail(auth, watcher.userId, 'watched_comment', commentMail);
   }
   publishTaskChange(auth, { key: commentKey, projectKey: row.project.key }, 'comment');
   return mapComment(c, []);

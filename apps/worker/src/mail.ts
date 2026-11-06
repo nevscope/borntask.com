@@ -137,11 +137,15 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
     const dueCount = job.due.length + job.overdue.length;
     const subject = digestSubject(dueCount, job.mentions.length, job.dateLabel);
     const sections: string[] = [];
-    if (job.due.length) {
-      sections.push(['Due today', ...job.due.map(digestLine)].join('\n'));
+    const waiting = job.waitingOnYou?.length ? job.waitingOnYou : [...job.due, ...job.overdue];
+    if (waiting.length) {
+      sections.push([`Waiting on you · ${waiting.length}`, ...waiting.map(digestLine)].join('\n'));
     }
-    if (job.overdue.length) {
-      sections.push(['Overdue', ...job.overdue.map(digestLine)].join('\n'));
+    if (job.reportedMoved?.length) {
+      sections.push([`Tasks you reported that moved · ${job.reportedMoved.length}`, ...job.reportedMoved.map(digestLine)].join('\n'));
+    }
+    if (job.handledElse?.length) {
+      sections.push([`Handled by someone else · ${job.handledElse.length}`, ...job.handledElse.map(digestLine)].join('\n'));
     }
     if (job.mentions.length) {
       sections.push(['Mentions', ...job.mentions.map((item) => item.extra && item.extra !== item.title ? `${item.title}: ${item.extra}` : `${item.key}: ${item.title}`)].join('\n'));
@@ -160,8 +164,9 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
     ].join('\n');
     const html = shell(
       `<p style="margin:0 0 18px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;color:#121417;">Good morning, ${esc(job.greetingName)}</p>
-       ${htmlSection('Due today', '#B42323', job.due)}
-       ${htmlSection('Overdue', '#B42323', job.overdue)}
+       ${htmlSection(`Waiting on you · ${(job.waitingOnYou?.length ? job.waitingOnYou : [...job.due, ...job.overdue]).length}`, '#B42323', job.waitingOnYou?.length ? job.waitingOnYou : [...job.due, ...job.overdue])}
+       ${htmlSection(`Tasks you reported that moved · ${job.reportedMoved?.length ?? 0}`, '#5B6157', job.reportedMoved ?? [])}
+       ${htmlSection(`Handled by someone else · ${job.handledElse?.length ?? 0}`, '#0F6B46', job.handledElse ?? [])}
        ${htmlSection('Mentions', '#5B6157', job.mentions)}
        ${htmlSection('Ideas waiting more than 5 working days', '#5B6157', job.staleIdeas)}
        ${button(job.myTasksUrl, 'Open My tasks', true)}`,

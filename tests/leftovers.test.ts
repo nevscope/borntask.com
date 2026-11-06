@@ -70,7 +70,7 @@ describe('daily digest', () => {
         timeZone: 'Europe/Malta',
       }),
     ).toBe(false);
-    expect(digestSubject(2, 1, 'Fri 16 Oct')).toBe('BornTask: 2 due and 1 mention for you, Fri 16 Oct');
+    expect(digestSubject(2, 1, 'Friday 16 October')).toBe('BornTask: your digest, Friday 16 October');
   });
 
   test('counts more than 5 working days and renders digest mail', () => {
@@ -90,17 +90,17 @@ describe('daily digest', () => {
       staleIdeas: [],
       footerNote: 'Sent at 08:00 on workdays.',
     });
-    expect(rendered.subject).toBe('BornTask: 1 due and 1 mention for you, Fri 16 Oct');
+    expect(rendered.subject).toBe('BornTask: your digest, Fri 16 Oct');
     expect(rendered.text).toContain('Good morning, Maria');
     expect(rendered.html).toContain('Open My tasks');
     expect(rendered.html).toContain('borntask-logo-120.png');
     expect(rendered.html).toContain('<table role="presentation"');
-    expect(rendered.html).toContain('Due today');
+    expect(rendered.html).toContain('Waiting on you');
     expect(rendered.html).toContain('WEB-142');
     expect(rendered.html).toContain('Karl on WEB-133');
     expect(rendered.html.match(/Karl on WEB-133/g)?.length).toBe(1);
     expect(rendered.text.match(/Karl on WEB-133/g)?.length).toBe(1);
-    expect(digestSubject(0, 4, 'Fri 6 Nov')).toBe('BornTask: 4 mentions for you, Fri 6 Nov');
+    expect(digestSubject(0, 4, 'Friday 6 November')).toBe('BornTask: your digest, Friday 6 November');
     expect(clipDigestQuote("let's use the Scope address for the public site launch copy", 24)).toBe("let's use the Scope...");
   });
 

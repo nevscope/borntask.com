@@ -5,6 +5,8 @@ import { actorName, enqueueChat, enqueuePersonalChat, eventsForStatus, taskUrl }
 import { runProjectAutomations } from './runAutomations.js';
 import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
 import { publishTaskChange } from './live.js';
+import { enqueueTaskEventEmail } from './enqueueTaskEmail.js';
+import { ensureWatching } from './ensureWatching.js';
 import { notifyInApp } from './notifyInApp.js';
 import { movedKind } from './stageNotify.js';
 import { requireOpenProject, requireProjectWrite } from './projectAccess.js';
@@ -199,6 +201,7 @@ export async function moveTask(
       url,
     });
   }
+  await ensureWatching(auth, row.id, [row.reporterId, updated.assigneeId]);
   const watchers = await auth.db.taskWatcher.findMany({ where: { taskId: row.id } });
   const stageJob = {
     projectId: row.projectId,
@@ -209,21 +212,36 @@ export async function moveTask(
     text,
     url,
   };
+  const mail = {
+    taskId: row.id,
+    taskKey: keyLabel,
+    title: row.title,
+    projectName: row.project.name,
+    statusName,
+    actorName: name,
+    eventLabel: `moved this to ${statusName}`,
+    url,
+  };
+  if (row.reporterId !== auth.userId) {
+    await notifyInApp(auth, row.reporterId, 'reported_stage', { kind: movedKind(fromName, statusName), taskId: row.id });
+    await enqueueTaskEventEmail(auth, row.reporterId, 'reported_stage', mail);
+    if (toSlug === 'deployed') {
+      await enqueuePersonalChat(auth, row.reporterId, {
+        projectId: row.projectId,
+        event: 'reporter_deployed',
+        title: row.title,
+        taskKey: keyLabel,
+        projectName: row.project.name,
+        text,
+        url,
+      });
+    }
+  }
   for (const watcher of watchers) {
+    if (watcher.userId === row.reporterId) continue;
     await notifyInApp(auth, watcher.userId, 'watched_stage', { kind: movedKind(fromName, statusName), taskId: row.id });
     await enqueuePersonalChat(auth, watcher.userId, stageJob);
-  }
-  if (toSlug === 'deployed') {
-    await notifyInApp(auth, row.reporterId, 'reported_deployed', { kind: movedKind(fromName, statusName), taskId: row.id });
-    await enqueuePersonalChat(auth, row.reporterId, {
-      projectId: row.projectId,
-      event: 'reporter_deployed',
-      title: row.title,
-      taskKey: keyLabel,
-      projectName: row.project.name,
-      text,
-      url,
-    });
+    await enqueueTaskEventEmail(auth, watcher.userId, 'watched_stage', mail);
   }
   try {
     await runProjectAutomations(auth, {

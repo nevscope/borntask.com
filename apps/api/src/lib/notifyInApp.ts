@@ -1,8 +1,9 @@
+import { preferenceEventAliases } from '@borntask/shared';
 import type { Authed } from '../context.js';
 
 export async function inAppAllowed(auth: Authed, userId: string, event: string): Promise<boolean> {
   const pref = await auth.db.notificationPreference.findFirst({
-    where: { userId, event, channel: 'in_app' },
+    where: { userId, event: { in: preferenceEventAliases(event) }, channel: 'in_app' },
   });
   return pref ? pref.enabled : true;
 }

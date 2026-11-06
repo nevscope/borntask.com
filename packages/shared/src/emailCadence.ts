@@ -3,9 +3,15 @@ export const PROFILE_EMAIL_EVENTS = [
   'mention',
   'watched_stage',
   'watched_comment',
-  'reported_deployed',
+  'reported_stage',
+  'reported_comment',
   'access_request',
 ] as const;
+
+export function preferenceEventAliases(event: string): string[] {
+  if (event === 'reported_stage') return ['reported_stage', 'reported_deployed'];
+  return [event];
+}
 
 export type ProfileEmailEvent = (typeof PROFILE_EMAIL_EVENTS)[number];
 export type EmailCadence = 'instantly' | 'digest' | 'off';

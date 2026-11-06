@@ -40,6 +40,9 @@ const digestMailSchema = z.object({
   overdue: z.array(digestItemSchema),
   mentions: z.array(digestItemSchema),
   staleIdeas: z.array(digestItemSchema),
+  waitingOnYou: z.array(digestItemSchema).optional(),
+  reportedMoved: z.array(digestItemSchema).optional(),
+  handledElse: z.array(digestItemSchema).optional(),
   footerNote: z.string().min(1),
 });
 

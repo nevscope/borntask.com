@@ -1,13 +1,13 @@
 export const DEFAULT_DIGEST_HOUR = 8;
 
 export function digestSubject(dueCount: number, mentionCount: number, dateLabel?: string): string {
+  if (dateLabel) return `BornTask: your digest, ${dateLabel}`;
   const bits: string[] = [];
   if (dueCount > 0) bits.push(`${dueCount} due`);
   if (mentionCount > 0) bits.push(`${mentionCount} mention${mentionCount === 1 ? '' : 's'} for you`);
-  const when = dateLabel ? `, ${dateLabel}` : '';
-  if (!bits.length) return `BornTask: nothing waiting${when}`;
-  if (bits.length === 2) return `BornTask: ${bits[0]} and ${bits[1]}${when}`;
-  return `BornTask: ${bits[0]}${when}`;
+  if (!bits.length) return 'BornTask: nothing waiting';
+  if (bits.length === 2) return `BornTask: ${bits[0]} and ${bits[1]}`;
+  return `BornTask: ${bits[0]}`;
 }
 
 /** Cut at a whole word. Uses three dots, not an em dash. */

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { isIanaTimeZone, PROFILE_EMAIL_EVENTS, resolveEmailCadence, type EmailCadence } from '@borntask/shared';
+import { isIanaTimeZone, PROFILE_EMAIL_EVENTS, preferenceEventAliases, resolveEmailCadence, type EmailCadence } from '@borntask/shared';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { initialsOf, requireAuth } from '../context.js';
@@ -23,8 +23,9 @@ function presentPrefs(
   emailPerTask: boolean,
 ): { event: string; inApp: boolean; emailCadence: EmailCadence }[] {
   return PROFILE_EMAIL_EVENTS.map((event) => {
-    const inApp = rows.find((row) => row.event === event && row.channel === 'in_app');
-    const email = rows.find((row) => row.event === event && row.channel === 'email');
+    const aliases = preferenceEventAliases(event);
+    const inApp = rows.find((row) => aliases.includes(row.event) && row.channel === 'in_app');
+    const email = rows.find((row) => aliases.includes(row.event) && row.channel === 'email');
     return {
       event,
       inApp: inApp ? inApp.enabled : true,

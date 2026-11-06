@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Notification } from '../apps/web/src/api/types.ts';
-import { collapseBellItems, inTab, matchesFilters, unreadIdsClearedByOpeningTask, updateSummary } from '../apps/web/src/lib/bellInbox.ts';
+import { collapseBellItems, inTab, isBellUnread, matchesFilters, unreadIdsClearedByOpeningTask, updateSummary } from '../apps/web/src/lib/bellInbox.ts';
 import { parseMovedKind, movedKind } from '../apps/api/src/lib/stageNotify.ts';
 
 const actor = { id: 'u1', name: 'Karl', email: 'k@x', initials: 'KF' };
@@ -29,6 +29,15 @@ describe('bell tabs and filters', () => {
     expect(inTab(note({ id: '6', kind: 'comment' }), 'updates')).toBe(true);
     expect(inTab(note({ id: '9', kind: 'assigned', readAt: '2026-11-06T11:00:00.000Z' }), 'action')).toBe(false);
     expect(inTab(note({ id: '9', kind: 'assigned', readAt: '2026-11-06T11:00:00.000Z' }), 'updates')).toBe(true);
+  });
+
+  test('pending access stays unread even after readAt', () => {
+    const pending = note({ id: 'p', kind: 'access_request', taskKey: null, readAt: '2026-11-06T11:00:00.000Z' });
+    expect(isBellUnread(pending)).toBe(true);
+    expect(inTab(pending, 'action')).toBe(true);
+    const handled = note({ id: 'h', kind: 'access_request', taskKey: null, outcome: 'approved', readAt: '2026-11-06T11:00:00.000Z' });
+    expect(isBellUnread(handled)).toBe(false);
+    expect(inTab(handled, 'action')).toBe(false);
   });
 
   test('opening a task clears assignment and comment unread ids, not access requests', () => {

@@ -12,6 +12,7 @@ import { resolvePlanningParent } from '../lib/planning.js';
 import { mapUsers, nextPosition } from '../lib/mappers.js';
 import { persistDescription } from '../lib/descriptionHtml.js';
 import { enqueueTaskEventEmail } from '../lib/enqueueTaskEmail.js';
+import { ensureWatching } from '../lib/ensureWatching.js';
 import { moveTask } from '../lib/moveTask.js';
 import { moveTaskToProject } from '../lib/moveTaskToProject.js';
 import { publishTaskChange } from '../lib/live.js';
@@ -509,6 +510,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           action: `created this ${input.type}`,
         },
       });
+      await ensureWatching(auth, created.id, [auth.userId, created.assigneeId]);
       const createdKey = taskKey(created.project.key, created.number);
       const name = await actorName(auth.userId);
       const url = taskUrl(created.project.key, createdKey);

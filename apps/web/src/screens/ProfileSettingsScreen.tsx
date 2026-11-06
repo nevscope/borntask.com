@@ -15,11 +15,12 @@ import { defaultEmailCadence, timeZoneSelectOptions, type EmailCadence } from '@
 import { color } from '../theme/tokens';
 
 const EVENTS = [
+  { key: 'mention', label: 'I am @mentioned' },
   { key: 'assigned', label: 'I am assigned a task' },
-  { key: 'mention', label: 'I am @mentioned in a comment' },
+  { key: 'reported_stage', label: 'A task I reported moves stage' },
+  { key: 'reported_comment', label: 'Someone comments on a task I reported' },
   { key: 'watched_stage', label: 'A task I watch moves stage' },
   { key: 'watched_comment', label: 'Someone comments on a task I watch' },
-  { key: 'reported_deployed', label: 'A task I reported is deployed' },
   { key: 'access_request', label: 'Someone requests access to a project' },
 ] as const;
 
@@ -28,7 +29,7 @@ const CHAT_KEY: Partial<Record<(typeof EVENTS)[number]['key'], keyof PersonalCha
   mention: 'mention',
   watched_stage: 'watch_stage',
   watched_comment: 'watch_comment',
-  reported_deployed: 'reporter_deployed',
+  reported_stage: 'reporter_deployed',
 };
 
 const OFF_CHAT: PersonalChatPrefs = {
@@ -409,6 +410,7 @@ export function ProfileSettingsScreen() {
             );
           })}
           <div style={{ padding: '12px 16px', fontSize: 12.5, color: color.muted }}>
+            Reporters, commenters and anyone mentioned now watch a task automatically.{' '}
             {chatDmOn
               ? 'Direct messages come from the BornTask Chat app; a saved webhook is the fallback.'
               : chatAppOn

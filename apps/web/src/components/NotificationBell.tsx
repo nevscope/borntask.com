@@ -8,8 +8,10 @@ import {
   collapseBellItems,
   groupBellByDate,
   inTab,
+  isBellUnread,
   itemHeading,
   matchesFilters,
+  stillNeedsAction,
   updateSummary,
   type BellChip,
   type BellItem,
@@ -108,7 +110,12 @@ function NotificationRow({
   const summary = updateSummary(item);
   const mention = note.kind === 'mention' ? note.text : null;
   const pendingAccess = note.kind === 'access_request' && !note.outcome && Boolean(note.requestId && note.projectKey);
-  const sub = [summary, mention && !summary ? mention : null, formatWhen(note.createdAt)].filter(Boolean).join(' · ');
+  const resolved = Boolean(note.outcome);
+  const sub = [
+    resolved ? note.text : summary,
+    !resolved && mention && !summary ? mention : null,
+    formatWhen(note.createdAt),
+  ].filter(Boolean).join(' · ');
   return (
     <div
       style={{
@@ -116,9 +123,9 @@ function NotificationRow({
         gap: 12,
         width: '100%',
         padding: '12px 16px',
-        borderLeft: `3px solid ${active ? color.brand : 'transparent'}`,
+        borderLeft: `3px solid ${active || resolved ? color.brand : 'transparent'}`,
         borderBottom: `1px solid ${color.divider}`,
-        background: active ? color.brandTint : unread ? color.unreadRow : color.surface,
+        background: active || resolved ? color.brandTint : unread ? color.unreadRow : color.surface,
         boxSizing: 'border-box',
       }}
     >
@@ -141,8 +148,8 @@ function NotificationRow({
       >
         <Avatar user={note.actor} size={28} />
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 13.5, lineHeight: 1.45, fontWeight: unread ? 600 : 500 }}>{itemHeading(item)}</span>
-          <span style={{ fontSize: 12, color: color.muted, lineHeight: 1.45 }}>{sub}</span>
+          <span style={{ fontSize: 13.5, lineHeight: 1.45, fontWeight: unread ? 600 : 500, color: resolved ? color.brandStrong : color.ink }}>{itemHeading(item)}</span>
+          <span style={{ fontSize: 12, color: resolved ? color.brandStrong : color.muted, lineHeight: 1.45 }}>{sub}</span>
         </span>
       </button>
       {pendingAccess && (
@@ -217,7 +224,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
   const [projectKey, setProjectKey] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const items = list?.items ?? [];
-  const unreadCount = list?.unreadCount ?? items.filter((note) => !note.readAt).length;
+  const unreadCount = list?.unreadCount ?? items.filter((note) => isBellUnread(note)).length;
+  const markableCount = items.filter((note) => !note.readAt && !stillNeedsAction(note)).length;
   const currentTask = params.get('task');
 
   const filtered = useMemo(
@@ -248,7 +256,10 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
 
   const open = (item: BellItem) => {
     setActiveId(item.id);
-    const unreadIds = item.ids.filter((id) => items.find((note) => note.id === id && !note.readAt));
+    const unreadIds = item.ids.filter((id) => {
+      const note = items.find((row) => row.id === id);
+      return note && !note.readAt && !stillNeedsAction(note);
+    });
     if (unreadIds.length) mark.mutate({ ids: unreadIds });
     const note = item.latest;
     if (note.needsAccept && note.projectKey) {
@@ -310,7 +321,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
           <span style={{ fontFamily: font.display, fontWeight: 600, fontSize: 16, flex: 1, minWidth: 0 }}>Notifications</span>
           <button
             type="button"
-            disabled={unreadCount === 0}
+            disabled={markableCount === 0}
             onClick={() => mark.mutate({ all: true })}
             style={{
               height: 30,
@@ -319,9 +330,9 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
               background: 'transparent',
               font: 'inherit',
               fontSize: 12.5,
-              color: unreadCount === 0 ? color.faint : color.brandStrong,
+              color: markableCount === 0 ? color.faint : color.brandStrong,
               fontWeight: 600,
-              cursor: unreadCount === 0 ? 'default' : 'pointer',
+              cursor: markableCount === 0 ? 'default' : 'pointer',
               whiteSpace: 'nowrap',
               flex: 'none',
             }}
@@ -444,7 +455,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
       ) : (
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {groups.map((group) => {
-            const unreadIds = group.items.flatMap((item) => item.ids).filter((id) => items.find((note) => note.id === id && !note.readAt));
+            const unreadIds = group.items.flatMap((item) => item.ids).filter((id) => items.find((note) => note.id === id && !note.readAt && !stillNeedsAction(note)));
             return (
               <section key={group.label} aria-label={group.label}>
                 <div
@@ -486,7 +497,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                   <NotificationRow
                     key={item.id}
                     item={item}
-                    unread={item.ids.some((id) => items.some((note) => note.id === id && !note.readAt))}
+                    unread={item.ids.some((id) => items.some((note) => note.id === id && isBellUnread(note)))}
                     active={item.id === activeId || Boolean(item.latest.taskKey && item.latest.taskKey === currentTask)}
                     busy={resolveAccess.isPending && resolveAccess.variables?.id === item.latest.requestId}
                     onOpen={open}

@@ -326,7 +326,10 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         return presentOrSkip(row, stages.get(row.id) ?? { from: null, to: null }, handler);
       })
       .filter((row): row is NonNullable<typeof row> => row !== null);
-    return { items, unreadCount: items.filter((row) => !row.readAt).length };
+    return {
+      items,
+      unreadCount: items.filter((row) => !row.readAt || (row.needsAction && !row.outcome)).length,
+    };
   }
 
   app.get('/me/notifications', async (req, reply) => {
@@ -352,6 +355,12 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         where: {
           userId: auth.userId,
           readAt: null,
+          NOT: {
+            OR: [
+              { kind: { startsWith: 'access_request' } },
+              { kind: { startsWith: 'project_invite:' } },
+            ],
+          },
           ...(input.all ? {} : { id: { in: ids } }),
         },
         data: { readAt: new Date() },

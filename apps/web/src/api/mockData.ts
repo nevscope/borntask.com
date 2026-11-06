@@ -7,6 +7,7 @@ import type { Activity, Api, Comment, Me, MyCommentItem, Notification, Project, 
 import { directedTaskLink, groupCommentReactions, isTaskBlocked, isTaskDescriptionTooLong, isTaskLinkRelation, partitionMyComments, startNotAfterDue, TASK_DESCRIPTION_TOO_LONG, viewTaskLink } from '@borntask/shared';
 import type { TaskLink } from './types';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
+import { isBellUnread, stillNeedsAction } from '../lib/bellInbox';
 import { isTaskKey, snippetAround } from '../lib/search';
 import { canOverride, checkMove, initialStatusFor, statusById } from '../lib/workflow';
 
@@ -197,6 +198,10 @@ function convertNeedsWarn(key: string): boolean {
 const watchers: Record<string, string[]> = {
   'WEB-139': ['u_karl'],
 };
+
+function autoWatch(key: string, userId: string) {
+  watchers[key] = [...new Set([...(watchers[key] ?? []), userId])];
+}
 
 const comments: Record<string, Comment[]> = {
   'WEB-142': [
@@ -411,7 +416,7 @@ let notifications: Notification[] = [
 
 function notificationList() {
   const items = [...notifications].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return { items: clone(items), unreadCount: items.filter((n) => !n.readAt).length };
+  return { items: clone(items), unreadCount: items.filter((n) => isBellUnread(n)).length };
 }
 
 // ---------- helpers ----------
@@ -771,6 +776,8 @@ export const mockApi: Api = {
       updatedAt: now,
     };
     tasks.push(task);
+    autoWatch(task.key, me.user.id);
+    if (task.assigneeId) autoWatch(task.key, task.assigneeId);
     log(task.key, `created this ${task.type}${input.attachmentIds.length ? ` with ${input.attachmentIds.length} attachment(s)` : ''}`);
     return clone(task);
   },
@@ -913,6 +920,7 @@ export const mockApi: Api = {
     }
     const c: Comment = { id: uid('c'), authorId: me.user.id, parentId: parentId ?? null, body, via: 'app', createdAt: new Date().toISOString(), reactions: [] };
     (comments[key] ??= []).push(c);
+    autoWatch(key, me.user.id);
     applyCommentHints(key);
     return clone(c);
   },
@@ -1127,6 +1135,7 @@ export const mockApi: Api = {
     const now = new Date().toISOString();
     for (const n of notifications) {
       if (n.readAt) continue;
+      if (stillNeedsAction(n)) continue;
       if (input.all || n.id === input.id || input.ids?.includes(n.id)) n.readAt = now;
     }
     return notificationList();

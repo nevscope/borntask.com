@@ -2,7 +2,7 @@ import { prisma } from '../db.js';
 import { config } from '../env.js';
 import type { Authed } from '../context.js';
 import { enqueueMail } from './enqueueMail.js';
-import { htmlToPlain, replyMailbox, resolveEmailCadence } from '@borntask/shared';
+import { htmlToPlain, preferenceEventAliases, replyMailbox, resolveEmailCadence } from '@borntask/shared';
 import { signReplyToken } from './replyToken.js';
 
 function firstName(name: string): string {
@@ -14,7 +14,7 @@ export async function emailAllowed(auth: Authed, userId: string, event: string):
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { emailPerTask: true } });
   if (!user) return false;
   const pref = await auth.db.notificationPreference.findFirst({
-    where: { userId, event, channel: 'email' },
+    where: { userId, event: { in: preferenceEventAliases(event) }, channel: 'email' },
   });
   const cadence = resolveEmailCadence({
     event,

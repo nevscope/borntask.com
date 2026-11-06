@@ -197,7 +197,7 @@ export function MyTasksScreen() {
           options={[
             { label: assignedCount ? `Assigned to me ${assignedCount}` : 'Assigned to me', value: 'assigned' },
             { label: approvalCount ? `To approve ${approvalCount}` : 'To approve', value: 'approve' },
-            { label: 'Created by me', value: 'created' },
+            { label: 'Reported by me', value: 'created' },
             { label: 'Watching', value: 'watching' },
           ]}
         />
@@ -293,10 +293,10 @@ export function MyTasksScreen() {
             width: '100%',
             minHeight: 40,
             padding: '8px 14px',
-            border: `1px solid ${color.brandBorder}`,
+            border: `1px solid ${color.warningBorder}`,
             borderRadius: 10,
-            background: color.brandTint,
-            color: color.brandStrong,
+            background: color.warningTint,
+            color: color.warning,
             font: 'inherit',
             fontSize: 13.5,
             textAlign: 'left',

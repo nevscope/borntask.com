@@ -20,6 +20,7 @@ import { nextPosition } from './mappers.js';
 import { moveTask } from './moveTask.js';
 import { actorName, enqueueChat, taskUrl } from './chatNotify.js';
 import { requireProjectWrite } from './projectAccess.js';
+import { ensureWatching } from './ensureWatching.js';
 
 export { chatAppEnabled };
 
@@ -144,6 +145,7 @@ export async function createTaskFromChat(
       action: `created this ${input.type} from Google Chat`,
     },
   });
+  await ensureWatching(scoped, created.id, [scoped.userId]);
   const key = taskKey(created.project.key, created.number);
   const url = taskUrl(created.project.key, key);
   if (input.type === 'idea') {

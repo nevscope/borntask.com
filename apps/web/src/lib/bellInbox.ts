@@ -4,12 +4,22 @@ import type { Notification } from '../api/types';
 export type BellTab = 'action' | 'mentions' | 'updates' | 'all';
 export type BellChip = 'reported' | 'assigned' | 'access';
 
+export function stillNeedsAction(note: Notification): boolean {
+  if (note.outcome) return false;
+  if (note.kind === 'access_request') return true;
+  return Boolean(note.needsAccept) || Boolean(note.needsAction && note.kind !== 'assigned');
+}
+
+export function isBellUnread(note: Notification): boolean {
+  return !note.readAt || stillNeedsAction(note);
+}
+
 export function inTab(note: Notification, tab: BellTab): boolean {
   if (tab === 'all') return true;
   if (tab === 'action') {
     if (note.outcome) return false;
     if (note.kind === 'assigned') return !note.readAt;
-    return note.kind === 'access_request' || Boolean(note.needsAccept) || Boolean(note.needsAction);
+    return stillNeedsAction(note);
   }
   if (tab === 'mentions') return note.kind === 'mention';
   if (note.kind === 'access_request' && note.outcome) return true;
@@ -22,7 +32,7 @@ export function unreadIdsClearedByOpeningTask(items: Notification[], taskKey: st
   return items
     .filter((note) => {
       if (note.readAt || note.taskKey !== taskKey) return false;
-      if (note.kind === 'access_request' || note.needsAccept) return false;
+      if (stillNeedsAction(note)) return false;
       return true;
     })
     .map((note) => note.id);
@@ -134,6 +144,10 @@ export function updateSummary(item: BellItem): string | null {
 
 export function itemHeading(item: BellItem): string {
   const note = item.latest;
+  if (note.outcome && note.projectKey) {
+    const who = note.actor?.name?.trim() || 'Someone';
+    return `${who} asked to open ${note.projectKey}`;
+  }
   if (note.taskKey) return `${note.taskKey} ${note.taskTitle ?? ''}`.trim();
   return note.text;
 }

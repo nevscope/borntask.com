@@ -76,9 +76,10 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
     },
   });
 
-  const due: Extract<MailJob, { kind: 'digest' }>['due'] = [];
-  const overdue: typeof due = [];
-  const staleIdeas: typeof due = [];
+  type DigestItem = NonNullable<Extract<MailJob, { kind: 'digest' }>['waitingOnYou']>[number];
+  const due: DigestItem[] = [];
+  const overdue: DigestItem[] = [];
+  const staleIdeas: DigestItem[] = [];
   const myTasksUrl = `${publicUrl()}/`;
   const itemUrl = (projectKey: string, number: number) =>
     `${publicUrl()}/p/${encodeURIComponent(projectKey)}/list?task=${encodeURIComponent(`${projectKey}-${number}`)}`;
@@ -140,13 +141,88 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
       }];
     });
 
-  if (!due.length && !overdue.length && !mentions.length && !staleIdeas.length) return null;
+  const notes = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      tenantId: { in: tenantIds },
+      createdAt: { gte: since },
+    },
+    include: {
+      actor: { select: { name: true } },
+      task: { include: { project: true } },
+    },
+    take: 80,
+  });
+  const pendingAccess = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      tenantId: { in: tenantIds },
+      kind: { startsWith: 'access_request' },
+    },
+    include: { actor: { select: { name: true } } },
+    take: 40,
+  });
+  const waitingOnYou: DigestItem[] = [
+    ...pendingAccess.map((row) => {
+      const key = row.kind.slice('access_request:'.length).split(':')[0] || 'Access';
+      return {
+        key,
+        title: `${row.actor?.name ?? 'Someone'} asked to open ${key}`,
+        url: `${publicUrl()}/p/${encodeURIComponent(key)}/settings/members`,
+      };
+    }),
+    ...due,
+    ...overdue,
+  ];
+  const reportedByTask = new Map<string, DigestItem>();
+  for (const row of notes) {
+    if (!row.kind.startsWith('moved:') || !row.task || row.task.reporterId !== user.id) continue;
+    const rest = row.kind.slice('moved:'.length);
+    const split = rest.indexOf(':');
+    const from = split < 0 ? '' : decodeURIComponent(rest.slice(0, split));
+    const to = split < 0 ? '' : decodeURIComponent(rest.slice(split + 1));
+    const key = `${row.task.project.key}-${row.task.number}`;
+    reportedByTask.set(key, {
+      key,
+      title: row.task.title,
+      url: itemUrl(row.task.project.key, row.task.number),
+      extra: from && to ? `${from} → ${to}` : undefined,
+    });
+  }
+  const reportedMoved = [...reportedByTask.values()];
+  const handlerIds = [...new Set(notes.flatMap((row) => {
+    if (!row.kind.startsWith('access_handled:')) return [];
+    const handlerId = row.kind.slice('access_handled:'.length).split(':')[3];
+    return handlerId ? [handlerId] : [];
+  }))];
+  const handlers = handlerIds.length
+    ? await prisma.user.findMany({ where: { id: { in: handlerIds } }, select: { id: true, name: true } })
+    : [];
+  const handlerName = new Map(handlers.map((person) => [person.id, person.name]));
+  const handledElse: DigestItem[] = notes
+    .filter((row) => row.kind.startsWith('access_handled:'))
+    .map((row) => {
+      const parts = row.kind.slice('access_handled:'.length).split(':');
+      const projectKey = parts[0] || 'Access';
+      const outcome = parts[2] === 'declined' ? 'Declined' : 'Approved';
+      const who = handlerName.get(parts[3] ?? '') ?? 'someone else';
+      return {
+        key: projectKey,
+        title: `${outcome} by ${who}. Nothing to do.`,
+        extra: `${outcome} · cleared for everyone`,
+        url: `${publicUrl()}/p/${encodeURIComponent(projectKey)}/settings/members`,
+      };
+    });
+
+  if (!waitingOnYou.length && !reportedMoved.length && !handledElse.length && !mentions.length && !staleIdeas.length) {
+    return null;
+  }
 
   const dateLabel = new Intl.DateTimeFormat('en-GB', {
     timeZone: user.timeZone,
-    weekday: 'short',
+    weekday: 'long',
     day: 'numeric',
-    month: 'short',
+    month: 'long',
   }).format(now);
 
   return {
@@ -160,6 +236,9 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
     overdue,
     mentions,
     staleIdeas,
+    waitingOnYou,
+    reportedMoved,
+    handledElse,
     footerNote: user.digestMode === 'daily' ? 'Sent at 08:00 every day.' : 'Sent at 08:00 on workdays.',
   };
 }
