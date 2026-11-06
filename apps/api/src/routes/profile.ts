@@ -5,8 +5,6 @@ import { prisma } from '../db.js';
 import { initialsOf, requireAuth } from '../context.js';
 import { sendError, validation } from '../errors.js';
 
-const CHANNELS = ['in_app', 'email'] as const;
-
 const prefSchema = z.object({
   event: z.enum(PROFILE_EMAIL_EVENTS),
   inApp: z.boolean(),

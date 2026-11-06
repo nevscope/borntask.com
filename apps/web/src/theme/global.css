@@ -464,6 +464,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
     cursor: pointer;
   }
   .bt-phone-tab.active { color: var(--bt-brand-strong); font-weight: 600; }
+  .bt-shell.task-open .bt-phone-title,
   .bt-shell.task-open .bt-phone-tabs,
   .bt-shell.task-open .bt-fab { display: none; }
   .bt-task-drawer .ant-drawer-content,
