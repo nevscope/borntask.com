@@ -420,7 +420,7 @@ export const SearchHitSchema = z.object({
   statusCategory: StatusCategorySchema,
   sectionName: z.string().nullable(),
   assigneeName: z.string().nullable(),
-  matchField: z.enum(['title', 'description', 'comment', 'key']),
+  matchField: z.enum(['title', 'description', 'comment', 'key', 'subtask', 'assignee']),
   matchSnippet: z.string(),
   commentAuthor: z.string().nullable(),
 });

@@ -19,6 +19,7 @@ import { loadWorkflow, taskKey } from './loadProject.js';
 import { nextPosition } from './mappers.js';
 import { moveTask } from './moveTask.js';
 import { actorName, enqueueChat, taskUrl } from './chatNotify.js';
+import { requireProjectWrite } from './projectAccess.js';
 
 export { chatAppEnabled };
 
@@ -79,6 +80,7 @@ async function resolveProject(auth: Authed, projectKey: string): Promise<{ proje
 }
 
 async function assertCanCreate(auth: Authed, projectId: string) {
+  requireProjectWrite(auth);
   if (auth.workspaceRole === 'owner' || auth.workspaceRole === 'admin') return;
   const on = await auth.db.projectMember.findFirst({ where: { projectId, userId: auth.userId } });
   if (!on) throw new ApiError(403, 'FORBIDDEN', "You're not on that project.");

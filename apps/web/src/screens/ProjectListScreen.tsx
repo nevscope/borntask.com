@@ -75,6 +75,7 @@ export function ProjectListScreen() {
   const active = activeKey ? tasks.data.find((task) => task.key === activeKey) : undefined;
   const myRoles = d.members.find((member) => member.userId === me?.user.id)?.roles ?? [];
   const canShare = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin' || myRoles.includes('lead');
+  const canWrite = me?.workspaceRole !== 'viewer' && me?.workspaceRole !== 'guest';
   const selectedTasks = tasks.data.filter((task) => selected.includes(task.key));
   const labels = [...new Set(tasks.data.flatMap((task) => task.labels))];
 
@@ -142,8 +143,8 @@ export function ProjectListScreen() {
             total={group.total}
             detail={d}
             tasks={group.tasks}
-            canAdd={view.group === 'section' && group.id !== 'other'}
-            addParentId={(view.group === 'story' || view.group === 'epic') && group.id !== 'none' ? group.id : undefined}
+            canAdd={canWrite && view.group === 'section' && group.id !== 'other'}
+            addParentId={canWrite && (view.group === 'story' || view.group === 'epic') && group.id !== 'none' ? group.id : undefined}
             collapsed={collapsedIds.has(group.id)}
             onCollapse={() => toggleGroup(group.id)}
             draggable={manual}

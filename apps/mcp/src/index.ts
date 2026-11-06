@@ -131,6 +131,7 @@ async function main() {
     if (q.redirect_uri) url.searchParams.set('redirect_uri', q.redirect_uri);
     if (q.state) url.searchParams.set('state', q.state);
     if (q.code_challenge) url.searchParams.set('code_challenge', q.code_challenge);
+    if (q.code_challenge_method) url.searchParams.set('code_challenge_method', q.code_challenge_method);
     const scope = q.scope?.split(/[ +]/).find((part) => part === 'read' || part === 'read_write');
     if (scope) url.searchParams.set('scope', scope);
     return reply.redirect(url.toString());
@@ -150,10 +151,17 @@ async function main() {
   });
 
   app.post('/oauth/token', async (req, reply) => {
+    const raw = req.body;
+    const payload =
+      typeof raw === 'string'
+        ? Object.fromEntries(new URLSearchParams(raw))
+        : raw && typeof raw === 'object'
+          ? raw
+          : {};
     const res = await fetch(`${apiBase}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body ?? {}),
+      body: JSON.stringify(payload),
     });
     const text = await res.text();
     return reply.code(res.status).type('application/json').send(text);

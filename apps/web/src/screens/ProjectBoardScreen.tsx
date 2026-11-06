@@ -409,6 +409,8 @@ function AssigneeLanes({
 function Column({ status, detail, tasks, dragState, blockedReason, droppable = true, dropId }: { status: WorkflowStatus; detail: ProjectDetail; tasks: Task[]; dragState: DragState; blockedReason: string | null; droppable?: boolean; dropId?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: dropId ?? status.id, disabled: !droppable });
   const quickAdd = useQuickAdd();
+  const me = useMe().data;
+  const canWrite = me?.workspaceRole !== 'viewer' && me?.workspaceRole !== 'guest';
   const over = status.wipLimit !== null && tasks.length > status.wipLimit;
   const cls = ['bt-column', status.side ? 'side' : '', dragState === 'allowed' ? 'allowed' : '', dragState === 'not-allowed' || dragState === 'no-path' ? 'blocked' : ''].join(' ');
 
@@ -427,7 +429,7 @@ function Column({ status, detail, tasks, dragState, blockedReason, droppable = t
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: color.muted, padding: '0 4px' }}><LockIcon size={11} /> {blockedReason}</span>
       )}
       {tasks.map((task) => <DraggableCard key={task.key} task={task} detail={detail} />)}
-      {!status.side && status.category !== 'done' && (
+      {canWrite && !status.side && status.category !== 'done' && (
         <button
           onClick={() => quickAdd.open({ projectKey: detail.project.key })}
           style={{ height: 34, padding: '0 8px', border: 0, borderRadius: 8, background: 'transparent', color: color.muted, fontSize: 13, textAlign: 'left', cursor: 'pointer', font: 'inherit' }}

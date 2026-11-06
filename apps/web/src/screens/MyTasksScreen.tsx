@@ -413,7 +413,7 @@ export function MyTasksScreen() {
         </div>
       )}
 
-      {!isPhone && !isCommentTab(tab) && !(list.length === 0 && tab === 'assigned') && tab !== 'approve' && (
+      {me?.workspaceRole !== 'viewer' && me?.workspaceRole !== 'guest' && !isPhone && !isCommentTab(tab) && !(list.length === 0 && tab === 'assigned') && tab !== 'approve' && (
       <button
         onClick={() => quickAdd.open()}
         style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 16px', border: `1px dashed ${color.dashed}`, borderRadius: 12, background: 'transparent', color: color.muted, font: 'inherit', fontSize: 13.5, cursor: 'pointer' }}

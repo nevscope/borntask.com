@@ -2,26 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import { requireAuth } from '../context.js';
 import { sendError } from '../errors.js';
 import { parseTaskKey, taskKey } from '../lib/loadProject.js';
-import { stripTags } from '../lib/descriptionHtml.js';
+import { collapseSearchRows, matchForCollapsed, type SearchMatchField } from '../lib/searchHits.js';
 import { remapTypeSlug, statusTone } from '../lib/mappers.js';
 import { canOpenListed, openProjectIds } from '../lib/projectAccess.js';
-
-function snippetAround(text: string, q: string, radius = 42): string {
-  const hay = stripTags(text).replace(/\s+/g, ' ').trim();
-  const i = hay.toLowerCase().indexOf(q.toLowerCase());
-  if (i < 0) return hay.slice(0, radius * 2);
-  let start = Math.max(0, i - radius);
-  let end = Math.min(hay.length, i + q.length + radius);
-  if (start > 0) {
-    const space = hay.lastIndexOf(' ', i);
-    if (space >= 0 && i - space < radius + 12) start = space + 1;
-  }
-  if (end < hay.length) {
-    const space = hay.indexOf(' ', end);
-    if (space >= 0 && space - end < 12) end = space;
-  }
-  return `${start > 0 ? '…' : ''}${hay.slice(start, end)}${end < hay.length ? '…' : ''}`;
-}
 
 const taskInclude = {
   type: true,
@@ -32,7 +15,22 @@ const taskInclude = {
   comments: { where: { deletedAt: null }, include: { author: true } },
 } as const;
 
-type MatchField = 'title' | 'description' | 'comment' | 'key';
+type HitTask = {
+  id: string;
+  parentId: string | null;
+  deletedAt?: Date | null;
+  number: number;
+  title: string;
+  description: string | null;
+  type: { slug: string };
+  status: { slug: string; name: string; category: string };
+  section: { name: string } | null;
+  project: { key: string; name: string; colour: string };
+  assignee: { name: string } | null;
+  comments: { body: string; author: { name: string } }[];
+};
+
+type LoadedTask = HitTask & { parent: HitTask | null };
 
 export const searchRoutes: FastifyPluginAsync = async (app) => {
   app.get('/search', async (req, reply) => {
@@ -43,18 +41,8 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       if (!q) return { hits: [], tookMs: Date.now() - started };
 
       const toHit = (
-        row: {
-          number: number;
-          title: string;
-          description: string | null;
-          type: { slug: string };
-          status: { slug: string; name: string; category: string };
-          section: { name: string } | null;
-          project: { key: string; name: string; colour: string };
-          assignee: { name: string } | null;
-          comments: { body: string; author: { name: string } }[];
-        },
-        matchField: MatchField,
+        row: HitTask,
+        matchField: SearchMatchField,
         matchSnippet: string,
         commentAuthor: string | null,
       ) => ({
@@ -75,21 +63,6 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         commentAuthor,
       });
 
-      const classify = (row: {
-        title: string;
-        description: string | null;
-        comments: { body: string; author: { name: string } }[];
-      }): { matchField: MatchField; matchSnippet: string; commentAuthor: string | null } => {
-        const n = q.toLowerCase();
-        if (row.title.toLowerCase().includes(n)) return { matchField: 'title', matchSnippet: row.title, commentAuthor: null };
-        if (stripTags(row.description ?? '').toLowerCase().includes(n)) {
-          return { matchField: 'description', matchSnippet: snippetAround(row.description ?? '', q), commentAuthor: null };
-        }
-        const c = row.comments.find((x) => x.body.toLowerCase().includes(n));
-        if (c) return { matchField: 'comment', matchSnippet: snippetAround(c.body, q), commentAuthor: c.author.name };
-        return { matchField: 'title', matchSnippet: row.title, commentAuthor: null };
-      };
-
       const openIds = await openProjectIds(auth);
       const key = parseTaskKey(q.toUpperCase());
       if (key) {
@@ -97,14 +70,10 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         if (project && canOpenListed(openIds, project.id)) {
           const row = await auth.db.task.findFirst({
             where: { projectId: project.id, number: key.number, deletedAt: null },
-            include: { ...taskInclude, parent: { include: { project: true } } },
+            include: { ...taskInclude, parent: { include: taskInclude } },
           });
           if (row?.parentId && row.parent) {
-            const parent = await auth.db.task.findFirst({
-              where: { id: row.parentId, deletedAt: null },
-              include: taskInclude,
-            });
-            if (parent) return { hits: [toHit(parent, 'key', parent.title, null)], tookMs: Date.now() - started };
+            return { hits: [toHit(row.parent, 'key', row.parent.title, null)], tookMs: Date.now() - started };
           }
           if (row) return { hits: [toHit(row, 'key', row.title, null)], tookMs: Date.now() - started };
         }
@@ -113,22 +82,39 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
       const rows = await auth.db.task.findMany({
         where: {
           deletedAt: null,
-          parentId: null,
           ...(openIds ? { projectId: { in: [...openIds] } } : {}),
           OR: [
             { title: { contains: q } },
             { description: { contains: q } },
             { comments: { some: { deletedAt: null, body: { contains: q } } } },
+            { assignee: { name: { contains: q } } },
           ],
         },
-        take: 40,
-        include: taskInclude,
+        take: 80,
+        include: { ...taskInclude, parent: { include: taskInclude } },
       });
 
+      const collapsed = collapseSearchRows<HitTask, LoadedTask>(rows as unknown as LoadedTask[]).slice(0, 40);
       return {
-        hits: rows.map((row) => {
-          const m = classify(row);
-          return toHit(row, m.matchField, m.matchSnippet, m.commentAuthor);
+        hits: collapsed.map(({ display, source }) => {
+          const m = matchForCollapsed(
+            q,
+            {
+              id: display.id,
+              title: display.title,
+              description: display.description,
+              assigneeName: display.assignee?.name ?? null,
+              comments: display.comments.map((c) => ({ body: c.body, authorName: c.author.name })),
+            },
+            {
+              id: source.id,
+              title: source.title,
+              description: source.description,
+              assigneeName: source.assignee?.name ?? null,
+              comments: source.comments.map((c) => ({ body: c.body, authorName: c.author.name })),
+            },
+          );
+          return toHit(display, m.matchField, m.matchSnippet, m.commentAuthor);
         }),
         tookMs: Date.now() - started,
       };

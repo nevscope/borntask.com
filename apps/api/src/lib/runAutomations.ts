@@ -42,6 +42,10 @@ export async function runProjectAutomations(
   },
 ): Promise<void> {
   const stored = await auth.db.automation.findMany({ where: { projectId: input.projectId } });
+  const project = await auth.db.project.findFirst({ where: { id: input.projectId }, select: { workflowId: true } });
+  const slugs = project
+    ? (await auth.db.workflowStatus.findMany({ where: { workflowId: project.workflowId }, select: { slug: true } })).map((row) => row.slug)
+    : undefined;
   const rules = mergeDefaultAutomations(
     stored.map((row) => ({
       onStatusSlug: row.onStatusSlug,
@@ -49,6 +53,7 @@ export async function runProjectAutomations(
       roleSlug: row.roleSlug,
       enabled: row.enabled,
     })),
+    slugs,
   ).filter((rule) => rule.enabled && rule.onStatusSlug === input.toSlug);
   for (const rule of rules) {
     try {

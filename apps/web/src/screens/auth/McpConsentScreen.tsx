@@ -109,9 +109,9 @@ export function McpConsentScreen() {
                 <ScopeOption selected={scope === 'read_write'} onSelect={() => setScope('read_write')} title="Read and update" body="Also create tasks, edit them, comment, and move them through stages you're allowed to." />
               </fieldset>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: color.ink3 }}>
-                <span>Follows the same workflow rules as you</span>
-                <span>Can't delete tasks, change settings, or invite people</span>
-                <span>Access lasts until you disconnect it in Connected apps</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Follows the same workflow rules as you</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Can't delete tasks, change settings, or invite people</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Access lasts until you disconnect it in Connected apps</span>
               </div>
               {error && <p role="alert" style={{ margin: 0, color: color.danger, fontSize: 13 }}>{error}</p>}
             </div>

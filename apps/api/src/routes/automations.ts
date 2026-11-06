@@ -5,15 +5,29 @@ import { requireAuth, type Authed } from '../context.js';
 import { forbidden, sendError } from '../errors.js';
 import { assertCanManageOpenProject, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
-async function projectFor(auth: Authed, key: string) {
-  return requireOpenProject(auth, key);
-}
-
 async function assertCanManage(auth: Authed, project: { id: string; leadId: string | null }) {
   await assertCanManageOpenProject(auth, project, 'Only a project lead or workspace admin can change automations.');
 }
 
-function present(rows: { onStatusSlug: string; action: string; roleSlug: string; enabled: boolean }[]) {
+async function canManage(auth: Authed, project: { id: string; leadId: string | null }) {
+  try {
+    await assertCanManage(auth, project);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function statusSlugs(auth: Authed, workflowId: string) {
+  const rows = await auth.db.workflowStatus.findMany({ where: { workflowId }, select: { slug: true } });
+  return rows.map((row) => row.slug);
+}
+
+async function present(
+  auth: Authed,
+  project: { workflowId: string },
+  rows: { onStatusSlug: string; action: string; roleSlug: string; enabled: boolean }[],
+) {
   return mergeDefaultAutomations(
     rows.map((row) => ({
       onStatusSlug: row.onStatusSlug,
@@ -21,6 +35,7 @@ function present(rows: { onStatusSlug: string; action: string; roleSlug: string;
       roleSlug: row.roleSlug,
       enabled: row.enabled,
     })),
+    await statusSlugs(auth, project.workflowId),
   );
 }
 
@@ -29,10 +44,9 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const key = (req.params as { key: string }).key;
-      const project = await projectFor(auth, key);
-      await assertCanManage(auth, project);
+      const project = await requireOpenProject(auth, key);
       const rows = await auth.db.automation.findMany({ where: { projectId: project.id } });
-      return { automations: present(rows), canManage: true };
+      return { automations: await present(auth, project, rows), canManage: await canManage(auth, project) };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -54,10 +68,11 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
         seen.add(id);
         unique.push(row);
       }
+      const merged = await present(auth, project, unique);
       await auth.db.automation.deleteMany({ where: { projectId: project.id } });
-      if (unique.length) {
+      if (merged.length) {
         await auth.db.automation.createMany({
-          data: unique.map((row) => ({
+          data: merged.map((row) => ({
             tenantId: auth.tenantId,
             projectId: project.id,
             onStatusSlug: row.onStatusSlug,
@@ -68,7 +83,7 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
         });
       }
       const rows = await auth.db.automation.findMany({ where: { projectId: project.id } });
-      return { automations: present(rows), canManage: true };
+      return { automations: await present(auth, project, rows), canManage: true };
     } catch (err) {
       return sendError(reply, err);
     }

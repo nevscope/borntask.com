@@ -64,14 +64,15 @@ function isTypingTarget(el: EventTarget | null) {
 export function QuickAddProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ open: boolean; opts: OpenOptions }>({ open: false, opts: {} });
   const me = useMe().data;
+  const lookOnly = me?.workspaceRole === 'viewer' || me?.workspaceRole === 'guest';
   const open = (opts: OpenOptions = {}) => {
-    if (me?.workspaceRole === 'viewer') return;
+    if (lookOnly) return;
     setState({ open: true, opts });
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (me?.workspaceRole === 'viewer') return;
+      if (lookOnly) return;
       if (e.key.toLowerCase() === 'q' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) {
         e.preventDefault();
         setState({ open: true, opts: {} });
@@ -79,7 +80,7 @@ export function QuickAddProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [me?.workspaceRole]);
+  }, [lookOnly]);
 
   return (
     <QuickAddContext.Provider value={{ open }}>
@@ -93,8 +94,8 @@ function projectKeyFromPath(pathname: string) {
   return pathname.match(/^\/p\/([^/]+)/)?.[1];
 }
 
-function canWriteToProject(project: Project, viewer: boolean) {
-  if (viewer) return false;
+function canWriteToProject(project: Project, lookOnly: boolean) {
+  if (lookOnly) return false;
   if (project.pendingInvite) return false;
   if (project.canOpen === false) return false;
   if (project.archived) return false;
@@ -106,9 +107,9 @@ function defaultQuickAddProjectKey(input: {
   pathKey?: string;
   recentKeys: string[];
   projects: Project[];
-  viewer: boolean;
+  lookOnly: boolean;
 }): string {
-  const writable = input.projects.filter((project) => canWriteToProject(project, input.viewer));
+  const writable = input.projects.filter((project) => canWriteToProject(project, input.lookOnly));
   const known = (key: string | undefined) => !!key && writable.some((project) => project.key === key);
   if (known(input.optsKey)) return input.optsKey!;
   if (known(input.pathKey)) return input.pathKey!;
@@ -126,7 +127,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
   const { pathname } = useLocation();
   const me = useMe().data;
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
-  const viewer = me?.workspaceRole === 'viewer';
+  const lookOnly = me?.workspaceRole === 'viewer' || me?.workspaceRole === 'guest';
   const workspaceId = me?.workspace.id;
   const recentKeys = useMemo(() => (workspaceId ? readRecentProjectKeys(workspaceId) : []), [workspaceId]);
   const [projectKey, setProjectKey] = useState(() => defaultQuickAddProjectKey({
@@ -134,7 +135,7 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
     pathKey: projectKeyFromPath(pathname),
     recentKeys,
     projects,
-    viewer,
+    lookOnly,
   }));
   const detail = useProject(projectKey).data;
   const projectTasks = useProjectTasks(projectKey).data ?? [];
@@ -165,17 +166,17 @@ function QuickAddModal({ opts, onClose }: { opts: OpenOptions; onClose: () => vo
 
   useEffect(() => {
     if (!projects.length) return;
-    const writable = projects.filter((project) => canWriteToProject(project, viewer));
+    const writable = projects.filter((project) => canWriteToProject(project, lookOnly));
     if (writable.some((project) => project.key === projectKey)) return;
     const next = defaultQuickAddProjectKey({
       optsKey: opts.projectKey,
       pathKey: projectKeyFromPath(pathname),
       recentKeys,
       projects,
-      viewer,
+      lookOnly,
     });
     if (next) setProjectKey(next);
-  }, [projects, projectKey, opts.projectKey, pathname, recentKeys, viewer]);
+  }, [projects, projectKey, opts.projectKey, pathname, recentKeys, lookOnly]);
 
   useEffect(() => {
     if (!detail) return;

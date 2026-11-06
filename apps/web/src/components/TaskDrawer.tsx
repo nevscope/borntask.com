@@ -634,16 +634,17 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               name={status?.name ?? task.statusId}
               dot={null}
               bare
+              disabled={readOnly}
               trigger={<StatusPill status={status} />}
               options={options}
               onMove={(statusId) => flow.requestMove(task, statusId)}
             />
-            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'])} value={task.type} bare trigger={<TypeTag type={task.type} />} onChange={(type) => save({ type })} />
+            <TypePicker allowed={allowedTypeSlugs(detail, catalog.types.length ? catalog.types.map((item) => item.slug) : ['idea', 'bug', 'improvement', 'feature', 'story', 'epic'])} value={task.type} bare trigger={<TypeTag type={task.type} />} disabled={readOnly} onChange={(type) => save({ type })} />
             {task.isBlocked && <BlockedMark />}
           </div>
         )}
 
-        {isPhone && !inTrash && task.statusId !== 'idea' && (
+        {isPhone && !inTrash && !readOnly && task.statusId !== 'idea' && (
           <PhoneNextSteps options={passFail} onMove={(statusId) => flow.requestMove(task, statusId)} />
         )}
 
@@ -660,7 +661,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
       <div className={isPhone ? 'bt-task-sheet-scroll' : undefined} style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' }}>
       <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {task.statusId === 'idea' && !inTrash && (
-          canDecide ? (
+          canDecide && !readOnly ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, background: color.mergedTint, border: `1px solid ${color.mergedTint}` }}>
               <span style={{ fontSize: 13.5, color: color.merged }}><strong>Idea</strong> raised by {detail.users.find((u) => u.id === task.reporterId)?.name}. You can decide.</span>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -675,7 +676,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           )
         )}
 
-        {!inTrash && !isPhone && task.statusId !== 'idea' && quick.length > 0 && (
+        {!inTrash && !readOnly && !isPhone && task.statusId !== 'idea' && quick.length > 0 && (
           <div
             role="group"
             aria-labelledby="bt-task-next-step"
@@ -709,7 +710,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
         <div className={isPhone ? 'bt-task-fields bt-task-fields-phone' : 'bt-task-fields'}>
           <FieldLabel>Assignee</FieldLabel>
           <span className="bt-field-wide">
-            <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} onChange={(assigneeId) => save({ assigneeId })} />
+            <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} disabled={readOnly || inTrash} onChange={(assigneeId) => save({ assigneeId })} />
           </span>
           <FieldLabel>Start</FieldLabel>
           <DuePicker value={task.startDate} ariaLabel="Change start date" disabled={readOnly || inTrash} onChange={(startDate) => save({ startDate })} />
@@ -722,6 +723,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             maxLength={40}
             defaultValue={task.estimate ?? ''}
             key={`${task.key}:${task.estimate ?? ''}`}
+            readOnly={readOnly || inTrash}
             onBlur={(event) => {
               const next = event.target.value.trim();
               if (next === (task.estimate ?? '')) return;
@@ -730,13 +732,14 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             onPressEnter={(event) => event.currentTarget.blur()}
           />
           <FieldLabel>Priority</FieldLabel>
-          <PriorityPicker value={task.priority} onChange={(priority) => save({ priority })} />
+          <PriorityPicker value={task.priority} disabled={readOnly || inTrash} onChange={(priority) => save({ priority })} />
           <FieldLabel>Section</FieldLabel>
-          <Select value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} />
+          <Select disabled={readOnly || inTrash} value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} />
           <FieldLabel>Release</FieldLabel>
           <Select
             allowClear
             placeholder="None"
+            disabled={readOnly || inTrash}
             value={task.releaseId ?? undefined}
             onChange={(releaseId: string | undefined) => save({ releaseId: releaseId ?? null })}
             options={(releases.data ?? []).map((row) => ({
@@ -750,6 +753,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
               <Select
                 allowClear
                 placeholder={task.type === 'story' ? 'Epic' : 'Story or epic'}
+                disabled={readOnly || inTrash}
                 value={task.planningParentId ?? undefined}
                 onChange={(planningParentId: string | undefined) => save({ planningParentId: planningParentId ?? null })}
                 options={parentChoices.map((row) => ({ value: row.id, label: `${row.key} ${row.title}` }))}
@@ -757,12 +761,12 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             </>
           )}
           <FieldLabel>Labels</FieldLabel>
-          <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
+          <LabelPicker value={task.labels} suggestions={labelSuggestions} disabled={readOnly || inTrash} onChange={(labels) => save({ labels })} />
           {(detail.customFields ?? []).filter((field) => fieldAppliesToTask(field, task.type)).map((field) => {
             const value = (task.customFields ?? []).find((row) => row.fieldId === field.id)?.value ?? '';
             const setValue = (next: string | null) => save({ customFields: [{ fieldId: field.id, value: next }] });
             return (
-              <CustomFieldControl key={field.id} field={field} value={value} onChange={setValue} />
+              <CustomFieldControl key={field.id} field={field} value={value} disabled={readOnly || inTrash} onChange={setValue} />
             );
           })}
           <FieldLabel>Reporter</FieldLabel>
@@ -778,6 +782,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             canInvite={mentionInvite.canInvite}
             onInvite={mentionInvite.onInvite}
             minHeight={88}
+            readOnly={readOnly || inTrash}
             onChange={(next) => {
               descriptionRef.current = next;
               setDescription(next);
@@ -988,10 +993,12 @@ function CustomFieldControl({
   field,
   value,
   onChange,
+  disabled = false,
 }: {
   field: CustomFieldDef;
   value: string;
   onChange: (next: string | null) => void;
+  disabled?: boolean;
 }) {
   return (
     <>
@@ -1001,6 +1008,7 @@ function CustomFieldControl({
           allowClear
           aria-label={field.name}
           placeholder="Choose"
+          disabled={disabled}
           value={value || undefined}
           options={field.options.map((option) => ({ value: option, label: option }))}
           onChange={(next: string | undefined) => onChange(next ?? null)}
@@ -1010,6 +1018,7 @@ function CustomFieldControl({
           aria-label={field.name}
           type="date"
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value || null)}
         />
       ) : (
@@ -1018,6 +1027,7 @@ function CustomFieldControl({
           maxLength={200}
           defaultValue={value}
           key={`${field.id}:${value}`}
+          readOnly={disabled}
           onBlur={(event) => {
             const next = event.target.value.trim();
             if (next === value) return;

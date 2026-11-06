@@ -1,16 +1,19 @@
 import { Checkbox, Empty, Select } from 'antd';
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useSearch } from '../api/queries';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useMe, useSearch } from '../api/queries';
 import type { SearchHit, StatusCategory, TaskType } from '../api/types';
 import { StatusPill, TypeTag } from '../components/Chips';
 import { PageHeading } from '../components/PageHeading';
 import { useTaskParam } from '../components/useTaskParam';
+import { clearRecentSearches, recordRecentSearch, useRecentSearches } from '../lib/recentSearches';
 import { highlightParts } from '../lib/search';
 import { color } from '../theme/tokens';
 
 function whereLine(hit: SearchHit): string {
   if (hit.matchField === 'description') return `Description: "${hit.matchSnippet}"`;
+  if (hit.matchField === 'subtask') return `Subtask: "${hit.matchSnippet}"`;
+  if (hit.matchField === 'assignee') return `Assignee: ${hit.matchSnippet}`;
   if (hit.matchField === 'comment') {
     const who = hit.commentAuthor ?? 'someone';
     return `Comment by ${who}: "${hit.matchSnippet}"`;
@@ -22,9 +25,19 @@ function whereLine(hit: SearchHit): string {
 
 export function SearchScreen() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const q = params.get('q') ?? '';
   const search = useSearch(q);
   const { openTask } = useTaskParam();
+  const workspaceId = useMe().data?.workspace.id;
+  const recent = useRecentSearches(workspaceId);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const next = q.trim();
+    if (next.length < 2) return;
+    recordRecentSearch(workspaceId, next);
+  }, [q, workspaceId]);
   const [project, setProject] = useState<string>('all');
   const [type, setType] = useState<string>('all');
   const [status, setStatus] = useState<string>('all');
@@ -79,7 +92,7 @@ export function SearchScreen() {
         </PageHeading>
         {q.trim() ? (
           <span style={{ fontSize: 13, color: color.muted }}>
-            in titles, descriptions and comments{search.data ? ` · ${search.data.tookMs} ms` : ''}
+            in titles, descriptions, comments, subtasks and assignees{search.data ? ` · ${search.data.tookMs} ms` : ''}
           </span>
         ) : null}
       </div>
@@ -114,8 +127,44 @@ export function SearchScreen() {
         </Checkbox>
       </div>
 
-      {!q.trim() && <Empty description="Type a task key or a few words." />}
-      {q.trim() && search.isFetching && <p style={{ margin: 0, color: color.muted }}>Looking in titles, descriptions and comments…</p>}
+      {!q.trim() && recent.length > 0 && workspaceId && (
+        <section className="bt-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>
+            Recent searches
+            <button
+              type="button"
+              onClick={() => clearRecentSearches(workspaceId)}
+              style={{ marginLeft: 'auto', border: 0, background: 'none', color: color.muted, font: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}
+            >
+              Clear
+            </button>
+          </div>
+          {recent.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => navigate(`/search?q=${encodeURIComponent(item)}`)}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '12px 16px',
+                border: 0,
+                borderTop: `1px solid ${color.divider}`,
+                background: color.surface,
+                color: color.ink,
+                textAlign: 'left',
+                font: 'inherit',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </section>
+      )}
+      {!q.trim() && recent.length === 0 && <Empty description="Type a task key or a few words." />}
+      {q.trim() && search.isFetching && <p style={{ margin: 0, color: color.muted }}>Looking in titles, descriptions, comments, subtasks and assignees…</p>}
       {q.trim() && !search.isFetching && filtered.length === 0 && (
         <Empty description="No tasks match. Try another word, or include Deployed and Rejected." />
       )}

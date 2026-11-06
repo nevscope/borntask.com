@@ -60,6 +60,7 @@ interface Props {
   /** Paste and the Image button insert the uploaded picture into this field. */
   embedImages?: boolean;
   onOpenImage?: (id: string) => void;
+  readOnly?: boolean;
 }
 
 export function DescriptionEditor({
@@ -81,6 +82,7 @@ export function DescriptionEditor({
   onPasteFiles,
   embedImages = false,
   onOpenImage,
+  readOnly = false,
 }: Props) {
   const peopleRef = useRef(people);
   peopleRef.current = people;
@@ -120,6 +122,7 @@ export function DescriptionEditor({
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: true,
+    editable: !readOnly,
     extensions: [
       StarterKit.configure({
         heading: false,
@@ -227,6 +230,11 @@ export function DescriptionEditor({
   };
 
   useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.setEditable(!readOnly);
+  }, [editor, readOnly]);
+
+  useEffect(() => {
     if (!editor) return;
     const next = toEditorHtml(value);
     const current = persistDescription(editor.getHTML());
@@ -276,6 +284,7 @@ export function DescriptionEditor({
 
   return (
     <div style={{ position: stickyToolbar ? 'static' : 'relative' }}>
+      {!readOnly && (
       <Toolbar
         editor={editor}
         focused={focused}
@@ -303,6 +312,7 @@ export function DescriptionEditor({
           setMentionOpen(false);
         }}
       />
+      )}
       <div
         style={{
           marginTop: -1,

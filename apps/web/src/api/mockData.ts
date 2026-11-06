@@ -577,17 +577,38 @@ export const mockApi: Api = {
     }
 
     const needle = n.toLowerCase();
+    const seen = new Set<string>();
     for (const t of tasks) {
       if (t.title.toLowerCase().includes(needle)) {
         pushHit(t, 'title', t.title, null);
+        seen.add(t.key);
         continue;
       }
       if (stripTags(t.description).toLowerCase().includes(needle)) {
         pushHit(t, 'description', snippetAround(t.description, n), null);
+        seen.add(t.key);
         continue;
       }
       const c = (comments[t.key] ?? []).find((x) => x.body.toLowerCase().includes(needle));
-      if (c) pushHit(t, 'comment', snippetAround(c.body, n), userName(c.authorId));
+      if (c) {
+        pushHit(t, 'comment', snippetAround(c.body, n), userName(c.authorId));
+        seen.add(t.key);
+        continue;
+      }
+      const who = userName(t.assigneeId);
+      if (who?.toLowerCase().includes(needle)) {
+        pushHit(t, 'assignee', who, null);
+        seen.add(t.key);
+      }
+    }
+    for (const [parentKey, list] of Object.entries(subtasks)) {
+      if (seen.has(parentKey)) continue;
+      const parent = tasks.find((t) => t.key === parentKey);
+      if (!parent) continue;
+      const st = list.find((row) => row.title.toLowerCase().includes(needle));
+      if (!st) continue;
+      pushHit(parent, 'subtask', st.title, null);
+      seen.add(parentKey);
     }
     return { hits, tookMs: Date.now() - started };
   },

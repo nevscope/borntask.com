@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { qk, useMe, useProject } from '../api/queries';
+import { AutomationsCard } from '../components/AutomationsCard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProjectColourField } from '../components/ProjectColourField';
 import { PageHeading } from '../components/PageHeading';
@@ -256,6 +257,7 @@ export function ProjectDetailsScreen() {
           </div>
         </section>
       )}
+      {canManage && projectKey ? <AutomationsCard projectKey={projectKey} /> : null}
       {canManage && project && (
         <section className="bt-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>

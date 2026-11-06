@@ -7,6 +7,7 @@ import { sendError, forbidden } from '../errors.js';
 import { getRedis } from '../lib/queue.js';
 import { hashToken } from '../lib/tokens.js';
 import { safeRedirect } from '../lib/oauthRedirect.js';
+import { config } from '../env.js';
 
 type PendingCode = {
   userId: string;
@@ -33,6 +34,21 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     } catch (err) {
       done(err as Error, undefined);
     }
+  });
+
+  app.get('/oauth/authorize', async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    const web = config.publicUrl.replace(/\/$/, '');
+    const url = new URL('/oauth/consent', web);
+    const clientName = (q.client_name || q.client_id || 'Claude').trim() || 'Claude';
+    url.searchParams.set('client_name', clientName);
+    if (q.redirect_uri) url.searchParams.set('redirect_uri', q.redirect_uri);
+    if (q.state) url.searchParams.set('state', q.state);
+    if (q.code_challenge) url.searchParams.set('code_challenge', q.code_challenge);
+    if (q.code_challenge_method) url.searchParams.set('code_challenge_method', q.code_challenge_method);
+    const scope = q.scope?.split(/[ +]/).find((part) => part === 'read' || part === 'read_write');
+    if (scope) url.searchParams.set('scope', scope);
+    return reply.redirect(url.toString());
   });
 
   app.post('/oauth/consent', async (req, reply) => {
@@ -139,6 +155,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         access_token: token,
         token_type: 'Bearer',
         scope: pending.scope,
+        expires_in: 31536000,
       };
     } catch (err) {
       return sendError(reply, err);

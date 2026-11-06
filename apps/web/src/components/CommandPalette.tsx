@@ -13,6 +13,7 @@ export function CommandPalette() {
   const { pathname } = useLocation();
   const me = useMe().data;
   const canTimesheets = me?.workspaceRole !== 'guest' && me?.workspaceRole !== 'viewer';
+  const canWriteTasks = canTimesheets;
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const search = useSearch(q.trim().length >= 2 ? q.trim() : '');
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export function CommandPalette() {
     const onProject = pathname.match(/^\/p\/([^/]+)/)?.[1];
     const boardKey = projectKey ?? onProject ?? projects[0]?.key;
     return [
-      { id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', hint: 'Q', kind: 'action' as const, run: () => quickAdd.open() },
+      ...(canWriteTasks ? [{ id: 'new-task', label: q.trim() ? `New task named "${q.trim()}"` : 'New task', hint: 'Q', kind: 'action' as const, run: () => quickAdd.open() }] : []),
       { id: 'new-project', label: 'New project', hint: '', kind: 'action' as const, run: () => navigate('/projects/new') },
       { id: 'my', label: 'Go to My tasks', hint: 'G then M', kind: 'action' as const, run: () => navigate('/') },
       { id: 'views', label: 'Go to Views', hint: '', kind: 'action' as const, run: () => navigate('/views') },
@@ -57,7 +58,7 @@ export function CommandPalette() {
         run: () => navigate(`/p/${p.key}/list`),
       })),
     ];
-  }, [q, projects, projectKey, navigate, quickAdd, pathname, canTimesheets]);
+  }, [q, projects, projectKey, navigate, quickAdd, pathname, canTimesheets, canWriteTasks]);
 
   const project = projects.find((p) => p.key === projectKey) ?? null;
   const tasks = (search.data?.hits ?? []).filter((t) => !projectKey || t.projectKey === projectKey).slice(0, 6);

@@ -16,6 +16,8 @@ function firstName(name: string | undefined) {
 }
 
 export function MemberEmpty() {
+  const me = useMe().data;
+  const canWriteTasks = me?.workspaceRole !== 'viewer' && me?.workspaceRole !== 'guest';
   const projects = (useProjects().data ?? []).filter((p) => p.canOpen !== false);
   const quickAdd = useQuickAdd();
   return (
@@ -30,9 +32,11 @@ export function MemberEmpty() {
         <p style={{ margin: 0, maxWidth: 460, fontSize: 14, lineHeight: 1.5, color: color.ink3 }}>
           When someone assigns you a task, it lands here, sorted by what is due first. Meanwhile, have a look around the projects you can open.
         </p>
+        {canWriteTasks && (
         <Button type="primary" onClick={() => quickAdd.open()} style={{ marginTop: 6 }}>
           Create your first task <kbd className="bt-kbd" style={{ marginLeft: 6, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>Q</kbd>
         </Button>
+        )}
       </section>
       {projects.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -51,7 +55,7 @@ export function MemberEmpty() {
         </section>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 13, color: color.muted }}>
-        <span><kbd className="bt-kbd">Q</kbd> new task</span>
+        {canWriteTasks && <span><kbd className="bt-kbd">Q</kbd> new task</span>}
         <span><kbd className="bt-kbd">/</kbd> search</span>
         <span><kbd className="bt-kbd">Ctrl K</kbd> do anything</span>
       </div>
@@ -109,7 +113,6 @@ export function GuestWelcome() {
               : <>You joined <strong>{projectName}</strong> as <strong>{role}</strong>. You only see the projects you were invited to, and you can follow the work through to deployed.</>}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <span style={tip}><kbd className="bt-kbd">Q</kbd> Add an idea from anywhere</span>
             {business && <span style={tip}><span style={{ width: 8, height: 8, borderRadius: '50%', background: categoryBar.active }} /> Approve ideas to send them to the developers</span>}
             <span style={tip}><strong>@</strong> Mention someone in a comment to ask them</span>
           </div>

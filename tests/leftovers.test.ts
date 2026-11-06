@@ -293,6 +293,12 @@ describe('project automations', () => {
     expect(merged[2]?.onStatusSlug).toBe('wip');
   });
 
+  test('maps Simple workflow stages to doing and done', () => {
+    const merged = mergeDefaultAutomations([], ['todo', 'doing', 'done']);
+    expect(merged[0]).toEqual({ onStatusSlug: 'doing', action: 'assign_role', roleSlug: 'developer', enabled: false });
+    expect(merged[1]).toEqual({ onStatusSlug: 'done', action: 'notify_role', roleSlug: 'business', enabled: false });
+  });
+
   test('runs the tester default when a project never saved automations', () => {
     expect(mergeDefaultAutomations([])[0]).toEqual({
       onStatusSlug: 'ready_for_testing',

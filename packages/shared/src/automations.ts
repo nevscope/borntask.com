@@ -16,13 +16,45 @@ export const DEFAULT_AUTOMATION_TEMPLATES: AutomationRule[] = [
   { onStatusSlug: 'deployed', action: 'notify_role', roleSlug: 'business', enabled: false },
 ];
 
+/** Pick default rules that match this project's statuses (Delivery vs Simple). */
+export function defaultAutomationsForStatuses(statusSlugs: string[]): AutomationRule[] {
+  const slugs = new Set(statusSlugs);
+  const assignOn = slugs.has('ready_for_testing')
+    ? 'ready_for_testing'
+    : slugs.has('testing')
+      ? 'testing'
+      : slugs.has('doing')
+        ? 'doing'
+        : null;
+  const notifyOn = slugs.has('deployed') ? 'deployed' : slugs.has('done') ? 'done' : null;
+  const out: AutomationRule[] = [];
+  if (assignOn) {
+    out.push({
+      onStatusSlug: assignOn,
+      action: 'assign_role',
+      roleSlug: assignOn === 'doing' ? 'developer' : 'tester',
+      enabled: assignOn !== 'doing',
+    });
+  }
+  if (notifyOn) {
+    out.push({
+      onStatusSlug: notifyOn,
+      action: 'notify_role',
+      roleSlug: 'business',
+      enabled: false,
+    });
+  }
+  return out.length ? out : DEFAULT_AUTOMATION_TEMPLATES;
+}
+
 export function noAssigneeActivity(roleSlug: string): string {
   return roleSlug === 'tester' ? 'no tester to assign' : `no ${roleSlug} to assign`;
 }
 
-export function mergeDefaultAutomations(rows: AutomationRule[]): AutomationRule[] {
+export function mergeDefaultAutomations(rows: AutomationRule[], statusSlugs?: string[]): AutomationRule[] {
+  const templates = statusSlugs?.length ? defaultAutomationsForStatuses(statusSlugs) : DEFAULT_AUTOMATION_TEMPLATES;
   const keyed = new Map(rows.map((row) => [`${row.onStatusSlug}:${row.action}`, row] as const));
-  const out = DEFAULT_AUTOMATION_TEMPLATES.map(
+  const out = templates.map(
     (template) => keyed.get(`${template.onStatusSlug}:${template.action}`) ?? template,
   );
   for (const row of rows) {

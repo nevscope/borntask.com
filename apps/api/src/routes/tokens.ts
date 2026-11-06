@@ -26,8 +26,9 @@ export const tokenRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: auth.userId, revokedAt: null },
         orderBy: { createdAt: 'desc' },
       });
+      const grantTokenIds = new Set(grants.map((row) => row.tokenId).filter((id): id is string => Boolean(id)));
       return {
-        tokens: rows.map((row) => ({
+        tokens: rows.filter((row) => !grantTokenIds.has(row.id)).map((row) => ({
           id: row.id,
           name: row.name,
           hint: row.hint,

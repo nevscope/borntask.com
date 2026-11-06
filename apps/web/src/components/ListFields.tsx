@@ -78,13 +78,14 @@ export function ListFields({
     );
   }
 
-  const canComplete = Boolean(completeTarget(detail.workflow, task, roles));
+  const canComplete = !lookOnly && Boolean(completeTarget(detail.workflow, task, roles));
 
   if (compact) {
     return (
       <>
         <StatusMenu
           bare
+          disabled={lookOnly}
           name={status?.name ?? task.statusId}
           dot={null}
           trigger={<span style={{ fontSize: 12, color: color.muted }}>{status?.name ?? task.statusId}</span>}
@@ -107,13 +108,14 @@ export function ListFields({
       )}
       {show('type') && (
       <span className="bt-list-field" style={{ width: LIST_FIELD_WIDTH.type, minWidth: LIST_FIELD_WIDTH.type }}>
-        <TypePicker allowed={allowed} bare trigger={<TypeTag type={task.type} />} value={task.type} onChange={(type) => save({ type })} />
+        <TypePicker allowed={allowed} bare disabled={lookOnly} trigger={<TypeTag type={task.type} />} value={task.type} onChange={(type) => save({ type })} />
       </span>
       )}
       {show('status') && (
       <span className="bt-list-field" style={{ width: LIST_FIELD_WIDTH.status, minWidth: LIST_FIELD_WIDTH.status, display: 'inline-flex', alignItems: 'center' }}>
         <StatusMenu
           bare
+          disabled={lookOnly}
           name={status?.name ?? task.statusId}
           dot={null}
           trigger={<StatusPill status={status} />}
@@ -130,6 +132,7 @@ export function ListFields({
           users={members}
           detail={detail}
           meId={meId}
+          disabled={lookOnly}
           trigger={(
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: color.ink3, maxWidth: '100%' }}>
               <Avatar user={user} /> {user?.name ?? 'Unassigned'}
@@ -146,7 +149,7 @@ export function ListFields({
       )}
       {show('priority') && (
       <span className="bt-list-field bt-col-priority" style={{ width: LIST_FIELD_WIDTH.priority, minWidth: LIST_FIELD_WIDTH.priority }}>
-        <PriorityPicker bare value={task.priority} trigger={<PriorityLabel priority={task.priority} />} onChange={(priority) => save({ priority })} />
+        <PriorityPicker bare disabled={lookOnly} value={task.priority} trigger={<PriorityLabel priority={task.priority} />} onChange={(priority) => save({ priority })} />
       </span>
       )}
     </>

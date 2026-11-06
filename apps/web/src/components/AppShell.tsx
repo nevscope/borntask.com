@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const canAdmin = me?.workspaceRole === 'owner' || me?.workspaceRole === 'admin';
   const showTimesheetsNav = !guest && !viewer && (!me?.timesheetsExempt || canAdmin);
   const settingsTo = canAdmin ? '/settings/workspace' : '/settings/people';
-  const canWriteTasks = !viewer;
+  const canWriteTasks = !viewer && !guest;
   const workspaceId = me?.workspace.id;
   const favourites = projects.filter((p) => p.starred && !p.pendingInvite);
   const favouriteKeys = new Set(favourites.map((p) => p.key));
@@ -536,7 +536,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <PhoneIcon kind="plus" />
       </button>
       <TaskDrawer />
-      {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
+      {shortcuts && <ShortcutsSheet canWriteTasks={canWriteTasks} onClose={() => setShortcuts(false)} />}
       </div>
     </div>
   );
@@ -556,7 +556,7 @@ const SHORTCUTS = [
   ['Open selected task', 'Enter'],
 ] as const;
 
-function ShortcutsSheet({ onClose }: { onClose: () => void }) {
+function ShortcutsSheet({ canWriteTasks, onClose }: { canWriteTasks: boolean; onClose: () => void }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -568,7 +568,7 @@ function ShortcutsSheet({ onClose }: { onClose: () => void }) {
     <div role="presentation" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: color.overlay }}>
       <div role="dialog" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()} style={{ position: 'absolute', top: 72, right: 24, width: 320, padding: '14px 16px', background: color.surface, border: `1px solid ${color.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
         <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted }}>Keyboard shortcuts</span>
-        {SHORTCUTS.map(([label, key]) => (
+        {(canWriteTasks ? SHORTCUTS : SHORTCUTS.filter(([label]) => label !== 'New task')).map(([label, key]) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 28 }}>
             <span style={{ flex: 1, color: color.ink3 }}>{label}</span>
             <kbd className="bt-kbd">{key}</kbd>

@@ -13,7 +13,7 @@ type ToolDef = {
 export const TOOLS: ToolDef[] = [
   {
     name: 'search_tasks',
-    description: 'Search tasks you can see by title, description, comment or key.',
+    description: 'Search tasks you can see by title, description, comment, subtask, assignee or key. Subtask hits open the parent task.',
     inputSchema: {
       type: 'object',
       properties: { query: { type: 'string', description: 'Words or a task key such as WEB-142.' } },

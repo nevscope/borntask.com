@@ -26,14 +26,14 @@ const TYPE_HINT: Record<BuiltinTaskType, string> = {
 
 const PRIORITIES: Priority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
-export function TypePicker({ value, onChange, bare, trigger, allowed }: { value: TaskType; onChange: (type: TaskType) => void; bare?: boolean; trigger?: ReactNode; allowed?: string[] }) {
+export function TypePicker({ value, onChange, bare, trigger, allowed, disabled }: { value: TaskType; onChange: (type: TaskType) => void; bare?: boolean; trigger?: ReactNode; allowed?: string[]; disabled?: boolean }) {
   const catalog = useWorkspaceCatalog();
   const types = (catalog.types.length
     ? catalog.types.map((item) => ({ id: item.slug, name: item.name, hint: item.slug in TYPE_HINT ? TYPE_HINT[item.slug as BuiltinTaskType] : '' }))
     : (Object.keys(typeStyle) as BuiltinTaskType[]).map((type) => ({ id: type, name: typeStyle[type].label, hint: TYPE_HINT[type] }))
   ).filter((type) => !allowed || allowed.includes(type.id) || type.id === value);
   return (
-    <Picker bare={bare} label={trigger ?? <TypeTag type={value} />} ariaLabel="Change type">
+    <Picker bare={bare} label={trigger ?? <TypeTag type={value} />} ariaLabel="Change type" disabled={disabled}>
       {(close) => (
         <FilterList
           label="Find a type"
@@ -63,6 +63,7 @@ export function AssigneePicker({
   bare,
   trigger,
   ariaLabel = 'Change assignee',
+  disabled,
 }: {
   value: string | null;
   users: User[];
@@ -72,6 +73,7 @@ export function AssigneePicker({
   bare?: boolean;
   trigger?: ReactNode;
   ariaLabel?: string;
+  disabled?: boolean;
 }) {
   const me = useMe().data;
   const selfId = meId ?? me?.user.id;
@@ -85,6 +87,7 @@ export function AssigneePicker({
       bare={bare}
       label={trigger ?? (current ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar user={current} size={20} />{current.name}</span> : 'Unassigned')}
       ariaLabel={ariaLabel}
+      disabled={disabled}
       onKey={(key, close) => {
         if (key.toLowerCase() !== 'i' || !selfId) return false;
         onChange(selfId);
@@ -210,12 +213,13 @@ function DuePanel({ value, onChange }: { value: string | null; onChange: (date: 
   );
 }
 
-export function PriorityPicker({ value, onChange, bare, trigger }: { value: Priority; onChange: (priority: Priority) => void; bare?: boolean; trigger?: ReactNode }) {
+export function PriorityPicker({ value, onChange, bare, trigger, disabled }: { value: Priority; onChange: (priority: Priority) => void; bare?: boolean; trigger?: ReactNode; disabled?: boolean }) {
   return (
     <Picker
       bare={bare}
       label={trigger ?? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: priorityStyle[value].color }} />{priorityStyle[value].label}</span>}
       ariaLabel="Change priority"
+      disabled={disabled}
       onKey={(key, close) => {
         const hit = PRIORITIES.find((priority) => priorityStyle[priority].key === key);
         if (!hit) return false;
@@ -239,12 +243,13 @@ export function PriorityPicker({ value, onChange, bare, trigger }: { value: Prio
   );
 }
 
-export function LabelPicker({ value, suggestions, onChange }: { value: string[]; suggestions: string[]; onChange: (labels: string[]) => void }) {
+export function LabelPicker({ value, suggestions, onChange, disabled }: { value: string[]; suggestions: string[]; onChange: (labels: string[]) => void; disabled?: boolean }) {
   const summary = value.length ? value.join(', ') : 'Add labels';
   return (
     <Picker
       label={<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>}
       ariaLabel="Labels"
+      disabled={disabled}
     >
       {(close) => <LabelList value={value} suggestions={suggestions} onChange={onChange} onDone={close} />}
     </Picker>
@@ -285,6 +290,7 @@ export function StatusMenu({
   onMove,
   bare,
   trigger,
+  disabled,
 }: {
   name: string;
   dot: ReactNode;
@@ -292,9 +298,10 @@ export function StatusMenu({
   onMove: (statusId: string) => void;
   bare?: boolean;
   trigger?: ReactNode;
+  disabled?: boolean;
 }) {
   return (
-    <Picker bare={bare} label={trigger ?? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{dot}{name}</span>} ariaLabel={`Change status from ${name}`} pill={!bare}>
+    <Picker bare={bare} label={trigger ?? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{dot}{name}</span>} ariaLabel={`Change status from ${name}`} pill={!bare} disabled={disabled}>
       {(close) => (
         <FilterList
           label="Find a status"

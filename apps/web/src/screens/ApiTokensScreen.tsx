@@ -114,7 +114,7 @@ export function ApiTokensScreen() {
             <span style={{ flex: '1 1 200px' }}>
               <span style={{ display: 'block', fontWeight: 600 }}>{grant.appName}</span>
               <span style={{ fontSize: 12.5, color: color.muted }}>
-                {grant.scope === 'read_write' ? 'Read and update' : 'Read only'} · {grant.redirectHost} · last used {when(grant.lastUsedAt)}
+                {grant.scope === 'read_write' ? 'Read and update' : 'Read only'} · connected {when(grant.createdAt)} · last used {when(grant.lastUsedAt)}
               </span>
             </span>
             <button type="button" onClick={() => setPendingGrant({ id: grant.id, appName: grant.appName })} style={{ height: 32, padding: '0 10px', border: 0, borderRadius: 8, background: 'transparent', font: 'inherit', fontSize: 13, color: color.danger, cursor: 'pointer' }}>Disconnect</button>
