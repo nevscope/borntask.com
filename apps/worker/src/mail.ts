@@ -116,7 +116,8 @@ function htmlSection(
       (row) => `<tr>
         <td valign="top" width="72" style="padding:10px 10px 10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:14px;color:#5B6157;white-space:nowrap;">${esc(row.key)}</td>
         <td valign="top" style="padding:10px 10px 10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:14.5px;color:#121417;">
-          <a href="${esc(row.url)}" style="color:#121417;text-decoration:none;">${esc(row.title)}${row.extra ? ` - ${esc(row.extra)}` : ''}</a>
+          <a href="${esc(row.url)}" style="color:#121417;text-decoration:none;">${esc(row.title)}</a>
+          ${row.extra && row.extra !== row.title ? `<div style="margin:4px 0 0;font-size:13.5px;line-height:1.45;color:#5B6157;">${esc(row.extra)}</div>` : ''}
         </td>
         <td valign="top" align="right" style="padding:10px 0;border-bottom:1px solid #EEF0EC;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#A04A0C;white-space:nowrap;">${row.statusName ? esc(row.statusName) : ''}</td>
       </tr>`,
@@ -134,7 +135,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
   if (job.kind === 'task-event') return renderTaskEvent(job);
   if (job.kind === 'digest') {
     const dueCount = job.due.length + job.overdue.length;
-    const subject = digestSubject(dueCount, job.mentions.length);
+    const subject = digestSubject(dueCount, job.mentions.length, job.dateLabel);
     const sections: string[] = [];
     if (job.due.length) {
       sections.push(['Due today', ...job.due.map(digestLine)].join('\n'));
@@ -143,7 +144,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
       sections.push(['Overdue', ...job.overdue.map(digestLine)].join('\n'));
     }
     if (job.mentions.length) {
-      sections.push(['Mentions', ...job.mentions.map((item) => `${item.key}: ${item.extra ?? item.title}`)].join('\n'));
+      sections.push(['Mentions', ...job.mentions.map((item) => item.extra && item.extra !== item.title ? `${item.title}: ${item.extra}` : `${item.key}: ${item.title}`)].join('\n'));
     }
     if (job.staleIdeas.length) {
       sections.push(['Ideas waiting more than 5 working days', ...job.staleIdeas.map(digestLine)].join('\n'));
@@ -161,7 +162,7 @@ export function renderMail(job: MailJob): { subject: string; text: string; html:
       `<p style="margin:0 0 18px;font-family:'Sora','DM Sans',Arial,sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.02em;line-height:1.3;color:#121417;">Good morning, ${esc(job.greetingName)}</p>
        ${htmlSection('Due today', '#B42323', job.due)}
        ${htmlSection('Overdue', '#B42323', job.overdue)}
-       ${htmlSection('Mentions', '#5B6157', job.mentions.map((m) => ({ ...m, title: m.extra ?? m.title })))}
+       ${htmlSection('Mentions', '#5B6157', job.mentions)}
        ${htmlSection('Ideas waiting more than 5 working days', '#5B6157', job.staleIdeas)}
        ${button(job.myTasksUrl, 'Open My tasks', true)}`,
       `${esc(job.footerNote)} <a href="${esc(job.profileUrl)}" style="color:#0F6B46;">Change email settings</a>`,
