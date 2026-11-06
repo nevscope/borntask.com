@@ -8,6 +8,7 @@ import { useWorkspaceCatalog } from '../api/catalog';
 import { api, qk, useMe, useMoveTask, useMyTasks, useProjects } from '../api/queries';
 import type { Priority, ProjectDetail, Task } from '../api/types';
 import { Avatar, StatusPill, TaskHints, TypeTag } from '../components/Chips';
+import { PageHeading } from '../components/PageHeading';
 import { useQuickAdd } from '../components/QuickAdd';
 import { useStatusToast } from '../components/StatusToast';
 import { useTaskParam } from '../components/useTaskParam';
@@ -145,7 +146,7 @@ export function MyTasksScreen() {
   return (
     <div className="bt-page" style={{ paddingTop: isPhone ? 8 : 32, gap: isPhone ? 12 : 22 }}>
       <div>
-        <h1 className="bt-h1" style={{ fontSize: 26 }}>My tasks</h1>
+        <PageHeading style={{ fontSize: 26 }}>My tasks</PageHeading>
         <p style={{ margin: '6px 0 0', color: color.muted, fontSize: 13.5 }}>
           {dayjs().format('dddd D MMMM')} · {subtitle}
         </p>

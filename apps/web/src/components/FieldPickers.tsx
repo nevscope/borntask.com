@@ -124,7 +124,7 @@ function AssigneeList({
   const rows = users.filter(matches);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} onMouseDown={(event) => event.stopPropagation()}>
-      <FilterBox label="Find a person" value={q} onChange={setQ} passthroughKeys={q ? [] : ['i']} autoFocus={false} />
+      <FilterBox label="Find a person" value={q} onChange={setQ} />
       {selfId && (
         <RowButton onClick={() => onChange(selfId)}>
           <span style={{ flex: 1 }}>Assign to me</span>
@@ -242,7 +242,10 @@ export function PriorityPicker({ value, onChange, bare, trigger }: { value: Prio
 export function LabelPicker({ value, suggestions, onChange }: { value: string[]; suggestions: string[]; onChange: (labels: string[]) => void }) {
   const summary = value.length ? value.join(', ') : 'Add labels';
   return (
-    <Picker label={summary} ariaLabel="Labels">
+    <Picker
+      label={<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>}
+      ariaLabel="Labels"
+    >
       {(close) => <LabelList value={value} suggestions={suggestions} onChange={onChange} onDone={close} />}
     </Picker>
   );
@@ -506,10 +509,17 @@ function FilterList({
 }
 
 function FilterBox({ label, value, onChange, hint, onEnter, passthroughKeys = [], autoFocus = true }: { label: string; value: string; onChange: (value: string) => void; hint?: string; onEnter?: () => void; passthroughKeys?: string[]; autoFocus?: boolean }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    const id = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(id);
+  }, [autoFocus]);
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36, marginBottom: 4, padding: '0 10px', border: `1px solid ${color.border}`, borderRadius: 8 }}>
       <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{label}</span>
       <input
+        ref={inputRef}
         autoFocus={autoFocus}
         value={value}
         aria-label={label}

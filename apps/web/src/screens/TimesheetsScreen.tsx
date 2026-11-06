@@ -28,6 +28,7 @@ import {
   type TimesheetEntryWrite,
 } from '../api/queries';
 import { LogoMark } from '../components/Logo';
+import { PageHeading } from '../components/PageHeading';
 import { color, font, radius } from '../theme/tokens';
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -615,7 +616,7 @@ export function TimesheetsScreen() {
     <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
         <div>
-          <h1 className="bt-h1" style={{ fontSize: 26 }}>Timesheets</h1>
+          <PageHeading style={{ fontSize: 26 }}>Timesheets</PageHeading>
           <p style={{ margin: '6px 0 0', color: color.muted, fontSize: 13.5 }}>{subtitle}</p>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>

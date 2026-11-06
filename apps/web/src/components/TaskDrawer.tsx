@@ -630,6 +630,10 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           </div>
         )}
 
+        {isPhone && !inTrash && task.statusId !== 'idea' && (
+          <PhoneNextSteps options={passFail} onMove={(statusId) => flow.requestMove(task, statusId)} />
+        )}
+
         {inTrash && (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 32 }}>
             <StatusPill status={status} />
@@ -640,7 +644,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
       </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' }}>
+      <div className={isPhone ? 'bt-task-sheet-scroll' : undefined} style={{ flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' }}>
       <div style={{ padding: isPhone ? '12px 16px' : '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {task.statusId === 'idea' && !inTrash && (
           canDecide ? (
@@ -736,9 +740,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             </>
           )}
           <FieldLabel>Labels</FieldLabel>
-          <div className={isPhone ? undefined : 'bt-field-wide'}>
-            <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
-          </div>
+          <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
           {(detail.customFields ?? []).filter((field) => fieldAppliesToTask(field, task.type)).map((field) => {
             const value = (task.customFields ?? []).find((row) => row.fieldId === field.id)?.value ?? '';
             const setValue = (next: string | null) => save({ customFields: [{ fieldId: field.id, value: next }] });
@@ -767,6 +769,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
             onBlur={(next) => persistDesc(next)}
             onOpenImage={openImageById}
             onPasteFiles={(files) => { void addTaskFiles(files).then((added) => { if (added) toast.show(added === 1 ? 'Screenshot attached.' : `${added} files attached.`); }); }}
+            stickyToolbar={isPhone}
           />
           {descTooLong && (
             <p role="alert" style={{ margin: '8px 0 0', fontSize: 12.5, color: color.danger }}>
@@ -947,8 +950,6 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           task={task}
           people={mentionPeople}
           mentionInvite={mentionInvite}
-          options={passFail}
-          onMove={(statusId) => flow.requestMove(task, statusId)}
           onDraftChange={setCommentDraft}
           onPasteFiles={embedCommentFiles}
           onOpenImage={openImageById}
@@ -1512,12 +1513,44 @@ const commentAction = {
   color: color.muted,
 } as const;
 
+function PhoneNextSteps({
+  options,
+  onMove,
+}: {
+  options: ReturnType<typeof moveOptions>;
+  onMove: (statusId: string) => void;
+}) {
+  const allowed = options.filter((item) => item.check.kind === 'allowed').slice(0, 2);
+  if (allowed.length === 0) return null;
+  return (
+    <div
+      role="group"
+      aria-label="Choose one next step"
+      style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
+    >
+      {allowed.map((item) => {
+        const label = item.check.kind === 'allowed' && item.check.transition.label && !item.status.side
+          ? `${item.check.transition.label} · ${item.status.name}`
+          : item.status.name;
+        return (
+          <Button
+            key={item.status.id}
+            size="small"
+            onClick={() => onMove(item.status.id)}
+            style={{ height: 32, borderRadius: 8, fontSize: 13 }}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 function PhoneMoveBar({
   task,
   people,
   mentionInvite,
-  options,
-  onMove,
   onDraftChange,
   onPasteFiles,
   onOpenImage,
@@ -1526,8 +1559,6 @@ function PhoneMoveBar({
   task: TaskDetail;
   people: ProjectDetail['users'];
   mentionInvite: ReturnType<typeof useMentionInvite>;
-  options: ReturnType<typeof moveOptions>;
-  onMove: (statusId: string) => void;
   onDraftChange: (value: string) => void;
   onPasteFiles?: (files: File[]) => Promise<EmbeddedImage[]>;
   onOpenImage?: (id: string) => void;
@@ -1546,29 +1577,8 @@ function PhoneMoveBar({
     write('');
     add.mutate({ key: task.key, body }, { onError: () => write(raw) });
   };
-  const allowed = options.filter((item) => item.check.kind === 'allowed');
-
   return (
     <div className="bt-phone-move-bar" style={{ flex: 'none', padding: '10px 14px calc(10px + env(safe-area-inset-bottom, 0px))', borderTop: `1px solid ${color.border}`, display: 'flex', flexDirection: 'column', gap: 10, background: color.surface }}>
-      {allowed.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {allowed.slice(0, 2).map((item) => {
-            const label = item.check.kind === 'allowed' && item.check.transition.label && !item.status.side
-              ? `${item.check.transition.label} · ${item.status.name}`
-              : item.status.name;
-            return (
-              <Button
-                key={item.status.id}
-                size="small"
-                onClick={() => onMove(item.status.id)}
-                style={{ height: 32, borderRadius: 8, fontSize: 13 }}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-      )}
       <DescriptionEditor
         value={draft}
         people={people}

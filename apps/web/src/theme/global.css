@@ -389,6 +389,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   .bt-desktop-actions { display: none; }
   .bt-phone-title {
     display: block;
+    margin: 0;
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -461,6 +462,9 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
     position: relative;
     z-index: 1;
     flex: none;
+  }
+  .bt-task-sheet-scroll {
+    padding-bottom: 24px;
   }
   .bt-board.is-phone {
     flex-direction: column;

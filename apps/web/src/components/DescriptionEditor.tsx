@@ -52,6 +52,7 @@ interface Props {
   placeholder?: string;
   minHeight?: number;
   compact?: boolean;
+  stickyToolbar?: boolean;
   showPasteHint?: boolean;
   ariaLabel?: string;
   onEditorKeyDown?: (event: KeyboardEvent) => void;
@@ -73,6 +74,7 @@ export function DescriptionEditor({
   placeholder = 'Add details.',
   minHeight = 140,
   compact = false,
+  stickyToolbar = false,
   showPasteHint = true,
   ariaLabel = 'Description',
   onEditorKeyDown,
@@ -273,10 +275,11 @@ export function DescriptionEditor({
   }, [mentionOpen, ariaLabel, editor]);
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: stickyToolbar ? 'static' : 'relative' }}>
       <Toolbar
         editor={editor}
         focused={focused}
+        sticky={stickyToolbar}
         mentionOpen={mentionOpen}
         people={people}
         invitePeople={invitePeople}
@@ -337,6 +340,7 @@ function toolLabel(label: string): string {
 function Toolbar({
   editor,
   focused,
+  sticky = false,
   mentionOpen,
   people,
   invitePeople,
@@ -350,6 +354,7 @@ function Toolbar({
 }: {
   editor: Editor | null;
   focused: boolean;
+  sticky?: boolean;
   mentionOpen: boolean;
   people: User[];
   invitePeople: User[];
@@ -431,6 +436,9 @@ function Toolbar({
         borderBottom: 0,
         borderRadius: '10px 10px 0 0',
         background: color.subtle,
+        position: sticky ? 'sticky' : 'relative',
+        top: sticky ? 0 : undefined,
+        zIndex: sticky ? 2 : undefined,
       }}
     >
       {tool('Bold', !!editor?.isActive('bold'), () => editor?.chain().focus().toggleBold().run(), { fontWeight: 700 })}

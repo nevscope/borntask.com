@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useSearch } from '../api/queries';
 import type { SearchHit, StatusCategory, TaskType } from '../api/types';
 import { StatusPill, TypeTag } from '../components/Chips';
+import { PageHeading } from '../components/PageHeading';
 import { useTaskParam } from '../components/useTaskParam';
 import { highlightParts } from '../lib/search';
 import { color } from '../theme/tokens';
@@ -69,13 +70,13 @@ export function SearchScreen() {
   return (
     <div className="bt-page" style={{ maxWidth: 960, margin: '0 auto', width: '100%', gap: 18, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 10 }}>
-        <h1 className="bt-h1" style={{ fontSize: 22 }}>
+        <PageHeading style={{ fontSize: 22 }}>
           {!q.trim()
             ? 'Search'
             : search.isFetching
               ? `Searching for "${q.trim()}"`
               : `${filtered.length} result${filtered.length === 1 ? '' : 's'} for "${q.trim()}"`}
-        </h1>
+        </PageHeading>
         {q.trim() ? (
           <span style={{ fontSize: 13, color: color.muted }}>
             in titles, descriptions and comments{search.data ? ` · ${search.data.tookMs} ms` : ''}

@@ -453,7 +453,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="bt-main">
         <header className="bt-topbar">
           {isPhone && <LogoMark size={24} />}
-          <span className="bt-phone-title">{phoneTitle}</span>
+          {isPhone ? (
+            <h1 className="bt-phone-title">{phoneTitle}</h1>
+          ) : (
+            <span className="bt-phone-title">{phoneTitle}</span>
+          )}
           <button type="button" className="bt-phone-search" aria-label="Search" onClick={() => navigate('/search')}>
             <PhoneIcon kind="search" />
           </button>

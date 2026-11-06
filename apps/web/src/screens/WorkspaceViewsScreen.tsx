@@ -2,6 +2,7 @@ import { Empty, Skeleton } from 'antd';
 import { useMemo } from 'react';
 import { useMe, useProjects, useWorkspaceTasks } from '../api/queries';
 import { StatusPill, TaskHints, TypeTag } from '../components/Chips';
+import { PageHeading } from '../components/PageHeading';
 import { useTaskParam } from '../components/useTaskParam';
 import { useWorkspaceView, WorkspaceViewBar } from '../components/WorkspaceViewBar';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -37,7 +38,7 @@ export function WorkspaceViewsScreen() {
   if (data.isError) {
     return (
       <div className="bt-page" style={{ paddingTop: 32 }}>
-        <h1 className="bt-h1" style={{ fontSize: 26 }}>Views</h1>
+        <PageHeading style={{ fontSize: 26 }}>Views</PageHeading>
         <p style={{ color: color.muted }}>Could not load workspace tasks.</p>
       </div>
     );
@@ -46,7 +47,7 @@ export function WorkspaceViewsScreen() {
   return (
     <div className="bt-page" style={{ paddingTop: isPhone ? 8 : 32, gap: isPhone ? 12 : 22 }}>
       <div>
-        <h1 className="bt-h1" style={{ fontSize: 26 }}>Views</h1>
+        <PageHeading style={{ fontSize: 26 }}>Views</PageHeading>
         <p style={{ margin: '6px 0 12px', color: color.muted, fontSize: 13.5 }}>
           Across every project you can open · {visible.length} {visible.length === 1 ? 'task' : 'tasks'}
         </p>

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCreateRelease, useDeleteRelease, useMe, useProjects, useReleases, useUpdateRelease, type WorkspaceRelease } from '../api/queries';
 import { formatReleaseDate } from '@borntask/shared';
+import { PageHeading } from '../components/PageHeading';
 import { color, categoryBar, font, radius } from '../theme/tokens';
 
 function canManage(role: string | undefined) {
@@ -75,7 +76,7 @@ export function ReleasesScreen() {
     <div className="bt-page" style={{ maxWidth: 880, gap: 18 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h1 className="bt-h1">Releases</h1>
+          <PageHeading>Releases</PageHeading>
           <p style={{ margin: '8px 0 0', maxWidth: 560, fontSize: 13.5, lineHeight: 1.45, color: color.muted }}>
             Workspace releases with a name and date. Tasks from any project can join. Filter to one project when the go-live is mostly there.
           </p>

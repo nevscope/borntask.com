@@ -118,16 +118,19 @@ export async function buildDigestJob(userId: string, now = new Date()): Promise<
     take: 40,
   });
   const needle = `@${user.name}`.toLowerCase();
+  const seenMentions = new Set<string>();
   const mentions = comments
     .filter((c) => c.body.toLowerCase().includes(needle))
-    .map((c) => {
+    .flatMap((c) => {
+      if (seenMentions.has(c.id)) return [];
+      seenMentions.add(c.id);
       const key = `${c.task.project.key}-${c.task.number}`;
-      return {
+      return [{
         key,
         title: `${c.author.name} on ${key}`,
         url: itemUrl(c.task.project.key, c.task.number),
         extra: `"${clipDigestQuote(htmlToPlain(c.body))}"`,
-      };
+      }];
     });
 
   if (!due.length && !overdue.length && !mentions.length && !staleIdeas.length) return null;

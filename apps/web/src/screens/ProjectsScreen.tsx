@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BASE_URL } from '../api/http';
 import { USE_PROJECT_MOCKS, useAcceptProjectInvite, useMe, useProjects, useRequestProjectAccess } from '../api/queries';
 import type { Project, StatusCounts } from '../api/types';
+import { PageHeading } from '../components/PageHeading';
 import { ProjectStar } from '../components/ProjectStar';
 import { categoryBar, color, font, projectTint, radius } from '../theme/tokens';
 
@@ -47,7 +48,7 @@ export function ProjectsScreen() {
   return (
     <div className="bt-page" style={{ maxWidth: 1160, margin: '0 auto', width: '100%', gap: 20, paddingTop: 28 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <h1 className="bt-h1" style={{ flex: '1 1 200px', fontSize: 26 }}>Projects</h1>
+        <PageHeading style={{ flex: '1 1 200px', fontSize: 26 }}>Projects</PageHeading>
         <Segmented
           value={tab}
           onChange={(v) => setTab(v as 'active' | 'archived')}

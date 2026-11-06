@@ -4,16 +4,18 @@ import { holidayCountryName, holidayCountryOptions } from '@borntask/shared';
 import { color, radius } from '../theme/tokens';
 
 const DAY_CHIPS = [
-  { key: 'mon', label: 'M' },
-  { key: 'tue', label: 'T' },
-  { key: 'wed', label: 'W' },
-  { key: 'thu', label: 'T' },
-  { key: 'fri', label: 'F' },
-  { key: 'sat', label: 'S' },
-  { key: 'sun', label: 'S' },
+  { key: 'mon', label: 'M', name: 'Mon' },
+  { key: 'tue', label: 'T', name: 'Tue' },
+  { key: 'wed', label: 'W', name: 'Wed' },
+  { key: 'thu', label: 'T', name: 'Thu' },
+  { key: 'fri', label: 'F', name: 'Fri' },
+  { key: 'sat', label: 'S', name: 'Sat' },
+  { key: 'sun', label: 'S', name: 'Sun' },
 ] as const;
 
-const PART_TIME = ['tue', 'thu'];
+function formatDays(days: string[]) {
+  return DAY_CHIPS.filter((day) => days.includes(day.key)).map((day) => day.name).join(', ');
+}
 
 function sameDays(a: string[], b: string[]) {
   return [...a].sort().join(',') === [...b].sort().join(',');
@@ -125,26 +127,17 @@ export function WorkingPatternFields({
           })}
         </span>
         <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12, color: color.muted }}>
-          {inherited ? 'Workspace days' : 'Custom pattern'}
-          {!disabled && (
-            <>
-              <button
-                type="button"
-                onClick={() => saveDays(PART_TIME)}
-                style={{ border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
-              >
-                Tue and Thu
-              </button>
-              {!inherited && (
-                <button
-                  type="button"
-                  onClick={() => persist({ workingDays: null })}
-                  style={{ border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                >
-                  Use workspace days
-                </button>
-              )}
-            </>
+          {inherited
+            ? `Same as workspace · ${formatDays(workspaceDays)}`
+            : `Custom pattern · ${formatDays(days)}`}
+          {!disabled && !inherited && (
+            <button
+              type="button"
+              onClick={() => persist({ workingDays: null })}
+              style={{ border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+            >
+              Use workspace days
+            </button>
           )}
         </span>
       </span>

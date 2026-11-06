@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe, useProjects, useWorkspaceReports, useWorkspaceSettings, type WorkspaceReports } from '../api/queries';
 import { Avatar } from '../components/Chips';
+import { PageHeading } from '../components/PageHeading';
 import { color, font } from '../theme/tokens';
 import { expectedDays, formatMinutes, holidayDatesForCountry, parseTimeToMinutes, parseWorkingDays, parseYmd, personInitials, utcDay } from '@borntask/shared';
 
@@ -309,7 +310,7 @@ export function WorkspaceReportsScreen() {
     <div className="bt-page" style={{ maxWidth: 1120, gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <h1 className="bt-h1">Reports</h1>
+          <PageHeading>Reports</PageHeading>
           <p style={{ margin: '8px 0 0', maxWidth: 560, fontSize: 13.5, lineHeight: 1.45, color: color.muted }}>
             {selfOnly
               ? 'Your assigned tasks and your time only. Trash excluded.'
