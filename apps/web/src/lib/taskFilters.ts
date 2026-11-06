@@ -179,19 +179,48 @@ export function allowedGroup(group: GroupBy, breakdown?: string | null): GroupBy
   return group;
 }
 
+export function sameCondition(a: FilterCondition, b: FilterCondition): boolean {
+  return a.field === b.field && a.op === b.op
+    && a.values.length === b.values.length
+    && a.values.every((value, j) => value === b.values[j]);
+}
+
 export function sameFilters(a: FilterCondition[], b: FilterCondition[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((left, i) => {
     const right = b[i];
-    return !!right && left.field === right.field && left.op === right.op
-      && left.values.length === right.values.length
-      && left.values.every((value, j) => value === right.values[j]);
+    return !!right && sameCondition(left, right);
   });
+}
+
+function withoutHideDone(filters: FilterCondition[]): FilterCondition[] {
+  return filters.filter((condition) => !sameCondition(condition, hideDone));
+}
+
+/** Chips the user added on top of a named preset. Preset conditions stay in the tab, not the chip row. */
+export function filtersBeyondPreset(
+  filters: FilterCondition[],
+  viewId: string | null,
+  presets: Array<{ id: string; filters: FilterCondition[] }>,
+): FilterCondition[] {
+  const byId = viewId ? presets.find((row) => row.id === viewId) : undefined;
+  const byMatch = presets.find((row) => sameFilters(filters, row.filters));
+  const preset = byId ?? byMatch;
+  let extra = filters;
+  if (preset) {
+    const remaining = [...preset.filters];
+    extra = filters.filter((condition) => {
+      const index = remaining.findIndex((row) => sameCondition(row, condition));
+      if (index < 0) return true;
+      remaining.splice(index, 1);
+      return false;
+    });
+  }
+  return withoutHideDone(extra);
 }
 
 export function activePresetId(filters: FilterCondition[], viewId: string | null): string | null {
   if (viewId && PRESET_VIEWS.some((preset) => preset.id === viewId)) return viewId;
-  if (viewId) return null;
   return PRESET_VIEWS.find((preset) => sameFilters(filters, preset.filters))?.id ?? null;
 }
 

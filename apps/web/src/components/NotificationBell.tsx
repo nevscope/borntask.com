@@ -58,8 +58,8 @@ function Chip({
       type="button"
       onClick={onClick}
       style={{
-        height: 28,
-        padding: '0 10px',
+        height: 30,
+        padding: '0 12px',
         border: `1px solid ${active ? color.ink : color.border}`,
         borderRadius: 999,
         background: active ? color.ink : color.surface,
@@ -69,6 +69,7 @@ function Chip({
         fontWeight: 600,
         cursor: 'pointer',
         whiteSpace: 'nowrap',
+        lineHeight: 1,
       }}
     >
       {children}
@@ -112,9 +113,9 @@ function NotificationRow({
     <div
       style={{
         display: 'flex',
-        gap: 10,
+        gap: 12,
         width: '100%',
-        padding: '10px 16px',
+        padding: '12px 16px',
         borderLeft: `3px solid ${active ? color.brand : 'transparent'}`,
         borderBottom: `1px solid ${color.divider}`,
         background: active ? color.brandTint : unread ? color.unreadRow : color.surface,
@@ -126,7 +127,7 @@ function NotificationRow({
         onClick={() => onOpen(item)}
         style={{
           display: 'flex',
-          gap: 10,
+          gap: 12,
           flex: 1,
           minWidth: 0,
           padding: 0,
@@ -139,9 +140,9 @@ function NotificationRow({
         }}
       >
         <Avatar user={note.actor} size={28} />
-        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 13.5, lineHeight: 1.35, fontWeight: unread ? 600 : 500 }}>{itemHeading(item)}</span>
-          <span style={{ fontSize: 12, color: color.muted, lineHeight: 1.4 }}>{sub}</span>
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 13.5, lineHeight: 1.45, fontWeight: unread ? 600 : 500 }}>{itemHeading(item)}</span>
+          <span style={{ fontSize: 12, color: color.muted, lineHeight: 1.45 }}>{sub}</span>
         </span>
       </button>
       {pendingAccess && (
@@ -304,7 +305,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 16px 0', borderBottom: `1px solid ${color.divider}` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px 0', borderBottom: `1px solid ${color.divider}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: font.display, fontWeight: 600, fontSize: 16, flex: 1, minWidth: 0 }}>Notifications</span>
           <button
@@ -346,7 +347,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
             <CloseIcon />
           </button>
         </div>
-        <div role="tablist" style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
+        <div role="tablist" className="bt-notify-tabs">
           {TABS.map((row) => {
             const selected = tab === row.id;
             const count = tabCounts[row.id];
@@ -358,8 +359,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                 aria-selected={selected}
                 onClick={() => setTab(row.id)}
                 style={{
-                  height: 34,
-                  padding: '0 10px',
+                  height: 36,
+                  padding: '0 10px 2px',
                   border: 0,
                   borderBottom: `2px solid ${selected ? color.brand : 'transparent'}`,
                   background: 'transparent',
@@ -369,6 +370,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                   color: selected ? color.ink : color.ink3,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
+                  flex: '0 0 auto',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
@@ -396,7 +398,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
             );
           })}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingBottom: 12 }}>
+        <div className="bt-notify-chips">
           <Chip active={chips.has('reported')} onClick={() => toggleChip('reported')}>Reported by me</Chip>
           <Chip active={chips.has('assigned')} onClick={() => toggleChip('assigned')}>Assigned</Chip>
           <Chip active={chips.has('access')} onClick={() => toggleChip('access')}>Access</Chip>
@@ -416,8 +418,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
             <button
               type="button"
               style={{
-                height: 28,
-                padding: '0 10px',
+                height: 30,
+                padding: '0 12px',
                 border: `1px solid ${color.border}`,
                 borderRadius: 999,
                 background: color.surface,
@@ -426,6 +428,8 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                 fontSize: 12.5,
                 fontWeight: 600,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                lineHeight: 1,
               }}
             >
               {projectLabel}
@@ -448,7 +452,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    padding: '8px 16px 4px',
+                    padding: '10px 16px 6px',
                     background: color.subtle,
                     borderBottom: `1px solid ${color.divider}`,
                     position: 'sticky',

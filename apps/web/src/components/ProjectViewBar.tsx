@@ -21,6 +21,7 @@ import {
   LIST_FIELD_LABEL,
   LIST_FIELDS,
   PRESET_VIEWS,
+  filtersBeyondPreset,
   readColumns,
   readGroup,
   readHiddenCols,
@@ -188,6 +189,12 @@ export function ProjectViewBar({
   };
 
   const selectedPreset = activePresetId(view.filters, view.viewId);
+  const extraFilters = filtersBeyondPreset(view.filters, view.viewId, PRESET_VIEWS);
+  const preset = PRESET_VIEWS.find((row) => row.id === selectedPreset);
+  const setExtraFilters = (extra: FilterCondition[]) => {
+    if (preset) onView({ filters: [...preset.filters, ...extra], viewId: preset.id });
+    else change({ filters: extra });
+  };
 
   const removeSaved = (id: string) => {
     const next = views.filter((v) => v.id !== id);
@@ -303,9 +310,10 @@ export function ProjectViewBar({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8, overflowX: isPhone ? 'visible' : 'auto' }}>
-        <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 4, minWidth: 0 }}>{viewTabs}</div>
-        <div ref={panelRef} style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 4, overflowX: isPhone ? 'visible' : 'auto' }}>
+          {viewTabs}
+        </div>
+        <div ref={panelRef} style={{ position: 'relative', flex: 'none' }}>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: color.ink3, cursor: 'pointer' }}>
             <FilterIcon /> Filter
           </button>
@@ -313,9 +321,9 @@ export function ProjectViewBar({
             <FilterBuilder
               detail={detail}
               labels={labels}
-              filters={view.filters}
+              filters={extraFilters}
               count={count}
-              onChange={(filters) => change({ filters })}
+              onChange={setExtraFilters}
               open={open}
             />
           )}
@@ -324,18 +332,17 @@ export function ProjectViewBar({
           <button
             type="button"
             onClick={() => onShowHidden(!showHidden)}
-            style={{ ...controlStyle, color: showHidden ? color.brandStrong : color.ink3, cursor: 'pointer' }}
+            style={{ ...controlStyle, flex: 'none', color: showHidden ? color.brandStrong : color.ink3, cursor: 'pointer' }}
           >
             {showHidden ? 'Hide archived sections' : 'Show hidden sections'}
           </button>
         )}
-        {view.filters.map((condition) => (
-          <span key={condition.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
+        {extraFilters.map((condition) => (
+          <span key={condition.id} style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
             {chipLabel(condition, detail)}
-            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => change({ filters: view.filters.filter((f) => f.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
+            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => setExtraFilters(extraFilters.filter((row) => row.id !== condition.id))} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
-        </div>
         {listControls}
         {boardControls}
       </div>
@@ -449,7 +456,7 @@ export function FilterBuilder({
     onChange(filters.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
   return (
-    <div ref={panel} role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, left: 0, width: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: color.shadow, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div ref={panel} role="dialog" aria-labelledby={titleId} style={{ position: 'absolute', zIndex: 30, top: 40, right: 0, left: 'auto', width: filters.length > 0 ? 'min(760px, calc(100vw - 48px))' : 'max-content', minWidth: 280, maxWidth: 'min(760px, calc(100vw - 48px))', background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.lg, boxShadow: color.shadow, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span id={titleId} className="bt-sr-only">Filter builder</span>
       {filters.map((row, index) => (
         <ConditionRow

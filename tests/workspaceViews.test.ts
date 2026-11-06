@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import type { Project, ProjectDetail, Task, WorkspaceTasks } from '../apps/web/src/api/types.ts';
 import {
+  filtersBeyondPreset,
   groupWorkspaceTasks,
+  PRESET_VIEWS,
   taskMatches,
   WORKSPACE_PRESET_VIEWS,
   workspaceFilterDetail,
@@ -112,5 +114,14 @@ describe('workspace views', () => {
       labels: [],
     };
     expect(workspaceFilterDetail(data, [project]).workflow.statuses[0]?.name).toBe('Testing');
+  });
+
+  test('Open preset does not surface Status category chips', () => {
+    const open = PRESET_VIEWS.find((row) => row.id === 'preset-open')!;
+    expect(filtersBeyondPreset(open.filters, 'preset-open', PRESET_VIEWS)).toEqual([]);
+    const extra = { id: 'mine', field: 'assignee' as const, op: 'is' as const, values: ['me'] };
+    expect(filtersBeyondPreset([...open.filters, extra], 'preset-open', PRESET_VIEWS)).toEqual([extra]);
+    expect(filtersBeyondPreset(open.filters, 'saved-closed', PRESET_VIEWS)).toEqual([]);
+    expect(filtersBeyondPreset(open.filters, null, PRESET_VIEWS)).toEqual([]);
   });
 });

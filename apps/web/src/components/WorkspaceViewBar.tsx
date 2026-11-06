@@ -9,6 +9,7 @@ import { useIsPhone } from '../hooks/useIsPhone';
 import {
   activeWorkspacePresetId,
   chipLabel,
+  filtersBeyondPreset,
   decodeFilters,
   encodeFilters,
   fieldLabel,
@@ -125,6 +126,12 @@ export function WorkspaceViewBar({
 
   const change = (patch: Partial<WorkspaceView>) => onView({ ...patch, viewId: null });
   const selectedPreset = activeWorkspacePresetId(view.filters, view.viewId);
+  const extraFilters = filtersBeyondPreset(view.filters, view.viewId, WORKSPACE_PRESET_VIEWS);
+  const preset = WORKSPACE_PRESET_VIEWS.find((row) => row.id === selectedPreset);
+  const setExtraFilters = (extra: FilterCondition[]) => {
+    if (preset) onView({ filters: [...preset.filters, ...extra], viewId: preset.id });
+    else change({ filters: extra });
+  };
 
   const removeSaved = (id: string) => {
     const next = views.filter((row) => row.id !== id);
@@ -209,17 +216,17 @@ export function WorkspaceViewBar({
             <FilterBuilder
               detail={detail}
               labels={labels}
-              filters={view.filters}
+              filters={extraFilters}
               count={count}
-              onChange={(filters) => change({ filters })}
+              onChange={setExtraFilters}
               open={open}
             />
           )}
         </div>
-        {view.filters.map((condition) => (
+        {extraFilters.map((condition) => (
           <span key={condition.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
             {chipLabel(condition, detail)}
-            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => change({ filters: view.filters.filter((row) => row.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
+            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => setExtraFilters(extraFilters.filter((row) => row.id !== condition.id))} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
         {!isPhone && (
