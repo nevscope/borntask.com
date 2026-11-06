@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { COMMENT_REACTION_KINDS, createTaskStartSlug, isTaskDescriptionTooLong, planningTypeAllowed, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
+import { COMMENT_REACTION_KINDS, createTaskStartSlug, isTaskDescriptionTooLong, planningTypeAllowed, startNotAfterDue, suggestedBranchName, TASK_DESCRIPTION_TOO_LONG, taskDescriptionSchema } from '@borntask/shared';
 import { prisma } from '../db.js';
 import { requireAuth } from '../context.js';
 import { forbidden, notFound, sendError, validation } from '../errors.js';
@@ -56,6 +56,7 @@ const createTaskSchema = z.object({
   assigneeId: z.string().nullable(),
   priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
   dueDate: z.string().nullable(),
+  startDate: z.string().nullable().optional(),
   labels: z.array(z.string()),
   attachmentIds: z.array(z.string()),
   planningParentId: z.string().nullable().optional(),
@@ -69,6 +70,7 @@ const updateTaskSchema = z
     assigneeId: z.string().nullable(),
     priority: z.enum(['urgent', 'high', 'medium', 'low', 'none']),
     dueDate: z.string().nullable(),
+    startDate: z.string().nullable(),
     estimate: z.string().trim().max(40).nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),
@@ -80,6 +82,14 @@ const updateTaskSchema = z
     })),
   })
   .partial();
+
+function ymd(value: Date | null | undefined): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function assertStartNotAfterDue(start: string | null | undefined, due: string | null | undefined) {
+  if (!startNotAfterDue(start, due)) throw validation('Start date cannot be after due date.');
+}
 
 const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -434,6 +444,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const planningParentId = await resolvePlanningParent(auth.db, project, input.type, input.planningParentId);
       const statusId = wf.statusIdBySlug[startSlug] ?? wf.statusIdBySlug.todo ?? Object.values(wf.statusIdBySlug)[0];
       if (!statusId) throw validation('Workflow has no start status.');
+      assertStartNotAfterDue(input.startDate, input.dueDate);
       const last = await auth.db.task.findFirst({
         where: { projectId: project.id },
         orderBy: { number: 'desc' },
@@ -460,6 +471,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           reporterId: auth.userId,
           priority: input.priority,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          startDate: input.startDate ? new Date(input.startDate) : null,
           position: nextPosition(lastInSection?.position ?? null),
           planningParentId,
         },
@@ -560,6 +572,10 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         ? undefined
         : await resolvePlanningParent(auth.db, row.project, nextSlug, input.planningParentId, row.id);
       const releaseId = await resolveReleaseId(auth, input.releaseId);
+      assertStartNotAfterDue(
+        input.startDate === undefined ? ymd(row.startDate) : input.startDate,
+        input.dueDate === undefined ? ymd(row.dueDate) : input.dueDate,
+      );
       const updated = await auth.db.task.update({
         where: { id: row.id },
         data: {
@@ -573,6 +589,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           assigneeId: input.assigneeId === undefined ? undefined : input.assigneeId,
           priority: input.priority,
           dueDate: input.dueDate === undefined ? undefined : input.dueDate ? new Date(input.dueDate) : null,
+          startDate: input.startDate === undefined ? undefined : input.startDate ? new Date(input.startDate) : null,
           estimate: input.estimate === undefined ? undefined : input.estimate?.trim() || null,
           sectionId: input.sectionId,
           planningParentId,
@@ -772,6 +789,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           reporterId: auth.userId,
           priority: source.priority,
           dueDate: source.dueDate,
+          startDate: source.startDate,
           position: nextPosition(lastInSection?.position ?? null),
           planningParentId: source.planningParentId,
         },

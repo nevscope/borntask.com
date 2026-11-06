@@ -17,6 +17,8 @@ import {
   useToggleCommentReaction,
   useDeleteTask,
   useMe,
+  useMarkNotificationsRead,
+  useNotifications,
   useProject,
   useProjectTasks,
   useRestoreTask,
@@ -53,6 +55,7 @@ import { TaskLinks } from './TaskLinks';
 import { AssigneePicker, DuePicker, LabelPicker, PriorityPicker, StatusMenu, TypePicker } from './FieldPickers';
 import { useMoveFlow } from './useMoveFlow';
 import { useStatusToast } from './StatusToast';
+import { unreadIdsClearedByOpeningTask } from '../lib/bellInbox';
 import { useTaskParam } from './useTaskParam';
 import { setLiveDrawerGuard } from '../lib/liveDrawer';
 import { recordLastViewed } from '../lib/lastViewed';
@@ -69,6 +72,8 @@ export function TaskDrawer() {
   const task = useTask(taskKey);
   const detail = useProject(projectKey);
   const userId = useMe().data?.user.id;
+  const notificationItems = useNotifications().data?.items;
+  const markNotificationsRead = useMarkNotificationsRead();
   const guard = useRef<CloseGuard>({ dirty: false, flush: () => {} });
   const [discardOpen, setDiscardOpen] = useState(false);
   const isPhone = useIsPhone();
@@ -93,6 +98,13 @@ export function TaskDrawer() {
     if (!task.data) return;
     recordLastViewed(userId, { key: task.data.key, title: task.data.title, projectKey: task.data.projectKey });
   }, [userId, task.data?.key, task.data?.title, task.data?.projectKey]);
+
+  useEffect(() => {
+    if (!task.data || !notificationItems) return;
+    const ids = unreadIdsClearedByOpeningTask(notificationItems, task.data.key);
+    if (ids.length === 0) return;
+    markNotificationsRead.mutate({ ids });
+  }, [task.data?.key, notificationItems, markNotificationsRead]);
 
   useEffect(() => {
     if (!task.data?.redirectedFrom || !taskKey) return;
@@ -695,7 +707,11 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
 
         <div className={isPhone ? 'bt-task-fields bt-task-fields-phone' : 'bt-task-fields'}>
           <FieldLabel>Assignee</FieldLabel>
-          <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} onChange={(assigneeId) => save({ assigneeId })} />
+          <span className="bt-field-wide">
+            <AssigneePicker value={task.assigneeId} users={memberUsers} detail={detail} meId={me?.user.id} onChange={(assigneeId) => save({ assigneeId })} />
+          </span>
+          <FieldLabel>Start</FieldLabel>
+          <DuePicker value={task.startDate} ariaLabel="Change start date" onChange={(startDate) => save({ startDate })} />
           <FieldLabel>Due</FieldLabel>
           <DuePicker value={task.dueDate} onChange={(dueDate) => save({ dueDate })} />
           <FieldLabel>Estimate</FieldLabel>

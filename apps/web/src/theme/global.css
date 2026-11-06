@@ -48,6 +48,23 @@ a { color: var(--bt-brand-strong); }
 }
 .bt-topbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 12px 28px; background: var(--bt-surface); border-bottom: 1px solid var(--bt-border); }
 .bt-page { padding: 24px 28px 56px; display: flex; flex-direction: column; gap: 16px; }
+.bt-view-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.bt-view-tabs::-webkit-scrollbar { display: none; }
+.bt-view-tabs.is-wrap {
+  flex-wrap: wrap;
+  overflow: visible;
+}
 
 .bt-nav-link { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: var(--bt-ink3); text-decoration: none; font-size: 13.5px; }
 .bt-nav-link.bt-nav-sub { height: 34px; }
@@ -73,6 +90,32 @@ a { color: var(--bt-brand-strong); }
 
 .bt-h1 { margin: 0; font-family: var(--bt-display); font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
 .bt-card { background: var(--bt-surface); border: 1px solid var(--bt-border); border-radius: 12px; overflow: hidden; }
+.bt-gantt-scroll { overflow: auto; background: var(--bt-surface); border: 1px solid var(--bt-border); border-radius: 12px; max-height: calc(100dvh - 280px); }
+.bt-gantt-weekend {
+  background-color: var(--bt-subtle);
+}
+.bt-gantt-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bt-surface);
+  border-right: 1px solid var(--bt-divider);
+}
+.bt-gantt-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bt-surface);
+}
+.bt-gantt-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: var(--bt-surface);
+  border-right: 1px solid var(--bt-divider);
+  border-bottom: 1px solid var(--bt-divider);
+}
 .bt-group-head { display: flex; align-items: center; gap: 8px; padding: 0 16px; height: 40px; font-size: 13px; font-weight: 600; background: var(--bt-subtle); border-bottom: 1px solid var(--bt-divider); }
 button.bt-group-head { width: 100%; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 button.bt-group-head:hover { background: var(--bt-chip); }
@@ -309,10 +352,12 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 50;
-  width: min(960px, calc(100vw - 48px));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  width: min(840px, calc(100vw - 48px));
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 8px;
   padding: 10px 12px;
   background: var(--bt-inverse);
   color: var(--bt-inverse-fg);
@@ -320,11 +365,42 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
   box-shadow: var(--bt-shadow);
 }
 .bt-bulk-bar-row {
+  display: contents;
+}
+.bt-bulk-bar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
+.bt-bulk-bar-place {
+  grid-column: 3;
+}
+.bt-bulk-bar-comment { grid-column: 1 / -1; }
+.bt-bulk-bar-esc {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--bt-inverse-control);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--bt-inverse-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bt-bulk-bar-text {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--bt-inverse-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bt-bulk-bar-text.danger { color: var(--bt-inverse-danger); }
 .bt-bulk-bar-count {
   display: inline-flex;
   align-items: center;
@@ -336,6 +412,7 @@ button.bt-row { width: 100%; font: inherit; color: inherit; text-align: left; }
 }
 .bt-bulk-bar-rule { width: 1px; height: 22px; background: var(--bt-inverse-control); flex: none; }
 .bt-bulk-bar-hint {
+  grid-column: 3 / -1;
   margin: 0;
   font-size: 12px;
   line-height: 1.4;

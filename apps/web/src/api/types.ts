@@ -249,6 +249,8 @@ export const TaskSchema = z.object({
   priority: PrioritySchema,
   /** Calendar date, YYYY-MM-DD. */
   dueDate: z.string().nullable(),
+  /** Calendar date, YYYY-MM-DD. */
+  startDate: z.string().nullable(),
   /** Optional effort note, for example 2h or 1 day. Not a timesheet entry. */
   estimate: z.string().nullable().optional(),
   labels: z.array(z.string()),
@@ -483,6 +485,7 @@ export const CreateTaskInputSchema = z.object({
   assigneeId: z.string().nullable(),
   priority: PrioritySchema,
   dueDate: z.string().nullable(),
+  startDate: z.string().nullable().optional(),
   labels: z.array(z.string()),
   /** Ids returned by the upload endpoint; attached when the task is created. */
   attachmentIds: z.array(z.string()),
@@ -498,6 +501,7 @@ export const UpdateTaskInputSchema = z
     assigneeId: z.string().nullable(),
     priority: PrioritySchema,
     dueDate: z.string().nullable(),
+    startDate: z.string().nullable(),
     estimate: z.string().trim().max(40).nullable(),
     labels: z.array(z.string()),
     sectionId: z.string(),

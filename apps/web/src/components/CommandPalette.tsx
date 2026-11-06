@@ -44,6 +44,7 @@ export function CommandPalette() {
       ...(canTimesheets ? [{ id: 'reports', label: 'Go to Reports', hint: '', kind: 'action' as const, run: () => navigate('/reports') }] : []),
       { id: 'releases', label: 'Go to Releases', hint: '', kind: 'action' as const, run: () => navigate('/releases') },
       { id: 'board', label: 'Switch to board view', hint: 'V', kind: 'action' as const, run: () => { if (boardKey) navigate(`/p/${boardKey}/board`); } },
+      { id: 'gantt', label: 'Switch to Gantt view', hint: '', kind: 'action' as const, run: () => { if (boardKey) navigate(`/p/${boardKey}/gantt`); } },
       { id: 'search', label: 'Search', hint: '', kind: 'action' as const, run: () => navigate(q.trim() ? `/search?q=${encodeURIComponent(q)}` : '/search') },
       { id: 'projects', label: 'Go to Projects', hint: '', kind: 'action' as const, run: () => navigate('/projects') },
       ...projects

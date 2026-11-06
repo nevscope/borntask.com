@@ -8,11 +8,24 @@ export function inTab(note: Notification, tab: BellTab): boolean {
   if (tab === 'all') return true;
   if (tab === 'action') {
     if (note.outcome) return false;
-    return note.kind === 'assigned' || note.kind === 'access_request' || Boolean(note.needsAccept) || Boolean(note.needsAction);
+    if (note.kind === 'assigned') return !note.readAt;
+    return note.kind === 'access_request' || Boolean(note.needsAccept) || Boolean(note.needsAction);
   }
   if (tab === 'mentions') return note.kind === 'mention';
   if (note.kind === 'access_request' && note.outcome) return true;
+  if (note.kind === 'assigned' && note.readAt) return true;
   return note.kind === 'moved' || note.kind === 'comment' || note.kind === 'github';
+}
+
+/** Opening the task drawer marks these as read. Invites and access requests stay until you accept or decline. */
+export function unreadIdsClearedByOpeningTask(items: Notification[], taskKey: string): string[] {
+  return items
+    .filter((note) => {
+      if (note.readAt || note.taskKey !== taskKey) return false;
+      if (note.kind === 'access_request' || note.needsAccept) return false;
+      return true;
+    })
+    .map((note) => note.id);
 }
 
 export function matchesFilters(

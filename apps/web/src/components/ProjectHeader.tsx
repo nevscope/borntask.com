@@ -89,8 +89,8 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
   const joined = listed?.joined ?? project.joined;
   const showJoin = pendingInvite || (me?.workspaceRole === 'owner' && joined === false);
   const isPhone = useIsPhone();
-  const views = (['list', 'board', 'trash', 'members', 'structure'] as const);
-  const phoneViews = (['list', 'board'] as const);
+  const views = (['list', 'board', 'gantt', 'trash', 'members', 'structure'] as const);
+  const phoneViews = (['list', 'board', 'gantt'] as const);
   const moreViews = (['trash', 'members', 'structure'] as const);
 
   return (
@@ -210,7 +210,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
         {(isPhone ? phoneViews : views).map((view) => (
           <NavLink
             key={view}
-            to={`${view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}${view === 'list' || view === 'board' ? search : ''}`}
+            to={`${view === 'members' || view === 'structure' ? `/p/${project.key}/settings/${view}` : `/p/${project.key}/${view}`}${view === 'list' || view === 'board' || view === 'gantt' ? search : ''}`}
             style={({ isActive }) => ({
               height: isPhone ? 36 : 38,
               padding: isPhone ? '0 10px' : '0 12px',
@@ -224,7 +224,7 @@ export function ProjectHeader({ detail }: { detail: ProjectDetail }) {
               marginBottom: -1,
             })}
           >
-            {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
+            {view === 'list' ? 'List' : view === 'board' ? 'Board' : view === 'gantt' ? 'Gantt' : view === 'trash' ? 'Trash' : view === 'members' ? 'Members' : 'Sections'}
           </NavLink>
         ))}
         {isPhone && (

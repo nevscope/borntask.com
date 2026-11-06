@@ -139,7 +139,7 @@ export function ProjectViewBar({
   showHidden,
   onShowHidden,
 }: {
-  mode: 'list' | 'board';
+  mode: 'list' | 'board' | 'gantt';
   detail: ProjectDetail;
   workspaceId: string;
   canShare: boolean;
@@ -219,6 +219,20 @@ export function ProjectViewBar({
     setSaving(false);
   };
 
+  const tabBtn = (active: boolean): CSSProperties => ({
+    flex: 'none',
+    height: 32,
+    padding: '0 12px',
+    border: 0,
+    background: 'transparent',
+    font: 'inherit',
+    fontSize: 13.5,
+    fontWeight: active ? 600 : 400,
+    color: active ? color.ink : color.muted,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  });
+
   const viewTabs = (
     <>
       {PRESET_VIEWS.map((preset) => (
@@ -226,52 +240,27 @@ export function ProjectViewBar({
           key={preset.id}
           type="button"
           onClick={() => applyPreset(preset)}
-          style={{
-            height: 32,
-            padding: '0 12px',
-            border: 0,
-            background: 'transparent',
-            font: 'inherit',
-            fontSize: 13.5,
-            fontWeight: selectedPreset === preset.id ? 600 : 400,
-            color: selectedPreset === preset.id ? color.ink : color.muted,
-            cursor: 'pointer',
-          }}
+          style={tabBtn(selectedPreset === preset.id)}
         >
           {preset.name}
         </button>
       ))}
       {views.map((saved) => (
-        <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 4px 0 12px' }}>
+        <span key={saved.id} style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 6, height: 32, padding: '0 4px 0 12px', whiteSpace: 'nowrap' }}>
           <button
             type="button"
             onClick={() => applySaved(saved)}
-            style={{
-              height: 32,
-              padding: 0,
-              border: 0,
-              background: 'transparent',
-              font: 'inherit',
-              fontSize: 13.5,
-              fontWeight: view.viewId === saved.id ? 600 : 400,
-              color: view.viewId === saved.id ? color.ink : color.muted,
-              cursor: 'pointer',
-            }}
+            style={{ ...tabBtn(view.viewId === saved.id), padding: 0 }}
           >
             {saved.name}
           </button>
           <button type="button" aria-label={`Remove view ${saved.name}`} onClick={() => setPendingDelete(saved)} style={iconBtn}>×</button>
         </span>
       ))}
-      {!isPhone && (
-      <button type="button" onClick={() => setSaving(true)} style={{ height: 32, padding: '0 10px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        + Save view
-      </button>
-      )}
     </>
   );
 
-  const listControls = mode === 'list' && !isPhone && (
+  const listControls = (mode === 'list' || mode === 'gantt') && !isPhone && (
     <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 13, color: color.muted }}>Group</span>
       <select aria-label="Group" value={allowedGroup(view.group, detail.workBreakdown)} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
@@ -292,7 +281,7 @@ export function ProjectViewBar({
         <option value="created">Created</option>
         <option value="title">Title</option>
       </select>
-      <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
+      {mode === 'list' && <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />}
     </span>
   );
   const boardControls = mode === 'board' && !isPhone && (
@@ -309,10 +298,15 @@ export function ProjectViewBar({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', flex: 1, minWidth: 0, flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 4, overflowX: isPhone ? 'visible' : 'auto' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div className={isPhone ? 'bt-view-tabs is-wrap' : 'bt-view-tabs'}>
           {viewTabs}
         </div>
+        {!isPhone && (
+          <button type="button" onClick={() => setSaving(true)} style={{ flex: 'none', height: 32, padding: '0 10px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            + Save view
+          </button>
+        )}
         <div ref={panelRef} style={{ position: 'relative', flex: 'none' }}>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: color.ink3, cursor: 'pointer' }}>
             <FilterIcon /> Filter
@@ -350,7 +344,7 @@ export function ProjectViewBar({
         open={saving}
         projectName={detail.project.name}
         canShare={canShare}
-        summary={[mode === 'list' ? 'List' : 'Board', `Grouped by ${view.group}`, `${view.filters.length} filter${view.filters.length === 1 ? '' : 's'}`, `Sorted by ${view.sort}`]}
+        summary={[mode === 'list' ? 'List' : mode === 'board' ? 'Board' : 'Gantt', `Grouped by ${view.group}`, `${view.filters.length} filter${view.filters.length === 1 ? '' : 's'}`, `Sorted by ${view.sort}`]}
         onCancel={() => setSaving(false)}
         onSave={save}
       />

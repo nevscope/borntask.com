@@ -52,6 +52,7 @@ function task(over: Partial<Task>): Task {
     reporterId: 'u1',
     priority: 'medium',
     dueDate: null,
+    startDate: null,
     labels: [],
     customFields: [],
     position: 1,

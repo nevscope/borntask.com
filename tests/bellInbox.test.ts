@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Notification } from '../apps/web/src/api/types.ts';
-import { collapseBellItems, inTab, matchesFilters, updateSummary } from '../apps/web/src/lib/bellInbox.ts';
+import { collapseBellItems, inTab, matchesFilters, unreadIdsClearedByOpeningTask, updateSummary } from '../apps/web/src/lib/bellInbox.ts';
 import { parseMovedKind, movedKind } from '../apps/api/src/lib/stageNotify.ts';
 
 const actor = { id: 'u1', name: 'Karl', email: 'k@x', initials: 'KF' };
@@ -27,6 +27,19 @@ describe('bell tabs and filters', () => {
     expect(inTab(note({ id: '8', kind: 'access_request', outcome: 'approved', taskKey: null }), 'updates')).toBe(true);
     expect(inTab(note({ id: '5', kind: 'mention' }), 'mentions')).toBe(true);
     expect(inTab(note({ id: '6', kind: 'comment' }), 'updates')).toBe(true);
+    expect(inTab(note({ id: '9', kind: 'assigned', readAt: '2026-11-06T11:00:00.000Z' }), 'action')).toBe(false);
+    expect(inTab(note({ id: '9', kind: 'assigned', readAt: '2026-11-06T11:00:00.000Z' }), 'updates')).toBe(true);
+  });
+
+  test('opening a task clears assignment and comment unread ids, not access requests', () => {
+    const items = [
+      note({ id: 'a', kind: 'assigned', taskKey: 'WEB-1' }),
+      note({ id: 'c', kind: 'comment', taskKey: 'WEB-1' }),
+      note({ id: 'r', kind: 'assigned', taskKey: 'WEB-1', readAt: '2026-11-06T11:00:00.000Z' }),
+      note({ id: 'o', kind: 'assigned', taskKey: 'WEB-2' }),
+      note({ id: 'x', kind: 'access_request', taskKey: 'WEB-1' }),
+    ];
+    expect(unreadIdsClearedByOpeningTask(items, 'WEB-1')).toEqual(['a', 'c']);
   });
 
   test('filters keep reported, assigned, access and project', () => {

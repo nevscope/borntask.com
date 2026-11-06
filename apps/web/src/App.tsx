@@ -17,6 +17,7 @@ import { WelcomeMemberScreen } from './screens/auth/WelcomeMemberScreen';
 import { WrongAccountScreen } from './screens/auth/WrongAccountScreen';
 import { MyTasksScreen } from './screens/MyTasksScreen';
 import { ProjectBoardScreen } from './screens/ProjectBoardScreen';
+import { ProjectGanttScreen } from './screens/ProjectGanttScreen';
 import { ProjectListScreen } from './screens/ProjectListScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { TrashScreen } from './screens/TrashScreen';
@@ -128,6 +129,7 @@ function Shell() {
         <Route path="/p/:projectKey" element={<Navigate to="list" replace />} />
         <Route path="/p/:projectKey/list" element={<ProjectListScreen />} />
         <Route path="/p/:projectKey/board" element={<ProjectBoardScreen />} />
+        <Route path="/p/:projectKey/gantt" element={<ProjectGanttScreen />} />
         <Route path="/p/:projectKey/trash" element={<TrashScreen />} />
         <Route path="/p/:projectKey/settings/details" element={<ProjectDetailsScreen />} />
         <Route path="/p/:projectKey/settings/members" element={<ProjectMembersScreen />} />

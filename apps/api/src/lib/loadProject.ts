@@ -194,6 +194,7 @@ export function mapTask(row: {
   reporterId: string;
   priority: 'urgent' | 'high' | 'medium' | 'low' | 'none';
   dueDate: Date | null;
+  startDate?: Date | null;
   estimate?: string | null;
   position: string;
   createdAt: Date;
@@ -226,6 +227,7 @@ export function mapTask(row: {
     reporterId: row.reporterId,
     priority: row.priority,
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
+    startDate: row.startDate ? row.startDate.toISOString().slice(0, 10) : null,
     estimate: row.estimate?.trim() || null,
     labels: (row.labels ?? []).map((l) => l.label.name),
     customFields: mapCustomFieldValues(row.customFieldValues),

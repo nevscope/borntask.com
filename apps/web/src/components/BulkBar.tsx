@@ -1,7 +1,8 @@
 // Dark bar shown when list rows are selected. Moves still go through moveTask.
 import { DatePicker, Select } from 'antd';
 import { useEffect, useState } from 'react';
-import { useDeleteTask, useMe, useMoveTask, useMoveTaskToProject, useReorderTask, useRestoreTask, useUpdateTask } from '../api/queries';
+import { formatReleaseDate } from '@borntask/shared';
+import { useDeleteTask, useMe, useMoveTask, useMoveTaskToProject, useReleases, useReorderTask, useRestoreTask, useUpdateTask } from '../api/queries';
 import type { ProjectDetail, ProjectRole, Task } from '../api/types';
 import { moveOptions } from '../lib/workflow';
 import { color, radius } from '../theme/tokens';
@@ -29,6 +30,7 @@ export function BulkBar({
   const del = useDeleteTask();
   const restore = useRestoreTask();
   const moveProject = useMoveTaskToProject();
+  const releases = useReleases();
   const [commentFor, setCommentFor] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
@@ -92,36 +94,76 @@ export function BulkBar({
           {tasks.length} selected
         </span>
         <span className="bt-bulk-bar-rule" aria-hidden="true" />
+        <div className="bt-bulk-bar-actions">
+          <Select
+            aria-label="Move to"
+            placeholder="Move to"
+            value={undefined}
+            variant="filled"
+            popupMatchSelectWidth={false}
+            options={allowed.map((status) => ({ value: status.id, label: status.name }))}
+            onChange={(statusId: string) => void moveAll(statusId)}
+            style={{ minWidth: 110 }}
+            disabled={allowed.length === 0}
+          />
+          <Select
+            aria-label="Assign"
+            placeholder="Assign"
+            value={undefined}
+            variant="filled"
+            popupMatchSelectWidth={false}
+            options={[{ value: '__none', label: 'Unassigned' }, ...members.map((user) => ({ value: user.id, label: user.name }))]}
+            onChange={(value: string) => void patchAll({ assigneeId: value === '__none' ? null : value })}
+            style={{ minWidth: 110 }}
+          />
+          <DatePicker
+            aria-label="Due date"
+            placeholder="Due date"
+            variant="filled"
+            onChange={(value) => void patchAll({ dueDate: value ? value.format('YYYY-MM-DD') : null })}
+          />
+          <Select
+            aria-label="Labels"
+            mode="tags"
+            placeholder="Labels"
+            variant="filled"
+            value={labels}
+            onChange={setLabels}
+            onOpenChange={(open) => {
+              if (open || labels.length === 0) return;
+              void (async () => {
+                for (const task of tasks) {
+                  await update.mutateAsync({ key: task.key, input: { labels: [...new Set([...task.labels, ...labels])] } });
+                }
+                setLabels([]);
+                onClear();
+              })();
+            }}
+            style={{ minWidth: 120 }}
+          />
+        </div>
+        <button type="button" className="bt-bulk-bar-esc" onClick={onClear} aria-label="Clear selection">Esc</button>
+      </div>
+      <div className="bt-bulk-bar-actions bt-bulk-bar-place">
         <Select
-          aria-label="Move to"
-          placeholder="Move to"
+          aria-label="Add to release"
+          placeholder="Release"
           value={undefined}
           variant="filled"
           popupMatchSelectWidth={false}
-          options={allowed.map((status) => ({ value: status.id, label: status.name }))}
-          onChange={(statusId: string) => void moveAll(statusId)}
-          style={{ minWidth: 120 }}
-          disabled={allowed.length === 0}
-        />
-        <Select
-          aria-label="Assign"
-          placeholder="Assign"
-          value={undefined}
-          variant="filled"
-          popupMatchSelectWidth={false}
-          options={[{ value: '__none', label: 'Unassigned' }, ...members.map((user) => ({ value: user.id, label: user.name }))]}
-          onChange={(value: string) => void patchAll({ assigneeId: value === '__none' ? null : value })}
-          style={{ minWidth: 120 }}
-        />
-        <DatePicker
-          aria-label="Due date"
-          placeholder="Due date"
-          variant="filled"
-          onChange={(value) => void patchAll({ dueDate: value ? value.format('YYYY-MM-DD') : null })}
+          options={[
+            { value: '__none', label: 'No release' },
+            ...(releases.data ?? []).map((row) => ({
+              value: row.id,
+              label: `${row.name} (${formatReleaseDate(row.date)})`,
+            })),
+          ]}
+          onChange={(value: string) => void patchAll({ releaseId: value === '__none' ? null : value })}
+          style={{ minWidth: 130 }}
         />
         <Select
           aria-label="Move to section"
-          placeholder="Move to section"
+          placeholder="Section"
           value={undefined}
           variant="filled"
           popupMatchSelectWidth={false}
@@ -134,47 +176,18 @@ export function BulkBar({
               onClear();
             })();
           }}
-          style={{ minWidth: 160 }}
+          style={{ minWidth: 130 }}
         />
-        <Select
-          aria-label="Labels"
-          mode="tags"
-          placeholder="Labels"
-          variant="filled"
-          value={labels}
-          onChange={setLabels}
-          onOpenChange={(open) => {
-            if (open || labels.length === 0) return;
-            void (async () => {
-              for (const task of tasks) {
-                await update.mutateAsync({ key: task.key, input: { labels: [...new Set([...task.labels, ...labels])] } });
-              }
-              setLabels([]);
-              onClear();
-            })();
-          }}
-          style={{ minWidth: 140 }}
-        />
-        <button
-          type="button"
-          onClick={() => setConfirmMoveProject(true)}
-          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.inverseMuted, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
-        >
+        <button type="button" className="bt-bulk-bar-text" onClick={() => setConfirmMoveProject(true)}>
           Move to project
         </button>
-        <button
-          type="button"
-          onClick={() => setConfirmDelete(true)}
-          style={{ height: 32, padding: '0 12px', border: 0, borderRadius: radius.md, background: 'transparent', color: color.inverseDanger, font: 'inherit', fontSize: 13, cursor: 'pointer' }}
-        >
+        <button type="button" className="bt-bulk-bar-text danger" onClick={() => setConfirmDelete(true)}>
           Delete
         </button>
-        <span style={{ flex: 1 }} />
-        <button type="button" onClick={onClear} aria-label="Clear selection" style={{ height: 28, padding: '0 8px', border: `1px solid ${color.inverseControl}`, borderRadius: 5, background: 'transparent', color: color.inverseMuted, font: 'inherit', fontSize: 12, cursor: 'pointer' }}>Esc</button>
       </div>
       <p className="bt-bulk-bar-hint">Move to only offers stages allowed for every selected task</p>
       {commentFor && (
-        <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="bt-bulk-bar-comment" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             aria-label="Comment for this move"
             value={comment}

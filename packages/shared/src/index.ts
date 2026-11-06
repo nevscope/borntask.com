@@ -27,3 +27,4 @@ export * from './taskLinks.js';
 export * from './markdown.js';
 export * from './customFields.js';
 export * from './releases.js';
+export * from './gantt.js';

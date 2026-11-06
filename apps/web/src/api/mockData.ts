@@ -4,7 +4,7 @@
 import dayjs from 'dayjs';
 import { ApiError } from './http';
 import type { Activity, Api, Comment, Me, Notification, Project, ProjectDetail, ProjectMember, SearchHit, Section, StatusCounts, Subtask, Task, TaskDetail, User, Workflow } from './types';
-import { directedTaskLink, groupCommentReactions, isTaskBlocked, isTaskDescriptionTooLong, isTaskLinkRelation, TASK_DESCRIPTION_TOO_LONG, viewTaskLink } from '@borntask/shared';
+import { directedTaskLink, groupCommentReactions, isTaskBlocked, isTaskDescriptionTooLong, isTaskLinkRelation, startNotAfterDue, TASK_DESCRIPTION_TOO_LONG, viewTaskLink } from '@borntask/shared';
 import type { TaskLink } from './types';
 import { persistDescription, stripTags } from '../lib/descriptionHtml';
 import { isTaskKey, snippetAround } from '../lib/search';
@@ -115,6 +115,7 @@ function seed(s: Seed, position: number): Task {
     reporterId: 'u_daniela',
     priority: 'medium',
     dueDate: null,
+    startDate: null,
     estimate: null,
     labels: [],
     customFields: [],
@@ -136,8 +137,8 @@ function seed(s: Seed, position: number): Task {
 
 let tasks: Task[] = [
   // WEB · Homepage
-  seed({ key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', type: 'bug', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_maria', dueDate: day(3), priority: 'high' }, 1),
-  seed({ key: 'WEB-133', title: 'Lazy-load hero and product images', type: 'improvement', statusId: 'ready', sectionId: 's_web_home', assigneeId: 'u_karl', dueDate: day(2), priority: 'high', labels: ['performance'], githubBadge: 'merged' }, 2),
+  seed({ key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', type: 'bug', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_maria', startDate: day(1), dueDate: day(3), priority: 'high' }, 1),
+  seed({ key: 'WEB-133', title: 'Lazy-load hero and product images', type: 'improvement', statusId: 'ready', sectionId: 's_web_home', assigneeId: 'u_karl', startDate: day(0), dueDate: day(2), priority: 'high', labels: ['performance'], githubBadge: 'merged' }, 2),
   seed({ key: 'WEB-151', title: 'Hero copy for the autumn campaign', type: 'improvement', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_scope', reporterId: 'u_scope', dueDate: day(-1), priority: 'medium' }, 3),
   seed({ key: 'WEB-160', title: 'Customer reviews on product pages', type: 'idea', statusId: 'idea', sectionId: 's_web_home', reporterId: 'u_luke', description: 'Show star ratings and written reviews under each product, with moderation.' }, 4),
   seed({ key: 'WEB-155', title: 'Exit-intent discount popup', type: 'idea', statusId: 'idea', sectionId: 's_web_home', priority: 'low' }, 5),
@@ -148,13 +149,13 @@ let tasks: Task[] = [
     subtaskCount: { done: 1, total: 2 },
     githubBadge: 'pr_running',
   }, 1),
-  seed({ key: 'WEB-139', title: 'Add Apple Pay to checkout', type: 'feature', statusId: 'wip', sectionId: 's_web_checkout', assigneeId: 'u_luke', dueDate: day(7), priority: 'high', subtaskCount: { done: 2, total: 3 }, githubBadge: 'branch' }, 2),
+  seed({ key: 'WEB-139', title: 'Add Apple Pay to checkout', type: 'feature', statusId: 'wip', sectionId: 's_web_checkout', assigneeId: 'u_luke', startDate: day(2), dueDate: day(7), priority: 'high', subtaskCount: { done: 2, total: 3 }, githubBadge: 'branch' }, 2),
   seed({
     key: 'WEB-144', title: 'Show the delivery date before payment', type: 'feature', statusId: 'approved', sectionId: 's_web_checkout', dueDate: day(11),
     description: 'The promised window should be shown on the checkout summary step before the customer pays.',
   }, 3),
   // WEB · Platform
-  seed({ key: 'WEB-147', title: 'Rate-limit the login endpoint', type: 'feature', statusId: 'wip', sectionId: 's_web_platform', assigneeId: 'u_karl', dueDate: day(9), priority: 'high' }, 1),
+  seed({ key: 'WEB-147', title: 'Rate-limit the login endpoint', type: 'feature', statusId: 'wip', sectionId: 's_web_platform', assigneeId: 'u_karl', startDate: day(4), dueDate: day(9), priority: 'high' }, 1),
   seed({ key: 'WEB-149', title: 'Broken links on the 404 page', type: 'bug', statusId: 'on_hold', previousStatusId: 'wip', sectionId: 's_web_platform', assigneeId: 'u_maria', dueDate: day(-2), priority: 'low' }, 2),
   seed({ key: 'WEB-128', title: 'Move images to the new CDN', type: 'feature', statusId: 'deployed', sectionId: 's_web_platform', assigneeId: 'u_luke', dueDate: day(-3) }, 3),
   seed({ key: 'WEB-121', title: 'Regenerate the sitemap nightly', type: 'improvement', statusId: 'deployed', sectionId: 's_web_platform', assigneeId: 'u_karl', dueDate: day(-6) }, 4),
@@ -662,6 +663,9 @@ export const mockApi: Api = {
     const max = Math.max(0, ...tasks.filter((t) => t.projectKey === input.projectKey).map((t) => Number(t.key.split('-')[1])));
     const inSection = tasks.filter((t) => t.sectionId === input.sectionId);
     const now = new Date().toISOString();
+    if (!startNotAfterDue(input.startDate, input.dueDate)) {
+      throw new ApiError(400, 'VALIDATION', 'Start date cannot be after due date.');
+    }
     const task: Task = {
       id: uid('t'),
       key: `${input.projectKey}-${max + 1}`,
@@ -676,6 +680,7 @@ export const mockApi: Api = {
       reporterId: me.user.id,
       priority: input.priority,
       dueDate: input.dueDate,
+      startDate: input.startDate ?? null,
       labels: input.labels,
       customFields: [],
       position: Math.max(0, ...inSection.map((t) => t.position)) + 1,
@@ -699,6 +704,12 @@ export const mockApi: Api = {
   async updateTask(key, input) {
     await wait();
     const t = findTask(key);
+    if (!startNotAfterDue(
+      input.startDate === undefined ? t.startDate : input.startDate,
+      input.dueDate === undefined ? t.dueDate : input.dueDate,
+    )) {
+      throw new ApiError(400, 'VALIDATION', 'Start date cannot be after due date.');
+    }
     const description = input.description === undefined ? undefined : persistDescription(input.description);
     if (description !== undefined && isTaskDescriptionTooLong(description)) {
       throw new ApiError(400, 'VALIDATION', TASK_DESCRIPTION_TOO_LONG);
@@ -811,6 +822,7 @@ export const mockApi: Api = {
       assigneeId: null,
       priority: source.priority,
       dueDate: source.dueDate,
+      startDate: source.startDate,
       labels: source.labels,
       attachmentIds: [],
     });

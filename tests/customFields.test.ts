@@ -41,6 +41,7 @@ function task(over: Partial<Task> = {}): Task {
     reporterId: 'u1',
     priority: 'none',
     dueDate: null,
+    startDate: null,
     labels: [],
     customFields: [{ fieldId: 'cf1', value: 'Live' }],
     position: 1,
