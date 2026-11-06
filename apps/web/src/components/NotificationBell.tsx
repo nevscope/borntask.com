@@ -111,8 +111,9 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
   const [tab, setTab] = useState<'unread' | 'all' | 'viewed'>('unread');
   const [openGroups, setOpenGroups] = useState<Partial<Record<NotificationKind, boolean>>>({});
   const items = list?.items ?? [];
-  const unreadCount = list?.unreadCount ?? 0;
-  const shown = tab === 'unread' ? items.filter((n) => !n.readAt) : items;
+  const unreadItems = items.filter((n) => !n.readAt);
+  const unreadCount = unreadItems.length;
+  const shown = tab === 'unread' ? unreadItems : items;
   const groups = useMemo(() => groupedNotifications(shown), [shown]);
 
   const go = (note: Notification) => {
