@@ -264,9 +264,46 @@ export function ProjectViewBar({
     </>
   );
 
+  const listControls = mode === 'list' && !isPhone && (
+    <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 13, color: color.muted }}>Group</span>
+      <select aria-label="Group" value={allowedGroup(view.group, detail.workBreakdown)} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
+        <option value="section">Section</option>
+        <option value="status">Status</option>
+        <option value="assignee">Assignee</option>
+        <option value="priority">Priority</option>
+        {(detail.workBreakdown === 'stories' || detail.workBreakdown === 'epics_stories') && <option value="story">Story</option>}
+        {detail.workBreakdown === 'epics_stories' && <option value="epic">Epic</option>}
+        <option value="none">None</option>
+      </select>
+      <span style={{ fontSize: 13, color: color.muted }}>Sort</span>
+      <select aria-label="Sort" value={view.sort} onChange={(e) => change({ sort: readSort(e.target.value) })} style={controlStyle}>
+        <option value="manual">Manual</option>
+        <option value="due">Due date</option>
+        <option value="priority">Priority</option>
+        <option value="updated">Updated</option>
+        <option value="created">Created</option>
+        <option value="title">Title</option>
+      </select>
+      <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
+    </span>
+  );
+  const boardControls = mode === 'board' && !isPhone && (
+    <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 13, color: color.muted }}>Columns</span>
+      <select aria-label="Columns" value={view.columns} onChange={(e) => onView({ columns: readColumns(e.target.value) })} style={controlStyle}>
+        <option value="status">Status</option>
+        <option value="section">Section</option>
+        <option value="assignee">Assignee</option>
+        <option value="priority">Priority</option>
+      </select>
+    </span>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8, overflowX: isPhone ? 'visible' : 'auto' }}>
+      <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', flex: 1, minWidth: 0, flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 8, overflowX: isPhone ? 'visible' : 'auto' }}>
         <div style={{ display: 'flex', flexWrap: isPhone ? 'wrap' : 'nowrap', alignItems: 'center', gap: 4, minWidth: 0 }}>{viewTabs}</div>
         <div ref={panelRef} style={{ position: 'relative' }}>
           <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', gap: 6, color: color.ink3, cursor: 'pointer' }}>
@@ -298,41 +335,9 @@ export function ProjectViewBar({
             <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => change({ filters: view.filters.filter((f) => f.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
-        {mode === 'list' && !isPhone && (
-          <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            <span style={{ fontSize: 13, color: color.muted }}>Group</span>
-            <select aria-label="Group" value={allowedGroup(view.group, detail.workBreakdown)} onChange={(e) => change({ group: readGroup(e.target.value) })} style={controlStyle}>
-              <option value="section">Section</option>
-              <option value="status">Status</option>
-              <option value="assignee">Assignee</option>
-              <option value="priority">Priority</option>
-              {(detail.workBreakdown === 'stories' || detail.workBreakdown === 'epics_stories') && <option value="story">Story</option>}
-              {detail.workBreakdown === 'epics_stories' && <option value="epic">Epic</option>}
-              <option value="none">None</option>
-            </select>
-            <span style={{ fontSize: 13, color: color.muted }}>Sort</span>
-            <select aria-label="Sort" value={view.sort} onChange={(e) => change({ sort: readSort(e.target.value) })} style={controlStyle}>
-              <option value="manual">Manual</option>
-              <option value="due">Due date</option>
-              <option value="priority">Priority</option>
-              <option value="updated">Updated</option>
-              <option value="created">Created</option>
-              <option value="title">Title</option>
-            </select>
-            <ColumnPicker hidden={view.hiddenCols} onChange={(hiddenCols) => change({ hiddenCols })} />
-          </span>
-        )}
-        {mode === 'board' && !isPhone && (
-          <span style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            <span style={{ fontSize: 13, color: color.muted }}>Columns</span>
-            <select aria-label="Columns" value={view.columns} onChange={(e) => onView({ columns: readColumns(e.target.value) })} style={controlStyle}>
-              <option value="status">Status</option>
-              <option value="section">Section</option>
-              <option value="assignee">Assignee</option>
-              <option value="priority">Priority</option>
-            </select>
-          </span>
-        )}
+        </div>
+        {listControls}
+        {boardControls}
       </div>
       <SaveViewDialog
         open={saving}
@@ -361,13 +366,36 @@ export function ProjectViewBar({
 
 function ColumnPicker({ hidden, onChange }: { hidden: ListField[]; onChange: (hidden: ListField[]) => void }) {
   const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const panel = useClampToViewport<HTMLDivElement>(open);
+  useBackLayer(open, () => setOpen(false));
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onEscape, true);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onEscape, true);
+    };
+  }, [open]);
+
   return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={controlStyle}>
+    <div ref={box} style={{ position: 'relative' }}>
+      <button type="button" aria-haspopup="true" aria-expanded={open} aria-label="Columns" onClick={() => setOpen((value) => !value)} style={controlStyle}>
         Columns
       </button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: 36, zIndex: 20, width: 200, padding: 8, background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.md, boxShadow: color.shadow }}>
+        <div ref={panel} role="menu" style={{ position: 'absolute', right: 0, top: 36, zIndex: 40, width: 200, padding: 8, background: color.surface, border: `1px solid ${color.border}`, borderRadius: radius.md, boxShadow: color.shadow }}>
           {LIST_FIELDS.map((field) => {
             const shown = !hidden.includes(field);
             return (
