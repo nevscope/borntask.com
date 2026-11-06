@@ -31,6 +31,7 @@ export async function deleteProject(auth: Authed, project: { id: string; name: s
       await tx.notification.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
       await tx.taskWatcher.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
       await tx.taskLabel.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
+      await tx.customFieldValue.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
       await tx.comment.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
       await tx.attachment.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
       await tx.devLink.deleteMany({ where: { tenantId, taskId: { in: taskIds } } });
@@ -40,6 +41,7 @@ export async function deleteProject(auth: Authed, project: { id: string; name: s
 
     await tx.invitation.updateMany({ where: { tenantId, projectId }, data: { projectId: null } });
     await tx.chatIntegration.updateMany({ where: { tenantId, projectId }, data: { projectId: null } });
+    await tx.customField.deleteMany({ where: { tenantId, projectId } });
     await tx.section.deleteMany({ where: { tenantId, projectId } });
     await tx.project.delete({ where: { id: projectId } });
   });

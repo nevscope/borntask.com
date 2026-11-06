@@ -117,6 +117,7 @@ function seed(s: Seed, position: number): Task {
     dueDate: null,
     estimate: null,
     labels: [],
+    customFields: [],
     position,
     subtaskCount: { done: 0, total: 0 },
     commentCount: 0,
@@ -137,12 +138,12 @@ let tasks: Task[] = [
   // WEB · Homepage
   seed({ key: 'WEB-158', title: 'Cookie banner overlaps the nav on mobile', type: 'bug', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_maria', dueDate: day(3), priority: 'high' }, 1),
   seed({ key: 'WEB-133', title: 'Lazy-load hero and product images', type: 'improvement', statusId: 'ready', sectionId: 's_web_home', assigneeId: 'u_karl', dueDate: day(2), priority: 'high', labels: ['performance'], githubBadge: 'merged' }, 2),
-  seed({ key: 'WEB-151', title: 'Hero copy for the autumn campaign', type: 'improvement', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_scope', dueDate: day(-1), priority: 'medium' }, 3),
+  seed({ key: 'WEB-151', title: 'Hero copy for the autumn campaign', type: 'improvement', statusId: 'approved', sectionId: 's_web_home', assigneeId: 'u_scope', reporterId: 'u_scope', dueDate: day(-1), priority: 'medium' }, 3),
   seed({ key: 'WEB-160', title: 'Customer reviews on product pages', type: 'idea', statusId: 'idea', sectionId: 's_web_home', reporterId: 'u_luke', description: 'Show star ratings and written reviews under each product, with moderation.' }, 4),
   seed({ key: 'WEB-155', title: 'Exit-intent discount popup', type: 'idea', statusId: 'idea', sectionId: 's_web_home', priority: 'low' }, 5),
   // WEB · Checkout
   seed({
-    key: 'WEB-142', title: 'Checkout fails on Safari 17', type: 'bug', statusId: 'testing', sectionId: 's_web_checkout', assigneeId: 'u_scope', dueDate: day(0), priority: 'urgent', labels: ['safari', 'payments'],
+    key: 'WEB-142', title: 'Checkout fails on Safari 17', type: 'bug', statusId: 'testing', sectionId: 's_web_checkout', assigneeId: 'u_scope', dueDate: day(0), priority: 'urgent', labels: ['safari', 'payments'], customFields: [{ fieldId: 'cf_found_on', value: 'Live' }],
     description: 'Steps to reproduce\n1. Open the site in Safari 17 on macOS\n2. Add any product to the basket\n3. Pay by card with 3-D Secure\n\nExpected\nThe bank\'s 3-D Secure window opens.\n\nActual\nThe page reloads and the basket empties.',
     subtaskCount: { done: 1, total: 2 },
     githubBadge: 'pr_running',
@@ -230,6 +231,15 @@ const activity: Record<string, Activity[]> = {
   ],
 };
 
+function noteMeta(taskKey: string | null) {
+  const task = taskKey ? tasks.find((row) => row.key === taskKey) : undefined;
+  return {
+    taskTitle: task?.title ?? null,
+    reporterId: task?.reporterId ?? null,
+    assigneeId: task?.assigneeId ?? null,
+  };
+}
+
 let notifications: Notification[] = [
   {
     id: 'n_mention',
@@ -237,6 +247,7 @@ let notifications: Notification[] = [
     text: 'Maria Borg mentioned you: "still failing when the card needs 3-D Secure"',
     taskKey: 'WEB-142',
     projectKey: 'WEB',
+    ...noteMeta('WEB-142'),
     actor: users[1]!,
     createdAt: ago(0.58),
     readAt: null,
@@ -247,6 +258,7 @@ let notifications: Notification[] = [
     text: 'Karl Farrugia mentioned you on Lazy-load hero and product images',
     taskKey: 'WEB-133',
     projectKey: 'WEB',
+    ...noteMeta('WEB-133'),
     actor: users[4]!,
     createdAt: ago(5),
     readAt: null,
@@ -257,6 +269,7 @@ let notifications: Notification[] = [
     text: 'Daniela Vella mentioned you on Welcome pack checkout link',
     taskKey: 'CLI-9',
     projectKey: 'CLI',
+    ...noteMeta('CLI-9'),
     actor: users[3]!,
     createdAt: ago(8),
     readAt: ago(1),
@@ -267,6 +280,7 @@ let notifications: Notification[] = [
     text: 'Luke Camilleri mentioned you on Shorter onboarding questionnaire',
     taskKey: 'CLI-14',
     projectKey: 'CLI',
+    ...noteMeta('CLI-14'),
     actor: users[2]!,
     createdAt: ago(12),
     readAt: ago(4),
@@ -277,6 +291,7 @@ let notifications: Notification[] = [
     text: 'Luke Camilleri assigned you Add Apple Pay to checkout',
     taskKey: 'WEB-139',
     projectKey: 'WEB',
+    ...noteMeta('WEB-139'),
     actor: users[2]!,
     createdAt: ago(2),
     readAt: null,
@@ -287,18 +302,83 @@ let notifications: Notification[] = [
     text: 'You were assigned Review push notification copy',
     taskKey: 'MOB-27',
     projectKey: 'MOB',
+    ...noteMeta('MOB-27'),
     actor: users[4]!,
     createdAt: ago(6),
     readAt: null,
   },
   {
+    id: 'n_access',
+    kind: 'access_request',
+    text: 'Joanna Zammit asked to open HLP',
+    taskKey: null,
+    projectKey: 'HLP',
+    requestId: 'ar_hlp_joanna',
+    actor: joanna,
+    createdAt: ago(4),
+    readAt: null,
+  },
+  {
+    id: 'n_moved_a',
+    kind: 'moved',
+    text: 'Ready for testing → Deployed',
+    taskKey: 'WEB-151',
+    projectKey: 'WEB',
+    fromStatus: 'Ready for testing',
+    toStatus: 'Deployed',
+    ...noteMeta('WEB-151'),
+    actor: users[4]!,
+    createdAt: ago(9),
+    readAt: null,
+  },
+  {
+    id: 'n_moved_b',
+    kind: 'moved',
+    text: 'Idea → Ready for testing',
+    taskKey: 'WEB-151',
+    projectKey: 'WEB',
+    fromStatus: 'Idea',
+    toStatus: 'Ready for testing',
+    ...noteMeta('WEB-151'),
+    actor: users[4]!,
+    createdAt: ago(10),
+    readAt: null,
+  },
+  {
+    id: 'n_comment_151',
+    kind: 'comment',
+    text: 'Karl Farrugia commented on Hero copy for the autumn campaign',
+    taskKey: 'WEB-151',
+    projectKey: 'WEB',
+    ...noteMeta('WEB-151'),
+    actor: users[4]!,
+    createdAt: ago(8.5),
+    readAt: null,
+  },
+  {
     id: 'n_moved',
     kind: 'moved',
-    text: 'Karl Farrugia moved Lazy-load hero images to Ready for testing',
+    text: 'Ready for testing → Testing',
     taskKey: 'WEB-133',
     projectKey: 'WEB',
+    fromStatus: 'Ready for testing',
+    toStatus: 'Testing',
+    ...noteMeta('WEB-133'),
     actor: users[4]!,
     createdAt: ago(3),
+    readAt: null,
+  },
+  {
+    id: 'n_moved_2',
+    kind: 'moved',
+    text: 'WIP → Ready for testing',
+    taskKey: 'WEB-147',
+    projectKey: 'WEB',
+    fromStatus: 'WIP',
+    toStatus: 'Ready for testing',
+    ...noteMeta('WEB-147'),
+    actor: users[4]!,
+    createdAt: ago(28),
     readAt: null,
   },
   {
@@ -317,6 +397,7 @@ let notifications: Notification[] = [
     text: 'Pull request #212 merged, WEB-128 moved to Deployed',
     taskKey: 'WEB-128',
     projectKey: 'WEB',
+    ...noteMeta('WEB-128'),
     actor: githubBot,
     createdAt: ago(72),
     readAt: ago(60),
@@ -435,6 +516,9 @@ export const mockApi: Api = {
       members: members[key] ?? [],
       users,
       workflow: deliveryWorkflow,
+      customFields: key === 'WEB'
+        ? [{ id: 'cf_found_on', name: 'Found on', type: 'dropdown', options: ['Live', 'Test'], appliesTo: ['bug'] }]
+        : [],
       disabledTypes: [],
       workBreakdown: 'off',
       storiesNeedApproval: true,
@@ -593,6 +677,7 @@ export const mockApi: Api = {
       priority: input.priority,
       dueDate: input.dueDate,
       labels: input.labels,
+      customFields: [],
       position: Math.max(0, ...inSection.map((t) => t.position)) + 1,
       subtaskCount: { done: 0, total: 0 },
       commentCount: 0,
@@ -956,7 +1041,7 @@ export const mockApi: Api = {
     const now = new Date().toISOString();
     for (const n of notifications) {
       if (n.readAt) continue;
-      if (input.all || n.id === input.id) n.readAt = now;
+      if (input.all || n.id === input.id || input.ids?.includes(n.id)) n.readAt = now;
     }
     return notificationList();
   },

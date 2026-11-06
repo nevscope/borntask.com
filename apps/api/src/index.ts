@@ -26,11 +26,13 @@ import { tokenRoutes } from './routes/tokens.js';
 import { oauthRoutes } from './routes/oauth.js';
 import { githubRoutes } from './routes/github.js';
 import { automationRoutes } from './routes/automations.js';
+import { customFieldRoutes } from './routes/customFields.js';
 import { streamRoutes } from './routes/stream.js';
 import { inboundMailRoutes } from './routes/inboundMail.js';
 import { timesheetRoutes } from './routes/timesheets.js';
 import { holidayRoutes } from './routes/holidays.js';
 import { reportRoutes } from './routes/reports.js';
+import { releaseRoutes } from './routes/releases.js';
 import { allowedRequestOrigin } from './lib/workspaceHost.js';
 
 async function main() {
@@ -79,11 +81,13 @@ async function main() {
   await app.register(oauthRoutes);
   await app.register(githubRoutes);
   await app.register(automationRoutes);
+  await app.register(customFieldRoutes);
   await app.register(streamRoutes);
   await app.register(inboundMailRoutes);
   await app.register(timesheetRoutes);
   await app.register(holidayRoutes);
   await app.register(reportRoutes);
+  await app.register(releaseRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

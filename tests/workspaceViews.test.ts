@@ -51,6 +51,7 @@ function task(over: Partial<Task>): Task {
     priority: 'medium',
     dueDate: null,
     labels: [],
+    customFields: [],
     position: 1,
     subtaskCount: { done: 0, total: 0 },
     commentCount: 0,

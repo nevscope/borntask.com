@@ -12,7 +12,7 @@ import {
   defaultFilters,
   encodeFilters,
   fieldLabel,
-  FILTER_FIELDS,
+  filterFieldOptions,
   newFilterId,
   opLabel,
   opsFor,
@@ -295,7 +295,7 @@ export function ProjectViewBar({
         {view.filters.map((condition) => (
           <span key={condition.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
             {chipLabel(condition, detail)}
-            <button type="button" aria-label={`Remove ${fieldLabel(condition.field)} filter`} onClick={() => change({ filters: view.filters.filter((f) => f.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
+            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => change({ filters: view.filters.filter((f) => f.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
         {mode === 'list' && !isPhone && (
@@ -463,7 +463,7 @@ function ConditionRow({
   onChange: (patch: Partial<FilterCondition>) => void;
   onRemove: () => void;
 }) {
-  const ops = opsFor(row.field);
+  const ops = opsFor(row.field, detail);
   const choices = row.field === 'assignee' || row.field === 'reporter'
     ? personChoices(detail, row.field)
     : choicesFor(row.field, detail, row.op, labels);
@@ -473,9 +473,9 @@ function ConditionRow({
       <Select
         aria-label="Field"
         value={row.field}
-        options={FILTER_FIELDS.map((field) => ({ value: field, label: fieldLabel(field) }))}
+        options={filterFieldOptions(detail)}
         onChange={(field: FilterField) => {
-          const nextOp = opsFor(field)[0] ?? 'is';
+          const nextOp = opsFor(field, detail)[0] ?? 'is';
           onChange({ field, op: nextOp, values: [] });
         }}
       />

@@ -6,6 +6,7 @@ import { runProjectAutomations } from './runAutomations.js';
 import { findTaskByKey, loadWorkflow, mapTask, taskKey } from './loadProject.js';
 import { publishTaskChange } from './live.js';
 import { notifyInApp } from './notifyInApp.js';
+import { movedKind } from './stageNotify.js';
 import { requireOpenProject, requireProjectWrite } from './projectAccess.js';
 
 function jsonStatus(value: unknown): string {
@@ -183,6 +184,7 @@ export async function moveTask(
   void onHoldId;
   const keyLabel = taskKey(row.project.key, row.number);
   const name = await actorName(auth.userId);
+  const fromName = row.status.name;
   const statusName = updated.status.name;
   const text = `${name} moved it to ${statusName}.`;
   const url = taskUrl(row.project.key, keyLabel);
@@ -208,11 +210,11 @@ export async function moveTask(
     url,
   };
   for (const watcher of watchers) {
-    await notifyInApp(auth, watcher.userId, 'watched_stage', { kind: 'moved', taskId: row.id });
+    await notifyInApp(auth, watcher.userId, 'watched_stage', { kind: movedKind(fromName, statusName), taskId: row.id });
     await enqueuePersonalChat(auth, watcher.userId, stageJob);
   }
   if (toSlug === 'deployed') {
-    await notifyInApp(auth, row.reporterId, 'reported_deployed', { kind: 'moved', taskId: row.id });
+    await notifyInApp(auth, row.reporterId, 'reported_deployed', { kind: movedKind(fromName, statusName), taskId: row.id });
     await enqueuePersonalChat(auth, row.reporterId, {
       projectId: row.projectId,
       event: 'reporter_deployed',

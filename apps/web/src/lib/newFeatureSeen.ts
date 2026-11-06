@@ -1,6 +1,6 @@
 const KEY = 'bt-new-feature-seen';
 
-export type NewFeatureId = 'timesheets' | 'reports';
+export type NewFeatureId = 'timesheets' | 'reports' | 'releases';
 
 function storageKey(userId: string) {
   return `${KEY}:${userId}`;
@@ -13,7 +13,7 @@ function readAll(userId: string | undefined): NewFeatureId[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((row): row is NewFeatureId => row === 'timesheets' || row === 'reports');
+    return parsed.filter((row): row is NewFeatureId => row === 'timesheets' || row === 'reports' || row === 'releases');
   } catch {
     return [];
   }

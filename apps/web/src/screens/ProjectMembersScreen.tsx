@@ -199,7 +199,7 @@ function AccessRequestsCard({ projectKey }: { projectKey: string }) {
   const rows = requests.data ?? [];
 
   function act(id: string, action: 'accept' | 'decline') {
-    resolve.mutate({ id, action }, {
+    resolve.mutate({ id, action, projectKey }, {
       onSuccess: () => sent.show(action === 'accept' ? 'They can now open this project.' : 'Request declined.'),
       onError: (err) => sent.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not update that request.' }),
     });

@@ -219,7 +219,7 @@ export function WorkspaceViewBar({
         {view.filters.map((condition) => (
           <span key={condition.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: radius.md, background: color.brandTint, color: color.brandStrong, fontSize: 13, fontWeight: 500 }}>
             {chipLabel(condition, detail)}
-            <button type="button" aria-label={`Remove ${fieldLabel(condition.field)} filter`} onClick={() => change({ filters: view.filters.filter((row) => row.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
+            <button type="button" aria-label={`Remove ${fieldLabel(condition.field, detail)} filter`} onClick={() => change({ filters: view.filters.filter((row) => row.id !== condition.id) })} style={{ ...iconBtn, color: color.brandStrong }}>×</button>
           </span>
         ))}
         {!isPhone && (

@@ -27,7 +27,9 @@ import {
 } from '../lib/attachments.js';
 import { canOpenListed, openProjectIds, requireOpenProject, requireOpenProjectWrite, requireProjectWrite } from '../lib/projectAccess.js';
 import { setTaskLabels } from '../lib/setTaskLabels.js';
+import { setTaskCustomFields } from '../lib/customFields.js';
 import { convertTaskToSubtask, promoteSubtask } from '../lib/convertTaskNesting.js';
+import { resolveReleaseId } from '../lib/releases.js';
 
 function mapSubtask(row: {
   id: string;
@@ -71,6 +73,11 @@ const updateTaskSchema = z
     labels: z.array(z.string()),
     sectionId: z.string(),
     planningParentId: z.string().nullable(),
+    releaseId: z.string().nullable(),
+    customFields: z.array(z.object({
+      fieldId: z.string(),
+      value: z.string().nullable(),
+    })),
   })
   .partial();
 
@@ -101,6 +108,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           section: true,
           project: true,
           labels: { include: { label: true } },
+          release: true,
+          customFieldValues: true,
           subtasks: { where: { deletedAt: null } },
           attachments: { select: { id: true } },
           comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
@@ -152,6 +161,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           section: true,
           project: true,
           labels: { include: { label: true } },
+          release: true,
+          customFieldValues: true,
           subtasks: { where: { deletedAt: null } },
           attachments: { select: { id: true } },
           comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
@@ -211,6 +222,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
         section: true,
         project: true,
         labels: { include: { label: true } },
+        release: true,
+        customFieldValues: true,
         attachments: { select: { id: true } },
         comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
         _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
@@ -543,6 +556,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
       const planningParentId = input.planningParentId === undefined
         ? undefined
         : await resolvePlanningParent(auth.db, row.project, nextSlug, input.planningParentId, row.id);
+      const releaseId = await resolveReleaseId(auth, input.releaseId);
       const updated = await auth.db.task.update({
         where: { id: row.id },
         data: {
@@ -559,6 +573,7 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           estimate: input.estimate === undefined ? undefined : input.estimate?.trim() || null,
           sectionId: input.sectionId,
           planningParentId,
+          releaseId,
         },
         include: { type: true, status: true, previousStatus: true, section: true, project: true, labels: { include: { label: true } } },
       });
@@ -570,7 +585,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
           names: input.labels,
         });
       }
-      const labelled = input.labels ? await findTaskByKey(auth.db, key) : updated;
+      if (input.customFields) {
+        await setTaskCustomFields(auth.db, {
+          tenantId: auth.tenantId,
+          projectId: row.projectId,
+          taskId: row.id,
+          taskType: nextSlug,
+          values: input.customFields,
+        });
+      }
+      const labelled = await findTaskByKey(auth.db, key);
       if (!labelled) throw notFound();
       if (auth.via === 'mcp') {
         await auth.db.activityLog.create({
@@ -756,6 +780,16 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
             tenantId: auth.tenantId,
             taskId: created.id,
             labelId: row.labelId,
+          })),
+        });
+      }
+      if (source.customFieldValues.length) {
+        await auth.db.customFieldValue.createMany({
+          data: source.customFieldValues.map((row) => ({
+            tenantId: auth.tenantId,
+            taskId: created.id,
+            fieldId: row.fieldId,
+            value: row.value,
           })),
         });
       }

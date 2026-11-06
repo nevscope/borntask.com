@@ -1,6 +1,7 @@
 import { openedProjectIds } from './applyProjectInvite.js';
 import { prisma } from '../db.js';
 import type { TenantClient } from '../tenantPrisma.js';
+import { listProjectCustomFields, mapCustomFieldValues } from './customFields.js';
 import { stripTags } from './descriptionHtml.js';
 import { comparePosition, mapStatus, mapUser, mapUsers, positionNumber, remapRoleSlug, remapTypeSlug } from './mappers.js';
 
@@ -169,6 +170,8 @@ export async function findTaskByKey(db: TenantClient, key: string) {
       section: true,
       project: true,
       labels: { include: { label: true } },
+      release: true,
+      customFieldValues: true,
       attachments: { select: { id: true } },
       comments: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
       _count: { select: { comments: { where: { deletedAt: null } }, attachments: true } },
@@ -182,8 +185,10 @@ export function mapTask(row: {
   title: string;
   description: string | null;
   type: { slug: string };
-  status: { slug: string };
+  status: { slug: string; name?: string; category?: 'backlog' | 'active' | 'review' | 'done' };
   previousStatus: { slug: string } | null;
+  releaseId?: string | null;
+  release?: { id: string; name: string } | null;
   sectionId: string;
   assigneeId: string | null;
   reporterId: string;
@@ -196,6 +201,7 @@ export function mapTask(row: {
   project: { key: string };
   planningParentId?: string | null;
   labels?: { label: { name: string } }[];
+  customFieldValues?: { fieldId: string; value: string }[];
   subtasks?: { completedAt: Date | null }[];
   attachments?: unknown[];
   comments?: { body: string; createdAt: Date; deletedAt?: Date | null }[];
@@ -222,6 +228,7 @@ export function mapTask(row: {
     dueDate: row.dueDate ? row.dueDate.toISOString().slice(0, 10) : null,
     estimate: row.estimate?.trim() || null,
     labels: (row.labels ?? []).map((l) => l.label.name),
+    customFields: mapCustomFieldValues(row.customFieldValues),
     position: positionNumber(row.position),
     subtaskCount: { done: sub.filter((s) => s.completedAt).length, total: sub.length },
     commentCount: row._count?.comments ?? liveComments.length,
@@ -235,6 +242,8 @@ export function mapTask(row: {
     planningParentTitle: planning?.parentTitle ?? null,
     planningChildCount: planning?.childCount ?? { done: 0, total: 0 },
     isBlocked: false,
+    releaseId: row.release?.id ?? row.releaseId ?? null,
+    releaseName: row.release?.name ?? null,
   };
 }
 
@@ -309,6 +318,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
   const userIds = [...new Set(project.members.map((m) => m.userId).concat(project.leadId ? [project.leadId] : []))];
   const users = userIds.length ? await prisma.user.findMany({ where: { id: { in: userIds } } }) : [];
   const [card] = await mapProjectCards(db, userId, [project]);
+  const customFields = await listProjectCustomFields(db, project.id);
   const tenantMembers = userIds.length
     ? await db.tenantMember.findMany({ where: { userId: { in: userIds } } })
     : [];
@@ -330,6 +340,7 @@ export async function loadProjectDetail(db: TenantClient, key: string, userId: s
       workspaceRole: wsRole.get(m.userId) ?? 'member',
     })),
     users: mapUsers(users),
+    customFields,
     disabledTypes: project.disabledTypes.split(',').map((slug) => slug.trim()).filter(Boolean),
     workBreakdown: project.workBreakdown,
     storiesNeedApproval: project.storiesNeedApproval,

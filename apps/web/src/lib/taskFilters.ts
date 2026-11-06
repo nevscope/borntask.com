@@ -1,6 +1,7 @@
 // One filter model for the project list and board. The URL holds the conditions.
 import dayjs from 'dayjs';
-import type { BuiltinProjectRole, BuiltinTaskType, Priority, Project, ProjectDetail, Task, WorkspaceTasks } from '../api/types';
+import type { BuiltinProjectRole, BuiltinTaskType, CustomFieldDef, Priority, Project, ProjectDetail, Task, WorkspaceTasks } from '../api/types';
+import { fieldAppliesToType } from '@borntask/shared';
 import { priorityStyle, roleStyle, typeStyle } from '../theme/tokens';
 import { dueBucket, dueTone } from './dates';
 import { stripTags } from './descriptionHtml';
@@ -11,7 +12,24 @@ export const FILTER_FIELDS = [
   'priority', 'label', 'due', 'created', 'updated', 'text',
 ] as const;
 
-export type FilterField = (typeof FILTER_FIELDS)[number];
+export type BuiltinFilterField = (typeof FILTER_FIELDS)[number];
+export type FilterField = BuiltinFilterField | `cf_${string}`;
+
+export function isCustomFilterField(field: string): field is `cf_${string}` {
+  return field.startsWith('cf_') && field.length > 3;
+}
+
+export function customFieldIdFromFilter(field: string): string | null {
+  return isCustomFilterField(field) ? field.slice(3) : null;
+}
+
+export function customFilterField(id: string): FilterField {
+  return `cf_${id}`;
+}
+
+export function fieldAppliesToTask(field: CustomFieldDef, type: string): boolean {
+  return fieldAppliesToType(field.appliesTo, type);
+}
 export type FilterOp = 'is' | 'any' | 'not' | 'contains' | 'before' | 'after' | 'empty';
 
 export type FilterCondition = {
@@ -177,12 +195,35 @@ export function activePresetId(filters: FilterCondition[], viewId: string | null
   return PRESET_VIEWS.find((preset) => sameFilters(filters, preset.filters))?.id ?? null;
 }
 
-export function fieldLabel(field: FilterField): string {
+export function customFieldDef(field: FilterField, detail: ProjectDetail): CustomFieldDef | undefined {
+  const id = customFieldIdFromFilter(field);
+  if (!id) return undefined;
+  return (detail.customFields ?? []).find((row) => row.id === id);
+}
+
+export function filterFieldOptions(detail: ProjectDetail): Array<{ value: FilterField; label: string }> {
+  const builtin = FILTER_FIELDS.map((field) => ({ value: field as FilterField, label: FIELD_LABEL[field] }));
+  const custom = (detail.customFields ?? []).map((field) => ({
+    value: customFilterField(field.id),
+    label: field.name,
+  }));
+  return [...builtin, ...custom];
+}
+
+export function fieldLabel(field: FilterField, detail?: ProjectDetail): string {
+  const def = detail ? customFieldDef(field, detail) : undefined;
+  if (def) return def.name;
+  if (isCustomFilterField(field)) return 'Custom field';
   return FIELD_LABEL[field];
 }
 
-export function opsFor(field: FilterField): FilterOp[] {
-  return OPS[field];
+export function opsFor(field: FilterField, detail?: ProjectDetail): FilterOp[] {
+  const def = detail ? customFieldDef(field, detail) : undefined;
+  if (def?.type === 'text') return ['contains', 'empty'];
+  if (def?.type === 'date') return ['is', 'before', 'after', 'empty'];
+  if (def?.type === 'dropdown') return ['is', 'any', 'not', 'empty'];
+  if (isCustomFilterField(field)) return ['is', 'not', 'empty'];
+  return OPS[field as BuiltinFilterField];
 }
 
 export function opLabel(op: FilterOp): string {
@@ -196,7 +237,7 @@ export function opLabel(op: FilterOp): string {
 }
 
 function isField(value: string): value is FilterField {
-  return (FILTER_FIELDS as readonly string[]).includes(value);
+  return (FILTER_FIELDS as readonly string[]).includes(value) || isCustomFilterField(value);
 }
 
 function isOp(value: string): value is FilterOp {
@@ -310,6 +351,10 @@ export function choicesFor(field: FilterField, detail: ProjectDetail, op: Filter
   if (field === 'priority') return (Object.keys(priorityStyle) as Priority[]).map((p) => ({ value: p, label: priorityStyle[p].label }));
   if (field === 'role') return (Object.keys(roleStyle) as BuiltinProjectRole[]).map((r) => ({ value: r, label: roleStyle[r].label }));
   if (field === 'label') return [...new Set(labels)].sort((a, b) => a.localeCompare(b, 'en-GB')).map((value) => ({ value, label: value }));
+  const def = customFieldDef(field, detail);
+  if (def?.type === 'text') return 'text';
+  if (def?.type === 'date') return 'date';
+  if (def?.type === 'dropdown') return def.options.map((value) => ({ value, label: value }));
   return [];
 }
 
@@ -340,7 +385,7 @@ function valueLabel(field: FilterField, value: string, detail: ProjectDetail): s
 }
 
 export function chipLabel(condition: FilterCondition, detail: ProjectDetail): string {
-  const name = FIELD_LABEL[condition.field];
+  const name = fieldLabel(condition.field, detail);
   if (condition.op === 'empty') return `${name} is empty`;
   const vals = condition.values.map((v) => valueLabel(condition.field, v, detail)).join(', ');
   const shown = vals || '…';
@@ -423,6 +468,26 @@ export function taskMatches(task: Task, filters: FilterCondition[], detail: Proj
     if (f.field === 'due') return dueHit(task, f.op, f.values);
     if (f.field === 'created') return whenHit(task.createdAt, f.op, f.values);
     if (f.field === 'updated') return whenHit(task.updatedAt, f.op, f.values);
+    const customId = customFieldIdFromFilter(f.field);
+    if (customId) {
+      const value = (task.customFields ?? []).find((row) => row.fieldId === customId)?.value ?? '';
+      if (f.op === 'empty') return !value;
+      const def = (detail.customFields ?? []).find((row) => row.id === customId);
+      if (f.op === 'contains' || def?.type === 'text') {
+        const needle = (f.values[0] ?? '').trim().toLowerCase();
+        if (!needle) return true;
+        return value.toLowerCase().includes(needle);
+      }
+      if (def?.type === 'date' || f.op === 'before' || f.op === 'after') {
+        if (!value) return false;
+        const day = f.values[0];
+        if (!day) return true;
+        if (f.op === 'before') return value < day;
+        if (f.op === 'after') return value > day;
+        return value === day;
+      }
+      return listHit([value], f.values, f.op);
+    }
     const needle = (f.values[0] ?? '').trim().toLowerCase();
     if (!needle) return true;
     return `${task.key} ${task.title} ${stripTags(task.description)}`.toLowerCase().includes(needle);
@@ -667,6 +732,7 @@ export function workspaceFilterDetail(data: WorkspaceTasks, projects: Project[])
       })),
       transitions: [],
     },
+    customFields: [],
   };
 }
 

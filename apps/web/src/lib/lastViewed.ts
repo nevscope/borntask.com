@@ -81,12 +81,21 @@ const PREFS_KEY = 'bt-my-tasks-prefs';
 
 export type MyTasksPrefs = {
   showUnassigned: boolean;
+  reportedByMe: boolean;
   projectKey: string;
   priority: string;
+  type: string;
   sort: 'due' | 'priority' | 'updated' | 'project';
 };
 
-const DEFAULT_PREFS: MyTasksPrefs = { showUnassigned: false, projectKey: '', priority: '', sort: 'due' };
+const DEFAULT_PREFS: MyTasksPrefs = {
+  showUnassigned: false,
+  reportedByMe: false,
+  projectKey: '',
+  priority: '',
+  type: '',
+  sort: 'due',
+};
 
 export function readMyTasksPrefs(): MyTasksPrefs {
   try {
@@ -95,8 +104,10 @@ export function readMyTasksPrefs(): MyTasksPrefs {
     const parsed = JSON.parse(raw) as Partial<MyTasksPrefs>;
     return {
       showUnassigned: Boolean(parsed.showUnassigned),
+      reportedByMe: Boolean(parsed.reportedByMe),
       projectKey: typeof parsed.projectKey === 'string' ? parsed.projectKey : '',
       priority: typeof parsed.priority === 'string' ? parsed.priority : '',
+      type: typeof parsed.type === 'string' ? parsed.type : '',
       sort: parsed.sort === 'priority' || parsed.sort === 'updated' || parsed.sort === 'project' ? parsed.sort : 'due',
     };
   } catch {

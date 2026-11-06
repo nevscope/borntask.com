@@ -46,6 +46,18 @@ test('where tenantId: A is still clamped to B', async () => {
   expect(rows).toHaveLength(0);
 });
 
+test('scoped client for tenant B cannot list tenant A releases', async () => {
+  const clientB = createTenantClient(tenantB);
+  const releases = await clientB.release.findMany();
+  expect(releases.every((row) => row.tenantId === tenantB)).toBe(true);
+});
+
+test('scoped client for tenant B cannot list tenant A custom fields', async () => {
+  const clientB = createTenantClient(tenantB);
+  const fields = await clientB.customField.findMany();
+  expect(fields.every((row) => row.tenantId === tenantB)).toBe(true);
+});
+
 test('scoped client for tenant B cannot list tenant A holidays or timesheets', async () => {
   const clientB = createTenantClient(tenantB);
   const [holidays, entries, daysOff, members] = await Promise.all([

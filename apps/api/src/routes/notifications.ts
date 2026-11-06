@@ -1,18 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../context.js';
+import { prisma } from '../db.js';
 import { sendError, validation } from '../errors.js';
 import { taskKey } from '../lib/loadProject.js';
 import { mapUser } from '../lib/mappers.js';
+import { parseAccessNotifyKind } from '../lib/accessNotify.js';
+import { parseMovedKind } from '../lib/stageNotify.js';
 
-const kindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request']);
+const kindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request', 'comment']);
 
 function projectInviteKey(kind: string): string | null {
   return kind.startsWith('project_invite:') ? kind.slice('project_invite:'.length) || null : null;
-}
-
-function accessRequestKey(kind: string): string | null {
-  return kind.startsWith('access_request:') ? kind.slice('access_request:'.length) || null : null;
 }
 
 function who(name: string | null | undefined): string {
@@ -20,23 +19,53 @@ function who(name: string | null | undefined): string {
   return trimmed || 'Someone';
 }
 
-function textFor(kind: string, title: string | null, key: string | null, actorName: string | null) {
+function jsonStatus(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('status' in value)) return '';
+  return String((value as { status: unknown }).status ?? '');
+}
+
+function textFor(
+  kind: string,
+  title: string | null,
+  key: string | null,
+  actorName: string | null,
+  from: string | null,
+  to: string | null,
+  handlerName: string | null,
+) {
   const invited = projectInviteKey(kind);
   if (invited) return `${who(actorName)} invited you to ${invited}`;
-  const requested = accessRequestKey(kind);
-  if (requested) return `${who(actorName)} asked to open ${requested}`;
+  const access = parseAccessNotifyKind(kind);
+  if (access?.state === 'handled') {
+    const verb = access.outcome === 'declined' ? 'Declined' : 'Approved';
+    return `${verb} by ${who(handlerName)} · cleared for everyone`;
+  }
+  if (access) return `${who(actorName)} asked to open ${access.projectKey || 'a project'}`;
   const label = title ?? key ?? 'a task';
   const actor = who(actorName);
   if (kind === 'mention') return `${actor} mentioned you on ${label}`;
   if (kind === 'assigned') return `You were assigned ${label}`;
-  if (kind === 'moved') return `${label} moved stage`;
-  if (kind === 'watched_comment') return `${actor} commented on ${label}`;
+  if (from && to) return `${from} → ${to}`;
+  if (kind === 'moved' || parseMovedKind(kind)) return `${label} moved stage`;
+  if (kind === 'watched_comment' || kind === 'reported_comment' || kind === 'comment') return `${actor} commented on ${label}`;
   if (kind === 'invite') return `${actor} accepted an invitation`;
   if (kind === 'github') return `A linked pull request updated ${key ?? label}`;
   if (kind === 'access_granted') return 'You can now open the project you asked for.';
   if (kind === 'access_declined') return 'Your request to open a project was declined.';
-  if (kind === 'access_request') return `${actor} asked to open a project.`;
   return label;
+}
+
+function publicKind(raw: string): z.infer<typeof kindSchema> {
+  const invited = projectInviteKey(raw);
+  const access = parseAccessNotifyKind(raw);
+  const parsed = kindSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  if (invited) return 'invite';
+  if (access) return 'access_request';
+  if (raw === 'access_granted' || raw === 'access_declined') return 'invite';
+  if (raw === 'watched_comment' || raw === 'reported_comment') return 'comment';
+  if (parseMovedKind(raw) || raw.startsWith('moved')) return 'moved';
+  return 'moved';
 }
 
 function present(
@@ -46,34 +75,41 @@ function present(
     readAt: Date | null;
     createdAt: Date;
     actor: { id: string; name: string; email: string } | null;
-    task: { number: number; title: string; project: { key: string } } | null;
+    task: {
+      number: number;
+      title: string;
+      reporterId: string;
+      assigneeId: string | null;
+      project: { key: string };
+    } | null;
   },
+  stage: { from: string | null; to: string | null },
+  handler: { id: string; name: string; email: string } | null,
 ) {
   const invited = projectInviteKey(row.kind);
-  const requested = accessRequestKey(row.kind);
-  const parsed = kindSchema.safeParse(row.kind);
-  const kind = parsed.success
-    ? parsed.data
-    : invited
-    ? 'invite'
-    : requested || row.kind === 'access_request'
-      ? 'access_request'
-      : row.kind === 'access_granted' || row.kind === 'access_declined'
-        ? 'invite'
-        : row.kind === 'watched_comment'
-          ? 'mention'
-          : 'moved';
+  const access = parseAccessNotifyKind(row.kind);
+  const kind = publicKind(row.kind);
   const key = row.task ? taskKey(row.task.project.key, row.task.number) : null;
+  const pendingAccess = access?.state === 'pending';
   return {
     id: row.id,
     kind,
-    text: textFor(row.kind, row.task?.title ?? null, key, row.actor?.name ?? null),
+    text: textFor(row.kind, row.task?.title ?? null, key, row.actor?.name ?? null, stage.from, stage.to, handler?.name ?? null),
     taskKey: key,
-    projectKey: invited ?? requested ?? row.task?.project.key ?? null,
+    projectKey: invited ?? (access?.projectKey || null) ?? row.task?.project.key ?? null,
+    taskTitle: row.task?.title ?? null,
+    fromStatus: stage.from,
+    toStatus: stage.to,
+    reporterId: row.task?.reporterId ?? null,
+    assigneeId: row.task?.assigneeId ?? null,
     needsAccept: Boolean(invited),
+    requestId: access?.requestId ?? null,
+    outcome: access?.state === 'handled' ? access.outcome : null,
+    handledBy: handler ? mapUser(handler) : null,
     actor: row.actor ? mapUser(row.actor) : null,
     createdAt: row.createdAt.toISOString(),
     readAt: row.readAt?.toISOString() ?? null,
+    needsAction: Boolean(invited) || pendingAccess,
   };
 }
 
@@ -93,10 +129,10 @@ async function backfillActors(db: NotifyDb, rows: { id: string; actorId: string 
   for (const row of missing) actorBackfillTried.add(row.id);
   if (!missing.length) return false;
 
-  const commentTaskIds = [...new Set(missing.filter((row) => row.taskId && (row.kind === 'mention' || row.kind === 'watched_comment')).map((row) => row.taskId!))];
-  const activityTaskIds = [...new Set(missing.filter((row) => row.taskId && (row.kind === 'assigned' || row.kind === 'moved')).map((row) => row.taskId!))];
+  const commentTaskIds = [...new Set(missing.filter((row) => row.taskId && (row.kind === 'mention' || row.kind === 'watched_comment' || row.kind === 'reported_comment')).map((row) => row.taskId!))];
+  const activityTaskIds = [...new Set(missing.filter((row) => row.taskId && (row.kind === 'assigned' || row.kind === 'moved' || parseMovedKind(row.kind))).map((row) => row.taskId!))];
   const projectKeys = [...new Set(missing.flatMap((row) => {
-    const key = projectInviteKey(row.kind) ?? accessRequestKey(row.kind);
+    const key = projectInviteKey(row.kind) ?? parseAccessNotifyKind(row.kind)?.projectKey;
     return key ? [key] : [];
   }))];
 
@@ -136,12 +172,12 @@ async function backfillActors(db: NotifyDb, rows: { id: string; actorId: string 
   const patches: { id: string; actorId: string }[] = [];
   for (const row of missing) {
     let actorId: string | undefined;
-    if (row.taskId && (row.kind === 'mention' || row.kind === 'watched_comment')) {
+    if (row.taskId && (row.kind === 'mention' || row.kind === 'watched_comment' || row.kind === 'reported_comment')) {
       actorId = nearest(comments.filter((item) => item.taskId === row.taskId), row.createdAt, (item) => item.createdAt)?.authorId;
-    } else if (row.taskId && (row.kind === 'assigned' || row.kind === 'moved')) {
+    } else if (row.taskId && (row.kind === 'assigned' || row.kind === 'moved' || parseMovedKind(row.kind))) {
       actorId = nearest(activities.filter((item) => item.taskId === row.taskId), row.createdAt, (item) => item.at)?.actorId ?? undefined;
-    } else if (accessRequestKey(row.kind) || row.kind === 'access_request') {
-      const projectId = byKey.get(accessRequestKey(row.kind) ?? '');
+    } else if (parseAccessNotifyKind(row.kind)) {
+      const projectId = byKey.get(parseAccessNotifyKind(row.kind)?.projectKey ?? '');
       actorId = nearest(requests.filter((item) => item.projectId === projectId), row.createdAt, (item) => item.createdAt)?.requesterId;
     } else if (projectInviteKey(row.kind)) {
       const projectId = byKey.get(projectInviteKey(row.kind) ?? '');
@@ -158,9 +194,63 @@ async function backfillActors(db: NotifyDb, rows: { id: string; actorId: string 
 
 export const notificationRoutes: FastifyPluginAsync = async (app) => {
   const include = {
-    task: { select: { number: true, title: true, project: { select: { key: true } } } },
+    task: {
+      select: {
+        number: true,
+        title: true,
+        reporterId: true,
+        assigneeId: true,
+        project: {
+          select: {
+            key: true,
+            workflow: { select: { statuses: { select: { slug: true, name: true } } } },
+          },
+        },
+      },
+    },
     actor: { select: { id: true, name: true, email: true } },
   } as const;
+
+  async function stagesFor(
+    db: NotifyDb,
+    rows: {
+      id: string;
+      kind: string;
+      taskId: string | null;
+      createdAt: Date;
+      task: { project: { workflow: { statuses: { slug: string; name: string }[] } } } | null;
+    }[],
+  ) {
+    const names = new Map<string, { from: string | null; to: string | null }>();
+    const need: typeof rows = [];
+    for (const row of rows) {
+      const parsed = parseMovedKind(row.kind);
+      if (parsed) names.set(row.id, parsed);
+      else if (row.kind === 'moved' || row.kind.startsWith('moved')) need.push(row);
+    }
+    const taskIds = [...new Set(need.map((row) => row.taskId).filter((id): id is string => Boolean(id)))];
+    const activities = taskIds.length
+      ? await db.activityLog.findMany({
+        where: { taskId: { in: taskIds } },
+        select: { taskId: true, at: true, fromJson: true, toJson: true },
+      })
+      : [];
+    for (const row of need) {
+      if (!row.taskId) {
+        names.set(row.id, { from: null, to: null });
+        continue;
+      }
+      const slugNames = new Map(row.task?.project.workflow.statuses.map((status) => [status.slug, status.name]));
+      const hit = nearest(activities.filter((item) => item.taskId === row.taskId), row.createdAt, (item) => item.at);
+      const fromSlug = jsonStatus(hit?.fromJson);
+      const toSlug = jsonStatus(hit?.toJson);
+      names.set(row.id, {
+        from: slugNames.get(fromSlug) ?? null,
+        to: slugNames.get(toSlug) ?? null,
+      });
+    }
+    return names;
+  }
 
   async function listFor(auth: Awaited<ReturnType<typeof requireAuth>>) {
     const first = await auth.db.notification.findMany({
@@ -180,6 +270,16 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     return first;
   }
 
+  async function handlersFor(rows: { kind: string }[]) {
+    const ids = [...new Set(rows.flatMap((row) => {
+      const access = parseAccessNotifyKind(row.kind);
+      return access?.state === 'handled' ? [access.handlerId] : [];
+    }))];
+    if (!ids.length) return new Map<string, { id: string; name: string; email: string }>();
+    const people = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } });
+    return new Map(people.map((person) => [person.id, person]));
+  }
+
   async function unreadFor(auth: Awaited<ReturnType<typeof requireAuth>>) {
     return auth.db.notification.count({ where: { userId: auth.userId, readAt: null } });
   }
@@ -188,7 +288,15 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = await requireAuth(req);
       const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
-      return { items: rows.map(present), unreadCount };
+      const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
+      return {
+        items: rows.map((row) => {
+          const access = parseAccessNotifyKind(row.kind);
+          const handler = access?.state === 'handled' ? handlers.get(access.handlerId) ?? null : null;
+          return present(row, stages.get(row.id) ?? { from: null, to: null }, handler);
+        }),
+        unreadCount,
+      };
     } catch (err) {
       return sendError(reply, err);
     }
@@ -197,18 +305,31 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
   app.post('/me/notifications/read', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const input = z.object({ id: z.string().optional(), all: z.boolean().optional() }).parse(req.body ?? {});
-      if (!input.all && !input.id) throw validation('Pass id or all.');
+      const input = z.object({
+        id: z.string().optional(),
+        ids: z.array(z.string()).optional(),
+        all: z.boolean().optional(),
+      }).parse(req.body ?? {});
+      const ids = [...new Set([...(input.id ? [input.id] : []), ...(input.ids ?? [])])];
+      if (!input.all && ids.length === 0) throw validation('Pass id, ids or all.');
       await auth.db.notification.updateMany({
         where: {
           userId: auth.userId,
           readAt: null,
-          ...(input.all ? {} : { id: input.id }),
+          ...(input.all ? {} : { id: { in: ids } }),
         },
         data: { readAt: new Date() },
       });
       const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
-      return { items: rows.map(present), unreadCount };
+      const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
+      return {
+        items: rows.map((row) => {
+          const access = parseAccessNotifyKind(row.kind);
+          const handler = access?.state === 'handled' ? handlers.get(access.handlerId) ?? null : null;
+          return present(row, stages.get(row.id) ?? { from: null, to: null }, handler);
+        }),
+        unreadCount,
+      };
     } catch (err) {
       return sendError(reply, err);
     }

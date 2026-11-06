@@ -1,32 +1,31 @@
-import { Popover } from 'antd';
-import { useMemo, useState } from 'react';
+import { Dropdown } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAcceptProjectInvite, useMarkNotificationsRead, useMe, useNotifications } from '../api/queries';
-import { readLastViewed } from '../lib/lastViewed';
-import type { Notification, NotificationKind } from '../api/types';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAcceptProjectInvite, useMarkNotificationsRead, useMe, useNotifications, useProjects, useResolveAccessRequest } from '../api/queries';
+import type { Notification } from '../api/types';
+import {
+  collapseBellItems,
+  groupBellByDate,
+  inTab,
+  itemHeading,
+  matchesFilters,
+  updateSummary,
+  type BellChip,
+  type BellItem,
+  type BellTab,
+} from '../lib/bellInbox';
 import { formatWhen } from '../lib/relativeTime';
-import { color, radius } from '../theme/tokens';
+import { color, font, radius } from '../theme/tokens';
 import { useStatusToast } from './StatusToast';
 import { Avatar } from './Chips';
 
-const GROUP_ORDER: { kind: NotificationKind; label: string }[] = [
-  { kind: 'invite', label: 'Invites' },
-  { kind: 'access_request', label: 'Access requests' },
-  { kind: 'mention', label: 'Mentioned' },
-  { kind: 'assigned', label: 'Assigned' },
-  { kind: 'moved', label: 'Stage changes' },
-  { kind: 'github', label: 'GitHub' },
+const TABS: { id: BellTab; label: string }[] = [
+  { id: 'action', label: 'Needs action' },
+  { id: 'mentions', label: 'Mentions' },
+  { id: 'updates', label: 'Updates' },
+  { id: 'all', label: 'All' },
 ];
-
-const GROUP_PREVIEW = 3;
-
-function groupedNotifications(items: Notification[]) {
-  return GROUP_ORDER.map((group) => ({
-    ...group,
-    items: items.filter((note) => note.kind === group.kind),
-  })).filter((group) => group.items.length > 0);
-}
 
 function BellIcon() {
   return (
@@ -37,54 +36,156 @@ function BellIcon() {
   );
 }
 
-function refLabel(n: Notification) {
-  return n.taskKey ?? n.projectKey ?? 'BornTask';
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        height: 28,
+        padding: '0 10px',
+        border: `1px solid ${active ? color.ink : color.border}`,
+        borderRadius: 999,
+        background: active ? color.ink : color.surface,
+        color: active ? color.inverseFg : color.ink3,
+        font: 'inherit',
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function goTo(note: Notification, navigate: ReturnType<typeof useNavigate>) {
+  if (note.kind === 'access_request' && note.projectKey) {
+    navigate(`/p/${note.projectKey}/settings/members`);
+    return;
+  }
+  if (note.taskKey && note.projectKey) {
+    navigate(`/p/${note.projectKey}/list?task=${note.taskKey}`);
+    return;
+  }
+  if (note.projectKey) navigate(`/p/${note.projectKey}/list`);
 }
 
 function NotificationRow({
-  note,
+  item,
+  active,
+  unread,
+  busy,
   onOpen,
+  onResolve,
 }: {
-  note: Notification;
-  onOpen: (note: Notification) => void;
+  item: BellItem;
+  active: boolean;
+  unread: boolean;
+  busy: boolean;
+  onOpen: (item: BellItem) => void;
+  onResolve: (item: BellItem, action: 'accept' | 'decline') => void;
 }) {
-  const unread = !note.readAt;
+  const note = item.latest;
+  const summary = updateSummary(item);
+  const mention = note.kind === 'mention' ? note.text : null;
+  const pendingAccess = note.kind === 'access_request' && !note.outcome && Boolean(note.requestId && note.projectKey);
+  const sub = [summary, mention && !summary ? mention : null, formatWhen(note.createdAt)].filter(Boolean).join(' · ');
   return (
     <div
       style={{
         display: 'flex',
-        gap: 12,
+        gap: 10,
         width: '100%',
-        padding: '9px 16px',
+        padding: '10px 16px',
+        borderLeft: `3px solid ${active ? color.brand : 'transparent'}`,
         borderBottom: `1px solid ${color.divider}`,
-        background: unread ? color.unreadRow : color.surface,
-        color: color.ink,
+        background: active ? color.brandTint : unread ? color.unreadRow : color.surface,
         boxSizing: 'border-box',
       }}
     >
       <button
         type="button"
-        onClick={() => onOpen(note)}
+        onClick={() => onOpen(item)}
         style={{
           display: 'flex',
-          gap: 12,
+          gap: 10,
           flex: 1,
           minWidth: 0,
           padding: 0,
           border: 0,
           background: 'transparent',
-          color: 'inherit',
+          color: color.ink,
           textAlign: 'left',
           cursor: 'pointer',
           font: 'inherit',
         }}
       >
-        <Avatar user={note.actor} size={30} />
-        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, fontSize: 13.5, lineHeight: 1.4, whiteSpace: 'normal', overflowWrap: 'break-word' }}>
-          <span>{note.text}</span>
-          <span style={{ fontSize: 12, color: color.muted }}>{refLabel(note)} · {formatWhen(note.createdAt)}</span>
+        <Avatar user={note.actor} size={28} />
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 13.5, lineHeight: 1.35, fontWeight: unread ? 600 : 500 }}>{itemHeading(item)}</span>
+          <span style={{ fontSize: 12, color: color.muted, lineHeight: 1.4 }}>{sub}</span>
         </span>
       </button>
+      {pendingAccess && (
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 'none', justifyContent: 'center' }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onResolve(item, 'accept')}
+            style={{
+              height: 26,
+              padding: '0 10px',
+              border: 0,
+              borderRadius: radius.sm,
+              background: color.brand,
+              color: color.brandOn,
+              font: 'inherit',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: busy ? 'default' : 'pointer',
+            }}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onResolve(item, 'decline')}
+            style={{
+              height: 26,
+              padding: '0 10px',
+              border: `1px solid ${color.border}`,
+              borderRadius: radius.sm,
+              background: color.surface,
+              color: color.ink,
+              font: 'inherit',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: busy ? 'default' : 'pointer',
+            }}
+          >
+            Decline
+          </button>
+        </span>
+      )}
       <span
         aria-hidden="true"
         style={{
@@ -100,68 +201,112 @@ function NotificationRow({
   );
 }
 
-export function NotificationPanel({ onClose, phone = false }: { onClose: () => void; phone?: boolean }) {
+export function NotificationPanel({ onClose }: { onClose: () => void; phone?: boolean }) {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const toast = useStatusToast();
-  const userId = useMe().data?.user.id;
-  const lastViewed = readLastViewed(userId);
+  const meId = useMe().data?.user.id;
+  const projects = useProjects().data ?? [];
   const list = useNotifications().data;
   const mark = useMarkNotificationsRead();
   const accept = useAcceptProjectInvite();
-  const [tab, setTab] = useState<'unread' | 'all' | 'viewed'>('unread');
-  const [openGroups, setOpenGroups] = useState<Partial<Record<NotificationKind, boolean>>>({});
+  const resolveAccess = useResolveAccessRequest();
+  const [tab, setTab] = useState<BellTab>('action');
+  const [chips, setChips] = useState<Set<BellChip>>(() => new Set());
+  const [projectKey, setProjectKey] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const items = list?.items ?? [];
   const unreadCount = list?.unreadCount ?? 0;
-  const shown = tab === 'unread' ? items.filter((n) => !n.readAt) : items;
-  const groups = useMemo(() => groupedNotifications(shown), [shown]);
+  const currentTask = params.get('task');
 
-  const go = (note: Notification) => {
-    if (note.kind === 'access_request' && note.projectKey) {
-      navigate(`/p/${note.projectKey}/settings/members`);
-      return;
-    }
-    if (note.taskKey && note.projectKey) {
-      navigate(`/p/${note.projectKey}/list?task=${note.taskKey}`);
-      return;
-    }
-    if (note.projectKey) {
-      navigate(`/p/${note.projectKey}/list`);
-    }
+  const filtered = useMemo(
+    () => items.filter((note) => matchesFilters(note, chips, meId, projectKey)),
+    [items, chips, meId, projectKey],
+  );
+  const tabCounts = useMemo(() => ({
+    action: filtered.filter((note) => inTab(note, 'action')).length,
+    mentions: filtered.filter((note) => inTab(note, 'mentions')).length,
+    updates: collapseBellItems(filtered.filter((note) => inTab(note, 'updates'))).length,
+    all: collapseBellItems(filtered).length,
+  }), [filtered]);
+  const shown = useMemo(
+    () => collapseBellItems(filtered.filter((note) => inTab(note, tab))),
+    [filtered, tab],
+  );
+  const groups = useMemo(() => groupBellByDate(shown), [shown]);
+  const flat = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+
+  const toggleChip = (chip: BellChip) => {
+    setChips((current) => {
+      const next = new Set(current);
+      if (next.has(chip)) next.delete(chip);
+      else next.add(chip);
+      return next;
+    });
   };
 
-  const open = (note: Notification) => {
-    if (!note.readAt) mark.mutate({ id: note.id });
-    onClose();
+  const open = (item: BellItem) => {
+    setActiveId(item.id);
+    const unreadIds = item.ids.filter((id) => items.find((note) => note.id === id && !note.readAt));
+    if (unreadIds.length) mark.mutate({ ids: unreadIds });
+    const note = item.latest;
     if (note.needsAccept && note.projectKey) {
-      void accept.mutateAsync(note.projectKey).then(() => go(note)).catch((err: unknown) => {
+      void accept.mutateAsync(note.projectKey).then(() => goTo(note, navigate)).catch((err: unknown) => {
         toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not join this project.' });
       });
       return;
     }
-    go(note);
+    goTo(note, navigate);
   };
+
+  const resolve = (item: BellItem, action: 'accept' | 'decline') => {
+    const note = item.latest;
+    if (!note.projectKey || !note.requestId) return;
+    resolveAccess.mutate({ projectKey: note.projectKey, id: note.requestId, action }, {
+      onError: (err: unknown) => {
+        toast.show({ kind: 'error', text: err instanceof Error ? err.message : 'Could not update that request.' });
+      },
+    });
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'j' && event.key !== 'k' && event.key !== 'J' && event.key !== 'K') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (flat.length === 0) return;
+      event.preventDefault();
+      const current = Math.max(0, flat.findIndex((item) => item.id === activeId || item.latest.taskKey === currentTask));
+      const delta = event.key.toLowerCase() === 'j' ? 1 : -1;
+      const next = flat[Math.min(flat.length - 1, Math.max(0, current + delta))];
+      if (next) open(next);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [flat, activeId, currentTask, items]);
+
+  const projectLabel = projectKey
+    ? (projects.find((project) => project.key === projectKey)?.name ?? projectKey)
+    : 'All projects';
+  const projectKeys = [...new Set(items.map((note) => note.projectKey).filter((key): key is string => Boolean(key)))];
 
   return (
     <div
       role="dialog"
       aria-label="Notifications"
       style={{
-        width: phone ? '100%' : 420,
-        maxWidth: phone ? '100%' : 'calc(100vw - 24px)',
-        height: phone ? '100%' : undefined,
-        display: phone ? 'flex' : undefined,
-        flexDirection: phone ? 'column' : undefined,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         background: color.surface,
-        border: phone ? 0 : `1px solid ${color.border}`,
-        borderRadius: phone ? 0 : radius.xl,
-        boxShadow: phone ? 'none' : color.shadow,
+        minHeight: 0,
         overflow: 'hidden',
-        whiteSpace: 'normal',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${color.divider}` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 16px 0', borderBottom: `1px solid ${color.divider}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>Notifications</span>
+          <span style={{ fontFamily: font.display, fontWeight: 600, fontSize: 16, flex: 1, minWidth: 0 }}>Notifications</span>
           <button
             type="button"
             disabled={unreadCount === 0}
@@ -182,116 +327,122 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
           >
             Mark all read
           </button>
-        </div>
-        <div role="tablist" style={{ display: 'flex', alignSelf: 'flex-start', maxWidth: '100%', gap: 2, padding: 2, borderRadius: 8, background: color.chip }}>
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'unread'}
-            onClick={() => { setTab('unread'); setOpenGroups({}); }}
+            aria-label="Close notifications"
+            onClick={onClose}
             style={{
-              height: 26,
-              padding: '0 10px',
+              width: 28,
+              height: 28,
+              display: 'grid',
+              placeItems: 'center',
               border: 0,
-              borderRadius: 6,
-              background: tab === 'unread' ? color.surface : 'transparent',
-              font: 'inherit',
-              fontSize: 12.5,
-              fontWeight: tab === 'unread' ? 600 : 400,
-              color: tab === 'unread' ? color.ink : color.ink3,
+              borderRadius: radius.sm,
+              background: 'transparent',
+              color: color.ink3,
               cursor: 'pointer',
-              whiteSpace: 'nowrap',
             }}
           >
-            Unread {unreadCount}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'all'}
-            onClick={() => { setTab('all'); setOpenGroups({}); }}
-            style={{
-              height: 26,
-              padding: '0 10px',
-              border: 0,
-              borderRadius: 6,
-              background: tab === 'all' ? color.surface : 'transparent',
-              font: 'inherit',
-              fontSize: 12.5,
-              fontWeight: tab === 'all' ? 600 : 400,
-              color: tab === 'all' ? color.ink : color.ink3,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'viewed'}
-            onClick={() => { setTab('viewed'); setOpenGroups({}); }}
-            style={{
-              height: 26,
-              padding: '0 10px',
-              border: 0,
-              borderRadius: 6,
-              background: tab === 'viewed' ? color.surface : 'transparent',
-              font: 'inherit',
-              fontSize: 12.5,
-              fontWeight: tab === 'viewed' ? 600 : 400,
-              color: tab === 'viewed' ? color.ink : color.ink3,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Last viewed
+            <CloseIcon />
           </button>
         </div>
-      </div>
-      {tab === 'viewed' ? (
-        <div style={{ flex: phone ? 1 : undefined, maxHeight: phone ? undefined : 420, overflow: 'auto' }}>
-          {lastViewed.length === 0 ? (
-            <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center' }}>No recently viewed tasks.</div>
-          ) : lastViewed.map((row) => (
+        <div role="tablist" style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
+          {TABS.map((row) => {
+            const selected = tab === row.id;
+            const count = tabCounts[row.id];
+            return (
+              <button
+                key={row.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setTab(row.id)}
+                style={{
+                  height: 34,
+                  padding: '0 10px',
+                  border: 0,
+                  borderBottom: `2px solid ${selected ? color.brand : 'transparent'}`,
+                  background: 'transparent',
+                  font: 'inherit',
+                  fontSize: 13,
+                  fontWeight: selected ? 600 : 500,
+                  color: selected ? color.ink : color.ink3,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {row.label}
+                {row.id !== 'all' && (
+                  <span style={{
+                    minWidth: 18,
+                    height: 18,
+                    padding: '0 5px',
+                    borderRadius: 999,
+                    background: selected ? color.brand : color.chip,
+                    color: selected ? color.brandOn : color.ink3,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingBottom: 12 }}>
+          <Chip active={chips.has('reported')} onClick={() => toggleChip('reported')}>Reported by me</Chip>
+          <Chip active={chips.has('assigned')} onClick={() => toggleChip('assigned')}>Assigned</Chip>
+          <Chip active={chips.has('access')} onClick={() => toggleChip('access')}>Access</Chip>
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                { key: 'all', label: 'All projects' },
+                ...projectKeys.map((key) => ({
+                  key,
+                  label: projects.find((project) => project.key === key)?.name ?? key,
+                })),
+              ],
+              onClick: ({ key }) => setProjectKey(key === 'all' ? null : key),
+            }}
+          >
             <button
-              key={row.key}
               type="button"
-              onClick={() => {
-                onClose();
-                navigate(`/p/${row.projectKey}/list?task=${row.key}`);
-              }}
               style={{
-                display: 'flex',
-                width: '100%',
-                gap: 10,
-                padding: '10px 16px',
-                border: 0,
-                borderBottom: `1px solid ${color.divider}`,
-                background: 'transparent',
-                textAlign: 'left',
+                height: 28,
+                padding: '0 10px',
+                border: `1px solid ${color.border}`,
+                borderRadius: 999,
+                background: color.surface,
+                color: color.ink3,
                 font: 'inherit',
+                fontSize: 12.5,
+                fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              <span className="bt-key">{row.key}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</span>
+              {projectLabel}
             </button>
-          ))}
+          </Dropdown>
         </div>
-      ) : shown.length === 0 ? (
-        <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center', flex: phone ? 1 : undefined }}>
-          {tab === 'unread' ? 'You are up to date.' : 'No notifications yet.'}
+      </div>
+      {shown.length === 0 ? (
+        <div style={{ padding: '28px 16px', fontSize: 13.5, color: color.muted, textAlign: 'center', flex: 1 }}>
+          {tab === 'action' ? 'Nothing waiting on you.' : 'No notifications in this tab.'}
         </div>
       ) : (
-        <div style={{ flex: phone ? 1 : undefined, maxHeight: phone ? undefined : 420, overflow: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {groups.map((group) => {
-            const unreadInGroup = group.items.filter((note) => !note.readAt).length;
-            const expanded = Boolean(openGroups[group.kind]);
-            const visible = expanded ? group.items : group.items.slice(0, GROUP_PREVIEW);
-            const hidden = group.items.length - visible.length;
+            const unreadIds = group.items.flatMap((item) => item.ids).filter((id) => items.find((note) => note.id === id && !note.readAt));
             return (
-              <section key={group.kind} aria-label={group.label}>
+              <section key={group.label} aria-label={group.label}>
                 <div
                   style={{
                     display: 'flex',
@@ -305,101 +456,90 @@ export function NotificationPanel({ onClose, phone = false }: { onClose: () => v
                     zIndex: 1,
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 600, color: color.ink3, letterSpacing: 0.2 }}>{group.label}</span>
-                  <span style={{ fontSize: 12, color: color.muted }}>{group.items.length}</span>
-                  {unreadInGroup > 0 && (
-                    <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: color.brandStrong }}>
-                      {unreadInGroup} unread
-                    </span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: color.ink3, letterSpacing: 0.4, textTransform: 'uppercase' }}>{group.label}</span>
+                  {unreadIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => mark.mutate({ ids: unreadIds })}
+                      style={{
+                        marginLeft: 'auto',
+                        border: 0,
+                        background: 'transparent',
+                        font: 'inherit',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: 0.3,
+                        color: color.brandStrong,
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Mark read
+                    </button>
                   )}
                 </div>
-                {visible.map((note) => (
-                  <NotificationRow key={note.id} note={note} onOpen={open} />
+                {group.items.map((item) => (
+                  <NotificationRow
+                    key={item.id}
+                    item={item}
+                    unread={item.ids.some((id) => items.some((note) => note.id === id && !note.readAt))}
+                    active={item.id === activeId || Boolean(item.latest.taskKey && item.latest.taskKey === currentTask)}
+                    busy={resolveAccess.isPending && resolveAccess.variables?.id === item.latest.requestId}
+                    onOpen={open}
+                    onResolve={resolve}
+                  />
                 ))}
-                {hidden > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenGroups((current) => ({ ...current, [group.kind]: true }))}
-                    style={{
-                      width: '100%',
-                      height: 32,
-                      padding: '0 16px',
-                      border: 0,
-                      borderBottom: `1px solid ${color.divider}`,
-                      background: color.surface,
-                      color: color.brandStrong,
-                      font: 'inherit',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Show {hidden} more
-                  </button>
-                )}
               </section>
             );
           })}
         </div>
       )}
       <div style={{ padding: '10px 16px', fontSize: 12.5, color: color.muted }}>
-        Choose what you hear about in <Link to="/settings/profile" onClick={onClose} style={{ color: color.brandStrong }}>your profile</Link>.
+        Choose what you hear about in <Link to="/settings/profile" style={{ color: color.brandStrong }}>your profile</Link>.
       </div>
     </div>
   );
 }
 
-export function NotificationBell() {
-  const [open, setOpen] = useState(false);
+export function NotificationBell({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const unread = useNotifications().data?.unreadCount ?? 0;
   const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
 
   return (
-    <Popover
-      trigger="click"
-      open={open}
-      onOpenChange={setOpen}
-      placement="bottomRight"
-      arrow={false}
-      destroyOnHidden
-      styles={{ container: { padding: 0, whiteSpace: 'normal' } }}
-      content={<NotificationPanel onClose={() => setOpen(false)} />}
+    <button
+      type="button"
+      aria-label={label}
+      aria-expanded={open}
+      onClick={() => onOpenChange(!open)}
+      style={{
+        position: 'relative',
+        width: 38,
+        height: 38,
+        display: 'grid',
+        placeItems: 'center',
+        border: `1px solid ${open ? color.brandBorder : color.border}`,
+        borderRadius: radius.md,
+        background: open ? color.brandTint : color.surface,
+        color: color.ink3,
+        cursor: 'pointer',
+      }}
     >
-      <button
-        type="button"
-        aria-label={label}
-        aria-expanded={open}
-        style={{
-          position: 'relative',
-          width: 38,
-          height: 38,
-          display: 'grid',
-          placeItems: 'center',
-          border: `1px solid ${color.border}`,
-          borderRadius: radius.md,
-          background: color.surface,
-          color: color.ink3,
-          cursor: 'pointer',
-        }}
-      >
-        <BellIcon />
-        {unread > 0 && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 9,
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: color.unreadDot,
-            }}
-          />
-        )}
-      </button>
-    </Popover>
+      <BellIcon />
+      {unread > 0 && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 9,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: color.unreadDot,
+          }}
+        />
+      )}
+    </button>
   );
 }
 
@@ -409,7 +549,6 @@ export function InboxSheet({ open, onClose }: { open: boolean; onClose: () => vo
     <div
       role="presentation"
       className="bt-phone-sheet"
-      onClick={onClose}
       style={{
         position: 'fixed',
         top: 0,
@@ -422,7 +561,7 @@ export function InboxSheet({ open, onClose }: { open: boolean; onClose: () => vo
         flexDirection: 'column',
       }}
     >
-      <div onClick={(event) => event.stopPropagation()} style={{ flex: 1, minHeight: 0, background: color.surface, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, background: color.surface, display: 'flex', flexDirection: 'column' }}>
         <NotificationPanel onClose={onClose} phone />
       </div>
     </div>,

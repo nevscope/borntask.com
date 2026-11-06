@@ -162,6 +162,8 @@ export const qk = {
   platformWorkspaces: ['platform', 'workspaces'] as const,
   timesheets: (from: string, to: string, userId?: string) => ['timesheets', from, to, userId ?? 'me'] as const,
   reports: (from: string, to: string, projectId?: string) => ['reports', from, to, projectId ?? 'all'] as const,
+  releases: (projectKey?: string) => ['releases', projectKey ?? 'all'] as const,
+  release: (id: string, projectKey?: string) => ['releases', id, projectKey ?? 'all'] as const,
 };
 
 // ---------- reads ----------
@@ -200,20 +202,25 @@ export function useProjectAccessRequests(projectKey: string, enabled: boolean) {
   });
 }
 
-export function useResolveAccessRequest(projectKey: string) {
+export function useResolveAccessRequest(projectKey?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: 'accept' | 'decline' }) => {
+    mutationFn: async ({ id, action, projectKey: key }: { id: string; action: 'accept' | 'decline'; projectKey?: string }) => {
+      const project = key ?? projectKey;
+      if (!project) throw new Error('Could not update that request.');
       const res = await fetch(
-        `${BASE_URL}/projects/${encodeURIComponent(projectKey)}/access-requests/${encodeURIComponent(id)}/${action}`,
+        `${BASE_URL}/projects/${encodeURIComponent(project)}/access-requests/${encodeURIComponent(id)}/${action}`,
         { method: 'POST', credentials: 'include' },
       );
       const json = await res.json().catch(() => null) as { message?: string } | null;
       if (!res.ok) throw new Error(json?.message ?? 'Could not update that request.');
+      return { projectKey: project, action };
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['projects', projectKey, 'access-requests'] });
-      void qc.invalidateQueries({ queryKey: qk.project(projectKey) });
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ['projects', result.projectKey, 'access-requests'] });
+      void qc.invalidateQueries({ queryKey: qk.project(result.projectKey) });
+      void qc.invalidateQueries({ queryKey: qk.notifications });
+      void qc.invalidateQueries({ queryKey: qk.projects });
     },
   });
 }
@@ -401,6 +408,19 @@ function invalidateTaskViews(qc: QueryClient, task: Pick<Task, 'key' | 'projectK
   void qc.invalidateQueries({ queryKey: qk.workspaceTasks });
   void qc.invalidateQueries({ queryKey: qk.task(task.key) });
   void qc.invalidateQueries({ queryKey: qk.projects, exact: true });
+  void qc.invalidateQueries({ queryKey: ['releases'] });
+}
+
+function mergeCustomFieldValues(
+  current: NonNullable<Task['customFields']>,
+  patch: Array<{ fieldId: string; value: string | null }>,
+): NonNullable<Task['customFields']> {
+  const byId = new Map(current.map((row) => [row.fieldId, row]));
+  for (const row of patch) {
+    if (!row.value) byId.delete(row.fieldId);
+    else byId.set(row.fieldId, { fieldId: row.fieldId, value: row.value });
+  }
+  return [...byId.values()];
 }
 
 /** Optimistically patch a task in its project list so drags and edits feel instant. */
@@ -450,10 +470,18 @@ export function useUpdateTask() {
       taskWriteSeq.set(key, seq);
       await qc.cancelQueries({ queryKey: qk.task(key) });
       const previousTask = qc.getQueryData<Record<string, unknown>>(qk.task(key));
+      const { customFields: fieldPatch, ...rest } = input;
+      const currentFields = Array.isArray(previousTask?.customFields)
+        ? (previousTask.customFields as Task['customFields'])
+        : [];
+      const nextFields = fieldPatch
+        ? mergeCustomFieldValues(currentFields ?? [], fieldPatch)
+        : currentFields;
+      const patch: Partial<Task> = { ...rest, customFields: nextFields };
       if (previousTask) {
-        qc.setQueryData(qk.task(key), { ...previousTask, ...input });
+        qc.setQueryData(qk.task(key), { ...previousTask, ...patch });
       }
-      return { seq, previousTask, rollback: patchProjectTask(qc, projectKeyOf(key), key, input) };
+      return { seq, previousTask, rollback: patchProjectTask(qc, projectKeyOf(key), key, patch) };
     },
     onError: (_e, vars, ctx) => {
       if (!ctx || taskWriteSeq.get(vars.key) !== ctx.seq) return;
@@ -657,15 +685,16 @@ export function useRemoveTaskLink() {
 export function useMarkNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id?: string; all?: boolean }) => api.markNotificationsRead(input),
+    mutationFn: (input: { id?: string; ids?: string[]; all?: boolean }) => api.markNotificationsRead(input),
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: qk.notifications });
       const prev = qc.getQueryData<NotificationList>(qk.notifications);
       if (prev) {
         const now = new Date().toISOString();
+        const ids = new Set(input.ids ?? []);
         const items = prev.items.map((n) => {
           if (n.readAt) return n;
-          if (input.all || n.id === input.id) return { ...n, readAt: now };
+          if (input.all || n.id === input.id || ids.has(n.id)) return { ...n, readAt: now };
           return n;
         });
         qc.setQueryData<NotificationList>(qk.notifications, {
@@ -1607,5 +1636,86 @@ export function useRevokeGrant() {
   return useMutation({
     mutationFn: (id: string) => request('DELETE', `/me/grants/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() })),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['tokens'] }),
+  });
+}
+
+const ReleaseProgressSchema = z.object({
+  total: z.number().int(),
+  done: z.number().int(),
+  byStatus: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    category: z.enum(['backlog', 'active', 'review', 'done']),
+    count: z.number().int(),
+  })),
+});
+
+const ReleaseTaskRowSchema = z.object({
+  key: z.string(),
+  title: z.string(),
+  projectKey: z.string(),
+  projectName: z.string(),
+  statusId: z.string(),
+  statusName: z.string(),
+  statusCategory: z.enum(['backlog', 'active', 'review', 'done']),
+});
+
+export const WorkspaceReleaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  date: z.string(),
+  released: z.boolean(),
+  taskCount: z.number().int(),
+  projectCount: z.number().int(),
+  progress: ReleaseProgressSchema,
+  projects: z.array(z.object({ key: z.string(), name: z.string(), count: z.number().int() })),
+  tasks: z.array(ReleaseTaskRowSchema),
+  shipped: z.array(ReleaseTaskRowSchema),
+});
+export type WorkspaceRelease = z.infer<typeof WorkspaceReleaseSchema>;
+
+const ReleasesListSchema = z.object({ releases: z.array(WorkspaceReleaseSchema) });
+
+export function useReleases(projectKey?: string) {
+  return useQuery({
+    queryKey: qk.releases(projectKey),
+    queryFn: async (): Promise<WorkspaceRelease[]> => {
+      const qs = projectKey ? `?projectKey=${encodeURIComponent(projectKey)}` : '';
+      try {
+        const data = await request('GET', `/releases${qs}`, ReleasesListSchema);
+        return data.releases;
+      } catch (err) {
+        if (USE_MOCKS && (err instanceof ApiError || err instanceof TypeError)) {
+          const { mockReleases } = await import('./releasesMock');
+          return mockReleases(projectKey);
+        }
+        throw err;
+      }
+    },
+  });
+}
+
+export function useCreateRelease() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; date: string }) => request('POST', '/releases', WorkspaceReleaseSchema, input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['releases'] }),
+  });
+}
+
+export function useUpdateRelease() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: { name?: string; date?: string } }) =>
+      request('PATCH', `/releases/${encodeURIComponent(id)}`, WorkspaceReleaseSchema, input),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['releases'] }),
+  });
+}
+
+export function useDeleteRelease() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request('DELETE', `/releases/${encodeURIComponent(id)}`, z.object({ ok: z.boolean() })),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['releases'] }),
   });
 }

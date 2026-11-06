@@ -26,19 +26,20 @@ import {
   useUpdateComment,
   useUpdateTask,
   useMoveTaskToProject,
+  useReleases,
   qk,
 } from '../api/queries';
-import type { ActorVia, Comment, CommentReactionKind, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
+import type { ActorVia, Comment, CommentReactionKind, CustomFieldDef, ProjectDetail, TaskDetail, UpdateTaskInput, WorkspaceRole } from '../api/types';
 import { dueLabel } from '../lib/dates';
 import { moveOptions, statusById } from '../lib/workflow';
 import { color, font, radius } from '../theme/tokens';
 import { BASE_URL } from '../api/http';
 import { readTaskAttachments, writeTaskAttachments } from '../lib/attachmentSession';
 import { blobUrlForTaskFile, canPreviewAttachment, deleteTaskFile, downloadTaskFile, taskAttachmentSrc, uploadTaskFile } from '../lib/uploadAttachment';
-import { COMMENT_REACTION_KINDS, COMMENT_REACTION_LABELS, isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
+import { COMMENT_REACTION_KINDS, COMMENT_REACTION_LABELS, formatReleaseDate, isTaskDescriptionTooLong, partitionAttachmentFiles, TASK_DESCRIPTION_TOO_LONG } from '@borntask/shared';
 import { useWorkspaceCatalog } from '../api/catalog';
 import { isEmptyDescription, persistDescription, readableDescriptionHtml } from '../lib/descriptionHtml';
-import { allowedTypeSlugs } from '../lib/taskFilters';
+import { allowedTypeSlugs, fieldAppliesToTask } from '../lib/taskFilters';
 import { trashToldCopy } from '../lib/toldPeople';
 import { DevelopmentSection } from './DevelopmentSection';
 import { AttachmentPreview, AttachmentTiles, filesFromClipboard, type AttachmentItem } from './AttachmentTiles';
@@ -161,6 +162,7 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
   const copyTask = useCopyTask();
   const watch = useSetWatching();
   const flow = useMoveFlow(detail);
+  const releases = useReleases();
   const saving = useIsMutating() > 0;
 
   const [title, setTitle] = useState(task.title);
@@ -710,6 +712,17 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           <PriorityPicker value={task.priority} onChange={(priority) => save({ priority })} />
           <FieldLabel>Section</FieldLabel>
           <Select value={task.sectionId} onChange={(sectionId: string) => save({ sectionId })} options={detail.sections.map((s) => ({ value: s.id, label: s.name }))} />
+          <FieldLabel>Release</FieldLabel>
+          <Select
+            allowClear
+            placeholder="None"
+            value={task.releaseId ?? undefined}
+            onChange={(releaseId: string | undefined) => save({ releaseId: releaseId ?? null })}
+            options={(releases.data ?? []).map((row) => ({
+              value: row.id,
+              label: `${row.name} (${formatReleaseDate(row.date)})`,
+            }))}
+          />
           {breakdown !== 'off' && task.type !== 'epic' && (
             <>
               <FieldLabel>Part of</FieldLabel>
@@ -726,6 +739,13 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
           <div className={isPhone ? undefined : 'bt-field-wide'}>
             <LabelPicker value={task.labels} suggestions={labelSuggestions} onChange={(labels) => save({ labels })} />
           </div>
+          {(detail.customFields ?? []).filter((field) => fieldAppliesToTask(field, task.type)).map((field) => {
+            const value = (task.customFields ?? []).find((row) => row.fieldId === field.id)?.value ?? '';
+            const setValue = (next: string | null) => save({ customFields: [{ fieldId: field.id, value: next }] });
+            return (
+              <CustomFieldControl key={field.id} field={field} value={value} onChange={setValue} />
+            );
+          })}
           <FieldLabel>Reporter</FieldLabel>
           <span className={isPhone ? undefined : 'bt-field-wide'} style={{ color: color.ink3, lineHeight: '32px' }}>{detail.users.find((u) => u.id === task.reporterId)?.name ?? 'Unknown'} · {dayjs(task.createdAt).format('D MMM')}</span>
         </div>
@@ -941,6 +961,52 @@ function DrawerBody({ task, detail, onClose, closeNow, openTask, guard }: { task
 
 function FieldLabel({ children }: { children: string }) {
   return <span className="bt-field-label">{children}</span>;
+}
+
+function CustomFieldControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: CustomFieldDef;
+  value: string;
+  onChange: (next: string | null) => void;
+}) {
+  return (
+    <>
+      <FieldLabel>{field.name}</FieldLabel>
+      {field.type === 'dropdown' ? (
+        <Select
+          allowClear
+          aria-label={field.name}
+          placeholder="Choose"
+          value={value || undefined}
+          options={field.options.map((option) => ({ value: option, label: option }))}
+          onChange={(next: string | undefined) => onChange(next ?? null)}
+        />
+      ) : field.type === 'date' ? (
+        <Input
+          aria-label={field.name}
+          type="date"
+          value={value}
+          onChange={(event) => onChange(event.target.value || null)}
+        />
+      ) : (
+        <Input
+          aria-label={field.name}
+          maxLength={200}
+          defaultValue={value}
+          key={`${field.id}:${value}`}
+          onBlur={(event) => {
+            const next = event.target.value.trim();
+            if (next === value) return;
+            onChange(next || null);
+          }}
+          onPressEnter={(event) => event.currentTarget.blur()}
+        />
+      )}
+    </>
+  );
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

@@ -10,7 +10,9 @@ import { deleteProject } from '../lib/deleteProject.js';
 import { projectKeyFromName } from '../lib/tokens.js';
 import { acceptProjectInvite, joinOpenProject, recordProjectOpen } from '../lib/applyProjectInvite.js';
 import { hoursPerWeekToNumber, memberFillsTimesheets, normaliseProjectKey, parseOptionalWorkingDays, resolveProjectCreatePlan, workBreakdownSchema } from '@borntask/shared';
+import { ensureFoundOnField } from '../lib/customFields.js';
 import { ensurePlanningTypes } from '../lib/planning.js';
+import { accessHandledKind, accessRequestKind } from '../lib/accessNotify.js';
 import { inAppAllowed } from '../lib/notifyInApp.js';
 import { assertCanManageOpenProject, canDiscoverWorkspaceProjects, canOpenListed, findPendingProjectInvite, openProjectIds, pendingInviteProjectIds, requireOpenProject, requireOpenProjectWrite } from '../lib/projectAccess.js';
 
@@ -22,7 +24,7 @@ function normaliseColour(value: string): string {
   return `#${full}`;
 }
 
-async function notifyAccessRequest(auth: Authed, project: { id: string; key: string; leadId: string | null }) {
+async function notifyAccessRequest(auth: Authed, project: { id: string; key: string; leadId: string | null }, requestId: string) {
   const recipients = new Set<string>();
   if (project.leadId) recipients.add(project.leadId);
   const leads = await auth.db.projectMemberRole.findMany({
@@ -39,9 +41,28 @@ async function notifyAccessRequest(auth: Authed, project: { id: string; key: str
   for (const userId of recipients) {
     if (!(await inAppAllowed(auth, userId, 'access_request'))) continue;
     await auth.db.notification.create({
-      data: { tenantId: auth.tenantId, userId, actorId: auth.userId, kind: `access_request:${project.key}` },
+      data: { tenantId: auth.tenantId, userId, actorId: auth.userId, kind: accessRequestKind(project.key, requestId) },
     });
   }
+}
+
+async function markAccessRequestHandled(
+  auth: Authed,
+  projectKey: string,
+  request: { id: string; requesterId: string },
+  outcome: 'approved' | 'declined',
+) {
+  const now = new Date();
+  const handled = accessHandledKind(projectKey, request.id, outcome, auth.userId);
+  await auth.db.notification.updateMany({
+    where: {
+      OR: [
+        { kind: accessRequestKind(projectKey, request.id) },
+        { kind: `access_request:${projectKey}`, actorId: request.requesterId },
+      ],
+    },
+    data: { kind: handled, readAt: now },
+  });
 }
 
 const createProjectSchema = z.object({
@@ -273,6 +294,9 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       const lead = await auth.db.projectRole.findFirst({ where: { slug: 'lead' } });
       if (lead) {
         await auth.db.projectMemberRole.create({ data: { tenantId: auth.tenantId, memberId: member.id, roleId: lead.id } });
+      }
+      if (plan.workflow === 'delivery') {
+        await ensureFoundOnField(auth.db, auth.tenantId, project.id);
       }
       const extras = [
         ...(input.memberIds ?? []).map((userId) => ({ userId, roleSlugs: [] as string[] })),
@@ -520,10 +544,10 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           })
         : null;
       if (!alreadyOn && !existing) {
-        await auth.db.accessRequest.create({
+        const created = await auth.db.accessRequest.create({
           data: { tenantId: auth.tenantId, projectId: project.id, requesterId: auth.userId },
         });
-        await notifyAccessRequest(auth, project);
+        await notifyAccessRequest(auth, project, created.id);
       }
       const lead = project.leadId
         ? await prisma.user.findUnique({ where: { id: project.leadId }, select: { name: true } })
@@ -579,6 +603,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
         create: { tenantId: auth.tenantId, projectId: project.id, userId: row.requesterId },
       });
       await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
+      await markAccessRequestHandled(auth, project.key, row, 'approved');
       await auth.db.notification.create({
         data: { tenantId: auth.tenantId, userId: row.requesterId, actorId: auth.userId, kind: 'access_granted' },
       });
@@ -599,6 +624,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       });
       if (!row) throw notFound('That request is no longer pending.');
       await auth.db.accessRequest.update({ where: { id: row.id }, data: { resolvedAt: new Date() } });
+      await markAccessRequestHandled(auth, project.key, row, 'declined');
       await auth.db.notification.create({
         data: { tenantId: auth.tenantId, userId: row.requesterId, actorId: auth.userId, kind: 'access_declined' },
       });

@@ -75,6 +75,12 @@ enum Priority {
   none
 }
 
+enum CustomFieldType {
+  dropdown
+  text
+  date
+}
+
 enum ActivityVia {
   app
   mcp
@@ -218,6 +224,8 @@ model Workspace {
   projectOpens     ProjectOpen[]
   sections         Section[]
   labels           Label[]
+  customFields     CustomField[]
+  customFieldValues CustomFieldValue[]
   comments         Comment[]
   commentReactions CommentReaction[]
   attachments      Attachment[]
@@ -238,6 +246,7 @@ model Workspace {
   timesheetEntries TimesheetEntry[]
   timesheetDaysOff TimesheetDayOff[]
   taskLinks        TaskLink[]
+  releases         Release[]
 }
 
 model TenantMember {
@@ -340,6 +349,7 @@ model Project {
   sections     Section[]
   tasks        Task[]
   labels       Label[]
+  customFields CustomField[]
   savedViews   SavedView[]
   favourites   Favourite[]
   opens        ProjectOpen[]
@@ -526,6 +536,7 @@ model Task {
   position         String
   parentId         String?
   planningParentId String?
+  releaseId        String?
   completedAt      DateTime?
   deletedAt        DateTime?
   deletedById      String?
@@ -545,8 +556,10 @@ model Task {
   subtasks       Task[]          @relation("Subtasks")
   planningParent   Task?  @relation("PlanningTree", fields: [planningParentId], references: [id], onDelete: SetNull)
   planningChildren Task[] @relation("PlanningTree")
+  release          Release? @relation(fields: [releaseId], references: [id], onDelete: SetNull)
   watchers       TaskWatcher[]
   labels         TaskLabel[]
+  customFieldValues CustomFieldValue[]
   comments       Comment[]
   attachments    Attachment[]
   activity       ActivityLog[]
@@ -560,7 +573,22 @@ model Task {
   @@index([tenantId, assigneeId])
   @@index([tenantId, asanaTaskId])
   @@index([planningParentId])
+  @@index([tenantId, releaseId])
   @@fulltext([title, description])
+}
+
+model Release {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Workspace @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+
+  @@index([tenantId, date])
 }
 
 model TaskLink {
@@ -592,6 +620,39 @@ model TaskWatcher {
 
   @@unique([taskId, userId])
   @@index([tenantId])
+}
+
+model CustomField {
+  id        String          @id @default(cuid())
+  tenantId  String
+  projectId String
+  name      String
+  type      CustomFieldType
+  options   Json
+  appliesTo Json
+  position  Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  tenant Workspace          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  values CustomFieldValue[]
+
+  @@index([tenantId, projectId])
+}
+
+model CustomFieldValue {
+  id      String @id @default(cuid())
+  tenantId String
+  taskId  String
+  fieldId String
+  value   String @db.VarChar(200)
+
+  tenant Workspace   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task   Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  field  CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fieldId])
+  @@index([tenantId, fieldId])
 }
 
 model Label {

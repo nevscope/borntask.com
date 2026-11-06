@@ -201,12 +201,31 @@ export const ProjectMemberSchema = z.object({
 });
 export type ProjectMember = z.infer<typeof ProjectMemberSchema>;
 
+export const CustomFieldTypeSchema = z.enum(['dropdown', 'text', 'date']);
+export type CustomFieldType = z.infer<typeof CustomFieldTypeSchema>;
+
+export const CustomFieldDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: CustomFieldTypeSchema,
+  options: z.array(z.string()),
+  appliesTo: z.array(z.string()),
+});
+export type CustomFieldDef = z.infer<typeof CustomFieldDefSchema>;
+
+export const TaskCustomFieldValueSchema = z.object({
+  fieldId: z.string(),
+  value: z.string(),
+});
+export type TaskCustomFieldValue = z.infer<typeof TaskCustomFieldValueSchema>;
+
 export const ProjectDetailSchema = z.object({
   project: ProjectSchema,
   sections: z.array(SectionSchema),
   members: z.array(ProjectMemberSchema),
   users: z.array(UserSchema),
   workflow: WorkflowSchema,
+  customFields: z.array(CustomFieldDefSchema).optional(),
   disabledTypes: z.array(z.string()).optional(),
   workBreakdown: WorkBreakdownSchema.optional(),
   storiesNeedApproval: z.boolean().optional(),
@@ -233,6 +252,7 @@ export const TaskSchema = z.object({
   /** Optional effort note, for example 2h or 1 day. Not a timesheet entry. */
   estimate: z.string().nullable().optional(),
   labels: z.array(z.string()),
+  customFields: z.array(TaskCustomFieldValueSchema).optional(),
   /** Order within its section. The API should use fractional-index strings; a float is enough for the mock. */
   position: z.number(),
   subtaskCount: z.object({ done: z.number().int(), total: z.number().int() }),
@@ -251,6 +271,8 @@ export const TaskSchema = z.object({
   statusName: z.string().optional(),
   statusCategory: StatusCategorySchema.optional(),
   isBlocked: z.boolean().optional(),
+  releaseId: z.string().nullable().optional(),
+  releaseName: z.string().nullable().optional(),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -409,7 +431,7 @@ export const SearchResponseSchema = z.object({
 export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;
 
-export const NotificationKindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request']);
+export const NotificationKindSchema = z.enum(['mention', 'assigned', 'moved', 'invite', 'github', 'access_request', 'comment']);
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 
 export const NotificationSchema = z.object({
@@ -418,7 +440,16 @@ export const NotificationSchema = z.object({
   text: z.string(),
   taskKey: z.string().nullable(),
   projectKey: z.string().nullable(),
+  taskTitle: z.string().nullable().optional(),
+  fromStatus: z.string().nullable().optional(),
+  toStatus: z.string().nullable().optional(),
+  reporterId: z.string().nullable().optional(),
+  assigneeId: z.string().nullable().optional(),
   needsAccept: z.boolean().optional(),
+  requestId: z.string().nullable().optional(),
+  outcome: z.enum(['approved', 'declined']).nullable().optional(),
+  handledBy: UserSchema.nullable().optional(),
+  needsAction: z.boolean().optional(),
   actor: UserSchema.nullable(),
   createdAt: z.string(),
   readAt: z.string().nullable(),
@@ -471,6 +502,11 @@ export const UpdateTaskInputSchema = z
     labels: z.array(z.string()),
     sectionId: z.string(),
     planningParentId: z.string().nullable(),
+    releaseId: z.string().nullable(),
+    customFields: z.array(z.object({
+      fieldId: z.string(),
+      value: z.string().nullable(),
+    })),
   })
   .partial();
 export type UpdateTaskInput = z.infer<typeof UpdateTaskInputSchema>;
@@ -551,5 +587,5 @@ export interface Api {
   addTaskLink(key: string, input: { type: string; otherKey: string }): Promise<TaskLink>; // POST /tasks/:key/links
   removeTaskLink(key: string, id: string): Promise<void>; // DELETE /tasks/:key/links/:id
   listNotifications(): Promise<NotificationList>; // GET /me/notifications
-  markNotificationsRead(input: { id?: string; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
+  markNotificationsRead(input: { id?: string; ids?: string[]; all?: boolean }): Promise<NotificationList>; // POST /me/notifications/read
 }

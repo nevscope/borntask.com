@@ -43,6 +43,7 @@ import { PublicLegalScreen } from './screens/auth/PublicLegalScreen';
 import { LegalSettingsScreen } from './screens/LegalSettingsScreen';
 import { TimesheetsScreen } from './screens/TimesheetsScreen';
 import { WorkspaceViewsScreen } from './screens/WorkspaceViewsScreen';
+import { ReleasesScreen } from './screens/ReleasesScreen';
 
 const DEMO_SCREENS: Record<string, { path: string; task?: string; quickAdd?: boolean }> = {
   'my-tasks': { path: '/' },
@@ -107,6 +108,7 @@ function Shell() {
         <Route path="/views" element={<WorkspaceViewsScreen />} />
         <Route path="/timesheets" element={<TimesheetsScreen />} />
         <Route path="/reports" element={<WorkspaceReportsScreen />} />
+        <Route path="/releases" element={<ReleasesScreen />} />
         <Route path="/search" element={<SearchScreen />} />
         <Route path="/projects" element={<ProjectsScreen />} />
         <Route path="/projects/new" element={<CreateProjectScreen />} />

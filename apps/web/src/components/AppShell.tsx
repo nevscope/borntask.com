@@ -15,7 +15,7 @@ import { useQuickAdd } from './QuickAdd';
 import { TaskDrawer } from './TaskDrawer';
 import { withTaskQuery } from './useTaskParam';
 import { AccountMenu, YouSheet } from './AccountMenu';
-import { InboxSheet, NotificationBell } from './NotificationBell';
+import { InboxSheet, NotificationBell, NotificationPanel } from './NotificationBell';
 import { TopSearch } from './TopSearch';
 import { useStatusToast } from './StatusToast';
 import { useIsPhone } from '../hooks/useIsPhone';
@@ -42,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isPhone = useIsPhone();
   const [shortcuts, setShortcuts] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
   const [youOpen, setYouOpen] = useState(false);
   useBackLayer(isPhone && inboxOpen, () => setInboxOpen(false));
   useBackLayer(isPhone && youOpen, () => setYouOpen(false));
@@ -57,6 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [seenNew, setSeenNew] = useState(() => ({
     timesheets: hasSeenNewFeature(me?.user.id, 'timesheets'),
     reports: hasSeenNewFeature(me?.user.id, 'reports'),
+    releases: hasSeenNewFeature(me?.user.id, 'releases'),
   }));
   const guest = me?.workspaceRole === 'guest';
   const viewer = me?.workspaceRole === 'viewer';
@@ -75,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     .map((key) => projects.find((p) => p.key === key))
     .filter((p): p is NonNullable<typeof p> => p !== undefined && !favouriteKeys.has(p.key) && !invitedKeys.has(p.key))
     .slice(0, 10);
-  const myCount = (myTasks?.assigned.length ?? 0) + (myTasks?.approvals.length ?? 0);
+  const myCount = myTasks?.assigned.length ?? 0;
   useLiveUpdates(Boolean(me));
   const workspaces = me?.workspaces ?? [];
   const pinned = guest ? projects : favourites;
@@ -84,6 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     setSeenNew({
       timesheets: hasSeenNewFeature(userId, 'timesheets'),
       reports: hasSeenNewFeature(userId, 'reports'),
+      releases: hasSeenNewFeature(userId, 'releases'),
     });
   }, [userId]);
 
@@ -96,6 +99,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/reports')) {
       markNewFeatureSeen(userId, 'reports');
       setSeenNew((current) => (current.reports ? current : { ...current, reports: true }));
+    }
+    if (pathname.startsWith('/releases')) {
+      markNewFeatureSeen(userId, 'releases');
+      setSeenNew((current) => (current.releases ? current : { ...current, releases: true }));
     }
   }, [pathname, userId]);
 
@@ -203,6 +210,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/views')) return 'Views';
     if (pathname.startsWith('/timesheets')) return 'Timesheets';
     if (pathname.startsWith('/reports')) return 'Reports';
+    if (pathname.startsWith('/releases')) return 'Releases';
     if (pathname.startsWith('/search')) return 'Search';
     if (pathname.startsWith('/projects')) return 'Projects';
     const projectKey = pathname.match(/^\/p\/([^/]+)/)?.[1];
@@ -260,7 +268,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={`bt-shell${isPhone ? ' is-phone' : ''}${isPhone && taskOpen ? ' task-open' : ''}`}>
       <OfflineBanner />
-      <div className="bt-shell-body">
+      <div className={`bt-shell-body${bellOpen && !isPhone ? ' has-notify' : ''}`}>
       <nav aria-label="Main" aria-hidden={isPhone} className={`bt-sidebar${collapsed ? ' is-collapsed' : ''}`}>
         <div className="bt-sidebar-scroll">
         <div className="bt-sidebar-brand">
@@ -352,6 +360,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             {!seenNew.reports && <NewFeatureTag />}
           </NavLink>
         )}
+        <NavLink to={keepTask('/releases')} className="bt-nav-link" title="Releases">
+          <span className="bt-nav-icon"><NavIcon kind="releases" /></span>
+          <span className="bt-sidebar-label" style={{ flex: 1 }}>Releases</span>
+          {!seenNew.releases && <NewFeatureTag />}
+        </NavLink>
         <NavLink to={keepTask('/search')} className="bt-nav-link" title="Search">
           <span className="bt-nav-icon"><NavIcon kind="search" /></span>
           <span className="bt-sidebar-label">Search</span>
@@ -452,7 +465,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               + New task <kbd className="bt-kbd" style={{ marginLeft: 8, background: 'transparent', color: color.brandOn, borderColor: color.brandOnMuted }}>Q</kbd>
             </Button>
             )}
-            <NotificationBell />
+            <NotificationBell open={bellOpen} onOpenChange={setBellOpen} />
             <Dropdown trigger={['click']} dropdownRender={() => accountMenu}>
               <span style={{ cursor: 'pointer' }}><Avatar user={me?.user} size={34} /></span>
             </Dropdown>
@@ -460,6 +473,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="bt-main-scroll">{children}</main>
       </div>
+      {!isPhone && bellOpen && (
+        <aside className="bt-notify-rail" aria-label="Notification panel">
+          <NotificationPanel onClose={() => setBellOpen(false)} />
+        </aside>
+      )}
       <nav className="bt-phone-tabs" aria-label="Main" hidden={!isPhone || taskOpen}>
         <NavLink to="/" end className={({ isActive }) => `bt-phone-tab${isActive ? ' active' : ''}`}>
           <PhoneIcon kind="tasks" />
@@ -578,7 +596,7 @@ function PhoneIcon({ kind }: { kind: 'tasks' | 'search' | 'projects' | 'plus' | 
   );
 }
 
-function NavIcon({ kind }: { kind: 'tasks' | 'views' | 'search' | 'projects' | 'settings' | 'timesheets' | 'reports' }) {
+function NavIcon({ kind }: { kind: 'tasks' | 'views' | 'search' | 'projects' | 'settings' | 'timesheets' | 'reports' | 'releases' }) {
   const path = {
     tasks: 'M4 7.5h8M4 11h5.5M4.8 4.4 6.2 5.8 8.8 3.2',
     views: 'M3.2 4.2h9.6v2.2H3.2zM3.2 7.6h9.6v2.2H3.2zM3.2 11h6.4v2.2H3.2z',
@@ -587,6 +605,7 @@ function NavIcon({ kind }: { kind: 'tasks' | 'views' | 'search' | 'projects' | '
     settings: 'M8 10.2A2.2 2.2 0 1 0 8 5.8a2.2 2.2 0 0 0 0 4.4zM8 2.6v1.4M8 12v1.4M3.8 4.4l1 1M11.2 10.6l1 1M2.6 8h1.4M12 8h1.4M3.8 11.6l1-1M11.2 5.4l1-1',
     timesheets: 'M8 3.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6zM8 5.2v3l2 1.2',
     reports: 'M3.2 12.4V8.6M6.4 12.4V5.2M9.6 12.4V7.2M2.4 13.2h8.8',
+    releases: 'M3.2 3.6h9.6v2.4H3.2zM4.4 6h7.2v6.4H4.4zM6.4 8.2h3.2',
   }[kind];
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

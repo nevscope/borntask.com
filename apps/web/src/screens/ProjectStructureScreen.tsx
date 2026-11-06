@@ -1,5 +1,6 @@
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { Button, Input, Modal, Select, Switch } from 'antd';
+import { FOUND_ON_FIELD, MAX_CUSTOM_FIELDS } from '@borntask/shared';
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +11,8 @@ import { TypeTag } from '../components/Chips';
 import { SECTION_WHEN_RULE } from '@borntask/shared';
 import { color } from '../theme/tokens';
 import { useWorkspaceCatalog } from '../api/catalog';
-import type { BuiltinTaskType } from '../api/types';
+import type { BuiltinTaskType, CustomFieldDef, CustomFieldType } from '../api/types';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const TYPE_TPL: Record<BuiltinTaskType, string> = {
   idea: 'Template: problem, who benefits',
@@ -41,6 +43,14 @@ export function ProjectStructureScreen() {
   const [addingType, setAddingType] = useState(false);
   const [typeError, setTypeError] = useState<string | null>(null);
   const [sectionError, setSectionError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [addingField, setAddingField] = useState(false);
+  const [fieldName, setFieldName] = useState('');
+  const [fieldType, setFieldType] = useState<CustomFieldType>('dropdown');
+  const [fieldOptions, setFieldOptions] = useState('Live, Test');
+  const [fieldApplies, setFieldApplies] = useState<string[]>([]);
+  const [deleteField, setDeleteField] = useState<CustomFieldDef | null>(null);
+  const [savingField, setSavingField] = useState(false);
 
   const trash = useProjectTrash(projectKey);
   const restore = useRestoreTask();
@@ -66,6 +76,76 @@ export function ProjectStructureScreen() {
       setTypeError(json.message ?? 'Could not update types for this project.');
       return;
     }
+    refresh();
+  };
+
+  const customFields = detail.data?.customFields ?? [];
+  const hasFoundOn = customFields.some((field) => field.name.toLowerCase() === FOUND_ON_FIELD.name.toLowerCase());
+
+  const addField = async () => {
+    if (!fieldName.trim()) return;
+    setFieldError(null);
+    setSavingField(true);
+    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/custom-fields`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: fieldName.trim(),
+        type: fieldType,
+        options: fieldType === 'dropdown' ? fieldOptions.split(',').map((item) => item.trim()).filter(Boolean) : [],
+        appliesTo: fieldApplies,
+      }),
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    setSavingField(false);
+    if (!res.ok) {
+      setFieldError(json.message ?? 'Could not add that field.');
+      return;
+    }
+    setAddingField(false);
+    setFieldName('');
+    setFieldType('dropdown');
+    setFieldOptions('Live, Test');
+    setFieldApplies([]);
+    refresh();
+  };
+
+  const addFoundOn = async () => {
+    setFieldError(null);
+    setSavingField(true);
+    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/custom-fields/found-on`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    setSavingField(false);
+    if (!res.ok) {
+      setFieldError(json.message ?? 'Could not add Found on.');
+      return;
+    }
+    refresh();
+  };
+
+  const removeField = async () => {
+    if (!deleteField) return;
+    setFieldError(null);
+    setSavingField(true);
+    const res = await fetch(`${BASE_URL}/projects/${encodeURIComponent(projectKey)}/custom-fields/${encodeURIComponent(deleteField.id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const json = await res.json().catch(() => ({})) as { message?: string };
+    setSavingField(false);
+    if (!res.ok) {
+      setFieldError(json.message ?? 'Could not remove that field.');
+      return;
+    }
+    setDeleteField(null);
     refresh();
   };
 
@@ -239,6 +319,76 @@ export function ProjectStructureScreen() {
           )}
         </section>
       </div>
+      <section className="bt-card">
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
+          <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Custom fields</h2>
+          <span style={{ fontSize: 12.5, color: color.muted }}>Up to {MAX_CUSTOM_FIELDS} per project. Dropdown, short text or date. Filterable in the list and saved views.</span>
+        </div>
+        {fieldError && <p style={{ margin: 0, padding: '10px 16px', color: color.danger, fontSize: 12.5 }}>{fieldError}</p>}
+        {customFields.map((field) => (
+          <div key={field.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 16px', minHeight: 52, padding: '8px 16px', borderBottom: `1px solid ${color.divider}` }}>
+            <span style={{ fontWeight: 600, minWidth: 120 }}>{field.name}</span>
+            <span style={{ fontSize: 12.5, color: color.muted, textTransform: 'capitalize' }}>{field.type}</span>
+            <span style={{ flex: '1 1 200px', fontSize: 12.5, color: color.muted }}>
+              {field.type === 'dropdown' ? field.options.join(', ') : field.type === 'date' ? 'Date' : 'Short text'}
+              {field.appliesTo.length ? ` · ${field.appliesTo.join(', ')}` : ' · all types'}
+            </span>
+            {canToggleTypes && <Button type="link" danger onClick={() => setDeleteField(field)}>Remove</Button>}
+          </div>
+        ))}
+        {customFields.length === 0 && (
+          <p style={{ margin: 0, padding: '12px 16px', fontSize: 13, color: color.muted }}>
+            Use a field such as Found on (Live or Test) for bugs, instead of extra sections.
+          </p>
+        )}
+        {canToggleTypes && !hasFoundOn && customFields.length < MAX_CUSTOM_FIELDS && (
+          <button type="button" onClick={() => void addFoundOn()} disabled={savingField} style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            + Add Found on for bugs
+          </button>
+        )}
+        {canToggleTypes && addingField && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '12px 16px', alignItems: 'center' }}>
+            <Input value={fieldName} onChange={(e) => setFieldName(e.target.value)} placeholder="Field name" style={{ width: 180 }} />
+            <Select
+              value={fieldType}
+              onChange={setFieldType}
+              options={[
+                { value: 'dropdown', label: 'Dropdown' },
+                { value: 'text', label: 'Text' },
+                { value: 'date', label: 'Date' },
+              ]}
+              style={{ width: 140 }}
+            />
+            {fieldType === 'dropdown' && (
+              <Input value={fieldOptions} onChange={(e) => setFieldOptions(e.target.value)} placeholder="Options, comma separated" style={{ flex: '1 1 200px' }} />
+            )}
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="All types"
+              value={fieldApplies}
+              onChange={setFieldApplies}
+              options={(catalog.types.length ? catalog.types : [{ slug: 'bug' }, { slug: 'idea' }]).map((row) => ({ value: row.slug, label: row.slug }))}
+              style={{ minWidth: 160 }}
+            />
+            <Button type="primary" loading={savingField} onClick={() => void addField()}>Add</Button>
+            <Button onClick={() => setAddingField(false)}>Cancel</Button>
+          </div>
+        )}
+        {canToggleTypes && !addingField && customFields.length < MAX_CUSTOM_FIELDS && (
+          <button type="button" onClick={() => setAddingField(true)} style={{ height: 44, padding: '0 16px', border: 0, background: 'transparent', color: color.brandStrong, font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Add field</button>
+        )}
+      </section>
+      <ConfirmDialog
+        open={Boolean(deleteField)}
+        title="Remove this field?"
+        confirmLabel="Remove field"
+        busy={savingField}
+        onCancel={() => setDeleteField(null)}
+        onConfirm={() => void removeField()}
+      >
+        {deleteField?.name ?? 'This field'} will leave tasks. Values already set on tasks are removed.
+      </ConfirmDialog>
       <section className="bt-card">
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: `1px solid ${color.divider}` }}>
           <h2 style={{ flex: 1, margin: 0, fontSize: 15, fontWeight: 600 }}>Trash <span style={{ fontWeight: 500, color: color.muted }}>{trash.data?.length ?? 0}</span></h2>
