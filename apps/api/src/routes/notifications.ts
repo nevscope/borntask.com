@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../context.js';
 import { prisma } from '../db.js';
 import { sendError, validation } from '../errors.js';
+import { DIGEST_SENT_KIND } from '../lib/presentNotification.js';
 import { taskKey } from '../lib/loadProject.js';
 import { mapUser } from '../lib/mappers.js';
 import { parseAccessNotifyKind } from '../lib/accessNotify.js';
@@ -113,6 +114,25 @@ function present(
   };
 }
 
+function presentOrSkip(
+  row: Parameters<typeof present>[0],
+  stage: { from: string | null; to: string | null },
+  handler: { id: string; name: string; email: string } | null,
+) {
+  if (row.kind === DIGEST_SENT_KIND) return null;
+  const taskKinds = row.kind === 'mention'
+    || row.kind === 'assigned'
+    || row.kind === 'moved'
+    || row.kind === 'github'
+    || row.kind === 'watched_comment'
+    || row.kind === 'reported_comment'
+    || row.kind === 'comment'
+    || parseMovedKind(row.kind)
+    || row.kind.startsWith('moved');
+  if (taskKinds && !row.task) return null;
+  return present(row, stage, handler);
+}
+
 type NotifyDb = Awaited<ReturnType<typeof requireAuth>>['db'];
 
 const actorBackfillTried = new Set<string>();
@@ -211,6 +231,10 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     actor: { select: { id: true, name: true, email: true } },
   } as const;
 
+  function inboxFilter(userId: string) {
+    return { userId, kind: { not: DIGEST_SENT_KIND } };
+  }
+
   async function stagesFor(
     db: NotifyDb,
     rows: {
@@ -253,21 +277,33 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
   }
 
   async function listFor(auth: Awaited<ReturnType<typeof requireAuth>>) {
-    const first = await auth.db.notification.findMany({
-      where: { userId: auth.userId },
-      include,
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    if (await backfillActors(auth.db, first)) {
-      return auth.db.notification.findMany({
-        where: { userId: auth.userId },
+    const where = inboxFilter(auth.userId);
+    const [unread, recent] = await Promise.all([
+      auth.db.notification.findMany({
+        where: { ...where, readAt: null },
         include,
         orderBy: { createdAt: 'desc' },
-        take: 50,
+        take: 200,
+      }),
+      auth.db.notification.findMany({
+        where,
+        include,
+        orderBy: { createdAt: 'desc' },
+        take: 80,
+      }),
+    ]);
+    const byId = new Map<string, (typeof unread)[number]>();
+    for (const row of [...unread, ...recent]) byId.set(row.id, row);
+    const merged = [...byId.values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    if (await backfillActors(auth.db, merged)) {
+      const ids = merged.map((row) => row.id);
+      return auth.db.notification.findMany({
+        where: { id: { in: ids } },
+        include,
+        orderBy: { createdAt: 'desc' },
       });
     }
-    return first;
+    return merged;
   }
 
   async function handlersFor(rows: { kind: string }[]) {
@@ -280,23 +316,23 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     return new Map(people.map((person) => [person.id, person]));
   }
 
-  async function unreadFor(auth: Awaited<ReturnType<typeof requireAuth>>) {
-    return auth.db.notification.count({ where: { userId: auth.userId, readAt: null } });
+  async function payload(auth: Awaited<ReturnType<typeof requireAuth>>) {
+    const rows = await listFor(auth);
+    const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
+    const items = rows
+      .map((row) => {
+        const access = parseAccessNotifyKind(row.kind);
+        const handler = access?.state === 'handled' ? handlers.get(access.handlerId) ?? null : null;
+        return presentOrSkip(row, stages.get(row.id) ?? { from: null, to: null }, handler);
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+    return { items, unreadCount: items.filter((row) => !row.readAt).length };
   }
 
   app.get('/me/notifications', async (req, reply) => {
     try {
       const auth = await requireAuth(req);
-      const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
-      const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
-      return {
-        items: rows.map((row) => {
-          const access = parseAccessNotifyKind(row.kind);
-          const handler = access?.state === 'handled' ? handlers.get(access.handlerId) ?? null : null;
-          return present(row, stages.get(row.id) ?? { from: null, to: null }, handler);
-        }),
-        unreadCount,
-      };
+      return payload(auth);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -320,16 +356,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
         },
         data: { readAt: new Date() },
       });
-      const [rows, unreadCount] = await Promise.all([listFor(auth), unreadFor(auth)]);
-      const [stages, handlers] = await Promise.all([stagesFor(auth.db, rows), handlersFor(rows)]);
-      return {
-        items: rows.map((row) => {
-          const access = parseAccessNotifyKind(row.kind);
-          const handler = access?.state === 'handled' ? handlers.get(access.handlerId) ?? null : null;
-          return present(row, stages.get(row.id) ?? { from: null, to: null }, handler);
-        }),
-        unreadCount,
-      };
+      return payload(auth);
     } catch (err) {
       return sendError(reply, err);
     }

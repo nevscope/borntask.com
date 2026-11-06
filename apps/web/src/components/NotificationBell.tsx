@@ -216,7 +216,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void; phone?: bo
   const [projectKey, setProjectKey] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const items = list?.items ?? [];
-  const unreadCount = list?.unreadCount ?? 0;
+  const unreadCount = list?.unreadCount ?? items.filter((note) => !note.readAt).length;
   const currentTask = params.get('task');
 
   const filtered = useMemo(
